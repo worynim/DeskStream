@@ -1,0 +1,6 @@
+psutil
+bleak
+pystray
+Pillow
+GPUtil
+# pyobjc-framework-Quartz # for macOS GPU/Temp (optional)
