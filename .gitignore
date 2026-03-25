@@ -1,0 +1,11 @@
+.DS_Store
+*.pyc
+__pycache__/
+build/
+*.bin
+*.elf
+*.hex
+*.out
+.vscode/
+.idea/
+.gemini/
