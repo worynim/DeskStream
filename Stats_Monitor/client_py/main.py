@@ -6,52 +6,70 @@ import pystray
 from metrics import MetricsCollector
 from ble_client import BLEStatsTransmitter
 
-# 전송 주기 (초)
+# 데이터 수집 및 BLE 전송 주기 (초)
 SEND_INTERVAL = 1  
 
-
 class StatsMonitorApp:
-    """메인 애플리케이션 클래스"""
+    """
+    메인 애플리케이션 클래스 (macOS 시스템 트레이 지원)
+    - 64x64 사이즈의 다이내믹 아이콘 생성
+    - 백그라운드 스레드에서 시스템 지표 수집 및 BLE 전송 수행
+    """
 
     def __init__(self) -> None:
-        self.collector = MetricsCollector()
-        self.transmitter = BLEStatsTransmitter(target_name="DeskStream_Stats")
+        self.collector = MetricsCollector() # 시스템 데이터 수집 객체
+        self.transmitter = BLEStatsTransmitter(target_name="DeskStream_Stats") # BLE 전송 객체
         self.is_running: bool = True
         self.icon: pystray.Icon | None = None
         self.send_count: int = 0
 
     def create_image(self) -> Image.Image:
-        """아이콘 이미지 생성"""
-        image = Image.new("RGB", (64, 64), color=(30, 30, 30))
+        """
+        아이콘 이미지 생성 (투명 배경 + 흰색 컴퓨터 실루엣)
+        macOS의 다크/라이트 모드와 투명한 상태 바에 맞춘 디자인
+        """
+        # RGBA(투명 채널 포함)로 64x64 캔버스 생성
+        image = Image.new("RGBA", (64, 64), color=(0, 0, 0, 0))
         d = ImageDraw.Draw(image)
-        d.rectangle([8, 12, 56, 44], outline=(0, 200, 100), width=2) # 모니터 프레임
-        d.rectangle([24, 44, 40, 52], fill=(0, 200, 100)) # 스탠드
+        
+        # 흰색 모니터 프레임 (외곽선 3px 두께)
+        d.rectangle([8, 12, 56, 44], outline=(255, 255, 255, 255), width=3) 
+        # 모니터 스탠드 (내부 채우기)
+        d.rectangle([24, 44, 40, 52], fill=(255, 255, 255, 255)) 
         return image
 
     def on_quit(self, icon: pystray.Icon, item: pystray.MenuItem) -> None:
-        """종료 처리"""
+        """종료 메뉴 선택 시 실행되는 콜백"""
         print("Quitting Stats Monitor...")
         self.is_running = False
         icon.stop()
 
     async def data_loop(self) -> None:
-        """데이터 수집 및 전송 메인 루프"""
+        """
+        [비동기 루틴] 시스템 지표 수집 및 BLE 데이터를 전송하는 무한 루프
+        - 1초 단위로 collectors로부터 데이터를 가져와 JSON 형태로 전송
+        """
         print("Starting data collection loop...")
         
         while self.is_running:
             try:
+                # [수집] CPU, GPU, RAM, Disk, Net 데이터 가져오기
                 data = self.collector.collect_all()
+                # [전송] 수집한 데이터를 BLE 서버(ESP32-C3)로 전송
                 success = await self.transmitter.send_data(data)
+                
                 if success:
                     self.send_count += 1
+                    # 콘솔 앱 로그 출력 (터미널에서 확인 가능)
                     print(f"[#{self.send_count}] Sent: {data}")
             except Exception as e:
                 print(f"Loop error: {e}")
 
+            # 지정된 전송 주기만큼 대기 (비동기 처리)
             await asyncio.sleep(SEND_INTERVAL)
 
     def start_async_loop(self) -> None:
-        """별도 스레드에서 asyncio 이벤트 루프 실행"""
+        """별도 스레드에서 asyncio 이벤트 루프를 생성하고 실행"""
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
@@ -60,21 +78,29 @@ class StatsMonitorApp:
             print(f"Async loop error: {e}")
 
     def run(self) -> None:
-        """메인 실행 (트레이=메인스레드)"""
-        # 백그라운드 스레드: 데이터 수집 + BLE 전송
+        """
+        애플리케이션 진입점
+        - 데이터 루프는 데몬 스레드에서 작동
+        - 메인 스레드에서는 macOS 필수 요구 사항인 시스템 트레이 GUI 실행
+        """
+        # [백그라운드 스레드] 데이터 수집 및 BLE 전송 가동
         data_thread = threading.Thread(
             target=self.start_async_loop, daemon=True
         )
         data_thread.start()
 
-        # 메인 스레드: 시스템 트레이 (macOS 필수)
+        # [메인 스레드] 시스템 트레이 아이콘 설정 및 실행
         menu = pystray.Menu(pystray.MenuItem("Quit", self.on_quit))
         self.icon = pystray.Icon(
-            "StatsMonitor", self.create_image(), "DeskStream Stats", menu
+            "StatsMonitor", 
+            self.create_image(), 
+            "DeskStream Stats Monitor (v1.0)", # 툴팁 정보
+            menu
         )
-        print("Starting System Tray...")
+        
+        print("Starting System Tray Icon...")
+        # icon.run()은 루프가 중단될 때까지 메인 스레드를 점유함
         self.icon.run()
-
 
 if __name__ == "__main__":
     app = StatsMonitorApp()
