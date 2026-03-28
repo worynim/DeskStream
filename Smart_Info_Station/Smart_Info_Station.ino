@@ -29,15 +29,89 @@ U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_3(U8G2_R0, /* clock=*/SW_SCL_PIN, /* da
 U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_4(U8G2_R0, /* clock=*/SW_SCL_PIN, /* data=*/SW_SDA_PIN, /* reset=*/U8X8_PIN_NONE);  // 4번 화면 객체
 
 // 물리적 GPIO 핀 번호 설정
+// 루프 상태 저장용 정적 변수
+static bool prev_updating_states[MAX_WIDGET_RECORDS] = {false};
+static unsigned long last_animation_tick[MAX_WIDGET_RECORDS] = {0};
 
-// 페이지 및 버튼 인터랙션 제어 변수
-int current_page = 1;                         // 현재 표시 중인 페이지 번호 (1~MAX_PAGE)
-bool button_state = HIGH;                     // 현재 버튼의 논리적 상태
-bool last_button_reading = HIGH;              // 직전 루프에서 읽은 버튼의 물리적 값
-unsigned long last_debounce_time = 0;         // 버튼 디바운싱을 위한 마지막 시간 기록
-unsigned long button_press_start_time = 0;    // 버튼이 눌리기 시작한 시각 (millis)
-bool is_long_press_triggered = false;         // 길게 누름(Long Press)이 이미 실행되었는지 여부
-const unsigned long LONG_PRESS_TIME = 1000;   // 길게 누름을 판정하는 Threshold (1초)
+// --- [버튼 및 화면 반전 제어 (Button & Flip Control)] ---
+struct Button {
+    int pin;
+    bool lastState;
+    unsigned long fallTime;
+    bool isPressed;
+    bool isLongPressFired; 
+    void (*onShortPress)();
+    void (*onLongPress)();
+    
+    Button(int p, void (*sp)(), void (*lp)()) : pin(p), lastState(HIGH), fallTime(0), isPressed(false), isLongPressFired(false), onShortPress(sp), onLongPress(lp) {}
+
+    void init() { pinMode(pin, INPUT_PULLUP); }
+    void update() {
+        bool currentState = digitalRead(pin);
+        unsigned long now = millis();
+        if (lastState == HIGH && currentState == LOW) { fallTime = now; isPressed = true; isLongPressFired = false; } 
+        else if (currentState == LOW) {
+            if (isPressed && !isLongPressFired && (now - fallTime > 1000)) {
+                isLongPressFired = true;
+                if (onLongPress) onLongPress();
+            }
+        } 
+        else if (lastState == LOW && currentState == HIGH) {
+            if (isPressed && !isLongPressFired && (now - fallTime > 50)) { if (onShortPress) onShortPress(); }
+            isPressed = false;
+        }
+        lastState = currentState;
+    }
+};
+
+int currentFlipMode = 2; // 0:Normal, 1:Mirror H, 2:180(HV), 3:Mirror V
+int currentBrightnessLevel = 3; // 0:25%, 1:50%, 2:75%, 3:100%
+bool isLoopingMode = false;     // 자동 페이지 전환 모드
+unsigned long lastPageCycleTime = 0;
+const unsigned long CYCLE_INTERVAL = 5000; 
+int current_page = 1;
+
+/**
+ * @brief OLED의 밝기를 조절 (Contrast 설정)
+ */
+void updateBrightness() {
+  uint8_t contrast;
+  switch (currentBrightnessLevel) {
+    case 0:  contrast = 63; break;  // 25%
+    case 1:  contrast = 127; break; // 50%
+    case 2:  contrast = 191; break; // 75%
+    default: contrast = 255; break; // 100%
+  }
+  u8g2_1.setContrast(contrast);
+  u8g2_2.setContrast(contrast);
+  u8g2_3.setContrast(contrast);
+  u8g2_4.setContrast(contrast);
+}
+
+/**
+ * @brief 화면 반전 설정을 하드웨어 레지스터에 즉시 적용
+ */
+void updateDisplayFlip() {
+  uint8_t seg, com;
+  switch (currentFlipMode) {
+    case 1:  seg = 0xA1; com = 0xC0; break; 
+    case 2:  seg = 0xA1; com = 0xC8; break; 
+    case 3:  seg = 0xA0; com = 0xC8; break; 
+    default: seg = 0xA0; com = 0xC0; break; 
+  }
+  u8g2_1.sendF("c", seg); u8g2_1.sendF("c", com);
+  u8g2_2.sendF("c", seg); u8g2_2.sendF("c", com);
+  u8g2_3.sendF("c", seg); u8g2_3.sendF("c", com);
+  u8g2_4.sendF("c", seg); u8g2_4.sendF("c", com);
+}
+
+void saveGeneralSettings() {
+  preferences.begin("settings", false);
+  preferences.putInt("flip", currentFlipMode);
+  preferences.putInt("bright", currentBrightnessLevel);
+  preferences.putBool("loop", isLoopingMode);
+  preferences.end();
+}
 
 
 /**
@@ -109,7 +183,92 @@ void configModeCallback(WiFiManager *myWiFiManager) {
 
 
 
-// 3번째 페이지: 설정 웹서버 IP 주소를 4개의 OLED에 크게 분산 표시
+// BTN 콜백 정의
+void btn4_short() { 
+  current_page = (current_page % MAX_PAGE) + 1;
+  for (int w = 0; w < WIDGET_COUNT; w++) prev_updating_states[w] = false;
+  redraw_current_page();
+  Serial.printf("[BUTTON] BTN4 Short -> Page %d\n", current_page);
+}
+void btn4_long() {
+  Serial.println("[BUTTON] BTN4 Long -> Refreshing data...");
+  force_update = true;
+  if (is_waiting && dataTaskHandle != NULL) xTaskAbortDelay(dataTaskHandle);
+}
+
+void btn1_short() {
+  currentFlipMode = (currentFlipMode + 1) % 4;
+  updateDisplayFlip();
+  saveGeneralSettings();
+  Serial.printf("[BUTTON] BTN1 Short -> Flip Mode %d\n", currentFlipMode);
+}
+void btn1_long() { /* Reserved */ }
+
+void btn2_short() {
+  currentBrightnessLevel = (currentBrightnessLevel + 1) % 4;
+  updateBrightness();
+  saveGeneralSettings();
+  Serial.printf("[BUTTON] BTN2 Short -> Brightness %d%%\n", (currentBrightnessLevel + 1) * 25);
+}
+void btn2_long() { /* Reserved */ }
+
+void btn3_short() { /* Reserved */ }
+void btn3_long() {
+  isLoopingMode = !isLoopingMode;
+  if (isLoopingMode) lastPageCycleTime = millis();
+  saveGeneralSettings();
+  Serial.printf("[BUTTON] BTN3 Long -> Looping Mode: %s\n", isLoopingMode ? "ON" : "OFF");
+  
+  // 상태 변경 시 즉시 피드백 (도움말 페이지나 현재 페이지 리드로우)
+  if (current_page == 4) redraw_current_page();
+}
+
+// 버튼 객체 정의
+Button btns[4] = {
+  Button(BTN1_PIN, btn1_short, btn1_long),
+  Button(BTN2_PIN, btn2_short, btn2_long),
+  Button(BTN3_PIN, btn3_short, btn3_long),
+  Button(BTN4_PIN, btn4_short, btn4_long)
+};
+
+// 4번째 페이지: 버튼 기능 안내 (Short/Long Press 설명)
+void display_button_help_page() {
+  for (int i = 1; i <= 4; i++) {
+    U8G2 &u8g2 = getScreen(i);
+    u8g2.clearBuffer();
+    u8g2_prepare(u8g2);
+    
+    // 상단 제목
+    u8g2.setFont(u8g2_font_6x10_tf);
+    char title[16];
+    snprintf(title, sizeof(title), "BTN %d SETTING", i);
+    drawCenteredText(u8g2, title, 5);
+    u8g2.drawLine(0, 18, 128, 18);
+
+    // 상세 설명
+    u8g2.setFont(u8g2_font_5x7_tr);
+    if (i == 4) { // BTN 4 (Pin 9)
+      u8g2.drawStr(5, 30, "SHORT: NEXT PAGE");
+      u8g2.drawStr(5, 45, "LONG: REFRESH DATA");
+    } else if (i == 1) { // BTN 1 (Pin 1)
+      u8g2.drawStr(5, 30, "SHORT: SCREEN FLIP");
+      u8g2.drawStr(5, 45, "LONG: - RESERVED -");
+    } else if (i == 2) { // BTN 2 (Pin 4)
+      u8g2.drawStr(5, 30, "SHORT: BRIGHTNESS");
+      u8g2.drawStr(5, 45, "LONG: - RESERVED -");
+    } else if (i == 3) { // BTN 3 (Pin 10)
+      u8g2.drawStr(5, 30, "SHORT: - RESERVED -");
+      u8g2.drawStr(5, 45, isLoopingMode ? "LONG: AUTO LOOP [ON]" : "LONG: AUTO LOOP [OFF]");
+    } else {
+      u8g2.drawStr(5, 30, "SHORT: - RESERVED -");
+      u8g2.drawStr(5, 45, "LONG:  - RESERVED -");
+    }
+    
+    u8g2.sendBuffer();
+  }
+}
+
+// 5번째 페이지: 설정 웹서버 IP 주소를 4개의 OLED에 크게 분산 표시
 void display_ip_page() {
   IPAddress ip = WiFi.localIP();
   for (int i = 1; i <= 4; i++) {
@@ -144,6 +303,10 @@ void redraw_current_page() {
   u8g2_4.clearBuffer(); u8g2_4.sendBuffer();
 
   if (current_page == 4) {
+    display_button_help_page();
+    return;
+  }
+  if (current_page == 5) {
     display_ip_page();
     return;
   }
@@ -179,15 +342,12 @@ void redraw_current_page() {
   }
 }
 
-// 루프 상태 저장용 정적 변수
-static bool prev_updating_states[MAX_WIDGET_RECORDS] = {false};
-static unsigned long last_animation_tick[MAX_WIDGET_RECORDS] = {0};
 
 void setup() {
   Serial.begin(115200);
 
-  // 버튼 스위치 초기화 (내부 Pull-up 저항 사용)
-  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  // 버튼 핀 초기화 (BTN1~BTN4)
+  for (int i = 0; i < 4; i++) btns[i].init();
 
   // 하드웨어 I2C 초기화 (핀 5, 6)
   Wire.begin(HW_SDA_PIN, HW_SCL_PIN);
@@ -231,7 +391,17 @@ void setup() {
   dust_location = preferences.getString("dust_loc", "가산동");
   weather_location_code = preferences.getString("weather_code", "1154551000");
   timezone_offset = preferences.getInt("tz_offset", 9);
+  currentFlipMode = preferences.getInt("flip", 2);
+  currentBrightnessLevel = preferences.getInt("bright", 3);
+  isLoopingMode = preferences.getBool("loop", false);
   preferences.end();
+
+  // 버튼 핀 초기화
+  for (int i = 0; i < 4; i++) btns[i].init();
+
+  // 저장된 반전 모드 및 밝기 즉시 적용
+  updateDisplayFlip();
+  updateBrightness();
 
   preferences.begin("screen_map", true);
   for (int i = 0; i < 12; i++) {
@@ -254,46 +424,24 @@ void loop() {
   server.handleClient();
   unsigned long now_ms = millis();
 
-  // [입력] 버튼(9번 핀) 처리: 페이지 전환(Short) 또는 데이터 새로고침(Long)
-  bool reading = digitalRead(BUTTON_PIN);
-  if (reading != last_button_reading) last_debounce_time = now_ms;
+  // [입력] 버튼 처리
+  for (int i = 0; i < 4; i++) btns[i].update();
 
-  if ((now_ms - last_debounce_time) > 50) {
-    if (reading != button_state) {
-      button_state = reading;
-      
-      if (button_state == LOW) { // 버튼 눌림 시작
-        button_press_start_time = now_ms;
-        is_long_press_triggered = false;
-      } else { // 버튼 뗌
-        if (!is_long_press_triggered) {
-          // [Short Press] 페이지 전환 (길게 누름이 아닌 경우만)
-          current_page = (current_page % MAX_PAGE) + 1;
-          for (int w = 0; w < WIDGET_COUNT; w++) prev_updating_states[w] = false;
-          redraw_current_page();
-          Serial.printf("[BUTTON] Short press -> Page %d\n", current_page);
-        }
+  // [루핑 모드] 페이지 자동 전환 처리 (1~3페이지 순환)
+  if (isLoopingMode) {
+    if (now_ms - lastPageCycleTime >= CYCLE_INTERVAL) {
+      if (current_page < 4) { // 현재 데이터 페이지를 보고 있을 때만 자동 전환
+        current_page = (current_page % 3) + 1;
+        redraw_current_page();
       }
+      lastPageCycleTime = now_ms;
     }
   }
-
-  // [Long Press] 누르고 있는 동안 감지 (Hold 기반)
-  if (button_state == LOW && !is_long_press_triggered) {
-    if (now_ms - button_press_start_time >= LONG_PRESS_TIME) {
-      is_long_press_triggered = true;
-      Serial.println("[BUTTON] Long press detected. Refreshing data...");
-      force_update = true;
-      if (is_waiting && dataTaskHandle != NULL) {
-        xTaskAbortDelay(dataTaskHandle);
-      }
-    }
-  }
-  last_button_reading = reading;
 
   // [표시 1] 시계 전용 업데이트 (1초마다 무조건 갱신, 3페이지 제외)
   static unsigned long last_clock_ms = 0;
   if (now_ms - last_clock_ms >= 1000) {
-    if (current_page != 4) {
+    if (current_page <= 3) {
       int start_idx = (current_page - 1) * 4;
       for (int i = start_idx; i < start_idx + 4; i++) {
          if (SCREEN_MAP[i] == W_TIME) display_clock_oled(getScreen(i + 1));
@@ -303,8 +451,8 @@ void loop() {
     last_clock_ms = now_ms;
   }
 
-  // [표시 2] 데이터 위젯 통합 상태 엔진 (1, 2, 3페이지만 해당)
-  if (current_page != 4) {
+  // [표시 2] 데이터 위젯 통합 상태 엔진 (1, 2, 3페지만 해당)
+  if (current_page <= 3) {
     int start_idx = (current_page - 1) * 4;
     for (int w = 0; w < WIDGET_COUNT; w++) {
     const WidgetUpdateInfo &info = widgets_info[w];

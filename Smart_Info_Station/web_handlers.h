@@ -10,6 +10,7 @@
 extern WebServer server;
 extern Preferences preferences;
 extern int timezone_offset;
+extern bool isLoopingMode;
 extern WidgetType SCREEN_MAP[12];
 
 // --- 외부 함수 참조 ---

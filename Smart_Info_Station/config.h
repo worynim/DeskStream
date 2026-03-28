@@ -5,7 +5,7 @@
 
 // --- 설정 상수 (OLED 페이지 및 위젯) ---
 #define MAX_WIDGET_TYPE 13
-#define MAX_PAGE 4
+#define MAX_PAGE 5
 
 // --- OLED 하드웨어 핀 설정 (상수) ---
 const uint8_t HW_SDA_PIN = 5;
@@ -13,8 +13,12 @@ const uint8_t HW_SCL_PIN = 6;
 const uint8_t SW_SDA_PIN = 2;
 const uint8_t SW_SCL_PIN = 3;
 
-// --- 입력 장치 핀 ---
-const int BUTTON_PIN = 9;
+// --- 입력 장치 핀 (hardware.md 참조) ---
+const int BTN1_PIN = 1;  // OLED 1 제어용
+const int BTN2_PIN = 4;  // OLED 2 제어용
+const int BTN3_PIN = 10; // OLED 3 제어용
+const int BTN4_PIN = 9;  // OLED 4 제어용 (기존 BUTTON_PIN)
+const int BUTTON_PIN = BTN4_PIN; 
 
 // --- 데이터 업데이트 주기 ---
 const unsigned long INTERVAL_FINANCE = 60 * 1000;    

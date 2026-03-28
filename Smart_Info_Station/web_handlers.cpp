@@ -66,9 +66,20 @@ void handleRoot() {
   }
   html += "</div><br>";
 
-  // 4페이지 안내 (고정형)
-  html += "<div class=\"page-title\">[PAGE 4] 시스템 정보 (IP 주소)</div>";
-  html += "<p style=\"color: #666; font-size: 0.9em; margin-bottom: 20px;\">* 4페이지는 설정 웹서버 접속 주소(IP)를 4개의 화면에 크게 나누어 표시하는 시스템 고정 페이지입니다.</p>";
+  // 4페이지 안내 (도움말)
+  html += "<div class=\"page-title\">[PAGE 4] 버튼 기능 도움말</div>";
+  html += "<p style=\"color: #666; font-size: 0.9em; margin-bottom: 20px;\">* 4페이지는 하드웨어 버튼(BTN 1~4)의 짧게/길게 누름 기능을 화면에 안내하는 페이지입니다.</p>";
+
+  html += "<p style=\"color: #666; font-size: 0.9em; margin-bottom: 20px;\">* 5페이지는 설정 웹서버 접속 주소(IP)를 4개의 화면에 크게 나누어 표시하는 시스템 고정 페이지입니다.</p>";
+  
+  // 자동 페이지 루핑 설정 추가 (카드 내부 하단)
+  html += "<br><div class=\"page-title\" style=\"background: #e1f5fe; color: #01579b;\">🔄 자동 페이지 루핑 (Loop Mode)</div>";
+  html += "<p style=\"font-size: 0.85em; color: #666;\">1, 2, 3페이지를 5초마다 자동으로 순환하여 보여줍니다.</p>";
+  html += "<select name=\"loop_mode\" style=\"width: 100%; border: 1px solid #81d4fa;\">";
+  html += "<option value=\"0\"" + String(!isLoopingMode ? " selected" : "") + ">OFF (수동 전환)</option>";
+  html += "<option value=\"1\"" + String(isLoopingMode ? " selected" : "") + ">ON (자동 순환)</option>";
+  html += "</select>";
+  
   html += "</div>";
 
   // 나머지 입력 필드 템플릿 적용
@@ -109,6 +120,13 @@ void handleSet() {
     changed = true;
     tz_changed = true;
   }
+  if (server.hasArg("loop_mode")) {
+    bool new_loop = server.arg("loop_mode").toInt() == 1;
+    if (new_loop != isLoopingMode) {
+        isLoopingMode = new_loop;
+        changed = true;
+    }
+  }
 
   // 1~12번 슬롯 스크린맵 파라미터 처리
   for (int i = 0; i < 12; i++) {
@@ -129,6 +147,7 @@ void handleSet() {
     preferences.putString("dust_loc", dust_location);
     preferences.putString("weather_code", weather_location_code);
     preferences.putInt("tz_offset", timezone_offset);
+    preferences.putBool("loop", isLoopingMode);
     preferences.end();
 
     preferences.begin("screen_map", false);
