@@ -1,5 +1,10 @@
 # 🚀 DeskStream Release Notes
 
+## [v1.5.1] - 2026-03-28
+### Improved (Stats_Monitor: 부팅 시 OLED 대기 화면 안내 시스템 도입)
+- **클라이언트 실행 유도 UX 개선**: 보드 전원 투입 직후(또는 연결 대기 중) OLED가 비어 있지 않도록 "PLEASE RUN PC CLIENT APP" 안내 메시지가 4개 OLED에 걸쳐 즉시 표시되도록 개선.
+- **초기 렌더링 응답성 강화**: 펌웨어 내 상태 머신(`lastState = -1`)을 적용하여 부팅 및 재접속 시의 시각적 피드백 속도 최적화.
+
 ## [v1.5.0] - 2026-03-28
 ### Improved (Smart_Info_Station: 성능 최적화 및 스마트 루핑 도입)
 - **화면 깜빡임 제로(Flicker-Free)**: 이중 버퍼 정제 로직 최적화를 통해 페이지 전환 시의 깜빡임을 제거하고 부드러운 UI 전환 구현.

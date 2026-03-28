@@ -278,15 +278,30 @@ void loop() {
     drawNetwork(u8g2_4);
     dataReceived = false;
   } else {
-    // 연결 상태 모니터링 및 메시지 표시
-    static bool lastState = false;
-    if (deviceConnected != lastState) {
-      lastState = deviceConnected;
-      const char *msg = deviceConnected ? "CONNECTED" : "WAITING...";
-      for (int i = 0; i < 4; i++) {
-        screens[i]->clearBuffer();
-        drawCentered(*screens[i], msg, 40, u8g2_font_profont15_tr);
-        smartSendBuffer(i);
+    // 연결 상태 모니터링 및 대기 메시지 표시 (클라이언트 실행 유도)
+    static int lastState = -1;  // -1: 초기화, 0: 연결안됨, 1: 연결됨
+    int currentState = deviceConnected ? 1 : 0;
+
+    if (currentState != lastState) {
+      lastState = currentState;
+      if (currentState == 1) {
+        // BLE 연결됨, 클라이언트에서 데이터 데이터가 오기를 기다리는 중
+        for (int i = 0; i < 4; i++) {
+          screens[i]->clearBuffer();
+          drawCentered(*screens[i], "CONNECTED", 30, u8g2_font_7x14B_tf);
+          drawCentered(*screens[i], "Waiting for Data...", 48, u8g2_font_profont15_tr);
+          smartSendBuffer(i);
+        }
+      } else {
+        // 연결 안됨 (부팅 직후 또는 연결 끊김) -> 클라이언트 실행 메시지 표시
+        const char *titles[4] = { "DeskStream", "SYSTEM STATS", "PLEASE RUN", "BLE READY" };
+        const char *subs[4] = { "Stats Monitor", "WAITING...", "PC CLIENT APP", "Searching..." };
+        for (int i = 0; i < 4; i++) {
+          screens[i]->clearBuffer();
+          drawCentered(*screens[i], titles[i], 30, u8g2_font_7x14B_tf);
+          drawCentered(*screens[i], subs[i], 48, u8g2_font_profont15_tr);
+          smartSendBuffer(i);
+        }
       }
     }
   }
