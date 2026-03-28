@@ -17,8 +17,8 @@
 
 // --- 설정 상수 ---
 // --- 설정 상수 ---
-#define MAX_WIDGET_TYPE 12        // 등록 가능한 위젯 종류의 최대값 (W_KPI200 매핑)
-#define MAX_PAGE 3                // OLED 디바이스에서 전환 가능한 총 페이지 수 (1, 2, 3페이지)
+#define MAX_WIDGET_TYPE 13        // 등록 가능한 위젯 종류의 최대값 (W_CALENDAR 포함)
+#define MAX_PAGE 4                // OLED 디바이스에서 전환 가능한 총 페이지 수 (1, 2, 3, 4페이지)
 
 /**
  * OLED 핀 설정 (하이브리드 I2C 버스 구성)
@@ -67,15 +67,17 @@ enum WidgetType {
   W_SNP500,      // S&P 500 지수
   W_NASDAQ,      // 나스닥 지수
   W_BTC,         // 비트코인 시세 (Binance)
-  W_USDKRW       // 원/달러 환율 (Yahoo)
+  W_USDKRW,      // 원/달러 환율 (Yahoo)
+  W_CALENDAR     // 달력 (격자형 캘린더)
 };
 
 /**
- * 📺 디스플레이 스크린 맵핑 (1~8번 슬롯)
+ * 📺 디스플레이 스크린 맵핑 (1~12번 슬롯)
  * 0~3번 인덱스: 1페이지의 화면 1~4
  * 4~7번 인덱스: 2페이지의 화면 1~4
+ * 8~11번 인덱스: 3페이지의 화면 1~4
  */
-WidgetType SCREEN_MAP[8] = {
+WidgetType SCREEN_MAP[12] = {
   // 1페이지 설정 (기본 정보)
   W_TIME,     // 스크린 1
   W_WEATHER,  // 스크린 2
@@ -85,8 +87,14 @@ WidgetType SCREEN_MAP[8] = {
   // 2페이지 설정 (금융 지수)
   W_KOSPI,    // 스크린 5
   W_KOSDAQ,   // 스크린 6
-  W_SNP500,   // 스크린 7
-  W_USDKRW    // 스크린 8
+  W_KPI200,   // 스크린 7
+  W_FUTURES,   // 스크린 8
+
+  // 3페이지 설정 (심화 정보 - 기본값)
+  W_SNP500,   // 스크린 9
+  W_NASDAQ,  // 스크린 10
+  W_BTC,      // 스크린 11
+  W_USDKRW    // 스크린 12
 };
 
 /**
@@ -110,7 +118,7 @@ U8G2 &getScreen(int num) {
  * @return 등록 여부 (true/false)
  */
 bool isWidgetActive(WidgetType type) {
-  for (int i = 0; i < 8; i++) {
+  for (int i = 0; i < 12; i++) {
     if (SCREEN_MAP[i] == type) return true;
   }
   return false;
@@ -122,8 +130,8 @@ bool isWidgetActive(WidgetType type) {
  * @return 가시성 여부 (true/false)
  */
 bool isWidgetVisible(WidgetType type) {
-  if (current_page == 3) return false; // 3페이지는 IP 표시용 시스템 고정 페이지
-  int start_idx = (current_page == 1) ? 0 : 4;
+  if (current_page == 4) return false; // 4페이지는 IP 표시용 시스템 고정 페이지
+  int start_idx = (current_page - 1) * 4;
   for (int i = start_idx; i < start_idx + 4; i++) {
     if (SCREEN_MAP[i] == type) return true;
   }
@@ -400,11 +408,11 @@ void dataTask(void *pvParameters) {
       }
 
       // [2] 순차 업데이트 가시성 스캔 (OLED 1 -> 4 순서)
-      int start_idx = (current_page == 1) ? 0 : 4;
-      if (current_page != 3) {
+      int start_idx = (current_page - 1) * 4;
+      if (current_page != 4) {
         for (int i = start_idx; i < start_idx + 4; i++) {
           WidgetType type = SCREEN_MAP[i];
-          if (type == W_NONE || type == W_TIME) continue;
+          if (type == W_NONE || type == W_TIME || type == W_CALENDAR) continue;
 
           for (int w = 0; w < WIDGET_COUNT; w++) {
             if (widgets_info[w].type == type) {
@@ -443,9 +451,6 @@ void dataTask(void *pvParameters) {
         }
       }
 
-      // [3] 백그라운드 스캔 섹션 삭제됨 (사용자 요청: 화면 미표시 위젯 업데이트 금지)
-      
-
       if (is_finance_interval) last_finance_update = now;
       if (is_slow_interval) last_slow_update = now;
     }
@@ -468,13 +473,101 @@ void display_clock_oled(U8G2 &u8g2) {
   String dateLine = t_str.substring(20, 24) + " " + t_str.substring(4, 10) + " " + t_str.substring(0, 3);
   drawCenteredText(u8g2, dateLine, 5);
   u8g2.setFont(u8g2_font_maniac_tr);
-  u8g2.setCursor(4, 25);
-  u8g2.print(t_str.substring(11, 19));
+  drawCenteredText(u8g2, t_str.substring(11, 19), 25);
+
   u8g2.setFont(u8g2_font_6x10_tf);
   u8g2.drawStr(10, 56, "Set: ");
   u8g2.drawStr(35, 56, WiFi.localIP().toString().c_str());
   u8g2.sendBuffer();
 }
+
+/**
+ * 달력을 표시하는 격자형 캘린더 위젯
+ * GPS_DASH 프로젝트의 drawCalendar 로직과 100% 동일한 좌표를 유지하여 구현함.
+ * @param u8g2 대상 디스플레이 객체
+ */
+/**
+ * 달력을 표시하는 격자형 캘린더 위젯
+ * 글자 겹침을 방지하고 6행(마지막 주)까지 OLED(64px)에 표시되도록 최적화된 좌표 적용
+ * @param u8g2 대상 디스플레이 객체
+ */
+void display_calendar_oled(U8G2 &u8g2) {
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) return;
+
+  int year = timeinfo.tm_year + 1900;
+  int month = timeinfo.tm_mon + 1;
+  int day = timeinfo.tm_mday;
+
+  u8g2_prepare(u8g2);
+  // GPS_DASH는 기본 Baseline 기준을 사용하므로, 이 화면에만 GPS_DASH와 동일한 좌표 기준을 적용합니다.
+  u8g2.setFontPosBaseline(); 
+  u8g2.clearBuffer();
+  
+  // 최상단 Header 날짜 (예: 2026.03)
+  char buf[16];
+  snprintf(buf, sizeof(buf), "%d.%02d", year, month);
+
+  // GPS_DASH의 drawCenteredText(4인자)와 완전히 동일한 동작을 로컬에서 수행
+  u8g2.setFont(u8g2_font_bpixeldouble_tr);
+  int textWidth = u8g2.getUTF8Width(buf);
+  int headerX = (128 - textWidth) / 2;
+  if (headerX < 0) headerX = 0;
+  u8g2.drawUTF8(headerX, 14, buf);
+  
+  // 해당 월의 1일 요일 계산 (Sakamoto Algorithm)
+  static int t[] = { 0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4 };
+  int y_calc = year;
+  if (month < 3) y_calc -= 1;
+  int firstDayOfWeek = ( y_calc + y_calc/4 - y_calc/100 + y_calc/400 + t[month-1] + 1 ) % 7; // 0=Sun, 6=Sat
+  
+  // 해당 월의 총 일수 자동 계산
+  int daysInMonth = 31;
+  if (month == 4 || month == 6 || month == 9 || month == 11) daysInMonth = 30;
+  else if (month == 2) daysInMonth = (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)) ? 29 : 28;
+  
+  // 요일 헤더 그리기 (S M T W T F S)
+  u8g2.setFont(u8g2_font_5x7_tr);
+  const char* wdays[] = {"S", "M", "T", "W", "T", "F", "S"};
+  int colW = 18; // 한 열(Day)이 차지하는 가로 너비
+  int xOffset = 1;
+  
+  for (int i = 0; i < 7; i++) {
+      int x = xOffset + i * colW + (colW - u8g2.getUTF8Width(wdays[i])) / 2;
+      u8g2.drawStr(x, 22, wdays[i]);
+  }
+  
+  u8g2.drawLine(0, 23, 128, 23); // 요일과 날짜 경계선
+  
+  // 일자 데이터 그리기 (그리드 레이아웃)
+  int currentDay = 1;
+  for (int row = 0; row < 6; row++) {
+      for (int col = 0; col < 7; col++) {
+          if (row == 0 && col < firstDayOfWeek) continue;
+          if (currentDay > daysInMonth) break;
+          
+          snprintf(buf, sizeof(buf), "%d", currentDay);
+          int dw = u8g2.getUTF8Width(buf);
+          int cx = xOffset + col * colW + colW / 2; // 칸의 정중앙 x좌표
+          int dx = cx - dw / 2; // 텍스트 렌더링 시작 좌표
+          int dy = 31 + row * 8; // 날짜 행(Row)간 세로 간격(8px)
+          
+          if (currentDay == day) { // 오늘 날짜면 반전 하이라이트 박스 생성
+              u8g2.setDrawColor(1); // 박스는 하얗게
+              u8g2.drawBox(cx - 8, dy - 7, 16, 8); 
+              u8g2.setDrawColor(0); // 글자는 까맣게(투명하게 파내기)
+              u8g2.drawStr(dx, dy, buf);
+              u8g2.setDrawColor(1); // 원래대로 복구
+          } else {
+              u8g2.drawStr(dx, dy, buf);
+          }
+          currentDay++;
+      }
+      if (currentDay > daysInMonth) break;
+  }
+  u8g2.sendBuffer();
+}
+
 
 void display_weather_oled(U8G2 &u8g2) {
   u8g2_prepare(u8g2);
@@ -616,21 +709,25 @@ void redraw_current_page() {
   u8g2_3.clearBuffer(); u8g2_3.sendBuffer();
   u8g2_4.clearBuffer(); u8g2_4.sendBuffer();
 
-  if (current_page == 3) {
+  if (current_page == 4) {
     display_ip_page();
     return;
   }
 
-  int start_idx = (current_page == 1) ? 0 : 4;
+  int start_idx = (current_page - 1) * 4;
   for (int i = start_idx; i < start_idx + 4; i++) {
     int slot_num = i + 1;
     WidgetType type = SCREEN_MAP[i];
 
     if (type == W_NONE) continue;
 
-    // 시계는 별도 처리 (widgets_info 테이블에 없음)
+    // 시계 및 달력은 별도 처리 (widgets_info 테이블에 없음)
     if (type == W_TIME) {
       display_clock_oled(getScreen(slot_num));
+      continue;
+    }
+    if (type == W_CALENDAR) {
+      display_calendar_oled(getScreen(slot_num));
       continue;
     }
 
@@ -659,7 +756,7 @@ void handleRoot() {
   html += "<h3>📺 스마트 화면 배치 (Slot 1~8)</h3>";
   html += "<p>물리적인 4개의 화면에 표시될 위젯을 페이지별로 설정하세요.</p>";
 
-  const char *w_names[] = { "사용 안 함", "시계", "날씨", "미세먼지", "유튜브", "코스피", "코스닥", "코스피200", "선물지수", "S&P 500", "나스닥", "비트코인", "환율" };
+  const char *w_names[] = { "사용 안 함", "시계", "날씨", "미세먼지", "유튜브", "코스피", "코스닥", "코스피200", "선물지수", "S&P 500", "나스닥", "비트코인", "환율", "달력" };
 
   // 1페이지 설정
   html += "<div class=\"page-title\">[PAGE 1] 기본 화면</div>";
@@ -668,7 +765,7 @@ void handleRoot() {
     html += "<div class=\"flex-item\">";
     html += "<span class=\"label\">Screen " + String(i + 1) + "</span>";
     html += "<select name=\"sm" + String(i) + "\">";
-    for (int j = 0; j <= 12; j++) {
+    for (int j = 0; j <= 13; j++) {
       html += "<option value=\"" + String(j) + "\"";
       if ((int)SCREEN_MAP[i] == j) html += " selected";
       html += ">" + String(w_names[j]) + "</option>";
@@ -684,7 +781,7 @@ void handleRoot() {
     html += "<div class=\"flex-item\">";
     html += "<span class=\"label\">Screen " + String(i - 3) + "</span>";  // 다시 1~4번으로 표시해 물리 화면 매칭
     html += "<select name=\"sm" + String(i) + "\">";
-    for (int j = 0; j <= 12; j++) {
+    for (int j = 0; j <= 13; j++) {
       html += "<option value=\"" + String(j) + "\"";
       if ((int)SCREEN_MAP[i] == j) html += " selected";
       html += ">" + String(w_names[j]) + "</option>";
@@ -693,9 +790,25 @@ void handleRoot() {
   }
   html += "</div><br>";
 
-  // 3페이지 안내 (고정형)
-  html += "<div class=\"page-title\">[PAGE 3] 시스템 정보 (IP 주소)</div>";
-  html += "<p style=\"color: #666; font-size: 0.9em; margin-bottom: 20px;\">* 3페이지는 설정 웹서버 접속 주소(IP)를 4개의 화면에 크게 나누어 표시하는 시스템 고정 페이지입니다.</p>";
+  // 3페이지 설정
+  html += "<div class=\"page-title\">[PAGE 3] 추가/심화 정보</div>";
+  html += "<div class=\"flex-container\">";
+  for (int i = 8; i < 12; i++) {
+    html += "<div class=\"flex-item\">";
+    html += "<span class=\"label\">Screen " + String(i - 7) + "</span>";
+    html += "<select name=\"sm" + String(i) + "\">";
+    for (int j = 0; j <= 13; j++) {
+      html += "<option value=\"" + String(j) + "\"";
+      if ((int)SCREEN_MAP[i] == j) html += " selected";
+      html += ">" + String(w_names[j]) + "</option>";
+    }
+    html += "</select></div>";
+  }
+  html += "</div><br>";
+
+  // 4페이지 안내 (고정형)
+  html += "<div class=\"page-title\">[PAGE 4] 시스템 정보 (IP 주소)</div>";
+  html += "<p style=\"color: #666; font-size: 0.9em; margin-bottom: 20px;\">* 4페이지는 설정 웹서버 접속 주소(IP)를 4개의 화면에 크게 나누어 표시하는 시스템 고정 페이지입니다.</p>";
   html += "</div>";
 
   // 나머지 입력 필드 템플릿 적용
@@ -737,8 +850,8 @@ void handleSet() {
     tz_changed = true;
   }
 
-  // 1~8번 슬롯 스크린맵 파라미터 처리
-  for (int i = 0; i < 8; i++) {
+  // 1~12번 슬롯 스크린맵 파라미터 처리
+  for (int i = 0; i < 12; i++) {
     String argName = "sm" + String(i);
     if (server.hasArg(argName)) {
       int newVal = server.arg(argName).toInt();
@@ -761,7 +874,7 @@ void handleSet() {
 
     // 스크린맵 NVS 메모리에 영구 저장 (별도 네임스페이스)
     preferences.begin("screen_map", false);
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 12; i++) {
       char key[5];
       sprintf(key, "s%d", i);
       preferences.putInt(key, (int)SCREEN_MAP[i]);
@@ -842,7 +955,7 @@ void setup() {
   preferences.end();
 
   preferences.begin("screen_map", true);
-  for (int i = 0; i < 8; i++) {
+  for (int i = 0; i < 12; i++) {
     String key = "s" + String(i);
     SCREEN_MAP[i] = (WidgetType)preferences.getInt(key.c_str(), SCREEN_MAP[i]);
   }
@@ -901,18 +1014,19 @@ void loop() {
   // [표시 1] 시계 전용 업데이트 (1초마다 무조건 갱신, 3페이지 제외)
   static unsigned long last_clock_ms = 0;
   if (now_ms - last_clock_ms >= 1000) {
-    if (current_page != 3) {
-      int start_idx = (current_page == 1) ? 0 : 4;
+    if (current_page != 4) {
+      int start_idx = (current_page - 1) * 4;
       for (int i = start_idx; i < start_idx + 4; i++) {
          if (SCREEN_MAP[i] == W_TIME) display_clock_oled(getScreen(i + 1));
+         if (SCREEN_MAP[i] == W_CALENDAR) display_calendar_oled(getScreen(i + 1));
       }
     }
     last_clock_ms = now_ms;
   }
 
-  // [표시 2] 데이터 위젯 통합 상태 엔진 (1, 2페이지만 해당)
-  if (current_page != 3) {
-    int start_idx = (current_page == 1) ? 0 : 4;
+  // [표시 2] 데이터 위젯 통합 상태 엔진 (1, 2, 3페이지만 해당)
+  if (current_page != 4) {
+    int start_idx = (current_page - 1) * 4;
     for (int w = 0; w < WIDGET_COUNT; w++) {
     const WidgetUpdateInfo &info = widgets_info[w];
 
