@@ -569,29 +569,32 @@ bool isUsMarketOpen() {
 
 // --- 🚀 백그라운드 데이터 수집 태스크 ---
 void dataTask(void *pvParameters) {
+  static unsigned long last_widget_fetches[MAX_WIDGET_RECORDS] = {0};
+
   for (;;) {
     unsigned long now = millis();
     if (WiFi.status() == WL_CONNECTED) {
-      bool is_initial = (last_finance_update == 0);
-      bool is_finance_interval = (now - last_finance_update >= INTERVAL_FINANCE) || force_update || is_initial;
-      bool is_slow_interval = (now - last_slow_update >= INTERVAL_SLOW) || force_update || (last_slow_update == 0);
-
       uint16_t processed_mask = 0;
 
+      // 초기 실행 시 가시성 있는 위젯들 조용히 로드
+      static bool is_initial = true;
       if (is_initial) {
         Serial.println("[TASK] Initial Quiet Fetch...");
         for (int w = 0; w < WIDGET_COUNT; w++) {
-          if (widgets_info[w].is_finance && isWidgetActive(widgets_info[w].type)) {
+          if (isWidgetActive(widgets_info[w].type)) {
             widgets_info[w].fetch();
+            last_widget_fetches[w] = now;
             portENTER_CRITICAL(&updateMux);
             update_flag |= widgets_info[w].flag_mask;
             portEXIT_CRITICAL(&updateMux);
           }
         }
+        is_initial = false;
       }
 
-      int start_idx = (current_page - 1) * 4;
+      // 현재 페이지의 위젯들 업데이트 체크
       if (current_page != MAX_PAGE) {
+        int start_idx = (current_page - 1) * 4;
         for (int i = start_idx; i < start_idx + 4; i++) {
           WidgetType type = SCREEN_MAP[i];
           if (type == W_NONE || type == W_TIME || type == W_CALENDAR) continue;
@@ -599,14 +602,12 @@ void dataTask(void *pvParameters) {
           for (int w = 0; w < WIDGET_COUNT; w++) {
             if (widgets_info[w].type == type) {
               if (processed_mask & widgets_info[w].flag_mask) break;
-              bool needs_update = false;
-              if (widgets_info[w].is_finance) {
-                if (is_finance_interval) needs_update = true;
-              } else {
-                if (is_slow_interval) needs_update = true;
-              }
+
+              unsigned long interval = widgets_info[w].is_finance ? INTERVAL_FINANCE : INTERVAL_SLOW;
+              bool needs_update = (now - last_widget_fetches[w] >= interval) || force_update;
 
               if (needs_update) {
+                // 시장 개폐 시간에 따른 예외 처리
                 if ((type == W_KOSPI || type == W_KOSDAQ || type == W_KPI200) && !isDomesticMarketOpen()) needs_update = false; 
                 if ((type == W_SNP500 || type == W_NASDAQ) && !isUsMarketOpen()) needs_update = false;
               }
@@ -614,7 +615,9 @@ void dataTask(void *pvParameters) {
               if (needs_update) {
                 *widgets_info[w].is_updating = true;
                 widgets_info[w].fetch();
+                last_widget_fetches[w] = now;
                 *widgets_info[w].is_updating = false;
+                
                 portENTER_CRITICAL(&updateMux);
                 update_flag |= widgets_info[w].flag_mask;
                 portEXIT_CRITICAL(&updateMux);
@@ -625,8 +628,6 @@ void dataTask(void *pvParameters) {
           }
         }
       }
-      if (is_finance_interval) last_finance_update = now;
-      if (is_slow_interval) last_slow_update = now;
     }
     force_update = false; 
     is_waiting = true;

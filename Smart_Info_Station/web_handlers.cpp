@@ -16,7 +16,7 @@ void handleRoot() {
   html += "<h3>📺 스마트 화면 배치 (Slot 1~8)</h3>";
   html += "<p>물리적인 4개의 화면에 표시될 위젯을 페이지별로 설정하세요.</p>";
 
-  const char *w_names[] = { "사용 안 함", "시계", "날씨", "미세먼지", "유튜브", "코스피", "코스닥", "코스피200", "선물지수", "S&P 500", "나스닥", "비트코인", "환율", "달력" };
+  const char *w_names[] = { "달력", "시계", "날씨", "미세먼지", "유튜브", "코스피", "코스닥", "코스피200", "선물지수", "S&P 500", "나스닥", "비트코인", "환율", "사용 안 함" };
 
   // 1페이지 설정
   html += "<div class=\"page-title\">[PAGE 1] 기본 화면</div>";
@@ -66,11 +66,13 @@ void handleRoot() {
   }
   html += "</div><br>";
 
-  // 4페이지 안내 (도움말)
-  html += "<div class=\"page-title\">[PAGE 4] 버튼 기능 도움말</div>";
-  html += "<p style=\"color: #666; font-size: 0.9em; margin-bottom: 20px;\">* 4페이지는 하드웨어 버튼(BTN 1~4)의 짧게/길게 누름 기능을 화면에 안내하는 페이지입니다.</p>";
+  // 4페이지 안내 (고정형)
+  html += "<div class=\"page-title\">[PAGE 4] 시스템 정보 (IP 주소)</div>";
+  html += "<p style=\"color: #666; font-size: 0.9em; margin-bottom: 20px;\">* 4페이지는 설정 웹서버 접속 주소(IP)를 4개의 화면에 크게 나누어 표시하는 시스템 고정 페이지입니다.</p>";
 
-  html += "<p style=\"color: #666; font-size: 0.9em; margin-bottom: 20px;\">* 5페이지는 설정 웹서버 접속 주소(IP)를 4개의 화면에 크게 나누어 표시하는 시스템 고정 페이지입니다.</p>";
+  // 5페이지 안내 (도움말)
+  html += "<div class=\"page-title\">[PAGE 5] 버튼 기능 도움말</div>";
+  html += "<p style=\"color: #666; font-size: 0.9em; margin-bottom: 20px;\">* 5페이지는 하드웨어 버튼(BTN 1~4)의 짧게/길게 누름 기능을 화면에 안내하는 페이지입니다.</p>";
   
   // 자동 페이지 루핑 설정 추가 (카드 내부 하단)
   html += "<br><div class=\"page-title\" style=\"background: #e1f5fe; color: #01579b;\">🔄 자동 페이지 루핑 (Loop Mode)</div>";

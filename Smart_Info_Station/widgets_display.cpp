@@ -19,7 +19,7 @@ void display_clock_oled(U8G2 &u8g2) {
   u8g2.setFont(u8g2_font_bytesize_tr);
   String dateLine = t_str.substring(20, 24) + " " + t_str.substring(4, 10) + " " + t_str.substring(0, 3);
   drawCenteredText(u8g2, dateLine, 5);
-  u8g2.setFont(u8g2_font_maniac_tr);
+  u8g2.setFont(MAIN_NUM_FONT);
   drawCenteredText(u8g2, t_str.substring(11, 19), 25);
 
   u8g2.setFont(u8g2_font_6x10_tf);
@@ -144,7 +144,7 @@ void display_dust_oled(U8G2 &u8g2) {
   else if (dust_2_5_num <= 35) u8g2.drawStr(0, 54, "Moderate");
   else if (dust_2_5_num <= 75) u8g2.drawStr(0, 54, "Bad");
   else u8g2.drawStr(0, 54, "Dangerous");
-  u8g2.setFont(u8g2_font_maniac_tr);
+  u8g2.setFont(MAIN_NUM_FONT);
   u8g2.drawStr(60, 14, String(dust_10_num).c_str());
   u8g2.drawStr(60, 40, String(dust_2_5_num).c_str());
   u8g2.sendBuffer();
@@ -158,7 +158,7 @@ void display_youtube_oled(U8G2 &u8g2) {
   drawCenteredText(u8g2, youtube_channel, 0);
   u8g2.setFont(u8g2_font_6x10_tf);
   drawCenteredText(u8g2, "YouTube Subscribers", 20);
-  u8g2.setFont(u8g2_font_maniac_tr);
+  u8g2.setFont(MAIN_NUM_FONT);
   drawCenteredText(u8g2, subscribe_num, 33);
   u8g2.sendBuffer();
 }
@@ -168,7 +168,7 @@ void display_market_oled(U8G2 &u8g2, const String &title, const String &price, c
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_bytesize_tr);
   drawCenteredText(u8g2, title, 5);
-  u8g2.setFont(u8g2_font_maniac_tr);
+  u8g2.setFont(MAIN_NUM_FONT);
   drawCenteredText(u8g2, price, 25);
   u8g2.setFont(u8g2_font_6x10_tf);
   String changeStr = change + " (" + percent + ")";

@@ -65,7 +65,7 @@ struct Button {
 };
 
 int currentFlipMode = 2; // 0:Normal, 1:Mirror H, 2:180(HV), 3:Mirror V
-int currentBrightnessLevel = 3; // 0:25%, 1:50%, 2:75%, 3:100%
+int currentBrightnessLevel = 0; // 0:25%, 1:50%, 2:75%, 3:100% (디폴트 25% 설정)
 bool isLoopingMode = false;     // 자동 페이지 전환 모드
 unsigned long lastPageCycleTime = 0;
 const unsigned long CYCLE_INTERVAL = 5000; 
@@ -201,6 +201,7 @@ void btn1_short() {
   updateDisplayFlip();
   saveGeneralSettings();
   Serial.printf("[BUTTON] BTN1 Short -> Flip Mode %d\n", currentFlipMode);
+  if (current_page == 5) redraw_current_page();
 }
 void btn1_long() { /* Reserved */ }
 
@@ -209,6 +210,7 @@ void btn2_short() {
   updateBrightness();
   saveGeneralSettings();
   Serial.printf("[BUTTON] BTN2 Short -> Brightness %d%%\n", (currentBrightnessLevel + 1) * 25);
+  if (current_page == 5) redraw_current_page();
 }
 void btn2_long() { /* Reserved */ }
 
@@ -219,8 +221,8 @@ void btn3_long() {
   saveGeneralSettings();
   Serial.printf("[BUTTON] BTN3 Long -> Looping Mode: %s\n", isLoopingMode ? "ON" : "OFF");
   
-  // 상태 변경 시 즉시 피드백 (도움말 페이지나 현재 페이지 리드로우)
-  if (current_page == 4) redraw_current_page();
+  // 상태 변경 시 즉시 피드백 (도움말 페이지 보고 있을 경우)
+  if (current_page == 5) redraw_current_page();
 }
 
 // 버튼 객체 정의
@@ -288,7 +290,7 @@ void display_ip_page() {
     drawCenteredText(u8g2, segment, 28);
     
     if (i < 4) {
-      u8g2.setFont(u8g2_font_maniac_tr);
+      u8g2.setFont(MAIN_NUM_FONT);
       u8g2.drawStr(115, 28, ".");
     }
     
@@ -297,17 +299,17 @@ void display_ip_page() {
 }
 
 void redraw_current_page() {
-  u8g2_1.clearBuffer(); u8g2_1.sendBuffer();
-  u8g2_2.clearBuffer(); u8g2_2.sendBuffer();
-  u8g2_3.clearBuffer(); u8g2_3.sendBuffer();
-  u8g2_4.clearBuffer(); u8g2_4.sendBuffer();
+  // 페이지 전환 시 태스크만 깨워 가시성 변화 확인 (강제 수집 제외)
+  if (dataTaskHandle != NULL && is_waiting) xTaskAbortDelay(dataTaskHandle);
 
+  // 페이지 4: 시스템 정보 (IP 주소 표시)
   if (current_page == 4) {
-    display_button_help_page();
+    display_ip_page();
     return;
   }
+  // 페이지 5: 버튼 기능 도움말 가이드
   if (current_page == 5) {
-    display_ip_page();
+    display_button_help_page();
     return;
   }
 
@@ -316,7 +318,12 @@ void redraw_current_page() {
     int slot_num = i + 1;
     WidgetType type = SCREEN_MAP[i];
 
-    if (type == W_NONE) continue;
+    if (type == W_NONE) {
+      U8G2 &u8g2 = getScreen(slot_num);
+      u8g2.clearBuffer();
+      u8g2.sendBuffer();
+      continue;
+    }
 
     // 시계 및 달력은 별도 처리 (widgets_info 테이블에 없음)
     if (type == W_TIME) {
@@ -392,7 +399,7 @@ void setup() {
   weather_location_code = preferences.getString("weather_code", "1154551000");
   timezone_offset = preferences.getInt("tz_offset", 9);
   currentFlipMode = preferences.getInt("flip", 2);
-  currentBrightnessLevel = preferences.getInt("bright", 3);
+  currentBrightnessLevel = preferences.getInt("bright", 0);
   isLoopingMode = preferences.getBool("loop", false);
   preferences.end();
 
@@ -429,7 +436,26 @@ void loop() {
 
   // [루핑 모드] 페이지 자동 전환 처리 (1~3페이지 순환)
   if (isLoopingMode) {
-    if (now_ms - lastPageCycleTime >= CYCLE_INTERVAL) {
+    bool is_current_page_loading = false;
+    if (current_page < 4) {
+      int start_idx = (current_page - 1) * 4;
+      for (int i = start_idx; i < start_idx + 4; i++) {
+        WidgetType type = SCREEN_MAP[i];
+        if (type == W_NONE || type == W_TIME || type == W_CALENDAR) continue;
+        for (int w = 0; w < WIDGET_COUNT; w++) {
+          if (widgets_info[w].type == type && *widgets_info[w].is_updating) {
+            is_current_page_loading = true;
+            break;
+          }
+        }
+        if (is_current_page_loading) break;
+      }
+    }
+
+    if (is_current_page_loading) {
+      // 현재 페이지의 데이터가 로딩 중이면 전환 타이머 초기화 (지연)
+      lastPageCycleTime = now_ms;
+    } else if (now_ms - lastPageCycleTime >= CYCLE_INTERVAL) {
       if (current_page < 4) { // 현재 데이터 페이지를 보고 있을 때만 자동 전환
         current_page = (current_page % 3) + 1;
         redraw_current_page();
