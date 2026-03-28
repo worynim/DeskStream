@@ -49,13 +49,13 @@
 
 ## 📁 위젯별 파일 구조 분석
 
-- `Smart_Info_Station.ino` : 웹 서버, 스크린맵, 디스플레이 통신, 9번 핀 스위치 제어, 비동기 데이터 태스크 메인 코어.
-- `weather.h` : 기상청 공개 API 데이터 단기 예보 파싱 로직.
-- `dust.h` : 네이버 모바일 미세먼지 크롤링 (PM10, PM2.5 파싱 및 안정화 예외 처리 적용).
-- `youtube.h` : 유튜브 데스크톱 페이지 크롤링 기반 구독자 수 수집 기능.
-- `market.h` : 네이버 금융 API 연동 모듈 (KOSPI, KOSDAQ, S&P 500, NASDAQ, **선물지수, 코스피200** 통합).
-- `btc.h` : 바이낸스 API 연동 (비트코인 달러 가격 및 등락률).
-- `usdkrw.h` : 야후 파이낸스 API 기반 원/달러(USD/KRW) 실시간 환율 파싱.
+- `Smart_Info_Station.ino` : 디스플레이 매핑 구조와 9번 핀 스위치 제어, 메인 `setup()`, `loop()` 코어 모듈. (가벼운 메인 프레임워크 유지)
+- `config.h` : 전역 데이터 타입(`WidgetType`), 업데이트 상태를 담은 `WidgetUpdateInfo`, 기타 글로벌 핀/상수 정의를 담당하는 기초 설정 파일.
+- `display_utils.h / .cpp` : 텍스트 중앙 정렬, 업데이트 상태 점(`.`) 애니메이션, U8g2 고속 SW I2C 콜백 등 공통 그래픽 출력 헬퍼 함수 모음.
+- `widgets_display.h / .cpp` : 시계, 달력, 마크, 코인, 증시 등 실제 각 위젯들을 OLED 화면에 아름답게 `render()` 해주는 독립 렌더링 로직.
+- `data_manager.h / .cpp` : 날씨, 미세먼지, 주식, 코인 등의 네트워크 파싱 함수를 담은 헤더를 관리하며, 백그라운드 `dataTask`를 통해 데이터를 수집하고 상태(`update_flag`)를 관장하는 메인 수집 엔진.
+- `web_handlers.h / .cpp` : 와이파이 접속 후 접근 가능한 내부 설정 웹 서버 페이지 UI 생성 및 입력받은 환경 변수(채널, 지역 등) 플래시 저장(`handleRoot`, `handleSet`) 전담 유닛.
+- `weather.h`, `dust.h`, `youtube.h`, `market.h`, `btc.h`, `usdkrw.h` : 각각의 단일 소스 데이터 파싱 함수 선언부. (자체 인클루드 가드 및 외부 변수 선언 포함)
 
 ## 📝 최초 시작 방법 (Quick Start)
 
