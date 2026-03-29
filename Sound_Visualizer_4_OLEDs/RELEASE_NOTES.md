@@ -1,5 +1,14 @@
 # Release Notes - Sound Visualizer
 
+## [v3.0.1] - Calibration Data Serial Output (2026-03-30)
+### 🚀 주요 개선 사항
+- **캘리브레이션 데이터 시리얼 출력 기능 추가**:
+    - 캘리브레이션 완료 후 측정된 주파수 밴드별 노이즈 플로어(Noise Floor) 값을 시리얼 모니터로 확인할 수 있도록 개선했습니다.
+    - 밴드 번호를 포함하여 줄바꿈된 형식으로 출력되어 가독성을 높였습니다.
+- **파일명 정규화**: `Sound_Visualizer_4 _OLEDs.ino` 파일명에서 불필요한 공백을 제거하여 `Sound_Visualizer_4_OLEDs.ino`로 수정했습니다.
+
+---
+
 ## [v3.0.0] - ESP-DSP Integer FFT & UI Enhancement (2026-03-23)
 ### 🚀 주요 개선 및 성능 최적화 (ESP-DSP 통합)
 - **고속 정수형 FFT 엔진 교체**:

@@ -6,7 +6,7 @@
 
 // --- [1] 설정 및 객체 생성 ---
 // (상수 및 핀 설정은 각 모듈의 헤더 파일에서 관리함)
-int DEBUG_MODE = 2; // 0: Off, 1: FPS, 2: FPS+Perf, 3: Full (includes DMA Diag)
+int DEBUG_MODE = 1; // 0: Off, 1: FPS, 2: FPS+Perf, 3: Full (includes DMA Diag)
 
 AudioAnalyzer analyzer(DEFAULT_SAMPLES, DEFAULT_SAMPLING_FREQ, DEFAULT_NUM_BANDS);
 Ticker fps_ticker;
@@ -40,10 +40,14 @@ void runCalibration() {
     delay(1);
   }
 
+  Serial.println("--- Calibration Results (Noise Floor) ---");
   for (int i = 0; i < DEFAULT_NUM_BANDS; i++) {
     // 측정된 최댓값에 마진을 더해 노이즈 플로어로 확정
-    analyzer.setNoiseFloor(i, (max_vals[i] * NOISE_FLOOR_FACTOR) + NOISE_FLOOR_OFFSET); 
+    float noiseVal = (max_vals[i] * NOISE_FLOOR_FACTOR) + NOISE_FLOOR_OFFSET;
+    analyzer.setNoiseFloor(i, noiseVal); 
+    Serial.printf("Band %3d: %.2f\n", i, noiseVal);
   }
+  Serial.println("---------------------------------------");
 
   canvas.clear();
   canvas.drawCenterString("CALIBRATION DONE!", CANVAS_WIDTH / 2, TEXT_Y_OFFSET);
