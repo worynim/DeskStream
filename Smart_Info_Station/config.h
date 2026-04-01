@@ -20,6 +20,7 @@ const int BTN2_PIN = 4;  // 버튼 2 (밝기 조절 Bright)
 const int BTN3_PIN = 10; // 버튼 3 (자동 루핑 Loop)
 const int BTN4_PIN = 9;  // 버튼 4 (페이지 전환 Next Page)
 const int BUTTON_PIN = BTN4_PIN; 
+const int BUZZER_PIN = 7; // 부저 핀 (7번)
 
 // --- 데이터 업데이트 주기 ---
 const unsigned long INTERVAL_FINANCE = 60 * 1000;    

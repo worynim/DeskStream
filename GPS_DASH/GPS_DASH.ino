@@ -17,6 +17,7 @@ const int BTN1_PIN = 1;  // OLED 1 제어용
 const int BTN2_PIN = 4;  // OLED 2 제어용
 const int BTN3_PIN = 10; // OLED 3 제어용
 const int BTN4_PIN = 9;  // OLED 4 제어용
+const int BUZZER_PIN = 7; // 부저 제어용
 
 // 각 OLED(1~4번)에 어떤 모드(Time, Speed, 등)를 띄울지 저장하는 배열
 int currentDisplayModes[4] = {MODE_TIME, MODE_SPEED, MODE_COMPASS, MODE_SATS};
@@ -25,6 +26,17 @@ int currentDisplayModes[4] = {MODE_TIME, MODE_SPEED, MODE_COMPASS, MODE_SATS};
 unsigned long tripTimeSec = 0;      // 총 주행 시간 (초)
 float tripDistanceKm = 0.0;         // 총 주행 거리 (km)
 unsigned long lastStatsUpdate = 0;  // 통계 업데이트용 타이머
+
+/**
+ * @brief 패시브 부저음을 발생시킵니다 (펄스 생성).
+ * @param duration 소리가 나는 시간 (ms)
+ * @param freq 주파수 (Hz) - 기본값 2000Hz
+ */
+void beep(int duration = 50, int freq = 2000) {
+  tone(BUZZER_PIN, freq);
+  delay(duration);
+  noTone(BUZZER_PIN);
+}
 
 /**
  * @brief 하드웨어 버튼의 Short/Long Press를 관리하는 구조체
@@ -58,6 +70,7 @@ struct Button {
             if (isPressed && !isLongPressFired) {
                 if (now - fallTime > 1000) { // 1s가 지난 순간 손을 떼지 않아도 즉시 롱 프레스 발동!
                     isLongPressFired = true; // 한 번 눌린 것으로 처리하여 중복/연사 방지
+                    beep(200, 2000); // 롱 프레스 부저음
                     if (onLongPress) onLongPress();
                 }
             }
@@ -66,6 +79,7 @@ struct Button {
             if (isPressed && !isLongPressFired) { // 롱 프레스가 안터진 경우에만 숏 프레스 발동
                 unsigned long duration = now - fallTime;
                 if (duration > 50) { // Short Press (Debounce 50ms)
+                    beep(50, 3000); // 숏 프레스 부저음
                     if (onShortPress) onShortPress();
                 }
             }
@@ -160,6 +174,10 @@ void setup() {
     for (int i = 0; i < 4; i++) {
         btns[i].init();
     }
+    
+    // 부저 초기화
+    pinMode(BUZZER_PIN, OUTPUT);
+    digitalWrite(BUZZER_PIN, LOW);
     
     // 모듈별 초기화
     initDisplay();  // OLED 및 I2C 초기화 (display_handler.h)

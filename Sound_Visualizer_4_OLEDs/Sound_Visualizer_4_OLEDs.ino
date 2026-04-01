@@ -21,10 +21,17 @@ void runCalibration() {
   canvas.setFont(&fonts::FreeSansBold12pt7b);
   canvas.drawCenterString("CALIBRATING NOISE...", CANVAS_WIDTH / 2, TEXT_Y_OFFSET);
   display.pushCanvas();
+  delay(300);
 
   const int cal_iterations = CAL_ITERATIONS; // 측정 횟수 증가 (더 정확한 샘플링)
   float max_vals[DEFAULT_NUM_BANDS];
   for (int i = 0; i < DEFAULT_NUM_BANDS; i++) max_vals[i] = 0;
+
+  // 🚨 핵심 조치: 딜레이 시간 동안 가득 차서 오버플로우(끊어짐 파형 생성)된
+  // ADC DMA 링 버퍼 데이터를 강제로 퍼내어 쓰레기통에 버립니다 (Flushing).
+  while (analyzer.available()) { 
+      // 텅 빌 때까지 허공에 읽기 수행
+  }
 
   int count = 0;
   while (count < cal_iterations) {

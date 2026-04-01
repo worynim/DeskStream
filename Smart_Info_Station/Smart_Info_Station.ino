@@ -21,19 +21,29 @@
 
 
 // OLED 1, 2 (Hardware I2C) -> 표시 갱신 속도가 중요한 시간/마켓 정보 배치에 유리
-U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2_1(U8G2_R0, /* reset=*/U8X8_PIN_NONE);  // 1번 화면 객체
-U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2_2(U8G2_R0, /* reset=*/U8X8_PIN_NONE);  // 2번 화면 객체
+U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2_1(U8G2_R2, /* reset=*/U8X8_PIN_NONE);  // 1번 화면 객체
+U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2_2(U8G2_R2, /* reset=*/U8X8_PIN_NONE);  // 2번 화면 객체
 
 // OLED 3, 4 (Software I2C) -> 고정적인 정보 표시에 적합하며 배선 충돌을 방지함
-U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_3(U8G2_R0, /* clock=*/SW_SCL_PIN, /* data=*/SW_SDA_PIN, /* reset=*/U8X8_PIN_NONE);  // 3번 화면 객체
-U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_4(U8G2_R0, /* clock=*/SW_SCL_PIN, /* data=*/SW_SDA_PIN, /* reset=*/U8X8_PIN_NONE);  // 4번 화면 객체
+U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_3(U8G2_R2, /* clock=*/SW_SCL_PIN, /* data=*/SW_SDA_PIN, /* reset=*/U8X8_PIN_NONE);  // 3번 화면 객체
+U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_4(U8G2_R2, /* clock=*/SW_SCL_PIN, /* data=*/SW_SDA_PIN, /* reset=*/U8X8_PIN_NONE);  // 4번 화면 객체
 
 // 물리적 GPIO 핀 번호 설정
 // 루프 상태 저장용 정적 변수
 static bool prev_updating_states[MAX_WIDGET_RECORDS] = {false};
 static unsigned long last_animation_tick[MAX_WIDGET_RECORDS] = {0};
 
-// --- [버튼 및 화면 반전 제어 (Button & Flip Control)] ---
+/**
+ * @brief 패시브 부저음을 발생시킵니다 (펄스 생성).
+ * @param duration 소리가 나는 시간 (ms)
+ * @param freq 주파수 (Hz) - 기본값 2000Hz
+ */
+void beep(int duration = 50, int freq = 2000) {
+  tone(BUZZER_PIN, freq);
+  delay(duration);
+  noTone(BUZZER_PIN);
+}
+
 struct Button {
     int pin;
     bool lastState;
@@ -53,11 +63,15 @@ struct Button {
         else if (currentState == LOW) {
             if (isPressed && !isLongPressFired && (now - fallTime > 1000)) {
                 isLongPressFired = true;
+                beep(200,2000); // 롱 프레스는 조금 더 길게
                 if (onLongPress) onLongPress();
             }
         } 
         else if (lastState == LOW && currentState == HIGH) {
-            if (isPressed && !isLongPressFired && (now - fallTime > 50)) { if (onShortPress) onShortPress(); }
+            if (isPressed && !isLongPressFired && (now - fallTime > 50)) { 
+                beep(50,3000); // 숏 프레스는 짧게
+                if (onShortPress) onShortPress(); 
+            }
             isPressed = false;
         }
         lastState = currentState;
@@ -148,10 +162,20 @@ WidgetType SCREEN_MAP[12] = {
 U8G2 &getScreen(int num) {
   if (num <= 0) return u8g2_1;
   int p = (num - 1) % 4; // 페이지와 무관하게 1~4번 중 하나로 매핑
-  if (p == 0) return u8g2_1;
-  if (p == 1) return u8g2_2;
-  if (p == 2) return u8g2_3;
-  return u8g2_4;
+
+  // Flip Mode 0, 3일 때는 화면 순서를 뒤집음 (4, 3, 2, 1)
+  if (currentFlipMode == 0 || currentFlipMode == 3) {
+    if (p == 0) return u8g2_4;
+    if (p == 1) return u8g2_3;
+    if (p == 2) return u8g2_2;
+    return u8g2_1;
+  } else {
+    // Flip Mode 1, 2일 때는 기본 순서 (1, 2, 3, 4)
+    if (p == 0) return u8g2_1;
+    if (p == 1) return u8g2_2;
+    if (p == 2) return u8g2_3;
+    return u8g2_4;
+  }
 }
 
 
@@ -201,7 +225,15 @@ void btn1_short() {
   updateDisplayFlip();
   saveGeneralSettings();
   Serial.printf("[BUTTON] BTN1 Short -> Flip Mode %d\n", currentFlipMode);
-  if (current_page == 5) redraw_current_page();
+  
+  // 잔상이 남지 않도록 모든 화면의 버퍼를 초기화 후 전송
+  u8g2_1.clearBuffer(); u8g2_1.sendBuffer();
+  u8g2_2.clearBuffer(); u8g2_2.sendBuffer();
+  u8g2_3.clearBuffer(); u8g2_3.sendBuffer();
+  u8g2_4.clearBuffer(); u8g2_4.sendBuffer();
+  
+  // 바뀐 화면 순서 기반으로 현재 페이지 전체 재렌더링
+  redraw_current_page();
 }
 void btn1_long() { /* Reserved */ }
 
@@ -236,7 +268,14 @@ Button btns[4] = {
 // 4번째 페이지: 버튼 기능 안내 (Short/Long Press 설명)
 void display_button_help_page() {
   for (int i = 1; i <= 4; i++) {
-    U8G2 &u8g2 = getScreen(i);
+    // Flip Mode(역방향 매핑) 속성을 무시하고, 버튼 설정 가이드는 항상 기존 물리 순서(1,2,3,4)대로 표시
+    U8G2 *p_u8g2;
+    if (i == 1) p_u8g2 = &u8g2_1;
+    else if (i == 2) p_u8g2 = &u8g2_2;
+    else if (i == 3) p_u8g2 = &u8g2_3;
+    else p_u8g2 = &u8g2_4;
+    
+    U8G2 &u8g2 = *p_u8g2;
     u8g2.clearBuffer();
     u8g2_prepare(u8g2);
     
@@ -355,6 +394,10 @@ void setup() {
 
   // 버튼 핀 초기화 (BTN1~BTN4)
   for (int i = 0; i < 4; i++) btns[i].init();
+
+  // 부저 핀 초기화
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, LOW);
 
   // 하드웨어 I2C 초기화 (핀 5, 6)
   Wire.begin(HW_SDA_PIN, HW_SCL_PIN);
