@@ -7,10 +7,13 @@
 // (핀 설정 및 상수는 DisplayEngine.h에 정의됨)
 
 // U8g2 객체 생성
-U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_1(U8G2_R0, 255, 255, U8X8_PIN_NONE);
-U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_2(U8G2_R0, 255, 255, U8X8_PIN_NONE);
-U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_3(U8G2_R0, SW_SCL_PIN, SW_SDA_PIN, U8X8_PIN_NONE);
-U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_4(U8G2_R0, SW_SCL_PIN, SW_SDA_PIN, U8X8_PIN_NONE);
+U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_1(U8G2_R2, 255, 255, U8X8_PIN_NONE);
+U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_2(U8G2_R2, 255, 255, U8X8_PIN_NONE);
+U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_3(U8G2_R2, SW_SCL_PIN, SW_SDA_PIN, U8X8_PIN_NONE);
+U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_4(U8G2_R2, SW_SCL_PIN, SW_SDA_PIN, U8X8_PIN_NONE);
+
+// 메인 앱에 정의된 플립 상태 변수 외부 참조
+extern bool is_flipped;
 
 // 정적 스크린 배열 초기화
 U8G2* DisplayEngine::screens[NUM_SCREENS] = { &u8g2_1, &u8g2_2, &u8g2_3, &u8g2_4 };
@@ -152,8 +155,9 @@ void DisplayEngine::pushCanvas() {
     // [리팩토링] 더티 체킹(Dirty Checking) 중복 로직을 람다(Lambda)로 캡슐화
     auto extractAndCheckDirty = [&](int s, int p, uint8_t* page_cache, int& first_tile, int& last_tile) -> bool {
         bool page_dirty = false;
+        int logical_s = is_flipped ? (NUM_SCREENS - 1 - s) : s;
         for (int x = 0; x < SCREEN_WIDTH; x++) {
-            int gx = (s * SCREEN_WIDTH) + x;
+            int gx = (logical_s * SCREEN_WIDTH) + x;
             int byte_idx = (gx >> 3); 
             int bit_mask = 0x80 >> (gx & 7);
             uint8_t out_byte = 0;

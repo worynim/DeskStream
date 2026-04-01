@@ -73,6 +73,7 @@
 
 #define CAL_ITERATIONS      120         // 캘리브레이션 시 소음을 측정할 횟수
 #define CAL_BUTTON_PIN      9           // 캘리브레이션 실행용 버튼 핀 번호 (GPIO 9)
+#define BUZZER_PIN          7           // 피드백용 부저 핀 번호 (GPIO 7)
 #define BTN_LONG_PRESS_MS   1000        // 버튼을 길게 누르는 판단 시간 (2초)
 
 #define ADC_DMA_BUF_COUNT   4           // ADC DMA 내부 링버퍼 프레임 깊이

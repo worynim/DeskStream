@@ -1,8 +1,11 @@
 #include <Arduino.h>
 #include <Ticker.h>
+#include <Preferences.h>
 #include "config.h"
 #include "DisplayEngine.h"
 #include "AudioAnalyzer.h"
+
+Preferences prefs;
 
 // --- [1] 설정 및 객체 생성 ---
 // (상수 및 핀 설정은 각 모듈의 헤더 파일에서 관리함)
@@ -13,6 +16,32 @@ Ticker fps_ticker;
 
 unsigned long btn_press_start_time = 0;
 bool btn_is_held = false;
+
+#define FLIP_BUTTON_PIN 1
+bool flip_btn_last_state = HIGH;
+unsigned long flip_btn_fall_time = 0;
+bool is_flipped = true; // 현재 U8G2_R2 설정이므로 초기값은 true
+
+void applyFlipState(bool state) {
+  uint8_t seg = state ? 0xA1 : 0xA0;
+  uint8_t com = state ? 0xC8 : 0xC0;
+  
+  for (int i = 0; i < NUM_SCREENS; i++) {
+    DisplayEngine::screens[i]->sendF("c", seg);
+    DisplayEngine::screens[i]->sendF("c", com);
+  }
+}
+
+void toggleFlip() {
+  is_flipped = !is_flipped;
+  applyFlipState(is_flipped);
+  
+  prefs.begin("viz_set", false);
+  prefs.putBool("flip", is_flipped);
+  prefs.end();
+  
+  Serial.printf("[SYSTEM] Display Flipped: %s\n", is_flipped ? "180 (ON)" : "Normal (OFF)");
+}
 
 // 캘리브레이션 실행 함수
 void runCalibration() {
@@ -70,6 +99,17 @@ void onFpsReport() {
   display.resetFrameCounter();
 }
 
+/**
+ * @brief 패시브 부저음을 발생시킵니다 (펄스 생성).
+ * @param duration 소리가 나는 시간 (ms)
+ * @param freq 주파수 (Hz) - 기본값 2000Hz
+ */
+void beep(int duration = 50, int freq = 2000) {
+  tone(BUZZER_PIN, freq);
+  delay(duration);
+  noTone(BUZZER_PIN);
+}
+
 void setup() {
   Serial.begin(115200);
 
@@ -77,8 +117,19 @@ void setup() {
   display.begin();
   analyzer.begin();
 
+  // 설정 로드 및 플립 하드웨어 초기화
+  prefs.begin("viz_set", true);
+  is_flipped = prefs.getBool("flip", true);
+  prefs.end();
+  applyFlipState(is_flipped);
+
   // 버튼 설정
   pinMode(CAL_BUTTON_PIN, INPUT_PULLUP);
+  pinMode(FLIP_BUTTON_PIN, INPUT_PULLUP);
+  
+  // 부저 초기화
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, LOW);
 
   // FPS 타이머 시작
   fps_ticker.attach(1.0, onFpsReport);
@@ -98,8 +149,10 @@ void loop() {
     if (!btn_is_held) {
       btn_press_start_time = millis();
       btn_is_held = true;
+      beep(50, 3000); // 터치 시 짧은 피드백음 발생
     } else if (millis() - btn_press_start_time > BTN_LONG_PRESS_MS) {
       // 2초 이상 눌렸을 때: 버튼 떼기를 기다림
+      beep(200, 2000); // 롱 프레스 감지 알림음 발생
       LGFX_Sprite& canvas = display.getCanvas();
       canvas.clear();
       canvas.setFont(&fonts::FreeSansBold12pt7b);
@@ -120,6 +173,18 @@ void loop() {
   } else {
     btn_is_held = false;
   }
+
+  // [Step 0.5] 플립 버튼 체크 (1번 핀, 엣지 감지 방식)
+  bool flip_state = digitalRead(FLIP_BUTTON_PIN);
+  if (flip_btn_last_state == HIGH && flip_state == LOW) { // 눌림
+    flip_btn_fall_time = millis();
+  } else if (flip_btn_last_state == LOW && flip_state == HIGH) { // 떼짐
+    if (millis() - flip_btn_fall_time > 50) { // 디바운싱 50ms
+      toggleFlip();
+      beep(50, 3000);
+    }
+  }
+  flip_btn_last_state = flip_state;
 
   if (analyzer.available()) {
     uint32_t loop_start = micros();
