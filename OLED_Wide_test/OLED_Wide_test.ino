@@ -3,13 +3,24 @@
 #include <Wire.h>
 #include <LovyanGFX.hpp>
 #include <Ticker.h>
+#include <Preferences.h>
 #include "driver/gpio.h"
+
+Preferences prefs;
 
 // --- [1] 하드웨어 설정 ---
 const uint8_t hw_sda_pin = 5;
 const uint8_t hw_scl_pin = 6;
 const uint8_t sw_sda_pin = 2;
 const uint8_t sw_scl_pin = 3;
+
+const int FLIP_BUTTON_PIN = 1;
+const int BUZZER_PIN = 7;
+const int BTN_DEBOUNCE_MS = 50;
+
+bool is_flipped = true; 
+bool flip_btn_last_state = HIGH;
+unsigned long flip_btn_fall_time = 0;
 
 // --- [1-1] 프레임 제한 설정 ---
 #define TARGET_FPS 30  // 목표 FPS
@@ -38,36 +49,68 @@ void onFpsReport() {
     frame_counter = 0;
 }
 
-// --- [3] 고속 SW I2C 콜백 (ESP32-C3 최적화) ---
-extern "C" uint8_t u8x8_gpio_and_delay_esp32_c3_fast(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr) {
-  uint8_t pin;
-  switch (msg) {
-    case U8X8_MSG_GPIO_AND_DELAY_INIT:
-      pin = u8x8->pins[U8X8_PIN_I2C_CLOCK];
-      if (pin != U8X8_PIN_NONE) { pinMode(pin, OUTPUT_OPEN_DRAIN); gpio_set_level((gpio_num_t)pin, 1); }
-      pin = u8x8->pins[U8X8_PIN_I2C_DATA];
-      if (pin != U8X8_PIN_NONE) { pinMode(pin, OUTPUT_OPEN_DRAIN); gpio_set_level((gpio_num_t)pin, 1); }
-      break;
-    case U8X8_MSG_DELAY_MILLI: delay(arg_int); break;
-    case U8X8_MSG_DELAY_10MICRO: break; 
-    case U8X8_MSG_DELAY_100NANO: break; 
-    case U8X8_MSG_GPIO_I2C_CLOCK:
-      pin = u8x8->pins[U8X8_PIN_I2C_CLOCK];
-      if (pin != U8X8_PIN_NONE) {
-        if (arg_int) GPIO.out_w1ts.val = (1 << pin); // Set High
-        else         GPIO.out_w1tc.val = (1 << pin); // Set Low
-      }
-      break;
-    case U8X8_MSG_GPIO_I2C_DATA:
-      pin = u8x8->pins[U8X8_PIN_I2C_DATA];
-      if (pin != U8X8_PIN_NONE) {
-        if (arg_int) GPIO.out_w1ts.val = (1 << pin); // Set High
-        else         GPIO.out_w1tc.val = (1 << pin); // Set Low
-      }
-      break;
-    default: u8x8_SetGPIOResult(u8x8, 1); break;
-  }
-  return 1;
+// --- [2-2] 부저 및 플립 제어 함수 ---
+void beep(int duration = 50, int freq = 3000) {
+    tone(BUZZER_PIN, freq);
+    delay(duration);
+    noTone(BUZZER_PIN);
+}
+
+void applyFlipState(bool state) {
+    uint8_t seg = state ? 0xA1 : 0xA0;
+    uint8_t com = state ? 0xC8 : 0xC0;
+    for (int i = 0; i < 4; i++) {
+        screens[i]->sendF("c", seg);
+        screens[i]->sendF("c", com);
+    }
+}
+
+void toggleFlip() {
+    is_flipped = !is_flipped;
+    applyFlipState(is_flipped);
+    
+    prefs.begin("wide_set", false);
+    prefs.putBool("flip", is_flipped);
+    prefs.end();
+    
+    beep(50, 3000);
+    Serial.printf("[SYSTEM] Display Flipped: %s\n", is_flipped ? "180 (ON)" : "Normal (OFF)");
+}
+
+void checkButtons() {
+    bool flip_state = digitalRead(FLIP_BUTTON_PIN);
+    if (flip_btn_last_state == HIGH && flip_state == LOW) {
+        flip_btn_fall_time = millis();
+    } else if (flip_btn_last_state == LOW && flip_state == HIGH) {
+        if (millis() - flip_btn_fall_time > BTN_DEBOUNCE_MS) {
+            toggleFlip();
+        }
+    }
+    flip_btn_last_state = flip_state;
+}
+
+// 고속 SW I2C 콜백
+extern "C" uint8_t u8x8_gpio_and_delay_esp32_c3_fast(u8x8_t* u8x8, uint8_t msg, uint8_t arg_int, void* arg_ptr) {
+    uint8_t pin;
+    switch (msg) {
+        case U8X8_MSG_GPIO_AND_DELAY_INIT:
+            pin = u8x8->pins[U8X8_PIN_I2C_CLOCK];
+            if (pin != U8X8_PIN_NONE) { pinMode(pin, OUTPUT_OPEN_DRAIN); gpio_set_level((gpio_num_t)pin, 1); }
+            pin = u8x8->pins[U8X8_PIN_I2C_DATA];
+            if (pin != U8X8_PIN_NONE) { pinMode(pin, OUTPUT_OPEN_DRAIN); gpio_set_level((gpio_num_t)pin, 1); }
+            break;
+        case U8X8_MSG_DELAY_MILLI: delay(arg_int); break;
+        case U8X8_MSG_GPIO_I2C_CLOCK:
+            if (arg_int) GPIO.out_w1ts.val = (1 << sw_scl_pin);
+            else         GPIO.out_w1tc.val = (1 << sw_scl_pin);
+            break;
+        case U8X8_MSG_GPIO_I2C_DATA:
+            if (arg_int) GPIO.out_w1ts.val = (1 << sw_sda_pin);
+            else         GPIO.out_w1tc.val = (1 << sw_sda_pin);
+            break;
+        default: u8x8_SetGPIOResult(u8x8, 1); break;
+    }
+    return 1;
 }
 
 // --- [4] 와이드 캔버스 전송 엔진 (Smart Flush) ---
@@ -85,15 +128,16 @@ void pushSmartWideCanvas() {
   frame_counter++; 
   uint8_t* canvas_ptr = (uint8_t*)canvas.getBuffer();
   
-  for (int s = 0; s < 4; s++) {
+    for (int s = 0; s < 4; s++) {
     uint8_t* u8g2_buf = screens[s]->getBufferPtr();
+    int logical_s = is_flipped ? (3 - s) : s;
     
     for (int p = 0; p < 8; p++) {
       uint8_t page_cache[128];
       bool page_dirty = false;
       
       for (int x = 0; x < 128; x++) {
-        int gx = (s * 128) + x;
+        int gx = (logical_s * 128) + x;
         int byte_idx = gx >> 3;
         int bit_mask = 0x80 >> (gx & 7);
         
@@ -123,6 +167,7 @@ void pushSmartWideCanvas() {
 void smartDelay(uint32_t ms) {
     uint32_t start_ms = millis();
     while (millis() - start_ms < ms) {
+        checkButtons();
         pushSmartWideCanvas(); // 지연 시간 동안에도 일정한 주기로 데이터 체크/전송
     }
 }
@@ -254,6 +299,17 @@ void setup() {
   u8g2_3.setI2CAddress(0x3C * 2); u8g2_3.begin();
   u8g2_4.setI2CAddress(0x3D * 2); u8g2_4.begin();
 
+  // 버튼 및 부저 초기화
+  pinMode(FLIP_BUTTON_PIN, INPUT_PULLUP);
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, LOW);
+
+  // 저장된 설정 로드
+  prefs.begin("wide_set", true);
+  is_flipped = prefs.getBool("flip", true);
+  prefs.end();
+  applyFlipState(is_flipped);
+
   // FPS 타이머 인터럽트 시작 (1초마다 onFpsReport 실행)
   fps_ticker.attach(1.0, onFpsReport);
 
@@ -272,6 +328,7 @@ void setup() {
 }
 
 void loop() {
+  checkButtons();
   // Adafruit SSD1306 라이브러리 예제 스타일의 순환 데모
   testDrawLine();
   testDrawRect();
