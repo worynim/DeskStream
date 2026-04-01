@@ -45,6 +45,8 @@ enum DisplayMode {
     MODE_DATE = 6,
     MODE_TRIP_STATS = 7
 };
+const int DISPLAY_MODE_COUNT = 8;  // 모드 총 개수 (매직넘버 제거용)
+
 #include "driver/gpio.h"
 #include "soc/gpio_struct.h"    // GPIO 구조체 정의 (GPIO.out_w1ts 사용을 위해 필수)
 #include "soc/gpio_reg.h"       // GPIO 레지스터 정의
@@ -62,9 +64,9 @@ U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_3(U8G2_R0, /* clock=*/ sw_scl_pin, /* d
 U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_4(U8G2_R0, /* clock=*/ sw_scl_pin, /* data=*/ sw_sda_pin, /* reset=*/ U8X8_PIN_NONE);
 
 // --- 애니메이션용 전역 변수 ---
-float smoothedHeading = 0; // 부드럽게 보간된 현재 각도
-float smoothedSpeed = 0;   // 부드럽게 보간된 현재 속도
-int currentFlipMode = 2;   // 0:Normal, 1:Mirror H, 2:180(HV), 3:Mirror V(180+H)
+float smoothedHeading[4] = {0}; // OLED별 독립 보간 각도
+float smoothedSpeed[4] = {0};   // OLED별 독립 보간 속도
+int currentFlipMode = 2;        // 0:Normal, 1:Mirror H, 2:180(HV), 3:Mirror V(180+H)
 
 // 고속 SW I2C 콜백
 extern "C" uint8_t u8x8_gpio_and_delay_esp32_c3_fast(u8x8_t* u8x8, uint8_t msg, uint8_t arg_int, void* arg_ptr) {
@@ -162,7 +164,7 @@ void initDisplay() {
     u8g2_3.setI2CAddress(0x3C * 2); u8g2_3.begin();
     u8g2_4.setI2CAddress(0x3D * 2); u8g2_4.begin();
 
-    updateDisplayFlip(); // 저장된 반전 모드 적용
+    // 참고: updateDisplayFlip()은 loadSettings() 내부에서 호출되므로 여기서 중복 호출하지 않음
 }
 
 /**
@@ -200,16 +202,16 @@ void drawTime(U8G2 &u8g2, const char* time, int year, int month, int day) {
 /**
  * @brief 아날로그 스피도미터 게이지
  */
-void drawSpeedGauge(U8G2 &u8g2, float speed) {
+void drawSpeedGauge(U8G2 &u8g2, float speed, int dispIdx = 0) {
     u8g2.clearBuffer();
     u8g2.setFont(u8g2_font_6x10_tf);
     u8g2.drawStr(0, 10, "SPEED");
 
     float targetSpeed = speed;
     // 속도 보간 (게이지 바늘의 부드러운 움직임)
-    smoothedSpeed += (targetSpeed - smoothedSpeed) * 0.2;
-    if (smoothedSpeed < 0) smoothedSpeed = 0;
-    if (smoothedSpeed > 180) smoothedSpeed = 180;  // 게이지 범위 상한 클램핑
+    smoothedSpeed[dispIdx] += (targetSpeed - smoothedSpeed[dispIdx]) * 0.2;
+    if (smoothedSpeed[dispIdx] < 0) smoothedSpeed[dispIdx] = 0;
+    if (smoothedSpeed[dispIdx] > 180) smoothedSpeed[dispIdx] = 180;  // 게이지 범위 상한 클램핑
 
     int scx = 64, scy = 60; 
     int sr = 54; // 대형 아크
@@ -238,7 +240,7 @@ void drawSpeedGauge(U8G2 &u8g2, float speed) {
     }
 
     // 3. 바늘 (Needle) - 0km/h는 180도 위치
-    float needleAngle = (smoothedSpeed + 180.0);
+    float needleAngle = (smoothedSpeed[dispIdx] + 180.0);
     if (needleAngle > 360) needleAngle = 360; 
     float nRad = needleAngle * 3.14159 / 180.0;
     
@@ -267,20 +269,20 @@ void drawSpeedGauge(U8G2 &u8g2, float speed) {
 /**
  * @brief 반원 나침반 (Semi-Circle Arc Compass)
  */
-void drawCompass(U8G2 &u8g2, float course) {
+void drawCompass(U8G2 &u8g2, float course, int dispIdx = 0) {
     u8g2.clearBuffer();
     u8g2.setFont(u8g2_font_6x10_tf);
     u8g2.drawStr(0, 10, "HEADING");
 
     // 목표 각도 수치 보간
     float targetAngle = course;
-    float diff = targetAngle - smoothedHeading;
+    float diff = targetAngle - smoothedHeading[dispIdx];
     if (diff > 180) diff -= 360;
     if (diff < -180) diff += 360;
-    smoothedHeading += diff * 0.3; 
+    smoothedHeading[dispIdx] += diff * 0.3; 
     
-    if (smoothedHeading >= 360) smoothedHeading -= 360;
-    if (smoothedHeading < 0) smoothedHeading += 360;
+    if (smoothedHeading[dispIdx] >= 360) smoothedHeading[dispIdx] -= 360;
+    if (smoothedHeading[dispIdx] < 0) smoothedHeading[dispIdx] += 360;
 
     int cx = 64, cy = 64; // 중심점을 바닥으로 이동하여 아크를 최대화
     int r = 44;           // 아크 반지름 크게 확대 (기존 32)
@@ -299,7 +301,7 @@ void drawCompass(U8G2 &u8g2, float course) {
     u8g2.setFont(u8g2_font_maniac_tr);
     for (int i = 0; i < 4; i++) {
         // 상대 각도 계산
-        float angleRad = (angles[i] - smoothedHeading - 90.0) * 3.14159 / 180.0;
+        float angleRad = (angles[i] - smoothedHeading[dispIdx] - 90.0) * 3.14159 / 180.0;
         
         // 방위 기호 위치 계산 (아크 바깥쪽)
         int lx = cx + cos(angleRad) * (r + 4);
@@ -373,14 +375,14 @@ void drawLatLon(U8G2 &u8g2, float lat, float lon) {
     u8g2.setFont(u8g2_font_6x10_tf);
     u8g2.drawStr(0, 10, "COORDINATES");
     
-    // Latitude (위도)
+    // Latitude (위도) — 부호에 따라 N/S 자동 판별
     u8g2.setFont(u8g2_font_bpixeldouble_tr);
-    char buf[16];
-    snprintf(buf, sizeof(buf), "N: %.4f", lat);
+    char buf[20];
+    snprintf(buf, sizeof(buf), "%c: %.4f", lat >= 0 ? 'N' : 'S', lat >= 0 ? lat : -lat);
     u8g2.drawStr(5, 35, buf);
     
-    // Longitude (경도)
-    snprintf(buf, sizeof(buf), "E: %.4f", lon);
+    // Longitude (경도) — 부호에 따라 E/W 자동 판별
+    snprintf(buf, sizeof(buf), "%c: %.4f", lon >= 0 ? 'E' : 'W', lon >= 0 ? lon : -lon);
     u8g2.drawStr(5, 55, buf);
     
     u8g2.sendBuffer();
@@ -563,20 +565,29 @@ void drawHelpScreen(U8G2 &u8g2, int displayIndex) {
  * @brief 동적 대시보드 화면 갱신: 각 화면의 모드 설정에 맞는 그리기 함수를 실행
  */
 void updateDashboard(const DashboardData& data, int modes[4]) {
-    // 4개의 디스플레이 객체를 포인터 배열로 묶어서 반복 처리
+    // 도움말 화면 dirty flag — 정적 콘텐츠이므로 전환 시 1회만 렌더링
+    static bool _helpDrawn = false;
+    
     U8G2* displays[4] = {&u8g2_1, &u8g2_2, &u8g2_3, &u8g2_4};
     
-    for (int i = 0; i < 4; i++) {
-        // 도움말 모드인 경우 기본 모드를 무시하고 화면 렌더링
-        if (data.showHelp) {
-            drawHelpScreen(*displays[i], i);
-            continue;
+    if (data.showHelp) {
+        if (!_helpDrawn) {
+            // 도움말 모드 진입 시 1회만 그림 (10Hz 리드로우 절약)
+            for (int i = 0; i < 4; i++) {
+                drawHelpScreen(*displays[i], i);
+            }
+            _helpDrawn = true;
         }
-        
+        return;  // 이미 그려진 상태면 리드로우 스킵
+    }
+    
+    _helpDrawn = false;  // 도움말 탈출 시 플래그 초기화
+    
+    for (int i = 0; i < 4; i++) {
         switch (modes[i]) {
             case MODE_TIME: drawTime(*displays[i], data.timeStr, data.calYear, data.calMonth, data.calDay); break;
-            case MODE_SPEED: drawSpeedGauge(*displays[i], data.speedVal); break;
-            case MODE_COMPASS: drawCompass(*displays[i], data.courseVal); break;
+            case MODE_SPEED: drawSpeedGauge(*displays[i], data.speedVal, i); break;
+            case MODE_COMPASS: drawCompass(*displays[i], data.courseVal, i); break;
             case MODE_SATS: drawSatellites(*displays[i], data.usedSats, data.visibleSats, data.hdopStr, data.statusStr); break;
             case MODE_LATLON: drawLatLon(*displays[i], data.latVal, data.lonVal); break;
             case MODE_ALTITUDE: drawAltitude(*displays[i], data.altVal); break;

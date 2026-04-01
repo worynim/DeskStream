@@ -16,9 +16,14 @@ const char* ap_ssid = "ESP32_GPS_DASH";
 const char* ap_password = "gps12345";  // AP 비밀번호 (최소 8자)
 WebServer server(80);
 
-// OTA 상태 관리 변수
-volatile bool is_ota_mode = false;
-volatile int ota_progress = 0;
+// OTA 상태 관리 변수 (단일 스레드 접근이므로 volatile 불필요)
+bool is_ota_mode = false;
+int ota_progress = 0;
+
+// --- WiFi AP 자동 종료 시스템 (전력 절감) ---
+const unsigned long AP_TIMEOUT_MS = 5UL * 60 * 1000;  // 5분
+unsigned long _apStartTime = 0;
+bool _apActive = true;
 
 // 웹 디버그 로그용 링 버퍼 (힙 단편화 완전 방지)
 const int MAX_LOG_ENTRIES = 20;           // 최대 보관 로그 수
@@ -92,6 +97,7 @@ const char* ota_html =
  */
 void initOTA() {
     WiFi.softAP(ap_ssid, ap_password);
+    _apStartTime = millis();  // AP 시작 시각 기록
     
     server.on("/", HTTP_GET, []() {
         server.send(200, "text/html", ota_html);
@@ -109,7 +115,10 @@ void initOTA() {
     }, []() {
         HTTPUpload& upload = server.upload();
         if (upload.status == UPLOAD_FILE_START) {
-            if (!Update.begin(UPDATE_SIZE_UNKNOWN)) Update.printError(Serial);
+            if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
+                Update.printError(Serial);
+                return;  // 초기화 실패 시 업데이트 중단 (불완전 펌웨어 방지)
+            }
             is_ota_mode = true;
         } else if (upload.status == UPLOAD_FILE_WRITE) {
             if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) Update.printError(Serial);
@@ -121,11 +130,37 @@ void initOTA() {
     });
 
     server.begin();
-    addWebLog("System Initialized. AP Mode Active.");
+    addWebLog("System Initialized. AP active for 5 min.");
+    Serial.printf("[WiFi] AP '%s' started (auto-off in 5min)\n", ap_ssid);
+}
+
+/**
+ * @brief WiFi AP 5분 자동 종료 확인 (접속자 있으면 연장)
+ */
+void checkAPTimeout() {
+    if (!_apActive || is_ota_mode) return;  // 이미 꺼졌거나 OTA 중이면 무시
+    
+    if (millis() - _apStartTime > AP_TIMEOUT_MS) {
+        if (WiFi.softAPgetStationNum() == 0) {
+            // 접속자 없음 — AP 종료하여 전력 절감
+            server.stop();
+            WiFi.softAPdisconnect(true);
+            WiFi.mode(WIFI_OFF);
+            _apActive = false;
+            Serial.println("[WiFi] AP auto-shutdown (5min, no clients)");
+        } else {
+            // 접속자 있음 — 타이머 연장 (1분 추가)
+            _apStartTime = millis() - AP_TIMEOUT_MS + 60000;
+            Serial.printf("[WiFi] Client connected, extending AP (+1min)\n");
+        }
+    }
 }
 
 void handleOTA() {
-    server.handleClient();
+    if (_apActive) {
+        server.handleClient();
+        checkAPTimeout();
+    }
 }
 
 #endif // OTA_HANDLER_H

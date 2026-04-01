@@ -36,7 +36,7 @@ HardwareSerial gpsSerial(0); // Hardware UART0 사용 (ESP32-C3 기본 핀 20, 2
 Adafruit_GPS GPS(&gpsSerial);
 
 // GSV 파싱을 통한 가시 위성 수 추적
-volatile int _satVisible = 0;    // 가시 위성 수 (GSV에서 파싱)
+int _satVisible = 0;             // 가시 위성 수 (GSV에서 파싱, 단일 스레드 접근)
 bool _lastFixState = false;      // Fix 상태 변화 감지용
 
 /**
@@ -116,7 +116,8 @@ void initGPS() {
                       0xC8, 0x00,  // measRate: 200ms
                       0x01, 0x00,  // navRate: 1 cycle
                       0x01, 0x00,  // timeRef: GPS time
-                      0xDE, 0x6A}; // checksum
+                      0x00, 0x00}; // checksum (자동 계산)
+    calcUBXChecksum(ubx_5hz, sizeof(ubx_5hz), ubx_5hz[12], ubx_5hz[13]);
     sendUBXCommand(ubx_5hz, sizeof(ubx_5hz));
     
     // 2. [u-blox 전용] NMEA 출력 설정 (UBX-CFG-MSG)
@@ -171,6 +172,7 @@ void updateGPS() {
     bool dataReceived = false;
     while (gpsSerial.available()) {
         char c = GPS.read();
+        if (DEBUG_GPS) Serial.write(c);  // 디버그: GPS 원시 데이터 그대로 출력
         dataReceived = true;
         
         // 새로운 NMEA 문장이 완성되었는지 확인
@@ -303,21 +305,13 @@ void getGPSCalendar(bool forceDemo, int &outYear, int &outMonth, int &outDay) {
 }
 
 /**
- * 두 번째 OLED: 현재 속도 숫자값 반환 (km/h)
- */
-float getRawSpeed() {
-    if (!GPS.fix) return 0.0;
-    return GPS.speed * 1.852;
-}
-
-/**
- * 두 번째 OLED: 현재 속도 반환 (km/h)
- * @return float Speed in km/h
+ * @brief 현재 속도 반환 (km/h, knots→km/h 변환 포함)
+ * @return float 1.0km/h 미만은 0 반환 (정지 노이즈 제거)
  */
 float getGPSSpeed() {
-    float speedKmph = getRawSpeed();
-    if (speedKmph < 1.0) return 0.0f;
-    return speedKmph;
+    if (!GPS.fix) return 0.0f;
+    float speedKmph = GPS.speed * 1.852;  // knots → km/h
+    return (speedKmph < 1.0f) ? 0.0f : speedKmph;
 }
 
 /**
@@ -371,17 +365,7 @@ const char* getGPSSatStatus() {
     return "SEARCHING";
 }
 
-// 위성 정보 문자열용 스택 버퍼
-char _satInfoBuf[32];
-
-/**
- * 네 번째 OLED: 위성 상태 정보 (기존 호환용)
- * @return const char* 상태 정보 문자열 (내부 버퍼 포인터)
- */
-const char* getGPSSatInfo() {
-    snprintf(_satInfoBuf, sizeof(_satInfoBuf), "SAT: %d (%s)", getGPSSatCount(), getGPSSatStatus());
-    return _satInfoBuf;
-}
+// getGPSSatInfo() 제거됨 — 외부에서 미사용 데드 코드 (v2.5.1 정리)
 
 /**
  * @brief 신규 화면용: 위도(Latitude) 반환

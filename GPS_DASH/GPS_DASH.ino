@@ -1,10 +1,14 @@
 /**
- * @file GPS_OLED4.ino
+ * @file GPS_DASH.ino
  * @author Antigravity
  * @brief GPS 정보를 4개의 OLED 디스플레이에 표시하는 프로그램 (심플 버전)
  */
 #include <Arduino.h>
 #include <Preferences.h>
+
+// --- [디버그 설정] ---
+bool DEBUG_GPS = 0;  // 1: GPS 원시 NMEA 데이터를 시리얼 모니터에 그대로 출력
+
 #include "display_handler.h"
 #include "gps_handler.h"
 #include "ota_handler.h"
@@ -27,6 +31,22 @@ int currentDisplayModes[4] = {MODE_TIME, MODE_SPEED, MODE_COMPASS, MODE_SATS};
 unsigned long tripTimeSec = 0;      // 총 주행 시간 (초)
 float tripDistanceKm = 0.0;         // 총 주행 거리 (km)
 unsigned long lastStatsUpdate = 0;  // 통계 업데이트용 타이머
+
+// --- [비차단 부저 시스템 타입 선언] (Arduino 자동 전방선언 호환) ---
+struct ToneNote {
+    int freq;
+    int durationMs;
+    int pauseMs;  // 다음 음 전 쉬는 시간 (0이면 즉시 연주)
+};
+
+const int MAX_MELODY_NOTES = 5;
+ToneNote _melodyQueue[MAX_MELODY_NOTES];
+int _melodyLen = 0;
+int _melodyIdx = 0;
+unsigned long _toneEndAt = 0;
+unsigned long _pauseEndAt = 0;
+enum TonePhase { TONE_IDLE, TONE_PLAYING, TONE_PAUSE };
+TonePhase _tonePhase = TONE_IDLE;
 
 /**
  * @brief 패시브 부저음을 발생시킵니다 (펄스 생성).
@@ -52,22 +72,77 @@ void playBootMelody() {
     beep(200, 4186);
 }
 
+// --- [비차단 부저 함수 정의] (loop 내 사용 — GPS 프레임 유실 방지) ---
+
 /**
- * @brief GPS Lock 시 재생할 멜로디 (Fix Acquired)
+ * @brief 비차단 멜로디 재생 시작 (여러 음을 큐에 등록)
  */
-void playLockMelody() {
-    beep(100, 2093);
-    delay(50);
-    beep(150, 3136);
+void playMelodyAsync(const ToneNote* notes, int count) {
+    if (count > MAX_MELODY_NOTES) count = MAX_MELODY_NOTES;
+    for (int i = 0; i < count; i++) _melodyQueue[i] = notes[i];
+    _melodyLen = count;
+    _melodyIdx = 0;
+    tone(BUZZER_PIN, _melodyQueue[0].freq);
+    _toneEndAt = millis() + _melodyQueue[0].durationMs;
+    _tonePhase = TONE_PLAYING;
 }
 
 /**
- * @brief GPS Unlock 시 재생할 멜로디 (Fix Lost)
+ * @brief 비차단 단일 부저음 (loop 내 버튼 피드백용)
+ */
+void beepAsync(int duration = 50, int freq = 2000) {
+    ToneNote n = {freq, duration, 0};
+    playMelodyAsync(&n, 1);
+}
+
+/**
+ * @brief 부저 상태 업데이트 — loop()에서 매번 호출 필수
+ */
+void updateTone() {
+    if (_tonePhase == TONE_IDLE) return;
+    unsigned long now = millis();
+    
+    if (_tonePhase == TONE_PLAYING && now >= _toneEndAt) {
+        noTone(BUZZER_PIN);
+        int pauseMs = _melodyQueue[_melodyIdx].pauseMs;
+        _melodyIdx++;
+        
+        if (_melodyIdx >= _melodyLen) {
+            _tonePhase = TONE_IDLE;
+        } else if (pauseMs > 0) {
+            _pauseEndAt = now + pauseMs;
+            _tonePhase = TONE_PAUSE;
+        } else {
+            tone(BUZZER_PIN, _melodyQueue[_melodyIdx].freq);
+            _toneEndAt = now + _melodyQueue[_melodyIdx].durationMs;
+        }
+    }
+    
+    if (_tonePhase == TONE_PAUSE && now >= _pauseEndAt) {
+        if (_melodyIdx < _melodyLen) {
+            tone(BUZZER_PIN, _melodyQueue[_melodyIdx].freq);
+            _toneEndAt = now + _melodyQueue[_melodyIdx].durationMs;
+            _tonePhase = TONE_PLAYING;
+        } else {
+            _tonePhase = TONE_IDLE;
+        }
+    }
+}
+
+/**
+ * @brief GPS Lock 시 재생할 멜로디 — 비차단 (Fix Acquired)
+ */
+void playLockMelody() {
+    static const ToneNote notes[] = {{2093, 100, 50}, {3136, 150, 0}};
+    playMelodyAsync(notes, 2);
+}
+
+/**
+ * @brief GPS Unlock 시 재생할 멜로디 — 비차단 (Fix Lost)
  */
 void playUnlockMelody() {
-    beep(150, 1047);
-    delay(50);
-    beep(100, 1047);
+    static const ToneNote notes[] = {{1047, 150, 50}, {1047, 100, 0}};
+    playMelodyAsync(notes, 2);
 }
 
 /**
@@ -102,7 +177,7 @@ struct Button {
             if (isPressed && !isLongPressFired) {
                 if (now - fallTime > 1000) { // 1s가 지난 순간 손을 떼지 않아도 즉시 롱 프레스 발동!
                     isLongPressFired = true; // 한 번 눌린 것으로 처리하여 중복/연사 방지
-                    beep(200, 2000); // 롱 프레스 부저음
+                    beepAsync(200, 2000); // 롱 프레스 부저음 (비차단)
                     if (onLongPress) onLongPress();
                 }
             }
@@ -111,7 +186,7 @@ struct Button {
             if (isPressed && !isLongPressFired) { // 롱 프레스가 안터진 경우에만 숏 프레스 발동
                 unsigned long duration = now - fallTime;
                 if (duration > 50) { // Short Press (Debounce 50ms)
-                    beep(50, 3000); // 숏 프레스 부저음
+                    beepAsync(50, 3000); // 숏 프레스 부저음 (비차단)
                     if (onShortPress) onShortPress();
                 }
             }
@@ -157,14 +232,32 @@ void loadSettings() {
     updateDisplayFlip();
 }
 
-// 모드 전환 공통 함수 (0~7 모드 순환)
+// --- [비휘발성 설정 지연 저장 시스템] ---
+// NVS Flash 쓰기 수명 보호: 마지막 변경 후 3초 뒤 한 번만 저장
+bool _settingsDirty = false;
+unsigned long _lastSettingsChange = 0;
+
+void markSettingsDirty() {
+    _settingsDirty = true;
+    _lastSettingsChange = millis();
+}
+
+void checkDeferredSave() {
+    if (_settingsDirty && millis() - _lastSettingsChange > 3000) {
+        saveSettings();
+        _settingsDirty = false;
+        Serial.println("[NVS] Deferred save completed.");
+    }
+}
+
+// 모드 전환 공통 함수
 void nextMode(int displayIndex) {
     if (isHelpMode) {
         isHelpMode = false; // 도움말 모드 전환 중지 및 원복
         return;
     }
-    currentDisplayModes[displayIndex] = (currentDisplayModes[displayIndex] + 1) % 8; 
-    saveSettings(); // 모드 변경 시 즉시 저장
+    currentDisplayModes[displayIndex] = (currentDisplayModes[displayIndex] + 1) % DISPLAY_MODE_COUNT; 
+    markSettingsDirty(); // 모드 변경 - 지연 저장 (Flash 수명 보호)
 }
 
 // 1번 버튼 (OLED 1)
@@ -172,7 +265,7 @@ void btn1_short() { nextMode(0); }
 void btn1_long()  { 
     currentFlipMode = (currentFlipMode + 1) % 4;
     updateDisplayFlip(); 
-    saveSettings(); // 반전 모드 변경 시 즉시 저장
+    markSettingsDirty(); // 반전 모드 변경 - 지연 저장
     Serial.printf("[FLIP] Switched to Mode: %d (Saved)\n", currentFlipMode);
 }
 
@@ -243,7 +336,11 @@ void loop() {
     // 1. 시스템 태스크 처리 (OTA 등)
     handleOTA();
 
-    // 2. OTA 진행 중일 경우 디스플레이 전유
+    // 2. 비차단 부저 및 NVS 지연 저장 업데이트
+    updateTone();
+    checkDeferredSave();
+
+    // 3. OTA 진행 중일 경우 디스플레이 전유
     if (is_ota_mode) {
         static unsigned long lastOtaDisp = 0;
         if (millis() - lastOtaDisp > 100) {
@@ -253,17 +350,17 @@ void loop() {
         return; 
     }
 
-    // 3. 하드웨어 버튼 입력 처리 (Short/Long 프레스)
+    // 4. 하드웨어 버튼 입력 처리 (Short/Long 프레스)
     for (int i = 0; i < 4; i++) {
         btns[i].update();
     }
 
-    // 4. [중요] GPS 데이터 수신 처리 (타이머 없이 루프마다 실행)
+    // 5. [중요] GPS 데이터 수신 처리 (타이머 없이 루프마다 실행)
     // 데이터 소스가 5Hz이더라도 수신은 최대한 자주 호출해야 시리얼 버퍼가 넘치지 않습니다.
     // 항상 백그라운드에서 버퍼를 비워주어 오버플로를 방지합니다.
     updateGPS();
 
-    // 5. 주행 통계 업데이트 (1초 주기)
+    // 6. 주행 통계 업데이트 (1초 주기)
     if (millis() - lastStatsUpdate >= 1000) {
         float currentSpeed = isDemoMode ? 60.0 : getGPSSpeed(); // km/h
         
@@ -276,7 +373,7 @@ void loop() {
         lastStatsUpdate = millis();
     }
 
-    // 6. 대시보드 화면 갱신 (10Hz)
+    // 7. 대시보드 화면 갱신 (10Hz)
     // GPS 데이터는 5Hz로 들어오지만, 10Hz로 화면을 그려야 보간(Interpolation) 애니메이션이 부드럽습니다.
     static unsigned long lastRefresh = 0;
     if (millis() - lastRefresh > 100) {
