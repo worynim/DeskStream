@@ -11,6 +11,7 @@
 
 Preferences prefs;             // 비휘발성 설정 저장용 객체
 bool isDemoMode = false;       // 현재 데모 모드 여부
+bool isHelpMode = false;       // 현재 버튼 정보 도움말 표시 여부
 
 // 버튼 핀 정의
 const int BTN1_PIN = 1;  // OLED 1 제어용
@@ -36,6 +37,37 @@ void beep(int duration = 50, int freq = 2000) {
   tone(BUZZER_PIN, freq);
   delay(duration);
   noTone(BUZZER_PIN);
+}
+
+/**
+ * @brief 시스템 시작 멜로디를 재생합니다 (띠리리링~).
+ */
+void playBootMelody() {
+    beep(80, 2093);
+    delay(30);
+    beep(80, 2637);
+    delay(30);
+    beep(80, 3136);
+    delay(30);
+    beep(200, 4186);
+}
+
+/**
+ * @brief GPS Lock 시 재생할 멜로디 (Fix Acquired)
+ */
+void playLockMelody() {
+    beep(100, 2093);
+    delay(50);
+    beep(150, 3136);
+}
+
+/**
+ * @brief GPS Unlock 시 재생할 멜로디 (Fix Lost)
+ */
+void playUnlockMelody() {
+    beep(150, 1047);
+    delay(50);
+    beep(100, 1047);
 }
 
 /**
@@ -127,6 +159,10 @@ void loadSettings() {
 
 // 모드 전환 공통 함수 (0~7 모드 순환)
 void nextMode(int displayIndex) {
+    if (isHelpMode) {
+        isHelpMode = false; // 도움말 모드 전환 중지 및 원복
+        return;
+    }
     currentDisplayModes[displayIndex] = (currentDisplayModes[displayIndex] + 1) % 8; 
     saveSettings(); // 모드 변경 시 즉시 저장
 }
@@ -142,7 +178,10 @@ void btn1_long()  {
 
 // 2번 버튼 (OLED 2)
 void btn2_short() { nextMode(1); }
-void btn2_long()  { /* 나중에 기능 추가 (Reserved) */ }
+void btn2_long()  { 
+    isHelpMode = !isHelpMode;
+    Serial.printf("[HELP] Mode: %s\n", isHelpMode ? "ON" : "OFF");
+}
 
 // 3번 버튼 (OLED 3)
 void btn3_short() { nextMode(2); }
@@ -179,6 +218,9 @@ void setup() {
     pinMode(BUZZER_PIN, OUTPUT);
     digitalWrite(BUZZER_PIN, LOW);
     
+    // 시작 멜로디 재생
+    playBootMelody();
+    
     // 모듈별 초기화
     initDisplay();  // OLED 및 I2C 초기화 (display_handler.h)
     initGPS();      // GPS 초기화 (gps_handler.h)
@@ -189,6 +231,9 @@ void setup() {
 
     // GPS 로그 콜백 등록 (extern 의존성 제거)
     setGPSLogCallback([](const char* msg) { addWebLog(msg); });
+    
+    // GPS Fix/Lost 콜백 등록
+    setGPSFixCallbacks(playLockMelody, playUnlockMelody);
 
     Serial.println("[SYSTEM] GPS OLED DASHBOARD READY.");
     Serial.println("[SYSTEM] PRESS BUTTON (PIN 9) TO TOGGLE DEMO MODE.");
@@ -277,6 +322,7 @@ void loop() {
         // 공통 주행 데이터 주입
         data.tripTimeSec = tripTimeSec;
         data.tripDistance = tripDistanceKm;
+        data.showHelp = isHelpMode;
 
         updateDashboard(data, currentDisplayModes);
     }

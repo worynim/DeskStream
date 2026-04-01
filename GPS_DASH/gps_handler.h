@@ -21,6 +21,16 @@ LogCallback _gpsLogCallback = nullptr;
 
 void setGPSLogCallback(LogCallback cb) { _gpsLogCallback = cb; }
 
+// GPS 상태 변화 콜백 (Lock/Unlock)
+typedef void (*SimpleCallback)();
+SimpleCallback _onGPSLock = nullptr;
+SimpleCallback _onGPSUnlock = nullptr;
+
+void setGPSFixCallbacks(SimpleCallback lockCb, SimpleCallback unlockCb) {
+    _onGPSLock = lockCb;
+    _onGPSUnlock = unlockCb;
+}
+
 // Adafruit_GPS 및 Serial 객체 선언
 HardwareSerial gpsSerial(0); // Hardware UART0 사용 (ESP32-C3 기본 핀 20, 21에 매핑됨)
 Adafruit_GPS GPS(&gpsSerial);
@@ -183,6 +193,13 @@ void updateGPS() {
                     GPS.fix ? "ACQUIRED" : "LOST", (int)GPS.satellites, GPS.HDOP);
                 Serial.println(fixBuf);
                 if (_gpsLogCallback) _gpsLogCallback(fixBuf);
+
+                // 상위 레이어에 상태 변화 알림
+                if (GPS.fix) {
+                    if (_onGPSLock) _onGPSLock();
+                } else {
+                    if (_onGPSUnlock) _onGPSUnlock();
+                }
             }
 
             // 주요 정보 디버그 출력 (1초 단위)

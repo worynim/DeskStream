@@ -29,6 +29,7 @@ struct DashboardData {
     int calDay;
     unsigned long tripTimeSec; // 주행 시간 (초)
     float tripDistance;        // 주행 거리 (km) - 차후 트립미터용
+    bool showHelp;             // 전체 화면에 도움말 표시 플래그
 };
 
 /**
@@ -515,6 +516,50 @@ void drawTripStats(U8G2 &u8g2, unsigned long seconds, float distance) {
 }
 
 /**
+ * @brief 디스플레이별 버튼 동작 설명 화면 표시
+ */
+void drawHelpScreen(U8G2 &u8g2, int displayIndex) {
+    u8g2.clearBuffer();
+    
+    // 상단 타이틀
+    u8g2.setFont(u8g2_font_6x10_tf);
+    char title[16];
+    snprintf(title, sizeof(title), "- BTN %d INFO -", displayIndex + 1);
+    drawCenteredText(u8g2, title, 10);
+    u8g2.drawLine(0, 14, 128, 14);
+    
+    // 동작 설명 텍스트 준비
+    const char* shortDesc = "";
+    const char* longDesc = "";
+    
+    switch (displayIndex) {
+        case 0:
+            shortDesc = "S: NEXT MODE";
+            longDesc  = "L: FLIP SCREEN";
+            break;
+        case 1:
+            shortDesc = "S: NEXT MODE";
+            longDesc  = "L: TOGGLE INFO"; // 2번 버튼 길게 누를 경우
+            break;
+        case 2:
+            shortDesc = "S: NEXT MODE";
+            longDesc  = "L: RESET TRIP"; 
+            break;
+        case 3:
+            shortDesc = "S: NEXT MODE";
+            longDesc  = "L: DEMO TOGGLE";
+            break;
+    }
+    
+    // 텍스트 좌측 정렬 안내
+    u8g2.setFont(u8g2_font_6x10_tf);
+    u8g2.drawStr(10, 35, shortDesc);
+    u8g2.drawStr(10, 55, longDesc);
+    
+    u8g2.sendBuffer();
+}
+
+/**
  * @brief 동적 대시보드 화면 갱신: 각 화면의 모드 설정에 맞는 그리기 함수를 실행
  */
 void updateDashboard(const DashboardData& data, int modes[4]) {
@@ -522,6 +567,12 @@ void updateDashboard(const DashboardData& data, int modes[4]) {
     U8G2* displays[4] = {&u8g2_1, &u8g2_2, &u8g2_3, &u8g2_4};
     
     for (int i = 0; i < 4; i++) {
+        // 도움말 모드인 경우 기본 모드를 무시하고 화면 렌더링
+        if (data.showHelp) {
+            drawHelpScreen(*displays[i], i);
+            continue;
+        }
+        
         switch (modes[i]) {
             case MODE_TIME: drawTime(*displays[i], data.timeStr, data.calYear, data.calMonth, data.calDay); break;
             case MODE_SPEED: drawSpeedGauge(*displays[i], data.speedVal); break;
