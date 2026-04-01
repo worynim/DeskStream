@@ -1,5 +1,9 @@
 # Release Notes - OLED Wide Test
 
+## [v1.1.1] - Button Responsiveness Patch (2026-04-01)
+### 🛠️ 성능 최적화
+- **실시간 버튼 스캔 강화**: 렌더링 엔진(`pushSmartWideCanvas`) 및 프레임 대기 루프 내부에 버튼 핸들러를 통합하여, 화면 전송 중에도 즉각적인 플립 반응성을 확보했습니다.
+
 ## [v1.1.0] - Screen Flip & Audio Feedback (2026-04-01)
 ### 🚀 주요 추가 기능
 - **180도 화면 회전 (Screen Flip) 기능**: 1번 버튼(GPIO 1)을 통해 화면 방향을 180도 토글할 수 있습니다.

@@ -115,13 +115,17 @@ extern "C" uint8_t u8x8_gpio_and_delay_esp32_c3_fast(u8x8_t* u8x8, uint8_t msg, 
 
 // --- [4] 와이드 캔버스 전송 엔진 (Smart Flush) ---
 void pushSmartWideCanvas() {
+  checkButtons(); // 즉각적인 반응을 위해 프레임 시작 시 체크
+  
   // 프레임 레이트 제한 (너무 빠르면 대기)
   uint32_t now_us = micros();
   uint32_t elapsed = now_us - last_frame_micros;
   if (elapsed < FRAME_TIME_US) {
     uint32_t wait_us = FRAME_TIME_US - elapsed;
     if (wait_us > 1000) delay(wait_us / 1000); // 1ms 이상이면 delay() 사용
-    while (micros() - last_frame_micros < FRAME_TIME_US); // 남은 시간 미세 대기
+    while (micros() - last_frame_micros < FRAME_TIME_US) {
+        checkButtons(); // 미세 대기 시간 중에도 버튼 스캔 유지
+    }
   }
   last_frame_micros = micros();
 
