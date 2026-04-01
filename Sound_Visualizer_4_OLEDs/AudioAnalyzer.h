@@ -22,7 +22,8 @@ public:
     void begin();
     bool available();  // DMA 버퍼 데이터를 읽어 분석 준비 완료 여부 확인
     void process();    // FFT 연산 및 주파수 추출
-    void render(LGFX_Sprite& canvas); // 가상 캔버스에 시각화 결과 렌더링 (전체)
+    void render(LGFX_Sprite& canvas); // 가상 캔버스에 시각화 결과 렌더링 (스펙트럼 막대)
+    void renderWaveform(LGFX_Sprite& canvas); // 오실로스코프 스타일 파형 렌더링
     float getBandAmplitude(int band_idx); // 매핑된 밴드 진폭 계산 (공용)
     
     uint32_t getLastFftTime() const { return last_fft_time; }
@@ -47,6 +48,7 @@ private:
     float* window_data;
     float* noise_floor;
     BandMapping* band_mappings; // 밴드별 Bin 매핑 테이블
+    float* waveformBuf;         // 오실로스코프용 시간 영역 파형 버퍼 (DC 제거 후)
     
     // ADC DMA 관련
     adc_continuous_handle_t adc_handle;

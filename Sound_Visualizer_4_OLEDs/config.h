@@ -44,11 +44,11 @@
 // ==========================================
 // [2] 오디오 분석 및 시각화 설정
 // ==========================================
-#define TARGET_FPS          70          // 목표 프레임 레이트 (초당 40프레임)
+#define TARGET_FPS          70          // 목표 프레임 레이트 (초당 70프레임)
 #define TARGET_FRAME_US     (1000000 / TARGET_FPS) // 1프레임당 목표 시간 (마이크로초)
 
 #define DEFAULT_SAMPLES       1024       // FFT 샘플 수 (결과가 클수록 해상도가 높아지나 연산량 증가)
-#define DEFAULT_SAMPLING_FREQ 40000.0f  // 마이크로폰 샘플링 주파수 (10kHz = 최대 5kHz 대역 감지)
+#define DEFAULT_SAMPLING_FREQ 40000.0f  // 마이크로폰 샘플링 주파수 (40kHz = 최대 20kHz 대역 감지)
 #define DEFAULT_NUM_BANDS     128        // 화면에 표시할 주파수 막대(밴드) 총 개수
 
 // 주파수 매핑 설정
@@ -73,8 +73,10 @@
 
 #define CAL_ITERATIONS      120         // 캘리브레이션 시 소음을 측정할 횟수
 #define CAL_BUTTON_PIN      9           // 캘리브레이션 실행용 버튼 핀 번호 (GPIO 9)
+#define FLIP_BUTTON_PIN     1           // 화면 플립 토글 버튼 핀 번호 (GPIO 1)
+#define HELP_BUTTON_PIN     4           // 버튼 도움말 표시용 버튼 핀 번호 (GPIO 4)
 #define BUZZER_PIN          7           // 피드백용 부저 핀 번호 (GPIO 7)
-#define BTN_LONG_PRESS_MS   1000        // 버튼을 길게 누르는 판단 시간 (2초)
+#define BTN_LONG_PRESS_MS   1000        // 버튼을 길게 누르는 판단 시간 (1초)
 
 #define ADC_DMA_BUF_COUNT   4           // ADC DMA 내부 링버퍼 프레임 깊이
 #define BOOT_MESSAGE_DELAY_MS 2000      // 부팅 초기 메시지 노출 시간

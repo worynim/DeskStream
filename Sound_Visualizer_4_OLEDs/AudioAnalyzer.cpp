@@ -1,6 +1,9 @@
 #include "AudioAnalyzer.h"
 #include "soc/soc_caps.h"
 
+// 메인 스케치에 정의된 디버그 모드 변수 참조
+extern int DEBUG_MODE;
+
 #ifndef SOC_ADC_DIGI_RESULT_BYTES
 #define SOC_ADC_DIGI_RESULT_BYTES 4
 #endif
@@ -16,6 +19,7 @@ AudioAnalyzer::AudioAnalyzer(uint16_t samples, float samplingFreq, uint16_t numB
     smooth_bar = new int[numBands];
     noise_floor = new float[numBands];
     band_mappings = new BandMapping[numBands]; // 매핑 테이블 메모리 할당
+    waveformBuf = new float[samples];           // 오실로스코프용 파형 버퍼
     
     // ADC DMA 결과 버퍼 할당 (SAMPLES개 × 4바이트)
     adc_raw_buf = new uint8_t[samples * SOC_ADC_DIGI_RESULT_BYTES];
@@ -39,6 +43,7 @@ AudioAnalyzer::~AudioAnalyzer() {
     delete[] smooth_bar;
     delete[] noise_floor;
     delete[] band_mappings;
+    delete[] waveformBuf;
     delete[] adc_raw_buf;
 }
 
@@ -106,7 +111,7 @@ void AudioAnalyzer::begin() {
     calculateMappings();
 
     // 5. ESP-DSP FFT 초기화 및 사용자 정의 윈도우 생성
-    dsps_fft2r_init_sc16(NULL, 1024);
+    dsps_fft2r_init_sc16(NULL, SAMPLES);
     for (int i = 0; i < SAMPLES; i++) {
         float ratio = (float)i / (SAMPLES - 1);
         float w = 1.0f; // 기본 Rectangle(0)
@@ -151,7 +156,6 @@ void AudioAnalyzer::process() {
     uint32_t loop_interval_us = now_us - last_frame_time_us;
     last_frame_time_us = now_us;
     
-    extern int DEBUG_MODE;
     if (DEBUG_MODE >= 3) {
         // 하드웨어가 DMA로 샘플링을 보장하므로 SAMPLING_FREQ는 신뢰할 수 있는 값입니다.
         float max_freq = (float)NUM_BANDS * SAMPLING_FREQ / SAMPLES;
@@ -169,6 +173,7 @@ void AudioAnalyzer::process() {
     // 2. 값 증폭(<<4) 및 반감 보정용 윈도우 적용
     for (int i = 0; i < SAMPLES; i++) {
         int val = (int)vReal[i] - mean;
+        waveformBuf[i] = (float)val;  // 오실로스코프용 DC 제거 파형 저장
         fft_data_int[i * 2 + 0] = (int16_t)((val << 4) * window_data[i]);
         fft_data_int[i * 2 + 1] = 0;
     }
@@ -197,25 +202,30 @@ void AudioAnalyzer::render(LGFX_Sprite& canvas) {
     uint16_t num_bands = NUM_BANDS;
     int band_width = CANVAS_WIDTH / num_bands; 
 
-    // AGC (Auto Gain Control) 로직
+    // 밴드 렌더링 (AGC와 통합: 매핑된 밴드 진폭 기준으로 AGC 계산)
     float current_frame_max = 0;
+    float band_amps[NUM_BANDS]; // 노이즈 차감 후 실제 진폭 캐시
+
+    // [Pass 1] 모든 밴드의 매핑 진폭 계산 및 AGC 기준값 탐색
     for (int i = 0; i < num_bands; i++) {
-        if (vReal[i] > current_frame_max) current_frame_max = vReal[i];
+        float amp = getBandAmplitude(i);
+        float threshold = noise_floor[i];
+        if (amp < threshold) amp = 0; else amp -= threshold;
+        band_amps[i] = amp;
+        if (amp > current_frame_max) current_frame_max = amp;
     }
-    
+
+    // AGC (Auto Gain Control) — 매핑된 밴드 진폭 기준
     if (current_frame_max > agc_max_amp) agc_max_amp = current_frame_max;
     else agc_max_amp = (agc_max_amp * AGC_DECAY_RATE) + (current_frame_max * (1.0f - AGC_DECAY_RATE));
     
     if (agc_max_amp < AGC_MIN_AMPLITUDE) agc_max_amp = AGC_MIN_AMPLITUDE;
 
-    // 밴드 렌더링
+    // [Pass 2] 렌더링 (캐시된 진폭 사용)
     for (int i = 0; i < num_bands; i++) {
-        float amp = getBandAmplitude(i);
+        float amp = band_amps[i];
 
-        float threshold = noise_floor[i];
-        if (amp < threshold) amp = 0; else amp -= threshold;
-
-        int target_height = map((long)amp, 0, (long)agc_max_amp , 0, CANVAS_HEIGHT);
+        int target_height = map((long)amp, 0, (long)agc_max_amp, 0, CANVAS_HEIGHT);
         target_height = constrain(target_height, 0, CANVAS_HEIGHT);
 
         if (target_height > smooth_bar[i]) smooth_bar[i] = target_height;
@@ -284,5 +294,39 @@ float AudioAnalyzer::getBandAmplitude(int band_idx) {
     return amp;
 }
 
-
 // 1/4 전송 기능은 병합된 render로 대체됨 (삭제)
+
+void AudioAnalyzer::renderWaveform(LGFX_Sprite& canvas) {
+    uint32_t start_time = micros();
+    canvas.clear();
+
+    int centerY = CANVAS_HEIGHT / 2;
+
+    // [1] 중앙 기준선 (0V) — 가로 점선
+    for (int x = 0; x < CANVAS_WIDTH; x += 2) {
+        canvas.drawPixel(x, centerY, COLOR_WHITE);
+    }
+
+    // [3] 파형 자동 스케일링 (AGC)
+    float maxAmp = 1.0f;
+    for (int i = 0; i < SAMPLES; i++) {
+        float absVal = fabs(waveformBuf[i]);
+        if (absVal > maxAmp) maxAmp = absVal;
+    }
+    float scale = (float)(centerY - 2) / maxAmp; // 상하 2px 여유
+
+    // [4] 파형 그리기 (1024 샘플 → 512px 다운샘플링, 라인 연결)
+    int prevIdx = 0;
+    int prevY = centerY - (int)(waveformBuf[0] * scale);
+    prevY = constrain(prevY, 0, CANVAS_HEIGHT - 1);
+
+    for (int x = 1; x < CANVAS_WIDTH; x++) {
+        int idx = x * SAMPLES / CANVAS_WIDTH;
+        int curY = centerY - (int)(waveformBuf[idx] * scale);
+        curY = constrain(curY, 0, CANVAS_HEIGHT - 1);
+        canvas.drawLine(x - 1, prevY, x, curY, COLOR_WHITE);
+        prevY = curY;
+    }
+
+    last_render_time = micros() - start_time;
+}
