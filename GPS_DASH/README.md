@@ -27,12 +27,14 @@
 -   **Main Board**: MakerGO ESP32 C3 SuperMini
 -   **Display**: 0.96 inch SSD1306 OLED (128x64) x 4개
 -   **GPS Module**: **U-blox NEO-6M** (9600bps 초기화 후 5Hz 상향 고정)
--   **연결 핀**:
-    - **BTN 1 (Pin 1)**: OLED 1 모드 변경 / (길게) 화면 반전(Flip)
-    - **BTN 2 (Pin 4)**: OLED 2 모드 변경
-    - **BTN 3 (Pin 10)**: OLED 3 모드 변경 / (길게) 주행 통계(Trip) 리셋
-    - **BTN 4 (Pin 9)**: OLED 4 모드 변경 / (길게) 데모 모드 토글
-    - GPS UART: RX(20), TX(21) / I2C: SDA(5/2), SCL(6/3)
+- **구성**: 짧게 누르면 모드 전환, 1초 이상 길게 누르면 특수 기능 실행.
+- **오디오 피드백**: 부저(GPIO 7)를 통해 짧게 터치 시 2000Hz(50ms), 길게 누름 시 1000Hz(100ms) 알림음 발생.
+- **연결 핀 및 기능**:
+    - **BTN 1 (Pin 1)**: (Short) OLED 1 모드 순환 / (Long) 화면 전체 반전(Normal/Mirror/180/Flip) 루핑 제어.
+    - **BTN 2 (Pin 4)**: (Short) OLED 2 모드 순환.
+    - **BTN 3 (Pin 10)**: (Short) OLED 3 모드 순환 / (Long) 주행 통계(Trip) 리셋.
+    - **BTN 4 (Pin 9)**: (Short) OLED 4 모드 순환 / (Long) 데모 시뮬레이션 모드 토글.
+    - **통합 배선**: GPS UART: RX(20), TX(21) / I2C: SDA(5/2), SCL(6/3) / Buzzer(7).
 
 ## ⚙️ 소프트웨어 설정
 
