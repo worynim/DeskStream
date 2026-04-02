@@ -430,14 +430,16 @@ void drawStorage(U8G2 &u, int physIdx) {
   smartSendBuffer(physIdx);
 }
 
-// 네트워크 속도 단위 변환 (KB/s -> MB/s)
+// 네트워크 속도 단위 변환 (KB/s -> Mbps/kbps)
 void formatNetSpeed(float speed_kb, char *out_val, char *out_unit) {
-  if (speed_kb >= 1024.0) {
-    snprintf(out_val, 16, "%.1f", speed_kb / 1024.0);
-    strcpy(out_unit, "MB/s");
+  float speed_kbps = speed_kb * 8.0; // Byte -> Bit 환산 (kbps)
+  
+  if (speed_kbps >= 1000.0) {
+    snprintf(out_val, 16, "%.1f", speed_kbps / 1000.0);
+    strcpy(out_unit, "Mbps");
   } else {
-    snprintf(out_val, 16, "%.0f", speed_kb);
-    strcpy(out_unit, "KB/s");
+    snprintf(out_val, 16, "%.0f", speed_kbps);
+    strcpy(out_unit, "kbps");
   }
 }
 

@@ -5,6 +5,7 @@ import os
 import re
 import threading
 import time
+import GPUtil  # 윈도우 GPU 점유율 수집용
 
 class PowerMetricsReader:
     """
@@ -79,13 +80,15 @@ class MetricsCollector:
         try:
             self._prev_net = psutil.net_io_counters()
             self._prev_time = time.time()
+            # CPU 카운터 초기화 (interval=None 사용을 위해 미리 호출)
+            psutil.cpu_percent(interval=None)
         except Exception:
             self._prev_net = None
             self._prev_time = time.time()
 
     def get_cpu_perf(self) -> float:
-        """CPU 점유율 (%) 반환"""
-        return psutil.cpu_percent(interval=0.1)
+        """CPU 점유율 (%) 반환 (지난 호출 이후의 평균값)"""
+        return psutil.cpu_percent(interval=None)
 
     def get_ram_perf(self) -> float:
         """메모리 사용률 (%) 반환"""
@@ -108,10 +111,36 @@ class MetricsCollector:
         try:
             cmd = "ioreg -c AGXAccelerator -r -l"
             res = subprocess.check_output(cmd, shell=True, stderr=subprocess.DEVNULL).decode()
-            # "utilization" 키워드 뒤의 숫자 값들을 추출하여 최대값 리턴
             matches = re.findall(r"[Uu]tilization.*?(\d+)", res)
             if matches:
                 return float(max(int(m) for m in matches))
+        except Exception:
+            pass
+        return 0.0
+
+    def get_gpu_usage_windows(self) -> float:
+        """Windows 성능 카운터를 활용한 모든 GPU(인텔 내장 포함) 점유율 (%) 수합"""
+        try:
+            # PowerShell을 사용하여 모든 GPU 엔진의 Utilization Percentage 합산값 추출
+            # 인텔 내장, NVIDIA, AMD 모두 대응 가능
+            cmd = (
+                "powershell -NoProfile -ExecutionPolicy Bypass -Command "
+                "\"(Get-Counter '\\GPU Engine(*)\\Utilization Percentage' -ErrorAction SilentlyContinue).CounterSamples | "
+                "Measure-Object -Property CookedValue -Sum | Select-Object -ExpandProperty Sum\""
+            )
+            res = subprocess.check_output(cmd, shell=True, stderr=subprocess.DEVNULL).decode().strip()
+            
+            if res and res != "0":
+                # 여러 엔진(3D, Video, Copy 등) 점유율의 합이므로 100이 넘을 수 있으나 
+                # 일반적인 'GPU 부하' 인식을 위해 최대 100으로 제한하여 반환
+                val = float(res)
+                return min(round(val, 1), 100.0)
+                
+            # 위 방식이 실패할 경우를 대비한 NVIDIA 전용 GPUtil (Fallback)
+            if 'GPUtil' in globals():
+                gpus = GPUtil.getGPUs()
+                if gpus:
+                    return round(gpus[0].load * 100, 1)
         except Exception:
             pass
         return 0.0
@@ -153,12 +182,19 @@ class MetricsCollector:
             return 0.0, 0.0
 
     def collect_all(self) -> dict:
-        """전송을 위한 모든 수집 정보 통합 (JSON 키 매핑)"""
+        """전송을 위한 모든 수집 정보 통합 (OS별 분기 포함)"""
         n_i, n_o = self.get_network_speed()
+        
+        # 운영체제에 따른 GPU 데이터 수집
+        if self.os_type == "Windows":
+            gpu_u = self.get_gpu_usage_windows()
+        else:
+            gpu_u = self.get_gpu_usage_macos()
+
         return {
             "c_u": self.get_cpu_perf(),        # CPU Usage
             "c_t": self.get_cpu_temp(),        # CPU Temp
-            "g_u": self.get_gpu_usage_macos(), # GPU Usage
+            "g_u": gpu_u,                      # GPU Usage
             "g_t": 0.0,                        # GPU Temp (기본 0)
             "r_u": self.get_ram_perf(),        # RAM Usage
             "d_u": self.get_disk_perf(),       # Disk Usage
