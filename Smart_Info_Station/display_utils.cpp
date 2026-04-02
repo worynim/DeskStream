@@ -31,15 +31,7 @@ void showUpdateMessage(U8G2 &u8g2, String msg) {
   u8g2_prepare(u8g2);
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_6x10_tf);
-  u8g2.drawStr(0, 5, msg.c_str());
-  
-  // 간단한 점 애니메이션 시각화
-  static int dots = 0;
-  String d_str = "";
-  for (int i = 0; i < (dots % 4); i++) d_str += ".";
-  u8g2.drawStr(u8g2.getStrWidth(msg.c_str()) + 2, 5, d_str.c_str());
-  dots++;
-  
+  u8g2.drawStr(0, 5, msg.c_str());  // 호출자가 점 애니메이션 포함한 완성된 메시지를 전달
   u8g2.sendBuffer();
 }
 

@@ -18,9 +18,9 @@ void display_clock_oled(U8G2 &u8g2) {
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_bytesize_tr);
   String dateLine = t_str.substring(20, 24) + " " + t_str.substring(4, 10) + " " + t_str.substring(0, 3);
-  drawCenteredText(u8g2, dateLine, 5);
+  drawCenteredText(u8g2, dateLine, 0);
   u8g2.setFont(MAIN_NUM_FONT);
-  drawCenteredText(u8g2, t_str.substring(11, 19), 25);
+  drawCenteredText(u8g2, t_str.substring(11, 19), 22);
 
   u8g2.setFont(u8g2_font_6x10_tf);
   u8g2.drawStr(10, 56, "Set: ");

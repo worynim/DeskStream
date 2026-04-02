@@ -34,14 +34,49 @@ static bool prev_updating_states[MAX_WIDGET_RECORDS] = {false};
 static unsigned long last_animation_tick[MAX_WIDGET_RECORDS] = {0};
 
 /**
- * @brief 패시브 부저음을 발생시킵니다 (펄스 생성).
+ * @brief 패시브 부저음을 비차단(Non-Blocking) 방식으로 발생시킵니다.
+ * @note  delay() 대신 millis()를 사용하여 루프를 블로킹하지 않습니다.
  * @param duration 소리가 나는 시간 (ms)
- * @param freq 주파수 (Hz) - 기본값 2000Hz
+ * @param freq     주파수 (Hz) - 기본값 3000Hz
  */
-void beep(int duration = 50, int freq = 2000) {
+static unsigned long beep_end_ms = 0;  // 부저 종료 예정 시각
+
+void beep(int duration = 50, int freq = 3000) {
   tone(BUZZER_PIN, freq);
-  delay(duration);
-  noTone(BUZZER_PIN);
+  beep_end_ms = millis() + duration;  // 종료 시각만 예약, 즉시 반환
+}
+
+/**
+ * @brief loop()에서 호출하여 부저 종료 시각이 되면 자동으로 소리를 끕니다.
+ * @note  noTone() 후 명시적으로 LOW를 출력하여 마그네틱 부저에 전류가 흐르지 않도록 합니다.
+ */
+void beep_tick() {
+  if (beep_end_ms > 0 && millis() >= beep_end_ms) {
+    noTone(BUZZER_PIN);
+    digitalWrite(BUZZER_PIN, LOW);  // 마그네틱 부저: HIGH 잔류 전류 차단
+    beep_end_ms = 0;
+  }
+}
+
+/**
+ * @brief 시작 멜로디를 재생합니다. (띠리리링~)
+ * @note  setup() 내에서만 호출. FreeRTOS 태스크 시작 전이므로 delay() 블로킹 허용.
+ *        마그네틱 부저를 위해 각 음 이후 명시적 LOW 출력 필수.
+ */
+
+void playStartupMelody() {
+  // 띠 - 리 - 리 - 링~ : 도미솔도 (경쾌한 상승 화음)
+  const int notes[]     = { 2093, 2637, 3136, 4186 };  // Hz
+  const int durations[] = {  80,  80,  80,  220 };  // ms (음 지속 시간)
+  const int gaps[]      = {  30,  30,  30,    0 };  // ms (음간 묵음)
+
+  for (int i = 0; i < 4; i++) {
+    tone(BUZZER_PIN, notes[i]);
+    delay(durations[i]);
+    noTone(BUZZER_PIN);
+    digitalWrite(BUZZER_PIN, LOW);  // 마그네틱 부저: 잔류 전류 차단
+    if (gaps[i] > 0) delay(gaps[i]);
+  }
 }
 
 struct Button {
@@ -134,7 +169,7 @@ void saveGeneralSettings() {
  * 4~7번 인덱스: 2페이지의 화면 1~4
  * 8~11번 인덱스: 3페이지의 화면 1~4
  */
-WidgetType SCREEN_MAP[12] = {
+WidgetType SCREEN_MAP[MAX_DATA_PAGE * 4] = {
   // 1페이지 설정 (기본 정보)
   W_TIME,     // 스크린 1
   W_WEATHER,  // 스크린 2
@@ -216,7 +251,9 @@ void btn4_short() {
 }
 void btn4_long() {
   Serial.println("[BUTTON] BTN4 Long -> Refreshing data...");
+  portENTER_CRITICAL(&updateMux);  // force_update 쓰기 보호
   force_update = true;
+  portEXIT_CRITICAL(&updateMux);
   if (is_waiting && dataTaskHandle != NULL) xTaskAbortDelay(dataTaskHandle);
 }
 
@@ -423,6 +460,9 @@ void setup() {
   u8g2_3.clearBuffer(); u8g2_3.sendBuffer();
   u8g2_4.clearBuffer(); u8g2_4.sendBuffer();
 
+  // 시작 멜로디 재생 (띠리리링~)
+  playStartupMelody();
+
   // WiFi 정보 표시 (1번 화면)
   U8G2 &main_screen = getScreen(1);
   main_screen.setFont(u8g2_font_6x10_tf);
@@ -446,15 +486,12 @@ void setup() {
   isLoopingMode = preferences.getBool("loop", false);
   preferences.end();
 
-  // 버튼 핀 초기화
-  for (int i = 0; i < 4; i++) btns[i].init();
-
   // 저장된 반전 모드 및 밝기 즉시 적용
   updateDisplayFlip();
   updateBrightness();
 
   preferences.begin("screen_map", true);
-  for (int i = 0; i < 12; i++) {
+  for (int i = 0; i < MAX_DATA_PAGE * 4; i++) {
     String key = "s" + String(i);
     SCREEN_MAP[i] = (WidgetType)preferences.getInt(key.c_str(), SCREEN_MAP[i]);
   }
@@ -476,6 +513,9 @@ void loop() {
 
   // [입력] 버튼 처리
   for (int i = 0; i < 4; i++) btns[i].update();
+
+  // [부저] 비차단 부저 종료 처리 (beep_tick)
+  beep_tick();
 
   // [루핑 모드] 페이지 자동 전환 처리 (1~3페이지 순환)
   if (isLoopingMode) {

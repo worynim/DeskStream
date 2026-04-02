@@ -11,7 +11,7 @@ extern WebServer server;
 extern Preferences preferences;
 extern int timezone_offset;
 extern bool isLoopingMode;
-extern WidgetType SCREEN_MAP[12];
+extern WidgetType SCREEN_MAP[MAX_DATA_PAGE * 4];
 
 // --- 외부 함수 참조 ---
 extern void redraw_current_page();

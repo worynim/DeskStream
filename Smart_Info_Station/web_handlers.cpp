@@ -13,58 +13,35 @@ void handleRoot() {
   html = INDEX_HTML_START;
 
   html += "<div class=\"section\">";
-  html += "<h3>📺 스마트 화면 배치 (Slot 1~8)</h3>";
+  html += "<h3>📺 스마트 화면 배치 (Slot 1~" + String(MAX_DATA_PAGE * 4) + ")</h3>";
   html += "<p>물리적인 4개의 화면에 표시될 위젯을 페이지별로 설정하세요.</p>";
 
   const char *w_names[] = { "달력", "시계", "날씨", "미세먼지", "유튜브", "코스피", "코스닥", "코스피200", "선물지수", "S&P 500", "나스닥", "비트코인", "환율", "사용 안 함" };
+  const char *pageTitles[MAX_DATA_PAGE] = {
+    "[PAGE 1] 기본 화면",
+    "[PAGE 2] 버튼 클릭 시 전환 화면",
+    "[PAGE 3] 추가/심화 정보"
+  };
 
-  // 1페이지 설정
-  html += "<div class=\"page-title\">[PAGE 1] 기본 화면</div>";
-  html += "<div class=\"flex-container\">";
-  for (int i = 0; i < 4; i++) {
-    html += "<div class=\"flex-item\">";
-    html += "<span class=\"label\">Screen " + String(i + 1) + "</span>";
-    html += "<select name=\"sm" + String(i) + "\">";
-    for (int j = 0; j <= 13; j++) {
-      html += "<option value=\"" + String(j) + "\"";
-      if ((int)SCREEN_MAP[i] == j) html += " selected";
-      html += ">" + String(w_names[j]) + "</option>";
+  // 데이터 페이지별 위젯 선택 셀렉터 생성 (MAX_DATA_PAGE 기반 루프로 중복 제거)
+  for (int page = 0; page < MAX_DATA_PAGE; page++) {
+    int start_idx = page * 4;
+    html += "<div class=\"page-title\">" + String(pageTitles[page]) + "</div>";
+    html += "<div class=\"flex-container\">";
+    for (int i = start_idx; i < start_idx + 4; i++) {
+      int screenNum = (i - start_idx) + 1;  // 페이지 내 화면 번호 (1~4)
+      html += "<div class=\"flex-item\">";
+      html += "<span class=\"label\">Screen " + String(screenNum) + "</span>";
+      html += "<select name=\"sm" + String(i) + "\">";
+      for (int j = 0; j <= MAX_WIDGET_TYPE; j++) {
+        html += "<option value=\"" + String(j) + "\"";
+        if ((int)SCREEN_MAP[i] == j) html += " selected";
+        html += ">" + String(w_names[j]) + "</option>";
+      }
+      html += "</select></div>";
     }
-    html += "</select></div>";
+    html += "</div><br>";
   }
-  html += "</div><br>";
-
-  // 2페이지 설정
-  html += "<div class=\"page-title\">[PAGE 2] 버튼 클릭 시 전환 화면</div>";
-  html += "<div class=\"flex-container\">";
-  for (int i = 4; i < 8; i++) {
-    html += "<div class=\"flex-item\">";
-    html += "<span class=\"label\">Screen " + String(i - 3) + "</span>"; 
-    html += "<select name=\"sm" + String(i) + "\">";
-    for (int j = 0; j <= 13; j++) {
-      html += "<option value=\"" + String(j) + "\"";
-      if ((int)SCREEN_MAP[i] == j) html += " selected";
-      html += ">" + String(w_names[j]) + "</option>";
-    }
-    html += "</select></div>";
-  }
-  html += "</div><br>";
-
-  // 3페이지 설정
-  html += "<div class=\"page-title\">[PAGE 3] 추가/심화 정보</div>";
-  html += "<div class=\"flex-container\">";
-  for (int i = 8; i < 12; i++) {
-    html += "<div class=\"flex-item\">";
-    html += "<span class=\"label\">Screen " + String(i - 7) + "</span>";
-    html += "<select name=\"sm" + String(i) + "\">";
-    for (int j = 0; j <= 13; j++) {
-      html += "<option value=\"" + String(j) + "\"";
-      if ((int)SCREEN_MAP[i] == j) html += " selected";
-      html += ">" + String(w_names[j]) + "</option>";
-    }
-    html += "</select></div>";
-  }
-  html += "</div><br>";
 
   // 4페이지 안내 (고정형)
   html += "<div class=\"page-title\">[PAGE 4] 시스템 정보 (IP 주소)</div>";
@@ -130,8 +107,8 @@ void handleSet() {
     }
   }
 
-  // 1~12번 슬롯 스크린맵 파라미터 처리
-  for (int i = 0; i < 12; i++) {
+  // 1~(MAX_DATA_PAGE*4)번 슬롯 스크린맵 파라미터 처리
+  for (int i = 0; i < MAX_DATA_PAGE * 4; i++) {
     String argName = "sm" + String(i);
     if (server.hasArg(argName)) {
       int newVal = server.arg(argName).toInt();
@@ -153,7 +130,7 @@ void handleSet() {
     preferences.end();
 
     preferences.begin("screen_map", false);
-    for (int i = 0; i < 12; i++) {
+    for (int i = 0; i < MAX_DATA_PAGE * 4; i++) {
       char key[5];
       sprintf(key, "s%d", i);
       preferences.putInt(key, (int)SCREEN_MAP[i]);
@@ -173,8 +150,10 @@ void handleSet() {
     configTime(timezone_offset * 3600, 0, "kr.pool.ntp.org", "time.nist.gov");
   }
 
-  force_update = true;    // 설정 저장 직후 백그라운드 태스크에 즉시 갱신 명령 전달
-  redraw_current_page();  // 저장 즉시 현재 페이지 화면 레이아웃 갱신 반영
+  portENTER_CRITICAL(&updateMux);  // force_update 쓰기 보호
+  force_update = true;             // 설정 저장 직후 백그라운드 태스크에 즉시 갱신 명령 전달
+  portEXIT_CRITICAL(&updateMux);
+  redraw_current_page();           // 저장 즉시 현재 페이지 화면 레이아웃 갱신 반영
 
   server.send(200, "text/html", SUCCESS_HTML);
 }

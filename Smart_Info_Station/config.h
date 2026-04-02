@@ -5,7 +5,8 @@
 
 // --- 설정 상수 (OLED 페이지 및 위젯) ---
 #define MAX_WIDGET_TYPE 13
-#define MAX_PAGE 5
+#define MAX_DATA_PAGE   3   // 데이터 페이지 수 (4번: IP, 5번: 도움말은 고정 시스템 페이지)
+#define MAX_PAGE        5   // 전체 페이지 수
 #define MAIN_NUM_FONT u8g2_font_maniac_tr
 
 // --- OLED 하드웨어 핀 설정 (상수) ---
@@ -19,7 +20,6 @@ const int BTN1_PIN = 1;  // 버튼 1 (화면 회전 Flip)
 const int BTN2_PIN = 4;  // 버튼 2 (밝기 조절 Bright)
 const int BTN3_PIN = 10; // 버튼 3 (자동 루핑 Loop)
 const int BTN4_PIN = 9;  // 버튼 4 (페이지 전환 Next Page)
-const int BUTTON_PIN = BTN4_PIN; 
 const int BUZZER_PIN = 7; // 부저 핀 (7번)
 
 // --- 데이터 업데이트 주기 ---

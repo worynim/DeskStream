@@ -529,7 +529,7 @@ void get_usdkrw() {
 // --- 가시성 판단 로직 ---
 
 bool isWidgetActive(WidgetType type) {
-  for (int i = 0; i < 12; i++) {
+  for (int i = 0; i < MAX_DATA_PAGE * 4; i++) {
     if (SCREEN_MAP[i] == type) return true;
   }
   return false;
@@ -576,12 +576,37 @@ void dataTask(void *pvParameters) {
     if (WiFi.status() == WL_CONNECTED) {
       uint16_t processed_mask = 0;
 
-      // 초기 실행 시 가시성 있는 위젯들 조용히 로드
+      // 초기 실행 시 현재 페이지 위젯 우선 로드 후, 나머지는 조용히 백그라운드 수집
       static bool is_initial = true;
       if (is_initial) {
-        Serial.println("[TASK] Initial Quiet Fetch...");
+        Serial.println("[TASK] Initial Loading (Pass 1: Current Page)...");
+
+        // --- Pass 1: 현재 페이지 위젯 우선 수집 (is_updating ON → OLED에 로딩 메시지 표시) ---
+        if (current_page <= MAX_DATA_PAGE) {
+          int start_idx = (current_page - 1) * 4;
+          for (int i = start_idx; i < start_idx + 4; i++) {
+            WidgetType type = SCREEN_MAP[i];
+            if (type == W_NONE || type == W_TIME || type == W_CALENDAR) continue;
+            for (int w = 0; w < WIDGET_COUNT; w++) {
+              if (widgets_info[w].type == type) {
+                *widgets_info[w].is_updating = true;   // OLED에 "Updating..." 표시
+                widgets_info[w].fetch();
+                *widgets_info[w].is_updating = false;  // 완료 후 해제 → loop()가 즉시 렌더링
+                last_widget_fetches[w] = now;
+                portENTER_CRITICAL(&updateMux);
+                update_flag |= widgets_info[w].flag_mask;
+                portEXIT_CRITICAL(&updateMux);
+                break;
+              }
+            }
+          }
+        }
+
+        // --- Pass 2: 나머지 페이지 위젯 조용히 로드 (현재 페이지는 이미 표시 중) ---
+        Serial.println("[TASK] Initial Loading (Pass 2: Background Pages)...");
         for (int w = 0; w < WIDGET_COUNT; w++) {
-          if (isWidgetActive(widgets_info[w].type)) {
+          // 현재 페이지에 없는 위젯만 대상 (is_updating 없이 조용히)
+          if (isWidgetActive(widgets_info[w].type) && !isWidgetVisible(widgets_info[w].type)) {
             widgets_info[w].fetch();
             last_widget_fetches[w] = now;
             portENTER_CRITICAL(&updateMux);
@@ -589,6 +614,7 @@ void dataTask(void *pvParameters) {
             portEXIT_CRITICAL(&updateMux);
           }
         }
+
         is_initial = false;
       }
 
@@ -604,11 +630,14 @@ void dataTask(void *pvParameters) {
               if (processed_mask & widgets_info[w].flag_mask) break;
 
               unsigned long interval = widgets_info[w].is_finance ? INTERVAL_FINANCE : INTERVAL_SLOW;
-              bool needs_update = (now - last_widget_fetches[w] >= interval) || force_update;
+              portENTER_CRITICAL(&updateMux);  // force_update 읽기 보호
+              bool local_force = force_update;
+              portEXIT_CRITICAL(&updateMux);
+              bool needs_update = (now - last_widget_fetches[w] >= interval) || local_force;
 
               if (needs_update) {
                 // 시장 개폐 시간에 따른 예외 처리
-                if ((type == W_KOSPI || type == W_KOSDAQ || type == W_KPI200) && !isDomesticMarketOpen()) needs_update = false; 
+                if ((type == W_KOSPI || type == W_KOSDAQ || type == W_KPI200 || type == W_FUTURES) && !isDomesticMarketOpen()) needs_update = false;  // W_FUTURES는 국내 선물지수 → 국내 시장 시간 적용
                 if ((type == W_SNP500 || type == W_NASDAQ) && !isUsMarketOpen()) needs_update = false;
               }
 
@@ -629,7 +658,9 @@ void dataTask(void *pvParameters) {
         }
       }
     }
-    force_update = false; 
+    portENTER_CRITICAL(&updateMux);  // force_update 쓰기 보호
+    force_update = false;
+    portEXIT_CRITICAL(&updateMux);
     is_waiting = true;
     vTaskDelay(pdMS_TO_TICKS(1000));
     is_waiting = false;

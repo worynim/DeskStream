@@ -1,6 +1,29 @@
 # 🚀 Release Notes
 
+## [v2.7.0] - 2026-04-02
+### Added
+- **시작 멜로디 (Startup Melody)**: 전원 인가 후 OLED 초기화 완료 시 즉시 경쾌한 4음 상승 멜로디(도미솔도) 재생. 청각적 부팅 완료 피드백 제공.
+- **초기 로딩 2단계 우선순위 로드**: 부팅 시 현재 페이지(1페이지) 위젯을 먼저 `is_updating` 플래그와 함께 수집하여 각 OLED에 `"Updating..."` 메시지를 표시한 후, 나머지 페이지 데이터를 백그라운드에서 조용히 수집. 기존에는 모든 데이터가 로드될 때까지 1페이지 OLED 2~4번이 공백으로 남는 문제 해결.
+- **`MAX_DATA_PAGE` 매크로 도입** (`config.h`): 데이터 페이지 수(3)를 전용 상수로 분리. `SCREEN_MAP` 배열 크기, 각종 루프 범위, 웹 설정 UI 모두 이 상수를 참조하도록 통일하여 페이지 수 변경 시 단 한 곳만 수정하면 됨.
+
+### Fixed (P0 - 즉시 수정)
+- **`beep()` 블로킹 → Non-Blocking 전환**: 기존 `delay()` 기반 부저 구현을 `millis()` 예약 방식(`beep_end_ms`)으로 교체. `beep_tick()`을 `loop()` 내에서 매 사이클 호출하여 부저가 울리는 동안에도 웹 서버 응답·시계 갱신·버튼 폴링이 정상 동작.
+- **마그네틱 부저 잔류 전류 차단**: `beep_tick()`과 `playStartupMelody()`에서 `noTone()` 직후 `digitalWrite(BUZZER_PIN, LOW)` 명시 적용. HIGH 상태 유지로 인한 발열·전력 낭비 방지.
+- **버튼 `init()` 중복 호출 제거**: `setup()` 내에서 동일한 `pinMode(INPUT_PULLUP)` 설정이 두 번 실행되던 잔余 코드 삭제.
+- **`W_FUTURES` 시장 시간 체크 누락 수정**: 국내 선물지수가 시장 개폐 시간 조건 검사에서 누락되어 있던 문제 수정. `isDomesticMarketOpen()` 조건에 `W_FUTURES` 추가.
+
+### Fixed (P1 - 안정성)
+- **`force_update` 레이스 컨디션 해소**: `btn4_long()`, `handleSet()`, `dataTask()` 세 곳에서 `force_update` 변수를 `portENTER_CRITICAL(&updateMux)` / `portEXIT_CRITICAL(&updateMux)`로 보호. 기존 `update_flag`와 동일한 Critical Section 패턴으로 통일.
+- **`BUTTON_PIN` 미사용 잔여 코드 제거**: 단일 버튼 방식의 이전 버전에서 사용되던 `const int BUTTON_PIN = BTN4_PIN` 상수 삭제.
+- **`showUpdateMessage` 이중 애니메이션 제거**: 함수 내부에 있던 `static int dots` 카운터가 모든 위젯 사이에서 공유되어 점 애니메이션이 뒤섞이는 문제 해결. 호출측(`loop()` 엔진)이 완성된 메시지를 전달하므로 함수 내부 카운터를 삭제.
+
+### Refactored (P2 - 코드 품질)
+- **하드코딩 `12` 전면 제거**: `SCREEN_MAP[12]` 배열, `for (i < 12)` 루프 등 5개 파일에 산재한 숫자 `12`를 모두 `MAX_DATA_PAGE * 4`로 교체. (`Smart_Info_Station.ino`, `data_manager.cpp`, `web_handlers.h`, `web_handlers.cpp`)
+- **`handleRoot` HTML select 중복 코드 리팩토링**: 동일한 구조의 select 박스 생성 코드가 1~3페이지별로 3회 반복되던 것을 `pageTitles[]` 배열 + `MAX_DATA_PAGE` 기반 단일 루프로 통합. 약 45줄 → 15줄로 단축.
+- **웹 설정 option loop 매직 넘버 제거**: `for (j <= 13)` 을 `for (j <= MAX_WIDGET_TYPE)`으로 교체.
+
 ## [v2.6.0] - 2026-03-28
+
 ### Added
 - **스마트 자동 루핑 (Smart Auto-Loop)**: 데이터 수집 중일 때 페이지 전환을 일시 정지하는 로직을 추가하여, 수집 도중 페이지가 넘어가는 현상을 방지.
 - **위젯별 독립 수집 타이머**: 글로벌 타이머 대신 각 위젯별 개별 수집 주기를 관리하여, 루핑 모드에서 모든 정보가 주기적으로 정확히 최신화되도록 보장.
