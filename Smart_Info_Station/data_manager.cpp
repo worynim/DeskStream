@@ -576,12 +576,17 @@ void dataTask(void *pvParameters) {
     if (WiFi.status() == WL_CONNECTED) {
       uint16_t processed_mask = 0;
 
-      // 초기 실행 시 현재 페이지 위젯 우선 로드 후, 나머지는 조용히 백그라운드 수집
-      static bool is_initial = true;
-      if (is_initial) {
-        Serial.println("[TASK] Initial Loading (Pass 1: Current Page)...");
+      // --- 강제 업데이트 플래그 확인 ---
+      portENTER_CRITICAL(&updateMux);
+      bool local_force = force_update;
+      portEXIT_CRITICAL(&updateMux);
 
-        // --- Pass 1: 현재 페이지 위젯 우선 수집 (is_updating ON → OLED에 로딩 메시지 표시) ---
+      // --- 초기 로딩 또는 강제 업데이트 시 처리 (모든 활성화된 위젯 대상) ---
+      static bool is_initial = true;
+      if (is_initial || local_force) {
+        Serial.printf("[TASK] %s: Starting...\n", is_initial ? "Initial Loading" : "Forced Refresh");
+
+        // Pass 1: 현재 페이지 위젯 우선 수집 (is_updating ON 으로 시각적 피드백 제공)
         if (current_page <= MAX_DATA_PAGE) {
           int start_idx = (current_page - 1) * 4;
           for (int i = start_idx; i < start_idx + 4; i++) {
@@ -591,35 +596,35 @@ void dataTask(void *pvParameters) {
               if (widgets_info[w].type == type) {
                 *widgets_info[w].is_updating = true;   // OLED에 "Updating..." 표시
                 widgets_info[w].fetch();
-                *widgets_info[w].is_updating = false;  // 완료 후 해제 → loop()가 즉시 렌더링
+                *widgets_info[w].is_updating = false;  // 완료 후 해제
                 last_widget_fetches[w] = now;
                 portENTER_CRITICAL(&updateMux);
                 update_flag |= widgets_info[w].flag_mask;
                 portEXIT_CRITICAL(&updateMux);
+                processed_mask |= widgets_info[w].flag_mask;
                 break;
               }
             }
           }
         }
 
-        // --- Pass 2: 나머지 페이지 위젯 조용히 로드 (현재 페이지는 이미 표시 중) ---
-        Serial.println("[TASK] Initial Loading (Pass 2: Background Pages)...");
+        // Pass 2: 나머지 모든 활성화된 위젯들 배경에서 조용히 수집 (시장 시간 무관)
         for (int w = 0; w < WIDGET_COUNT; w++) {
-          // 현재 페이지에 없는 위젯만 대상 (is_updating 없이 조용히)
-          if (isWidgetActive(widgets_info[w].type) && !isWidgetVisible(widgets_info[w].type)) {
+          if (!(processed_mask & widgets_info[w].flag_mask) && isWidgetActive(widgets_info[w].type)) {
             widgets_info[w].fetch();
             last_widget_fetches[w] = now;
             portENTER_CRITICAL(&updateMux);
             update_flag |= widgets_info[w].flag_mask;
             portEXIT_CRITICAL(&updateMux);
+            processed_mask |= widgets_info[w].flag_mask;
           }
         }
-
         is_initial = false;
       }
 
-      // 현재 페이지의 위젯들 업데이트 체크
-      if (current_page != MAX_PAGE) {
+      // --- 정기 주기별 개별 업데이트 체크 (현재 페이지 위젯 대상) ---
+      // 주의: 강제 업데이트 시에는 이미 위에서 처리되었으므로 processed_mask에 의해 스킵됨
+      if (current_page <= MAX_DATA_PAGE) {
         int start_idx = (current_page - 1) * 4;
         for (int i = start_idx; i < start_idx + 4; i++) {
           WidgetType type = SCREEN_MAP[i];
@@ -630,14 +635,11 @@ void dataTask(void *pvParameters) {
               if (processed_mask & widgets_info[w].flag_mask) break;
 
               unsigned long interval = widgets_info[w].is_finance ? INTERVAL_FINANCE : INTERVAL_SLOW;
-              portENTER_CRITICAL(&updateMux);  // force_update 읽기 보호
-              bool local_force = force_update;
-              portEXIT_CRITICAL(&updateMux);
-              bool needs_update = (now - last_widget_fetches[w] >= interval) || local_force;
+              bool needs_update = (now - last_widget_fetches[w] >= interval);
 
               if (needs_update) {
-                // 시장 개폐 시간에 따른 예외 처리
-                if ((type == W_KOSPI || type == W_KOSDAQ || type == W_KPI200 || type == W_FUTURES) && !isDomesticMarketOpen()) needs_update = false;  // W_FUTURES는 국내 선물지수 → 국내 시장 시간 적용
+                // 시장 개폐 시간에 따른 예외 처리 (정기 업데이트 시에만 적용)
+                if ((type == W_KOSPI || type == W_KOSDAQ || type == W_KPI200 || type == W_FUTURES) && !isDomesticMarketOpen()) needs_update = false;
                 if ((type == W_SNP500 || type == W_NASDAQ) && !isUsMarketOpen()) needs_update = false;
               }
 

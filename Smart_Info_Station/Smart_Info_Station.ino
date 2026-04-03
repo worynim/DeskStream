@@ -429,14 +429,15 @@ void redraw_current_page() {
 void setup() {
   Serial.begin(115200);
 
-  // 버튼 핀 초기화 (BTN1~BTN4)
+  // 1. 버튼 및 부저 핀 초기화
   for (int i = 0; i < 4; i++) btns[i].init();
-
-  // 부저 핀 초기화
   pinMode(BUZZER_PIN, OUTPUT);
   digitalWrite(BUZZER_PIN, LOW);
 
-  // 하드웨어 I2C 초기화 (핀 5, 6)
+  // 2. 부팅 시 BTN1 눌림 감지 (WiFi 초기화 기능)
+  bool should_reset_wifi = (digitalRead(BTN1_PIN) == LOW);
+
+  // 3. 하드웨어 I2C 초기화 (핀 5, 6)
   Wire.begin(HW_SDA_PIN, HW_SCL_PIN);
   Wire.setClock(400000);
 
@@ -445,14 +446,10 @@ void setup() {
   u8g2_4.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast;
 
   // OLED 통신 시작
-  u8g2_1.setI2CAddress(0x3C * 2);
-  u8g2_1.begin();
-  u8g2_2.setI2CAddress(0x3D * 2);
-  u8g2_2.begin();
-  u8g2_3.setI2CAddress(0x3C * 2);
-  u8g2_3.begin();
-  u8g2_4.setI2CAddress(0x3D * 2);
-  u8g2_4.begin();
+  u8g2_1.setI2CAddress(0x3C * 2); u8g2_1.begin();
+  u8g2_2.setI2CAddress(0x3D * 2); u8g2_2.begin();
+  u8g2_3.setI2CAddress(0x3C * 2); u8g2_3.begin();
+  u8g2_4.setI2CAddress(0x3D * 2); u8g2_4.begin();
 
   // 모든 화면 초기 지우기
   u8g2_1.clearBuffer(); u8g2_1.sendBuffer();
@@ -460,11 +457,30 @@ void setup() {
   u8g2_3.clearBuffer(); u8g2_3.sendBuffer();
   u8g2_4.clearBuffer(); u8g2_4.sendBuffer();
 
-  // 시작 멜로디 재생 (띠리리링~)
-  playStartupMelody();
+  // 4. WiFi 초기화 실행 및 피드백
+  if (should_reset_wifi) {
+    tone(BUZZER_PIN, 1000,500); // 길고 낮은 소리로 경고
+    U8G2 &main_screen = getScreen(1);
+    main_screen.setFont(u8g2_font_6x10_tf);
+    main_screen.drawStr(0, 10, "!!! WiFi RESET !!!");
+    main_screen.drawStr(0, 25, "Clearing SSID/PW...");
+    main_screen.drawStr(0, 45, "Starting Config...");
+    main_screen.sendBuffer();
+    
+    WiFiManager wifiManager;
+    wifiManager.resetSettings(); // 저장된 세팅 삭제
+    
+    delay(500);
+    noTone(BUZZER_PIN);
+    digitalWrite(BUZZER_PIN, LOW);
+  } else {
+    // 일반 부팅 시 시작 멜로디 재생 (띠리리링~)
+    playStartupMelody();
+  }
 
   // WiFi 정보 표시 (1번 화면)
   U8G2 &main_screen = getScreen(1);
+  main_screen.clearBuffer();
   main_screen.setFont(u8g2_font_6x10_tf);
   main_screen.drawStr(0, 10, "WiFi Connecting...");
   main_screen.drawStr(0, 25, "SSID: Smart_Info_Station");
