@@ -4,6 +4,8 @@
 #include <Preferences.h>
 #include <WebServer.h>
 #include <Wire.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/timers.h>
 #include "driver/gpio.h"  // ESP-IDF 고속 핀 제어 라이브러리 추가
 
 // 데이터 수집 로직 포함
@@ -35,27 +37,20 @@ static unsigned long last_animation_tick[MAX_WIDGET_RECORDS] = {0};
 
 /**
  * @brief 패시브 부저음을 비차단(Non-Blocking) 방식으로 발생시킵니다.
- * @note  delay() 대신 millis()를 사용하여 루프를 블로킹하지 않습니다.
- * @param duration 소리가 나는 시간 (ms)
- * @param freq     주파수 (Hz) - 기본값 3000Hz
+ * @note  FreeRTOS 타이머를 사용하여 loop()의 블로킹(OLED 갱신 등)과 무관하게 정확한 시간에 종료합니다.
  */
-static unsigned long beep_end_ms = 0;  // 부저 종료 예정 시각
+static TimerHandle_t buzzerTimer = NULL;
 
-void beep(int duration = 50, int freq = 3000) {
-  tone(BUZZER_PIN, freq);
-  beep_end_ms = millis() + duration;  // 종료 시각만 예약, 즉시 반환
+void buzzerTimerCallback(TimerHandle_t xTimer) {
+    noTone(BUZZER_PIN);
+    digitalWrite(BUZZER_PIN, LOW); // 마그네틱 부저: 잔류 전류 차단
 }
 
-/**
- * @brief loop()에서 호출하여 부저 종료 시각이 되면 자동으로 소리를 끕니다.
- * @note  noTone() 후 명시적으로 LOW를 출력하여 마그네틱 부저에 전류가 흐르지 않도록 합니다.
- */
-void beep_tick() {
-  if (beep_end_ms > 0 && millis() >= beep_end_ms) {
-    noTone(BUZZER_PIN);
-    digitalWrite(BUZZER_PIN, LOW);  // 마그네틱 부저: HIGH 잔류 전류 차단
-    beep_end_ms = 0;
-  }
+void beep(int duration = 50, int freq = 3000) {
+    if (buzzerTimer == NULL) return;
+    tone(BUZZER_PIN, freq);
+    xTimerChangePeriod(buzzerTimer, pdMS_TO_TICKS(duration), 0);
+    xTimerStart(buzzerTimer, 0);
 }
 
 /**
@@ -114,7 +109,7 @@ struct Button {
 };
 
 int currentFlipMode = 2; // 0:Normal, 1:Mirror H, 2:180(HV), 3:Mirror V
-int currentBrightnessLevel = 0; // 0:25%, 1:50%, 2:75%, 3:100% (디폴트 25% 설정)
+int currentBrightnessLevel = 0; // (디폴트 1단계 설정)
 bool isLoopingMode = false;     // 자동 페이지 전환 모드
 unsigned long lastPageCycleTime = 0;
 const unsigned long CYCLE_INTERVAL = 5000; 
@@ -126,10 +121,10 @@ int current_page = 1;
 void updateBrightness() {
   uint8_t contrast;
   switch (currentBrightnessLevel) {
-    case 0:  contrast = 63; break;  // 25%
-    case 1:  contrast = 127; break; // 50%
-    case 2:  contrast = 191; break; // 75%
-    default: contrast = 255; break; // 100%
+    case 0:  contrast = 1; break;  // 1단계
+    case 1:  contrast = 50; break;  // 2단계
+    case 2:  contrast = 100; break; // 3단계
+    default: contrast = 240; break; // 4단계
   }
   u8g2_1.setContrast(contrast);
   u8g2_2.setContrast(contrast);
@@ -330,10 +325,32 @@ void display_button_help_page() {
       u8g2.drawStr(5, 45, "LONG: REFRESH DATA");
     } else if (i == 1) { // BTN 1 (Pin 1)
       u8g2.drawStr(5, 30, "SHORT: SCREEN FLIP");
-      u8g2.drawStr(5, 45, "LONG: - RESERVED -");
+      const char* modeStr;
+      switch (currentFlipMode) {
+        case 1:  modeStr = "MIRROR H"; break;
+        case 2:  modeStr = "180 (FLIP)"; break;
+        case 3:  modeStr = "MIRROR V"; break;
+        default: modeStr = "NORMAL"; break;
+      }
+      char modeInfo[20];
+      snprintf(modeInfo, sizeof(modeInfo), "MODE: %s", modeStr);
+      u8g2.drawStr(5, 45, modeInfo);
     } else if (i == 2) { // BTN 2 (Pin 4)
       u8g2.drawStr(5, 30, "SHORT: BRIGHTNESS");
-      u8g2.drawStr(5, 45, "LONG: - RESERVED -");
+      
+      // 밝기 상태 비주얼 바 (사각형 표시)
+      int boxSize = 8;
+      int gap = 4;
+      int totalWidth = (boxSize * 4) + (gap * 3);
+      int startX = 5; // 왼쪽 정렬
+      int startY = 45;
+      for (int j = 0; j < 4; j++) {
+        if (j <= currentBrightnessLevel) {
+          u8g2.drawBox(startX + j * (boxSize + gap), startY, boxSize, boxSize); // 활성화된 칸
+        } else {
+          u8g2.drawFrame(startX + j * (boxSize + gap), startY, boxSize, boxSize); // 비활성화된 칸
+        }
+      }
     } else if (i == 3) { // BTN 3 (Pin 10)
       u8g2.drawStr(5, 30, "SHORT: - RESERVED -");
       u8g2.drawStr(5, 45, isLoopingMode ? "LONG: AUTO LOOP [ON]" : "LONG: AUTO LOOP [OFF]");
@@ -433,6 +450,9 @@ void setup() {
   for (int i = 0; i < 4; i++) btns[i].init();
   pinMode(BUZZER_PIN, OUTPUT);
   digitalWrite(BUZZER_PIN, LOW);
+  
+  // 부저 종료용 소프트웨어 타이머 생성 (루프 블로킹 방지)
+  buzzerTimer = xTimerCreate("BuzzerTimer", pdMS_TO_TICKS(50), pdFALSE, (void*)0, buzzerTimerCallback);
 
   // 2. 부팅 시 BTN1 눌림 감지 (WiFi 초기화 기능)
   bool should_reset_wifi = (digitalRead(BTN1_PIN) == LOW);
@@ -530,8 +550,7 @@ void loop() {
   // [입력] 버튼 처리
   for (int i = 0; i < 4; i++) btns[i].update();
 
-  // [부저] 비차단 부저 종료 처리 (beep_tick)
-  beep_tick();
+  // [부저] 비차단 부저 처리는 이제 FreeRTOS 타이머가 백그라운드에서 수행합니다.
 
   // [루핑 모드] 페이지 자동 전환 처리 (1~3페이지 순환)
   if (isLoopingMode) {
