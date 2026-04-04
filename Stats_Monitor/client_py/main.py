@@ -1,7 +1,7 @@
 import asyncio
 import threading
 import sys
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 import pystray
 from metrics import MetricsCollector
 from ble_client import BLEStatsTransmitter
@@ -25,7 +25,7 @@ class StatsMonitorApp:
 
     def create_image(self) -> Image.Image:
         """
-        아이콘 이미지 생성 (투명 배경 + 흰색 컴퓨터 실루엣)
+        아이콘 이미지 생성 (투명 배경 + 흰색 컴퓨터 실루엣 + DS 로고)
         macOS의 다크/라이트 모드와 투명한 상태 바에 맞춘 디자인
         """
         # RGBA(투명 채널 포함)로 64x64 캔버스 생성
@@ -36,6 +36,19 @@ class StatsMonitorApp:
         d.rectangle([8, 12, 56, 44], outline=(255, 255, 255, 255), width=3) 
         # 모니터 스탠드 (내부 채우기)
         d.rectangle([24, 44, 40, 52], fill=(255, 255, 255, 255)) 
+
+        # 모니터 내부 'DS' 텍스트 추가
+        try:
+            # macOS 시스템 폰트 경로 활용 (Arial Bold)
+            font = ImageFont.truetype("/System/Library/Fonts/Supplemental/Arial Bold.ttf", 22)
+        except Exception:
+            # 폰트 로드 실패 시 기본 폰트 사용
+            font = ImageFont.load_default()
+        
+        # 텍스트 중앙 정렬을 위한 좌표 계산 (박스: [8, 12, 56, 44])
+        # 텍스트가 [20, 22] 근처에 오도록 수동 조정 (64x64 아이콘 기준)
+        d.text((18, 16), "DS", font=font, fill=(255, 255, 255, 255))
+        
         return image
 
     def on_quit(self, icon: pystray.Icon, item: pystray.MenuItem) -> None:
@@ -90,11 +103,11 @@ class StatsMonitorApp:
         data_thread.start()
 
         # [메인 스레드] 시스템 트레이 아이콘 설정 및 실행
-        menu = pystray.Menu(pystray.MenuItem("Quit", self.on_quit))
+        menu = pystray.Menu(pystray.MenuItem("Desk Stream Stats Monitor Quit", self.on_quit))
         self.icon = pystray.Icon(
             "StatsMonitor", 
             self.create_image(), 
-            "DeskStream Stats Monitor (v1.0)", # 툴팁 정보
+            "DeskStream Stats Monitor (v2.4.1)", # 툴팁 정보
             menu
         )
         
