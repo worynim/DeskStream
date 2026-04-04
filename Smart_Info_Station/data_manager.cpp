@@ -548,22 +548,34 @@ bool isWidgetVisible(WidgetType type) {
 
 bool isDomesticMarketOpen() {
   struct tm timeinfo;
-  if (!getLocalTime(&timeinfo)) return true; 
+  if (!getLocalTime(&timeinfo)) return true; // 실패 시 안전하게 업데이트 시도
   int wday = timeinfo.tm_wday;   
-  int hour = timeinfo.tm_hour;   
-  if (wday >= 1 && wday <= 5 && hour >= 8 && hour < 18) return true;
+  int hour = timeinfo.tm_hour;
+  int min  = timeinfo.tm_min;
+
+  // 국내 증시 (KOSPI, KOSDAQ 등): 월~금 08:30 - 16:00 (장전 시간외 ~ 장후 정리 시간)
+  if (wday >= 1 && wday <= 5) {
+    if (hour >= 9 && hour < 16) return true;
+    if (hour == 8 && min >= 30) return true;
+    if (hour == 16 && min <= 10) return true;
+  }
   return false;
 }
 
 bool isUsMarketOpen() {
   struct tm timeinfo;
-  if (!getLocalTime(&timeinfo)) return true; 
+  if (!getLocalTime(&timeinfo)) return true;
   int wday = timeinfo.tm_wday;   
   int hour = timeinfo.tm_hour;   
-  if (wday == 6 && hour >= 9) return false; 
-  if (wday == 0) return false;   
-  if (wday == 1 && hour < 17) return false;
-  if (hour >= 17 || hour < 9) return true;
+
+  // 미국 증시 (한국 시간 기준)
+  // 주말 처리: 토요일 오전 8시 이후부터 일요일 전체는 휴장
+  if (wday == 0) return false; 
+  if (wday == 6 && hour >= 8) return false; 
+  if (wday == 1 && hour < 17) return false; // 월요일 오후 5시 이전 휴장 (프리마켓 시작 전)
+
+  // 그 외 시간 (야간 및 새벽)
+  if (hour >= 17 || hour < 8) return true;
   return false;
 }
 
@@ -640,7 +652,7 @@ void dataTask(void *pvParameters) {
               if (needs_update) {
                 // 시장 개폐 시간에 따른 예외 처리 (정기 업데이트 시에만 적용)
                 if ((type == W_KOSPI || type == W_KOSDAQ || type == W_KPI200 || type == W_FUTURES) && !isDomesticMarketOpen()) needs_update = false;
-                if ((type == W_SNP500 || type == W_NASDAQ) && !isUsMarketOpen()) needs_update = false;
+                if ((type == W_SNP500 || type == W_NASDAQ || type == W_USDKRW) && !isUsMarketOpen()) needs_update = false;
               }
 
               if (needs_update) {
