@@ -5,7 +5,7 @@
 ## 🚀 주요 특징 및 성능 최적화
 
 ### 1. 하이브리드 I2C 드라이버
-*   **HW I2C (Display 1, 2)**: ESP32-C3의 하드웨어 I2C 엔진을 사용하며, 클럭을 **800kHz**까지 상향 조정하여 전송 속도를 최적화했습니다.
+*   **HW I2C (Display 1, 2)**: ESP32-C3의 하드웨어 I2C 엔진을 사용하며, 클럭을 상향 조정하여 전송 속도를 최적화했습니다.
 *   **High-Speed SW I2C (Display 3, 4)**: 표준 GPIO 함수 대신 **레지스터 직접 제어(Direct Register Access - W1TS/W1TC)** 방식을 적용였습니다.
 
 ### 2. 지능형 렌더링 엔진 (Smart Flush)
