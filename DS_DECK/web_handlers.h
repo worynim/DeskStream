@@ -17,6 +17,7 @@ extern void drawDefaultScreen(int idx);
 #define MODE_STRING 0
 #define MODE_COMBO  1
 #define MODE_MEDIA  2
+#define MODE_BROWSER 3
 struct KeyConfig {
     uint8_t mode; 
     char stringVal[256]; 
@@ -76,7 +77,7 @@ const char* index_html = R"rawliteral(
 
         function korToEng(text) {
             let res = "";
-            let mode = "KOR"; // 기기는 기본적으로 Mac이 '한글 모드'라고 가정함
+            let mode = ""; // 초기 상태를 비워두어 첫 글자가 스스로 정의하게 함
             
             for(let i=0; i<text.length; i++) {
                 let char = text[i];
@@ -84,12 +85,13 @@ const char* index_html = R"rawliteral(
                 let isKor = (c >= 0xAC00 && c <= 0xD7A3) || KOR_LAYOUT[char] !== undefined;
                 let isEng = /[a-zA-Z]/.test(char);
                 
-                // 첫 글자부터 영어라면 시작하자마자 언어 전환 트리거
-                if (i === 0 && isEng) {
-                    res += "[#CAPS#]";
-                    mode = "ENG";
+                // 첫 글자일 때 현재 모드 정의 (전환 신호 없이 조용히 시작)
+                if (mode === "") {
+                    if (isEng) mode = "ENG";
+                    else if (isKor) mode = "KOR";
+                    else mode = "ENG"; // 기호 등은 기본적으로 영어로 처리
                 } 
-                // 중간에 모드가 바뀌는 경우
+                // 중간에 명확하게 모드가 바뀌는 경우에만 전환 신호 발생
                 else if (isKor && mode === "ENG") {
                     res += "[#CAPS#]";
                     mode = "KOR";
@@ -116,19 +118,22 @@ const char* index_html = R"rawliteral(
                 }
             }
             
-            // 매크로 입력 후 사용자의 편의를 위해 원상태(한글)로 복구
-            if (mode === "ENG") {
-                res += "[#CAPS#]";
-            }
-            
             return res;
         }
 
         window.toggleMode = (i) => {
             const mode = document.getElementById('mode'+i).value;
-            document.getElementById('strDiv'+i).style.display = mode == '0' ? 'block' : 'none';
+            document.getElementById('strDiv'+i).style.display = (mode == '0' || mode == '3') ? 'block' : 'none';
             document.getElementById('cmbDiv'+i).style.display = mode == '1' ? 'block' : 'none';
             document.getElementById('mediaDiv'+i).style.display = mode == '2' ? 'block' : 'none';
+            
+            // 라벨 텍스트 변경 (URL 입력 유도)
+            const labelEl = document.querySelector(`#strDiv${i} label`);
+            if (mode == '3') {
+                labelEl.innerText = "접속할 URL 주소 (예: https://google.com)";
+            } else {
+                labelEl.innerText = "전송할 문자열 (한글 입력 시 Mac의 한/영 상태가 '한'이어야 함)";
+            }
         };
 
         async function loadUI() {
@@ -172,11 +177,12 @@ const char* index_html = R"rawliteral(
                                 <option value="0" ${k.mode==0?'selected':''}>텍스트 매크로 (자동 타이핑)</option>
                                 <option value="1" ${k.mode==1?'selected':''}>단축키 (조합키 모드)</option>
                                 <option value="2" ${k.mode==2?'selected':''}>멀티미디어 (볼륨/재생)</option>
+                                <option value="3" ${k.mode==3?'selected':''}>웹 브라우저 실행 (URL)</option>
                             </select>
                         </div>
-                        <div id="strDiv${i}" style="display:${k.mode==0?'block':'none'}" class="field">
-                            <label>전송할 문자열 (한글 입력 시 Mac의 한/영 상태가 '한'이어야 함)</label>
-                            <input type="text" id="str${i}" value="${k.mode==0 && k.korVal ? k.korVal : k.stringVal}">
+                        <div id="strDiv${i}" style="display:${(k.mode==0 || k.mode==3)?'block':'none'}" class="field">
+                            <label>${k.mode==3 ? '접속할 URL 주소 (예: https://google.com)' : '전송할 문자열 (한글 입력 시 Mac의 한/영 상태가 \'한\'이어야 함)'}</label>
+                            <input type="text" id="str${i}" value="${(k.mode==0 || k.mode==3) && k.korVal ? k.korVal : k.stringVal}">
                         </div>
                         <div id="cmbDiv${i}" style="display:${k.mode==1?'block':'none'}" class="field">
                             <label>단축키 조합 설정</label>
@@ -356,11 +362,17 @@ const char* index_html = R"rawliteral(
             const l = document.getElementById('l'+i).value;
             const mode = document.getElementById('mode'+i).value;
             let strVal = document.getElementById('str'+i).value;
+            
+            // --- 브라우저 모드일 경우 프로토콜 자동 보정 ---
+            if (mode === '3' && strVal && !strVal.startsWith('http')) {
+                strVal = 'https://' + strVal;
+            }
+            
             let engStr = strVal;
             
-            // --- 한글 매크로 저장 시 영문 자판 위치로 변환 ---
-            if (mode === '0') {
-                engStr = korToEng(strVal);
+            // --- 매크로 및 URL 저장 시 영문 자판 위치로 변환 ---
+            if (mode === '0' || mode === '3') {
+                engStr = korToEng(strVal, mode === '3'); // 브라우저 모드일 땐 마지막 전환 생략
             }
             
             const m0 = document.getElementById('m0_'+i).value;

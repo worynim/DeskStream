@@ -136,19 +136,21 @@ void drawDefaultScreen(int idx) {
         displays[idx]->setDrawColor(1);
         
         if (deckConfigs[idx].mode == MODE_MEDIA) {
-            displays[idx]->setFont(u8g2_font_open_iconic_play_6x_t); // 48x48 픽셀 거대 아이콘 폰트
-            char iconChar = 78; // 기본 음표 아이콘
+            displays[idx]->setFont(u8g2_font_open_iconic_play_6x_t); 
+            char iconChar = 78; // 기본 음표
             uint8_t mk = deckConfigs[idx].key;
-            if (mk == 1) iconChar = 79;      // 볼륨 업 (큰 스피커 파동)
-            else if (mk == 2) iconChar = 80; // 볼륨 다운 (작은 스피커 파동)
-            else if (mk == 3) iconChar = 81; // 음소거 (파동 꺾인 스피커/메가폰)
-            else if (mk == 4) iconChar = 78; // 재생/일시정지 (원형 플레이 버튼)
-            else if (mk == 5) iconChar = 74; // 다음 곡 (>>|)
-            else if (mk == 6) iconChar = 73; // 이전 곡 (|<<)
+            if (mk == 1) iconChar = 79;      else if (mk == 2) iconChar = 80;
+            else if (mk == 3) iconChar = 81; else if (mk == 4) iconChar = 78;
+            else if (mk == 5) iconChar = 74; else if (mk == 6) iconChar = 73;
             
             char iconStr[2] = { iconChar, '\0' };
             int w = displays[idx]->getStrWidth(iconStr);
-            displays[idx]->drawStr((128 - w) / 2, 56, iconStr); // 화면 중앙(Y=56)에 배치
+            displays[idx]->drawStr((128 - w) / 2, 56, iconStr);
+        } else if (deckConfigs[idx].mode == MODE_BROWSER) {
+            displays[idx]->setFont(u8g2_font_open_iconic_all_6x_t); // 더 범용적인 아이콘 폰트
+            char iconStr[2] = { 175, '\0' }; // 지구본 아이콘
+            int w = displays[idx]->getStrWidth(iconStr);
+            displays[idx]->drawStr((128 - w) / 2, 56, iconStr);
         } else {
             // 일반 텍스트 라벨 모드
             displays[idx]->setFont(u8g2_font_ncenB10_tf); // 폰트 변경 (호환성 향상)
@@ -262,7 +264,39 @@ struct Button {
                         else if (mk == 6) bleKeyboard.press(MEDIA_PREV_TRACK);
                         delay(20); // 미디어 키 인식 시간 단축 (40 -> 20)
                         bleKeyboard.releaseAll();
-                    } else {
+                    } else if (deckConfigs[index].mode == MODE_BROWSER) {
+                        // 유니버설 브라우저 런처 (가장 깔끔한 Spotlight 기본 브라우저 실행 방식)
+                        // 1. Spotlight 호출
+                        bleKeyboard.press((uint8_t)227); bleKeyboard.press((uint8_t)44); delay(100); bleKeyboard.releaseAll();
+                        delay(1000); // Spotlight 활성화 대기
+                        
+                        // 기존 타이핑 내용 삭제 (텍스트 전체 선택 상태에서 백스페이스)
+                        bleKeyboard.press(KEY_BACKSPACE);
+                        delay(50);
+                        bleKeyboard.releaseAll();
+                        delay(100);
+                        
+                        // 2. 패시브 타이핑: 기기에 저장된 오염된 한영 전환 신호([#CAPS#]) 완전 무시하고 순수 URL 문자열만 출력
+                        bleKeyboard.setTapDelay(20); // 오타 방지를 위한 안정적 타이핑 속도
+                        
+                        String s = String(deckConfigs[index].stringVal);
+                        s.replace("[#CAPS#]", ""); // 💡 핵심: 플래시 내 한영 전환 찌꺼기를 완전히 지움
+                        
+                        bleKeyboard.print(s);
+                        
+                        delay(1200); // Mac Spotlight가 주소를 완전히 파싱하고 '웹사이트' 검색 결과를 준비할 시간 부여
+                        
+                        // 3. 확실한 브라우저 실행 강제 (Cmd + Return)
+                        // ❌ 기존 실패 원인: Enter 키코드 대신 '('의 아스키코드인 40을 쏘고 있었음. 
+                        // ✅ 수정: 정확한 Enter 코드 사용 (ASCII 10)
+                        bleKeyboard.press((uint8_t)227); // Cmd 누름
+                        delay(150);                      // Cmd가 먼저 눌렸음을 확실히 함
+                        bleKeyboard.press(KEY_RETURN);   // 확실한 물리적 Enter 키코드 상수(0xB0) 사용
+                        delay(100);
+                        bleKeyboard.releaseAll();
+                        
+                        bleKeyboard.setTapDelay(1); // 다시 초고속 모드로 복구
+                    } else if (deckConfigs[index].mode == MODE_COMBO) {
                         // 콤보(단축키) 모드
                         if (deckConfigs[index].modifiers[0]) bleKeyboard.press((uint8_t)deckConfigs[index].modifiers[0]);
                         if (deckConfigs[index].modifiers[1]) bleKeyboard.press((uint8_t)deckConfigs[index].modifiers[1]);
