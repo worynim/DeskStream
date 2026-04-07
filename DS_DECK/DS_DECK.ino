@@ -12,7 +12,6 @@
 
 #include "web_handlers.h" // 프리미엄 UI 및 웹 라우팅 분리
 
-
 // === 물리적 핀 정의 ===
 #define BTN1_PIN 1
 #define BTN2_PIN 4
@@ -94,9 +93,16 @@ void loadConfig() {
         return;
     }
     File f = LittleFS.open("/config.json", "r");
+    if (!f) { Serial.println("[FS] config.json open failed"); return; }
     DynamicJsonDocument doc(4096);
-    deserializeJson(doc, f);
+    DeserializationError err = deserializeJson(doc, f);
+    f.close(); // 에러 여부와 관계없이 항상 파일 핸들 닫기
+    if (err) {
+        Serial.printf("[FS] JSON parse error: %s\n", err.c_str());
+        return; // 기본값 유지
+    }
     JsonArray keys = doc["keys"];
+    if (keys.isNull()) { Serial.println("[FS] 'keys' array missing"); return; }
     for (int i = 0; i < 4; i++) {
         strlcpy(deckConfigs[i].label, keys[i]["label"] | "", sizeof(deckConfigs[i].label));
         deckConfigs[i].mode = keys[i]["mode"] | MODE_STRING;
@@ -107,7 +113,6 @@ void loadConfig() {
         deckConfigs[i].modifiers[2] = keys[i]["mod2"] | 0;
         deckConfigs[i].key = keys[i]["key"] | 0;
     }
-    f.close();
 }
 
 void drawDefaultScreen(int idx) {
@@ -228,18 +233,24 @@ struct Button {
                 if (bleKeyboard.isConnected()) {
                     if (deckConfigs[index].mode == MODE_STRING) {
                         // 초고속 타이핑 로직 & 자동 한/영 전환
-                        const char* s = deckConfigs[index].stringVal;
-                        while(*s) {
-                            if (strncmp(s, "[#CAPS#]", 8) == 0) {
-                                // 한/영 전환: macOS 표준 단축키 Ctrl+Space
-                                bleKeyboard.tap(KEY_SPACE, KEY_MOD_LCTRL);
-                                delay(150); // macOS가 입력 소스를 전환할 시간
-                                s += 8; // 토큰 길이만큼 건너뜀
-                            } else {
-                                bleKeyboard.write(*s);
-                                delay(5); 
-                                s++;
+                        String s = String(deckConfigs[index].stringVal);
+                        int lastPos = 0;
+                        int capsPos = s.indexOf("[#CAPS#]");
+                        
+                        while(capsPos != -1) {
+                            if (capsPos > lastPos) {
+                                bleKeyboard.print(s.substring(lastPos, capsPos));
                             }
+                            // 한/영 전환: macOS 표준 단축키 Ctrl+Space
+                            bleKeyboard.tap(KEY_SPACE, KEY_MOD_LCTRL);
+                            delay(60); // macOS 전환 대기시간 더 단축 (80 -> 60)
+                            
+                            lastPos = capsPos + 8;
+                            capsPos = s.indexOf("[#CAPS#]", lastPos);
+                        }
+                        
+                        if (lastPos < s.length()) {
+                            bleKeyboard.print(s.substring(lastPos));
                         }
                     } else if (deckConfigs[index].mode == MODE_MEDIA) {
                         uint8_t mk = deckConfigs[index].key;
@@ -249,18 +260,19 @@ struct Button {
                         else if (mk == 4) bleKeyboard.press(MEDIA_PLAY_PAUSE);
                         else if (mk == 5) bleKeyboard.press(MEDIA_NEXT_TRACK);
                         else if (mk == 6) bleKeyboard.press(MEDIA_PREV_TRACK);
-                        delay(40);
+                        delay(20); // 미디어 키 인식 시간 단축 (40 -> 20)
                         bleKeyboard.releaseAll();
                     } else {
+                        // 콤보(단축키) 모드
                         if (deckConfigs[index].modifiers[0]) bleKeyboard.press((uint8_t)deckConfigs[index].modifiers[0]);
                         if (deckConfigs[index].modifiers[1]) bleKeyboard.press((uint8_t)deckConfigs[index].modifiers[1]);
                         if (deckConfigs[index].modifiers[2]) bleKeyboard.press((uint8_t)deckConfigs[index].modifiers[2]);
                         
                         if (deckConfigs[index].key) {
-                            uint8_t hidCode = getHIDFromASCII(deckConfigs[index].key); // uint8_t로 직접 전달
+                            uint8_t hidCode = getHIDFromASCII(deckConfigs[index].key); 
                             if (hidCode != 0) bleKeyboard.press(hidCode);
                         }
-                        delay(50); // 조합키 인식 안정성을 위해 50ms로 상향
+                        delay(10); // 단축키 인식 안정성 한계치 (50 -> 10)
                         bleKeyboard.releaseAll();
                     }
                 }
@@ -307,7 +319,7 @@ void setup() {
     u8g2_1.setI2CAddress(0x3C * 2); u8g2_1.begin();
     u8g2_2.setI2CAddress(0x3D * 2); u8g2_2.begin();
     u8g2_3.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast;
-    u8g2_3.begin(); // 오타(33) 제거
+    u8g2_3.begin(); 
     u8g2_4.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast;
     u8g2_4.setI2CAddress(0x3D * 2); u8g2_4.begin();
 
@@ -325,7 +337,7 @@ void setup() {
 
     // 5. BLE 시작
     bleKeyboard.begin();
-    bleKeyboard.setTapDelay(5); // 초고속 타이핑으로 상향 조정 (5ms)
+    bleKeyboard.setTapDelay(1); // 초고속 타이핑으로 상향 조정 (5ms -> 1ms)
     Serial.println("[BLE] Bluetooth Deck Ready.");
 }
 

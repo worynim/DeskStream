@@ -6,8 +6,9 @@
 #include "LittleFS.h"
 #include <ArduinoJson.h>
 
+#ifndef BUZZER_PIN
 #define BUZZER_PIN 7
-
+#endif
 extern WebServer server;
 extern void drawDefaultScreen(int idx);
 
@@ -420,7 +421,6 @@ const char* index_html = R"rawliteral(
 </html>
 )rawliteral";
 
-File fUp;
 
 void initWebHandlers() {
     server.on("/", []() { server.send(200, "text/html", index_html); });
@@ -445,6 +445,7 @@ void initWebHandlers() {
     server.on("/save_config", []() {
         if (!server.hasArg("idx")) { server.send(400); return; }
         int idx = server.arg("idx").toInt();
+        if (idx < 0 || idx > 3) { server.send(400, "text/plain", "Invalid index"); return; }
         strlcpy(deckConfigs[idx].label, server.arg("label").c_str(), 16);
         deckConfigs[idx].mode = (uint8_t)server.arg("mode").toInt();
         strlcpy(deckConfigs[idx].stringVal, server.arg("str").c_str(), 256);
@@ -476,21 +477,27 @@ void initWebHandlers() {
     
     server.on("/delete_icon", HTTP_POST, []() {
         if(server.hasArg("idx")) {
-            String path = "/icon" + String(server.arg("idx").toInt() + 1) + ".bin";
+            int idx = server.arg("idx").toInt();
+            if (idx < 0 || idx > 3) { server.send(400, "text/plain", "Invalid index"); return; }
+            String path = "/icon" + String(idx + 1) + ".bin";
             if(LittleFS.exists(path)) LittleFS.remove(path);
-            drawDefaultScreen(server.arg("idx").toInt());
+            drawDefaultScreen(idx);
             tone(BUZZER_PIN, 1500, 100); // 아이콘 삭제 성공 부저음
         }
         server.send(200, "text/plain", "OK");
     });
 
     server.on("/upload", HTTP_POST, [](){ server.send(200); }, [](){
+        static File fUp;
         HTTPUpload& up = server.upload();
         if(up.status == UPLOAD_FILE_START) { fUp = LittleFS.open("/" + up.filename, "w"); }
         else if(up.status == UPLOAD_FILE_WRITE && fUp) { fUp.write(up.buf, up.currentSize); }
         else if(up.status == UPLOAD_FILE_END && fUp) { 
             fUp.close(); 
-            if(server.hasArg("idx")) drawDefaultScreen(server.arg("idx").toInt()); 
+            if(server.hasArg("idx")) {
+                int idx = server.arg("idx").toInt();
+                if (idx >= 0 && idx <= 3) drawDefaultScreen(idx);
+            }
         }
     });
 
