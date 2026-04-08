@@ -5,11 +5,11 @@
 ## 🚀 주요 기능
 
 ### macOS 스트리머 (`screen_streamer.py`)
+- **Numba JIT 가속 엔진**: 수치 연산 전용 컴파일러를 통해 복잡한 디더링 알고리즘도 C 수준의 속도로 실시간 처리합니다.
+- **Broadcast Mode (1:N)**: 단일 기기가 아닌 네트워크상의 모든 DeskStream 기기에 화면을 동시 송출할 수 있습니다 (기본 모드).
 - **실시간 화면 캡처**: macOS에 최적화된 MSS 라이브러리를 사용한 고성능 캡처.
-- **다양한 이진화 알고리즘**:
-  - `Threshold`: 정해진 기준값으로 흑백 변환.
-  - `Dithering`: Floyd-Steinberg 알고리즘을 사용한 부드러운 하프톤 표현.
-- **드래그 가능한 오버레이**: 4개 선 윈도우 방식을 사용하여 macOS의 투명 창 캡처 버그를 회피하면서 직관적으로 위치 선택 가능.
+- **다양한 이진화 알고리즘**: Threshold, Floyd-Steinberg, Atkinson, Stucki, Sierra, Ordered(Bayer) 등 6가지 모드 지원.
+- **드래그 가능한 오버레이**: 핸들 가시성이 보장된 안전 마진 가 가이드라인을 통해 캡처 영역을 자유롭게 조절합니다.
 - **레이아웃 지원**: 
   - `Landscape (512x64)`: 가로 4열 배치.
   - `Portrait (64x512)`: 세로형 배치 (파이썬에서 자동 회전 처리).
@@ -25,9 +25,9 @@
 ## 🛠 설치 및 사용 방법
 
 ### macOS 환경 (Python)
-1. 필요한 라이브러리 설치:
+1. 필요한 라이브러리 설치 (성능 최적화 필수):
    ```bash
-   pip install Pillow mss numpy
+   pip install Pillow mss numpy numba
    ```
 2. 스트리머 실행:
    ```bash

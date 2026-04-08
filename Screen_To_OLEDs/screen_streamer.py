@@ -30,6 +30,18 @@ import numpy as np
 import mss
 from typing import Optional, Tuple, List, Dict, Any
 
+try:
+    from numba import njit
+    HAS_NUMBA = True
+except ImportError:
+    HAS_NUMBA = False
+    def njit(*args, **kwargs):
+        def decorator(func):
+            return func
+        if len(args) == 1 and callable(args[0]):
+            return args[0]
+        return decorator
+
 # =============================================
 # [설정 상수]
 # =============================================
@@ -114,6 +126,82 @@ def apply_threshold(img_gray: Image.Image, threshold: int) -> np.ndarray:
     arr = np.array(img_gray, dtype=np.uint8)
     return (arr >= threshold).astype(np.uint8) * 255
 
+@njit(cache=True)
+def _dither_fs(arr: np.ndarray, h: int, w: int):
+    for y in range(h):
+        for x in range(w):
+            old = arr[y, x]
+            new = 255.0 if old >= 128.0 else 0.0
+            arr[y, x] = new
+            err = old - new
+            if x + 1 < w: arr[y, x + 1] += err * (7.0/16.0)
+            if y + 1 < h:
+                if x - 1 >= 0: arr[y + 1, x - 1] += err * (3.0/16.0)
+                arr[y + 1, x] += err * (5.0/16.0)
+                if x + 1 < w: arr[y + 1, x + 1] += err * (1.0/16.0)
+
+@njit(cache=True)
+def _dither_atkinson(arr: np.ndarray, h: int, w: int):
+    err_div = 1.0 / 8.0
+    for y in range(h):
+        for x in range(w):
+            old = arr[y, x]
+            new = 255.0 if old >= 128.0 else 0.0
+            arr[y, x] = new
+            err = (old - new) * err_div
+            if x + 1 < w: arr[y, x + 1] += err
+            if x + 2 < w: arr[y, x + 2] += err
+            if y + 1 < h:
+                if x - 1 >= 0: arr[y + 1, x - 1] += err
+                arr[y + 1, x] += err
+                if x + 1 < w: arr[y + 1, x + 1] += err
+            if y + 2 < h: arr[y + 2, x] += err
+
+@njit(cache=True)
+def _dither_stucki(arr: np.ndarray, h: int, w: int):
+    err_div = 1.0 / 42.0
+    for y in range(h):
+        for x in range(w):
+            old = arr[y, x]
+            new = 255.0 if old >= 128.0 else 0.0
+            arr[y, x] = new
+            err = (old - new) * err_div
+            if x + 1 < w: arr[y, x + 1] += err * 8.0
+            if x + 2 < w: arr[y, x + 2] += err * 4.0
+            if y + 1 < h:
+                if x - 2 >= 0: arr[y + 1, x - 2] += err * 2.0
+                if x - 1 >= 0: arr[y + 1, x - 1] += err * 4.0
+                arr[y + 1, x] += err * 8.0
+                if x + 1 < w: arr[y + 1, x + 1] += err * 4.0
+                if x + 2 < w: arr[y + 1, x + 2] += err * 2.0
+            if y + 2 < h:
+                if x - 2 >= 0: arr[y + 2, x - 2] += err * 1.0
+                if x - 1 >= 0: arr[y + 2, x - 1] += err * 2.0
+                arr[y + 2, x] += err * 4.0
+                if x + 1 < w: arr[y + 2, x + 1] += err * 2.0
+                if x + 2 < w: arr[y + 2, x + 2] += err * 1.0
+
+@njit(cache=True)
+def _dither_sierra(arr: np.ndarray, h: int, w: int):
+    err_div = 1.0 / 32.0
+    for y in range(h):
+        for x in range(w):
+            old = arr[y, x]
+            new = 255.0 if old >= 128.0 else 0.0
+            arr[y, x] = new
+            err = (old - new) * err_div
+            if x + 1 < w: arr[y, x + 1] += err * 5.0
+            if x + 2 < w: arr[y, x + 2] += err * 3.0
+            if y + 1 < h:
+                if x - 2 >= 0: arr[y + 1, x - 2] += err * 2.0
+                if x - 1 >= 0: arr[y + 1, x - 1] += err * 4.0
+                arr[y + 1, x] += err * 5.0
+                if x + 1 < w: arr[y + 1, x + 1] += err * 4.0
+                if x + 2 < w: arr[y + 1, x + 2] += err * 2.0
+            if y + 2 < h:
+                if x - 1 >= 0: arr[y + 2, x - 1] += err * 2.0
+                arr[y + 2, x] += err * 3.0
+                if x + 1 < w: arr[y + 2, x + 1] += err * 2.0
 
 def apply_dithering(img_gray: Image.Image, method: str = "Floyd-Steinberg", contrast: float = 1.0) -> np.ndarray:
     """
@@ -135,40 +223,17 @@ def apply_dithering(img_gray: Image.Image, method: str = "Floyd-Steinberg", cont
         threshold_map = (threshold_map / 16.0) * 255.0
         return (arr >= threshold_map).astype(np.uint8) * 255
 
-    # 에러 확산형(Error Diffusion) 커널 정의
-    kernels = {
-        "Floyd-Steinberg": [
-            (1, 0, 7/16), (-1, 1, 3/16), (0, 1, 5/16), (1, 1, 1/16)
-        ],
-        "Atkinson": [
-            (1, 0, 1/8), (2, 0, 1/8), (-1, 1, 1/8), (0, 1, 1/8), (1, 1, 1/8), (0, 2, 1/8)
-        ],
-        "Stucki": [
-            (1, 0, 8/42), (2, 0, 4/42),
-            (-2, 1, 2/42), (-1, 1, 4/42), (0, 1, 8/42), (1, 1, 4/42), (2, 1, 2/42),
-            (-2, 2, 1/42), (-1, 2, 2/42), (0, 2, 4/42), (1, 2, 2/42), (2, 2, 1/42)
-        ],
-        "Sierra": [
-            (1, 0, 5/32), (2, 0, 3/32),
-            (-2, 1, 2/32), (-1, 1, 4/32), (0, 1, 5/32), (1, 1, 4/32), (2, 1, 2/32),
-            (-1, 2, 2/32), (0, 2, 3/32), (1, 2, 2/32)
-        ]
-    }
+    # Numba JIT 가속을 활용한 고속 디더링 연산
+    if method == "Floyd-Steinberg":
+        _dither_fs(arr, h, w)
+    elif method == "Atkinson":
+        _dither_atkinson(arr, h, w)
+    elif method == "Stucki":
+        _dither_stucki(arr, h, w)
+    elif method == "Sierra":
+        _dither_sierra(arr, h, w)
 
-    kernel = kernels.get(method, kernels["Floyd-Steinberg"])
-
-    for y in range(h):
-        for x in range(w):
-            old_p = arr[y, x]
-            new_p = 255.0 if old_p >= 128.0 else 0.0
-            arr[y, x] = new_p
-            err = old_p - new_p
-            for dx, dy, weight in kernel:
-                nx, ny = x + dx, y + dy
-                if 0 <= nx < w and 0 <= ny < h:
-                    arr[ny, nx] += err * weight
-
-    return np.clip(arr, 0, 255).astype(np.uint8)
+    return np.clip(arr, 0.0, 255.0).astype(np.uint8)
 
 
 def pack_bits(mono_array: np.ndarray) -> bytes:
@@ -279,15 +344,41 @@ class VibeStreamerApp:
                                  bg="#3c3f41", fg="white")
         ip_frame.pack(fill="x", padx=10, pady=5)
 
-        tk.Label(ip_frame, text="IP:", **style).pack(side=tk.LEFT)
-        self.ip_entry = tk.Entry(ip_frame, width=16)
-        self.ip_entry.insert(0, CONFIG['DEFAULT_IP'])
+        # 전송 모드 선택 (단일/전체)
+        self.target_mode_var = tk.StringVar(value="broadcast")
+        self.last_unicast_ip = CONFIG['DEFAULT_IP']
+        
+        mode_row = tk.Frame(ip_frame, bg="#3c3f41")
+        mode_row.pack(fill="x", pady=(0, 5))
+        
+        self.target_radios = []
+        for text, val in [("Direct (Single)", "direct"), ("Broadcast (Multi)", "broadcast")]:
+            rb = tk.Radiobutton(mode_row, text=text, variable=self.target_mode_var,
+                                value=val, command=self._on_target_mode_change,
+                                bg="#3c3f41", fg="white", selectcolor="#555555")
+            rb.pack(side=tk.LEFT, padx=5)
+            self.target_radios.append(rb)
+
+        ip_row = tk.Frame(ip_frame, bg="#3c3f41")
+        ip_row.pack(fill="x")
+        tk.Label(ip_row, text="IP:", **style).pack(side=tk.LEFT)
+        self.ip_entry = tk.Entry(ip_row, width=16)
+        
+        # 기본 모드(Broadcast)에 맞춰 초기 IP 설정
+        initial_ip = CONFIG['DEFAULT_IP']
+        if self.target_mode_var.get() == "broadcast" and "." in initial_ip:
+            parts = initial_ip.split(".")
+            if len(parts) == 4:
+                parts[3] = "255"
+                initial_ip = ".".join(parts)
+        
+        self.ip_entry.insert(0, initial_ip)
         self.ip_entry.pack(side=tk.LEFT, padx=5)
 
-        self.btn_scan = CustomButton(ip_frame, text="Scan", command=self.scan_ip, bg="#555555")
+        self.btn_scan = CustomButton(ip_row, text="Scan", command=self.scan_ip, bg="#555555")
         self.btn_scan.pack(side=tk.LEFT)
         self.scan_status_var = tk.StringVar(value="Ready")
-        tk.Label(ip_frame, textvariable=self.scan_status_var,
+        tk.Label(ip_row, textvariable=self.scan_status_var,
                  fg="#aaffaa", font=("Arial", 12, "bold"), bg="#3c3f41").pack(side=tk.LEFT, padx=8)
 
         # ── 소스 설정 영역 ──
@@ -643,46 +734,59 @@ class VibeStreamerApp:
 
     def _calc_capture_area(self, mon: dict) -> Tuple[int, int, int, int]:
         """
-        캡처 영역 좌표 반환.
-
-        - "Full" 선택 시: 모니터 영역 내에서 8:1(가로) 또는 1:2(세로) 비율로 최대화
-        - 숫자 선택 시: 긴 쪽 길이를 기준으로 비율에 맞춰 크기 결정
-
-        Returns:
-            (left, top, width, height) 캡처 영역
+        캡처 영역 좌표 반환. (핸들 표시를 위한 안전 여백 포함)
         """
         is_portrait = getattr(self, 'layout_var', None) and "Portrait" in self.layout_var.get()
         cap_str = self.cap_size_var.get()
 
+        # 핸들 높이(24px)와 패딩을 고려한 안전 마진
+        SAFE_W = 10
+        SAFE_H = 40
+
         if cap_str == "Full":
             if is_portrait:
-                cap_h = mon['height']
+                cap_h = mon['height'] - SAFE_H
                 cap_w = cap_h // 8
-                if cap_w > mon['width']:
-                    cap_w = mon['width']
+                if cap_w > mon['width'] - SAFE_W:
+                    cap_w = mon['width'] - SAFE_W
                     cap_h = cap_w * 8
             else:
-                cap_w = mon['width']
+                cap_w = mon['width'] - SAFE_W
                 cap_h = cap_w // 8
-                if cap_h > mon['height']:
-                    cap_h = mon['height']
+                if cap_h > mon['height'] - SAFE_H:
+                    cap_h = mon['height'] - SAFE_H
                     cap_w = cap_h * 8
+            
             left = mon['left'] + (mon['width'] - cap_w) // 2
+            # 핸들이 모니터 상단을 벗어나지 않도록 top 좌표 조정
             top  = mon['top'] + (mon['height'] - cap_h) // 2
+            if top < mon['top'] + SAFE_H:
+                top = mon['top'] + SAFE_H
             return left, top, cap_w, cap_h
         else:
             max_dim = int(cap_str)
             if is_portrait:
-                cap_h = max_dim
+                cap_h = min(max_dim, mon['height'] - SAFE_H)
                 cap_w = cap_h // 8
             else:
-                cap_w = max_dim
+                cap_w = min(max_dim, mon['width'] - SAFE_W)
                 cap_h = cap_w // 8
+            
+            # 최종 크기 재검증
+            if cap_w > mon['width'] - SAFE_W:
+                cap_w = mon['width'] - SAFE_W
+                cap_h = cap_w // 8
+            if cap_h > mon['height'] - SAFE_H:
+                cap_h = mon['height'] - SAFE_H
+                cap_w = cap_h * 8
+
             left = mon['left'] + (mon['width']  - cap_w) // 2
             top  = mon['top']  + (mon['height'] - cap_h) // 2
-            left = max(left, mon['left'])
-            top  = max(top,  mon['top'])
-            return left, top, cap_w, cap_h
+            # 핸들 가시성 확보를 위한 최소 Top 좌표 보정
+            if top < mon['top'] + SAFE_H:
+                top = mon['top'] + SAFE_H
+                
+            return int(left), int(top), int(cap_w), int(cap_h)
 
     # ──────────────────────────────────────────
     # 모니터 목록
@@ -703,12 +807,33 @@ class VibeStreamerApp:
         self.scan_status_var.set("Scanning...")
         found = self._discover_esp32_ip()
         if found:
-            self.ip_entry.delete(0, tk.END)
-            self.ip_entry.insert(0, found)
+            self.last_unicast_ip = found
+            if self.target_mode_var.get() == "direct":
+                self.ip_entry.delete(0, tk.END)
+                self.ip_entry.insert(0, found)
             self.scan_status_var.set(f"Found: {found}")
             self.target_ip_str = found
         else:
             self.scan_status_var.set("Not found")
+
+    def _on_target_mode_change(self) -> None:
+        """모드 변경 시 IP 주소 자동 보정"""
+        current_ip = self.ip_entry.get()
+        if self.target_mode_var.get() == "broadcast":
+            # 현재 IP 기반으로 .255 생성
+            if current_ip and "." in current_ip:
+                parts = current_ip.split(".")
+                if len(parts) == 4:
+                    if parts[3] != "255":
+                        self.last_unicast_ip = current_ip
+                    parts[3] = "255"
+                    bcast_ip = ".".join(parts)
+                    self.ip_entry.delete(0, tk.END)
+                    self.ip_entry.insert(0, bcast_ip)
+        else:
+            # 이전 유니캐스트 IP 복구
+            self.ip_entry.delete(0, tk.END)
+            self.ip_entry.insert(0, self.last_unicast_ip)
 
     def _discover_esp32_ip(self) -> Optional[str]:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -741,7 +866,7 @@ class VibeStreamerApp:
             # 스트리밍 중 고정: IP/모니터/콘트롤 / 실시간 허용: B&W 모드, Contrast, FPS, Preview
             all_widgets = ([self.ip_entry, self.btn_scan, self.monitor_combo,
                             self.chk_crop, self.chk_overlay, self.chk_replayd]
-                           + self.cap_radios + self.layout_radios)
+                           + self.cap_radios + self.layout_radios + self.target_radios)
             for w in all_widgets:
                 w.config(state="disabled")
 
@@ -776,7 +901,7 @@ class VibeStreamerApp:
         # self._hide_overlay()  <-- 제거하여 중지 시에도 오버레이 유지
         all_widgets = ([self.ip_entry, self.btn_scan, self.monitor_combo,
                         self.chk_crop, self.chk_overlay, self.chk_replayd]
-                       + self.cap_radios + self.layout_radios)
+                       + self.cap_radios + self.layout_radios + self.target_radios)
         for w in all_widgets:
             w.config(state="normal")
         self.btn_start.config(state=tk.NORMAL)
@@ -947,7 +1072,8 @@ class VibeStreamerApp:
         4096 bytes를 1024 bytes 청크로 분할하여 UDP 전송.
         헤더: [Frame ID(1)] [Total Chunks(1)] [Chunk Index(1)]
         """
-        sock       = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)  # 브로드캐스트 전송 허용
         chunk_size = CONFIG['CHUNK_SIZE']
 
         while self.streaming_active:
