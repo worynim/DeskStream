@@ -176,12 +176,48 @@ void drawDefaultScreen(int idx) {
   pushDirty(idx);
 }
 
-// === ASCII를 Raw HID 코드로 변환하는 헬퍼 함수 ===
+// === ASCII/Dashboard 코드를 Raw HID 코드로 변환하는 통합 헬퍼 함수 ===
 uint8_t getHIDFromASCII(uint8_t c) {
+  // 2. 대시보드 전용 특수 매핑 (이전 저장 데이터와의 완벽한 호환성을 위한 원본 값 복구)
+  // 방향키 (기존 176~179)
+  if (c == 0xB2) return KEY_LEFT;      // 178
+  if (c == 0xB3) return KEY_RIGHT;     // 179
+  if (c == 0xB1) return KEY_UP;        // 177
+  if (c == 0xB0) return KEY_DOWN;      // 176
+
+  // 제어 문자 (기존 8,9,10,27)
+  if (c == 0x0A || c == 0x0D) return KEY_RETURN;    // 10 / 13
+  if (c == 0x1B) return KEY_ESCAPE;    // 27
+  if (c == 0x08) return KEY_BACKSPACE; // 8
+  if (c == 0x09) return KEY_TAB;       // 9
+
+  // 특수 기능키 (기존 128, 206~214)
+  if (c == 0x80) return KEY_CAPS_LOCK;    // 128
+  if (c == 0xCE) return KEY_PRINT_SCREEN; // 206
+  if (c == 0xD2) return KEY_HOME;         // 210
+  if (c == 0xD5) return KEY_END;          // 213
+  if (c == 0xD4) return KEY_DELETE;       // 212
+  if (c == 0xD3) return KEY_PAGE_UP;      // 211
+  if (c == 0xD6) return KEY_PAGE_DOWN;    // 214
+
+  // F1 ~ F12 (기존 215~226 = 0xD7~0xE2)
+  if (c >= 0xD7 && c <= 0xE2) return KEY_F1 + (c - 0xD7);
+
+  // F13 ~ F24 (기존 227~238 = 0xE3~0xEE)
+  if (c >= 0xE3 && c <= 0xEE) return KEY_F13 + (c - 0xE3);
+
+  // F19, F20 (한영 전환 / 기존 233, 234)
+  if (c == 0xE9) return KEY_F19;          // 233
+  if (c == 0xEA) return KEY_F20;          // 234
+
+
+  // 4. 일반 알파벳 및 숫자 (HID 표준 매핑 4-39)
   if (c >= 'a' && c <= 'z') return c - 'a' + 4;
   if (c >= 'A' && c <= 'Z') return c - 'A' + 4;
   if (c >= '1' && c <= '9') return c - '1' + 30;
   if (c == '0') return 39;
+
+  // 5. 표준 기호류
   if (c == ' ') return 44;
   if (c == '-') return 45;
   if (c == '=') return 46;
@@ -194,29 +230,8 @@ uint8_t getHIDFromASCII(uint8_t c) {
   if (c == ',') return 54;
   if (c == '.') return 55;
   if (c == '/') return 56;
-  if ((uint8_t)c == 178) return 80;               // Left
-  if ((uint8_t)c == 179) return 79;               // Right
-  if ((uint8_t)c == 177) return 82;               // Up
-  if ((uint8_t)c == 176) return 81;               // Down
-  if ((uint8_t)c == 10) return 40;                // Enter
-  if ((uint8_t)c == 27) return 41;                // Escape
-  if ((uint8_t)c == 210) return 74;               // Home
-  if ((uint8_t)c == 213) return 77;               // End
-  if ((uint8_t)c == 212) return 76;               // Delete
-  if ((uint8_t)c == 211) return 75;               // PgUp
-  if ((uint8_t)c == 214) return 78;               // PgDn
-  if ((uint8_t)c == 8) return 42;                 // Backspace
-  if ((uint8_t)c == 9) return 43;                 // Tab
-  if ((uint8_t)c == 128) return 57;               // CapsLock
-  if ((uint8_t)c == 232) return 0;                // Fn (HID Native 지원 어려움, 예약됨)
-  if (c >= 215 && c <= 226) return c - 215 + 58;  // F1 to F12 (58~69)
-  if (c >= 227 && c <= 238) return c - 227 + 104; // F13 to F24 (104~115)
-  if ((uint8_t)c == 206) return 70;               // PrtSc
-  if ((uint8_t)c == 207) return 71;               // ScrollLock
-  if ((uint8_t)c == 208) return 72;               // Pause
-  if ((uint8_t)c == 209) return 73;               // Insert
-  if (c == 101) return 101;                       // Application / Menu
-  return 0;
+
+  return c;
 }
 
 // === 버튼 피드백 및 논스토핑 로직 ===
@@ -258,6 +273,10 @@ struct Button {
             
             while (i < s.length()) {
               if (s.substring(i).startsWith("[#ENG#]")) {
+                bleKeyboard.press(KEY_RIGHT);
+                delay(20);
+                bleKeyboard.releaseAll();
+                delay(100);
                 bleKeyboard.press(KEY_F19);
                 delay(20);
                 bleKeyboard.releaseAll();
@@ -340,15 +359,28 @@ struct Button {
             bleKeyboard.setTapDelay(1);  // 다시 초고속 모드로 복구
           } else if (deckConfigs[index].mode == MODE_COMBO) {
             // 콤보(단축키) 모드
+            
+            // [한글 조합 깨짐 방지] 라이브러리에 정의된 KEY_F19, KEY_F20 사용 시 
+            // 현재 입력 중인 한글이 마쳐지지 않고 덮어씌워지는 것을 방지하기 위해 
+            // 오른쪽 방향키를 한 번 보내 조합을 강제로 완료(Commit)시킵니다.
+            uint8_t configKey = deckConfigs[index].key;
+            uint8_t hidCode = getHIDFromASCII(configKey);
+
+            if (hidCode == KEY_F19 || hidCode == KEY_F20) {
+              bleKeyboard.press(KEY_RIGHT);
+              delay(30);
+              bleKeyboard.releaseAll();
+              delay(30);
+            }
+
             if (deckConfigs[index].modifiers[0]) bleKeyboard.press((uint8_t)deckConfigs[index].modifiers[0]);
             if (deckConfigs[index].modifiers[1]) bleKeyboard.press((uint8_t)deckConfigs[index].modifiers[1]);
             if (deckConfigs[index].modifiers[2]) bleKeyboard.press((uint8_t)deckConfigs[index].modifiers[2]);
 
-            if (deckConfigs[index].key) {
-              uint8_t hidCode = getHIDFromASCII(deckConfigs[index].key);
-              if (hidCode != 0) bleKeyboard.press(hidCode);
+            if (hidCode != 0) {
+              bleKeyboard.press(hidCode);
             }
-            delay(10);  // 단축키 인식 안정성 한계치 (50 -> 10)
+            delay(10);  // 단축키 인식 안정성 한계치
             bleKeyboard.releaseAll();
           }
         }

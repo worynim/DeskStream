@@ -130,7 +130,7 @@ const char* index_html = R"rawliteral(
             if (mode == '3') {
                 labelEl.innerText = "접속할 URL 주소 (예: https://google.com)";
             } else {
-                labelEl.innerText = "전송할 문자열 (한글 입력 시 Mac의 한/영 상태가 '한'이어야 함)";
+                labelEl.innerText = "전송할 문자열";
             }
         };
 
@@ -187,45 +187,45 @@ const char* index_html = R"rawliteral(
                             <div class="combo-grid">
                                 <select id="m0_${i}">
                                     <option value="0">None</option>
-                                    <option value="224" ${mod0==224?'selected':''}>L CTRL</option><option value="228" ${mod0==228?'selected':''}>R CTRL</option>
-                                    <option value="225" ${mod0==225?'selected':''}>L SHIFT</option><option value="229" ${mod0==229?'selected':''}>R SHIFT</option>
-                                    <option value="226" ${mod0==226?'selected':''}>L ALT</option><option value="230" ${mod0==230?'selected':''}>R ALT</option>
-                                    <option value="227" ${mod0==227?'selected':''}>L CMD/WIN</option><option value="231" ${mod0==231?'selected':''}>R CMD/WIN</option>
+                                    <option value="0xE0" ${mod0==0xE0?'selected':''}>L CTRL</option><option value="0xE4" ${mod0==0xE4?'selected':''}>R CTRL</option>
+                                    <option value="0xE1" ${mod0==0xE1?'selected':''}>L SHIFT</option><option value="0xE5" ${mod0==0xE5?'selected':''}>R SHIFT</option>
+                                    <option value="0xE2" ${mod0==0xE2?'selected':''}>L ALT</option><option value="0xE6" ${mod0==0xE6?'selected':''}>R ALT</option>
+                                    <option value="0xE3" ${mod0==0xE3?'selected':''}>L CMD/WIN</option><option value="0xE7" ${mod0==0xE7?'selected':''}>R CMD/WIN</option>
                                 </select>
                                 <select id="m1_${i}">
                                     <option value="0">None</option>
-                                    <option value="224" ${mod1==224?'selected':''}>L CTRL</option><option value="228" ${mod1==228?'selected':''}>R CTRL</option>
-                                    <option value="225" ${mod1==225?'selected':''}>L SHIFT</option><option value="229" ${mod1==229?'selected':''}>R SHIFT</option>
-                                    <option value="226" ${mod1==226?'selected':''}>L ALT</option><option value="230" ${mod1==230?'selected':''}>R ALT</option>
-                                    <option value="227" ${mod1==227?'selected':''}>L CMD/WIN</option><option value="231" ${mod1==231?'selected':''}>R CMD/WIN</option>
+                                    <option value="0xE0" ${mod1==0xE0?'selected':''}>L CTRL</option><option value="0xE4" ${mod1==0xE4?'selected':''}>R CTRL</option>
+                                    <option value="0xE1" ${mod1==0xE1?'selected':''}>L SHIFT</option><option value="0xE5" ${mod1==0xE5?'selected':''}>R SHIFT</option>
+                                    <option value="0xE2" ${mod1==0xE2?'selected':''}>L ALT</option><option value="0xE6" ${mod1==0xE6?'selected':''}>R ALT</option>
+                                    <option value="0xE3" ${mod1==0xE3?'selected':''}>L CMD/WIN</option><option value="0xE7" ${mod1==0xE7?'selected':''}>R CMD/WIN</option>
                                 </select>
                                 <select id="m2_${i}">
                                     <option value="0">None</option>
-                                    <option value="224" ${mod2==224?'selected':''}>L CTRL</option><option value="228" ${mod2==228?'selected':''}>R CTRL</option>
-                                    <option value="225" ${mod2==225?'selected':''}>L SHIFT</option><option value="229" ${mod2==229?'selected':''}>R SHIFT</option>
-                                    <option value="226" ${mod2==226?'selected':''}>L ALT</option><option value="230" ${mod2==230?'selected':''}>R ALT</option>
-                                    <option value="227" ${mod2==227?'selected':''}>L CMD/WIN</option><option value="231" ${mod2==231?'selected':''}>R CMD/WIN</option>
+                                    <option value="0xE0" ${mod2==0xE0?'selected':''}>L CTRL</option><option value="0xE4" ${mod2==0xE4?'selected':''}>R CTRL</option>
+                                    <option value="0xE1" ${mod2==0xE1?'selected':''}>L SHIFT</option><option value="0xE5" ${mod2==0xE5?'selected':''}>R SHIFT</option>
+                                    <option value="0xE2" ${mod2==0xE2?'selected':''}>L ALT</option><option value="0xE6" ${mod2==0xE6?'selected':''}>R ALT</option>
+                                    <option value="0xE3" ${mod2==0xE3?'selected':''}>L CMD/WIN</option><option value="0xE7" ${mod2==0xE7?'selected':''}>R CMD/WIN</option>
                                 </select>
                                 <select id="special${i}">
                                     <option value="0">일반 키보드 입력 사용</option>
-                                    <option value="178" ${k.key==178?'selected':''}>← (Left Arrow)</option>
-                                    <option value="179" ${k.key==179?'selected':''}>→ (Right Arrow)</option>
-                                    <option value="177" ${k.key==177?'selected':''}>↑ (Up Arrow)</option>
-                                    <option value="176" ${k.key==176?'selected':''}>↓ (Down Arrow)</option>
-                                    <option value="10" ${k.key==10?'selected':''}>ENTER</option>
-                                    <option value="27" ${k.key==27?'selected':''}>ESC</option>
-                                    <option value="8" ${k.key==8?'selected':''}>BACKSPACE</option>
-                                    <option value="9" ${k.key==9?'selected':''}>TAB</option>
-                                    <option value="128" ${k.key==128?'selected':''}>CAPS LOCK</option>
-                                    <option value="206" ${k.key==206?'selected':''}>PRTSC</option>
-                                    <option value="210" ${k.key==210?'selected':''}>HOME</option>
-                                    <option value="213" ${k.key==213?'selected':''}>END</option>
-                                    <option value="212" ${k.key==212?'selected':''}>DELETE</option>
-                                    <option value="211" ${k.key==211?'selected':''}>PG UP</option>
-                                    <option value="214" ${k.key==214?'selected':''}>PG DN</option>
-                                    <option value="215" ${k.key==215?'selected':''}>F1</option><option value="216" ${k.key==216?'selected':''}>F2</option><option value="217" ${k.key==217?'selected':''}>F3</option><option value="218" ${k.key==218?'selected':''}>F4</option><option value="219" ${k.key==219?'selected':''}>F5</option><option value="220" ${k.key==220?'selected':''}>F6</option><option value="221" ${k.key==221?'selected':''}>F7</option><option value="222" ${k.key==222?'selected':''}>F8</option><option value="223" ${k.key==223?'selected':''}>F9</option><option value="224" ${k.key==224?'selected':''}>F10</option><option value="225" ${k.key==225?'selected':''}>F11</option><option value="226" ${k.key==226?'selected':''}>F12</option>
-                                    <option value="233" ${k.key==233?'selected':''}>F19 (ENG/Lang1)</option>
-                                    <option value="234" ${k.key==234?'selected':''}>F20 (KOR/Lang2)</option>
+                                    <option value="0xB2" ${k.key==0xB2?'selected':''}>← (Left Arrow)</option>
+                                    <option value="0xB3" ${k.key==0xB3?'selected':''}>→ (Right Arrow)</option>
+                                    <option value="0xB1" ${k.key==0xB1?'selected':''}>↑ (Up Arrow)</option>
+                                    <option value="0xB0" ${k.key==0xB0?'selected':''}>↓ (Down Arrow)</option>
+                                    <option value="0x0A" ${k.key==0x0A?'selected':''}>ENTER</option>
+                                    <option value="0x1B" ${k.key==0x1B?'selected':''}>ESC</option>
+                                    <option value="0x08" ${k.key==0x08?'selected':''}>BACKSPACE</option>
+                                    <option value="0x09" ${k.key==0x09?'selected':''}>TAB</option>
+                                    <option value="0x80" ${k.key==0x80?'selected':''}>CAPS LOCK</option>
+                                    <option value="0xCE" ${k.key==0xCE?'selected':''}>PRTSC</option>
+                                    <option value="0xD2" ${k.key==0xD2?'selected':''}>HOME</option>
+                                    <option value="0xD5" ${k.key==0xD5?'selected':''}>END</option>
+                                    <option value="0xD4" ${k.key==0xD4?'selected':''}>DELETE</option>
+                                    <option value="0xD3" ${k.key==0xD3?'selected':''}>PG UP</option>
+                                    <option value="0xD6" ${k.key==0xD6?'selected':''}>PG DN</option>
+                                    <option value="0xD7" ${k.key==0xD7?'selected':''}>F1</option><option value="0xD8" ${k.key==0xD8?'selected':''}>F2</option><option value="0xD9" ${k.key==0xD9?'selected':''}>F3</option><option value="0xDA" ${k.key==0xDA?'selected':''}>F4</option><option value="0xDB" ${k.key==0xDB?'selected':''}>F5</option><option value="0xDC" ${k.key==0xDC?'selected':''}>F6</option><option value="0xDD" ${k.key==0xDD?'selected':''}>F7</option><option value="0xDE" ${k.key==0xDE?'selected':''}>F8</option><option value="0xDF" ${k.key==0xDF?'selected':''}>F9</option><option value="0xE0" ${k.key==0xE0?'selected':''}>F10</option><option value="0xE1" ${k.key==0xE1?'selected':''}>F11</option><option value="0xE2" ${k.key==0xE2?'selected':''}>F12</option>
+                                    <option value="0xE9" ${k.key==0xE9?'selected':''}>F19 (ENG/Lang1)</option>
+                                    <option value="0xEA" ${k.key==0xEA?'selected':''}>F20 (KOR/Lang2)</option>
                                 </select>
                                 <input type="text" id="key${i}" value="${keyCh}" placeholder="기준 키" maxlength="1">
                             </div>
@@ -477,13 +477,13 @@ void initWebHandlers() {
         int idx = server.arg("idx").toInt();
         if (idx < 0 || idx > 3) { server.send(400, "text/plain", "Invalid index"); return; }
         strlcpy(deckConfigs[idx].label, server.arg("label").c_str(), 16);
-        deckConfigs[idx].mode = (uint8_t)server.arg("mode").toInt();
+        deckConfigs[idx].mode = (uint8_t)strtol(server.arg("mode").c_str(), NULL, 0);
         strlcpy(deckConfigs[idx].stringVal, server.arg("str").c_str(), 256);
         if(server.hasArg("kor")) strlcpy(deckConfigs[idx].korVal, server.arg("kor").c_str(), 256);
-        deckConfigs[idx].modifiers[0] = (uint8_t)server.arg("m0").toInt();
-        deckConfigs[idx].modifiers[1] = (uint8_t)server.arg("m1").toInt();
-        deckConfigs[idx].modifiers[2] = (uint8_t)server.arg("m2").toInt();
-        deckConfigs[idx].key = (uint8_t)server.arg("key").toInt();
+        deckConfigs[idx].modifiers[0] = (uint8_t)strtol(server.arg("m0").c_str(), NULL, 0);
+        deckConfigs[idx].modifiers[1] = (uint8_t)strtol(server.arg("m1").c_str(), NULL, 0);
+        deckConfigs[idx].modifiers[2] = (uint8_t)strtol(server.arg("m2").c_str(), NULL, 0);
+        deckConfigs[idx].key = (uint8_t)strtol(server.arg("key").c_str(), NULL, 0);
         
         DynamicJsonDocument doc(4096); JsonArray keys = doc.createNestedArray("keys");
         for(int i=0; i<4; i++){ 
