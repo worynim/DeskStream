@@ -115,34 +115,58 @@ def apply_threshold(img_gray: Image.Image, threshold: int) -> np.ndarray:
     return (arr >= threshold).astype(np.uint8) * 255
 
 
-def apply_floyd_steinberg(img_gray: Image.Image, contrast: float = 1.0) -> np.ndarray:
+def apply_dithering(img_gray: Image.Image, method: str = "Floyd-Steinberg", contrast: float = 1.0) -> np.ndarray:
     """
-    Floyd-Steinberg 오차 확산 디더링.
-
-    Parameters:
-        img_gray  : 8-bit grayscale PIL Image (512×64)
-        contrast  : 명암비 조정 배율 (0.5~3.0). 디더링 전 적용.
-
-    Returns:
-        np.ndarray (shape: (64, 512), dtype: uint8), 0=검정 255=흰색
+    다양한 디더링 알고리즘 적용.
     """
-    # 명암비 적용
     enhanced = ImageEnhance.Contrast(img_gray).enhance(contrast)
     arr = np.array(enhanced, dtype=np.float32)
     h, w = arr.shape
 
+    if method == "Ordered (Bayer)":
+        bayer = np.array([
+            [ 0,  8,  2, 10],
+            [12,  4, 14,  6],
+            [ 3, 11,  1,  9],
+            [15,  7, 13,  5]
+        ], dtype=np.float32)
+        # 타일링하여 이미지 크기에 맞는 임계값 맵 생성
+        threshold_map = np.tile(bayer, (h // 4, w // 4))
+        threshold_map = (threshold_map / 16.0) * 255.0
+        return (arr >= threshold_map).astype(np.uint8) * 255
+
+    # 에러 확산형(Error Diffusion) 커널 정의
+    kernels = {
+        "Floyd-Steinberg": [
+            (1, 0, 7/16), (-1, 1, 3/16), (0, 1, 5/16), (1, 1, 1/16)
+        ],
+        "Atkinson": [
+            (1, 0, 1/8), (2, 0, 1/8), (-1, 1, 1/8), (0, 1, 1/8), (1, 1, 1/8), (0, 2, 1/8)
+        ],
+        "Stucki": [
+            (1, 0, 8/42), (2, 0, 4/42),
+            (-2, 1, 2/42), (-1, 1, 4/42), (0, 1, 8/42), (1, 1, 4/42), (2, 1, 2/42),
+            (-2, 2, 1/42), (-1, 2, 2/42), (0, 2, 4/42), (1, 2, 2/42), (2, 2, 1/42)
+        ],
+        "Sierra": [
+            (1, 0, 5/32), (2, 0, 3/32),
+            (-2, 1, 2/32), (-1, 1, 4/32), (0, 1, 5/32), (1, 1, 4/32), (2, 1, 2/32),
+            (-1, 2, 2/32), (0, 2, 3/32), (1, 2, 2/32)
+        ]
+    }
+
+    kernel = kernels.get(method, kernels["Floyd-Steinberg"])
+
     for y in range(h):
         for x in range(w):
-            old_pixel = arr[y, x]
-            new_pixel = 255.0 if old_pixel >= 128.0 else 0.0
-            arr[y, x]  = new_pixel
-            quant_err  = old_pixel - new_pixel
-            # 오차 확산: 우(7/16), 좌하(3/16), 하(5/16), 우하(1/16)
-            if x + 1 <  w: arr[y,     x + 1] += quant_err * 7 / 16
-            if y + 1 <  h:
-                if x - 1 >= 0: arr[y + 1, x - 1] += quant_err * 3 / 16
-                arr[y + 1, x    ] += quant_err * 5 / 16
-                if x + 1 <  w: arr[y + 1, x + 1] += quant_err * 1 / 16
+            old_p = arr[y, x]
+            new_p = 255.0 if old_p >= 128.0 else 0.0
+            arr[y, x] = new_p
+            err = old_p - new_p
+            for dx, dy, weight in kernel:
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < w and 0 <= ny < h:
+                    arr[ny, nx] += err * weight
 
     return np.clip(arr, 0, 255).astype(np.uint8)
 
@@ -322,16 +346,25 @@ class VibeStreamerApp:
         bw_frame.pack(fill="x", padx=10, pady=5)
 
         self.bw_mode_var = tk.StringVar(value="threshold")
-        mode_row = tk.Frame(bw_frame, bg="#3c3f41")
-        mode_row.pack(fill="x", pady=2)
-        tk.Label(mode_row, text="Mode:", bg="#3c3f41", fg="white").pack(side=tk.LEFT)
-        tk.Radiobutton(mode_row, text="Threshold (Fast)", variable=self.bw_mode_var,
-                       value="threshold", command=self._update_bw_ui,
-                       bg="#3c3f41", fg="white", selectcolor="#555555").pack(side=tk.LEFT, padx=5)
-        tk.Radiobutton(mode_row, text="Floyd-Steinberg Dithering",
-                       variable=self.bw_mode_var, value="dithering",
-                       command=self._update_bw_ui,
-                       bg="#3c3f41", fg="white", selectcolor="#555555").pack(side=tk.LEFT, padx=5)
+        mode_grid = tk.Frame(bw_frame, bg="#3c3f41")
+        mode_grid.pack(fill="x", pady=2)
+        
+        self.bw_radios: list = []
+        modes = [
+            ("Threshold (Fast)", "threshold"),
+            ("Ordered (Bayer)", "Ordered (Bayer)"),
+            ("Floyd-Steinberg", "Floyd-Steinberg"),
+            ("Atkinson", "Atkinson"),
+            ("Stucki", "Stucki"),
+            ("Sierra", "Sierra")
+        ]
+        for i, (text, val) in enumerate(modes):
+            rb = tk.Radiobutton(mode_grid, text=text, variable=self.bw_mode_var,
+                                value=val, command=self._update_bw_ui,
+                                bg="#3c3f41", fg="white", selectcolor="#555555",
+                                font=("Arial", 12))
+            rb.grid(row=i//2, column=i%2, sticky="w", padx=10, pady=2)
+            self.bw_radios.append(rb)
 
         # Threshold 슬라이더
         self.threshold_var = tk.IntVar(value=128)
@@ -409,7 +442,7 @@ class VibeStreamerApp:
         else:
             self.threshold_frame.pack_forget()
             self.contrast_frame.pack(fill="x", pady=2)
-            # 디더링 모드 진입 시 가독성을 위해 Contrast를 2.0으로 기본 설정
+            # 디더링 계열 모드 진입 시 가독성을 위해 Contrast를 2.0으로 기본 설정
             self.contrast_var.set(2.0)
 
     def _update_crop_state(self, event: Any = None) -> None:
@@ -706,7 +739,7 @@ class VibeStreamerApp:
         if not self.streaming_active:
             self.streaming_active = True
             # 스트리밍 중 고정: IP/모니터/콘트롤 / 실시간 허용: B&W 모드, Contrast, FPS, Preview
-            all_widgets = ([self.ip_entry, self.btn_scan, self.monitor_combo, 
+            all_widgets = ([self.ip_entry, self.btn_scan, self.monitor_combo,
                             self.chk_crop, self.chk_overlay, self.chk_replayd]
                            + self.cap_radios + self.layout_radios)
             for w in all_widgets:
@@ -800,10 +833,10 @@ class VibeStreamerApp:
         img_gray = img.convert("L")
 
         # 3. 이진화
-        if mode == "dithering":
-            bw_arr = apply_floyd_steinberg(img_gray, contrast)
-        else:
+        if mode == "threshold":
             bw_arr = apply_threshold(img_gray, threshold)
+        else:
+            bw_arr = apply_dithering(img_gray, mode, contrast)
 
         # 4. 프리뷰 이미지 생성 (비율 유지)
         preview = None
