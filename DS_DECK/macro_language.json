@@ -1,0 +1,41 @@
+{
+    "title": "매크로 키보드 한/영 강제 할당",
+    "rules": [
+        {
+            "description": "F19 누르면 무조건 영어(English)로 변경",
+            "manipulators": [
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "f19"
+                    },
+                    "to": [
+                        {
+                            "select_input_source": {
+                                "language": "^en$"
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "description": "F20 누르면 무조건 한글(Korean)로 변경",
+            "manipulators": [
+                {
+                    "type": "basic",
+                    "from": {
+                        "key_code": "f20"
+                    },
+                    "to": [
+                        {
+                            "select_input_source": {
+                                "language": "^ko$"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

@@ -77,7 +77,7 @@ const char* index_html = R"rawliteral(
 
         function korToEng(text) {
             let res = "";
-            let mode = ""; // 초기 상태를 비워두어 첫 글자가 스스로 정의하게 함
+            let mode = ""; 
             
             for(let i=0; i<text.length; i++) {
                 let char = text[i];
@@ -85,18 +85,16 @@ const char* index_html = R"rawliteral(
                 let isKor = (c >= 0xAC00 && c <= 0xD7A3) || KOR_LAYOUT[char] !== undefined;
                 let isEng = /[a-zA-Z]/.test(char);
                 
-                // 첫 글자일 때 현재 모드 정의 (전환 신호 없이 조용히 시작)
+                // 첫 글자부터 명시적으로 모드 태그 삽입
                 if (mode === "") {
-                    if (isEng) mode = "ENG";
-                    else if (isKor) mode = "KOR";
-                    else mode = "ENG"; // 기호 등은 기본적으로 영어로 처리
+                    if (isKor) { res += "[#KOR#]"; mode = "KOR"; }
+                    else { res += "[#ENG#]"; mode = "ENG"; } // 기호 등은 기본적으로 영어로 처리
                 } 
-                // 중간에 명확하게 모드가 바뀌는 경우에만 전환 신호 발생
                 else if (isKor && mode === "ENG") {
-                    res += "[#CAPS#]";
+                    res += "[#KOR#]";
                     mode = "KOR";
                 } else if (isEng && mode === "KOR") {
-                    res += "[#CAPS#]";
+                    res += "[#ENG#]";
                     mode = "ENG";
                 }
                 
@@ -143,7 +141,7 @@ const char* index_html = R"rawliteral(
             main.innerHTML = ''; // 요소 중복 생성 방지를 위한 초기화
             data.keys.forEach((k, i) => {
                 let mod0 = k.mod0 || 0, mod1 = k.mod1 || 0, mod2 = k.mod2 || 0;
-                let isSpecial = [178, 179, 177, 176, 10, 27, 8, 9, 128, 206, 210, 213, 212, 211, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 226].includes(k.key);
+                let isSpecial = [178, 179, 177, 176, 10, 27, 8, 9, 128, 206, 210, 213, 212, 211, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 232, 233, 234].includes(k.key);
                 let keyCh = (k.key && !isSpecial) ? String.fromCharCode(k.key) : '';
                 main.innerHTML += `
                     <div class="card">
@@ -187,9 +185,27 @@ const char* index_html = R"rawliteral(
                         <div id="cmbDiv${i}" style="display:${k.mode==1?'block':'none'}" class="field">
                             <label>단축키 조합 설정</label>
                             <div class="combo-grid">
-                                <select id="m0_${i}"><option value="0">None</option><option value="224" ${mod0==224?'selected':''}>CTRL</option><option value="225" ${mod0==225?'selected':''}>SHIFT</option><option value="226" ${mod0==226?'selected':''}>ALT</option><option value="227" ${mod0==227?'selected':''}>CMD (Mac)</option><option value="231" ${mod0==231?'selected':''}>WIN</option></select>
-                                <select id="m1_${i}"><option value="0">None</option><option value="224" ${mod1==224?'selected':''}>CTRL</option><option value="225" ${mod1==225?'selected':''}>SHIFT</option><option value="226" ${mod1==226?'selected':''}>ALT</option><option value="227" ${mod1==227?'selected':''}>CMD (Mac)</option><option value="231" ${mod1==231?'selected':''}>WIN</option></select>
-                                <select id="m2_${i}"><option value="0">None</option><option value="224" ${mod2==224?'selected':''}>CTRL</option><option value="225" ${mod2==225?'selected':''}>SHIFT</option><option value="226" ${mod2==226?'selected':''}>ALT</option><option value="227" ${mod2==227?'selected':''}>CMD (Mac)</option><option value="231" ${mod2==231?'selected':''}>WIN</option></select>
+                                <select id="m0_${i}">
+                                    <option value="0">None</option>
+                                    <option value="224" ${mod0==224?'selected':''}>L CTRL</option><option value="228" ${mod0==228?'selected':''}>R CTRL</option>
+                                    <option value="225" ${mod0==225?'selected':''}>L SHIFT</option><option value="229" ${mod0==229?'selected':''}>R SHIFT</option>
+                                    <option value="226" ${mod0==226?'selected':''}>L ALT</option><option value="230" ${mod0==230?'selected':''}>R ALT</option>
+                                    <option value="227" ${mod0==227?'selected':''}>L CMD/WIN</option><option value="231" ${mod0==231?'selected':''}>R CMD/WIN</option>
+                                </select>
+                                <select id="m1_${i}">
+                                    <option value="0">None</option>
+                                    <option value="224" ${mod1==224?'selected':''}>L CTRL</option><option value="228" ${mod1==228?'selected':''}>R CTRL</option>
+                                    <option value="225" ${mod1==225?'selected':''}>L SHIFT</option><option value="229" ${mod1==229?'selected':''}>R SHIFT</option>
+                                    <option value="226" ${mod1==226?'selected':''}>L ALT</option><option value="230" ${mod1==230?'selected':''}>R ALT</option>
+                                    <option value="227" ${mod1==227?'selected':''}>L CMD/WIN</option><option value="231" ${mod1==231?'selected':''}>R CMD/WIN</option>
+                                </select>
+                                <select id="m2_${i}">
+                                    <option value="0">None</option>
+                                    <option value="224" ${mod2==224?'selected':''}>L CTRL</option><option value="228" ${mod2==228?'selected':''}>R CTRL</option>
+                                    <option value="225" ${mod2==225?'selected':''}>L SHIFT</option><option value="229" ${mod2==229?'selected':''}>R SHIFT</option>
+                                    <option value="226" ${mod2==226?'selected':''}>L ALT</option><option value="230" ${mod2==230?'selected':''}>R ALT</option>
+                                    <option value="227" ${mod2==227?'selected':''}>L CMD/WIN</option><option value="231" ${mod2==231?'selected':''}>R CMD/WIN</option>
+                                </select>
                                 <select id="special${i}">
                                     <option value="0">일반 키보드 입력 사용</option>
                                     <option value="178" ${k.key==178?'selected':''}>← (Left Arrow)</option>
@@ -208,6 +224,8 @@ const char* index_html = R"rawliteral(
                                     <option value="211" ${k.key==211?'selected':''}>PG UP</option>
                                     <option value="214" ${k.key==214?'selected':''}>PG DN</option>
                                     <option value="215" ${k.key==215?'selected':''}>F1</option><option value="216" ${k.key==216?'selected':''}>F2</option><option value="217" ${k.key==217?'selected':''}>F3</option><option value="218" ${k.key==218?'selected':''}>F4</option><option value="219" ${k.key==219?'selected':''}>F5</option><option value="220" ${k.key==220?'selected':''}>F6</option><option value="221" ${k.key==221?'selected':''}>F7</option><option value="222" ${k.key==222?'selected':''}>F8</option><option value="223" ${k.key==223?'selected':''}>F9</option><option value="224" ${k.key==224?'selected':''}>F10</option><option value="225" ${k.key==225?'selected':''}>F11</option><option value="226" ${k.key==226?'selected':''}>F12</option>
+                                    <option value="233" ${k.key==233?'selected':''}>F19 (ENG/Lang1)</option>
+                                    <option value="234" ${k.key==234?'selected':''}>F20 (KOR/Lang2)</option>
                                 </select>
                                 <input type="text" id="key${i}" value="${keyCh}" placeholder="기준 키" maxlength="1">
                             </div>
