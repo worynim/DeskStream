@@ -39,12 +39,20 @@ Ticker fps_ticker;
 bool is_streaming = false;
 
 // ==========================================
-// [UDP 수신 변수]
+// [UDP 수신 변수 - 더블 버퍼링]
 // ==========================================
+//
+// [F2] 더블 버퍼: recv_buf(조립중) ⇔ ready_buf(렌더링 대기)
+// pushCanvas() 32ms 블로킹 중에도 recv_buf는 새 프레임을 받을 수 있음
+uint8_t  frameBufferA[CANVAS_BYTES];   // 수신 조립 버퍼 A
+uint8_t  frameBufferB[CANVAS_BYTES];   // 수신 조립 버퍼 B
+uint8_t* recv_buf     = frameBufferA;  // 현재 조립 중인 버퍼 (스왜 전환)
+uint8_t* ready_buf    = frameBufferB;  // 렌더링 대기 중인 버퍼
+volatile bool frame_ready = false;     // 컨버스 갱신 요청 플래그
+
 WiFiUDP udp;
 WiFiUDP discoveryUDP;
 
-uint8_t  frameBuffer[CANVAS_BYTES];    // 수신 조립 버퍼 (4096 bytes)
 uint8_t  packet_buffer[MAX_PACKET_SIZE];
 
 uint8_t  current_frame_id      = 0;
@@ -254,7 +262,10 @@ void reset_assembly() {
 /**
  * @brief UDP 패킷 처리 루프 (큐에 있는 모든 패킷 묶음 처리)
  * 
- * 헤더 파싱 → 청크 마스크 관리 → 전체 수신 시 캔버스에 즉시 반영
+ * [F1+F2 개선] 핵심 변경사항:
+ *   이전: while 루프 내부에서 pushCanvas() 호용 → 32ms 블로킹 중 UDP 누락
+ *   이후: 모든 UDP 패킷 소진 시까지 recv_buf에 조립 → 완성 시 스왜 → while 끝에서 pushCanvas()
+ *   → pushCanvas() 32ms 동안 lwIP 버퍼에 쌓인 다음 프레임 패킷들을 다음 호출에서 모두 획득
  */
 void processUDP() {
     unsigned long currentMillis = millis();
@@ -288,7 +299,8 @@ void processUDP() {
         return;
     }
 
-    // 큐에 있는 모든 패킷 처리 (한 루프 안에서 묶음 수신)
+    // 큐에 있는 모든 패킷 먼저 소진 (한 루프 안에서 묶음 수신)
+    // ★ pushCanvas()는 절대 이 루프 안에서 호출하지 않음
     while (packetSize > 0) {
         int len = udp.read(packet_buffer, MAX_PACKET_SIZE);
         if (len < HEADER_SIZE) {
@@ -299,7 +311,7 @@ void processUDP() {
         last_packet_time = currentMillis;
         is_streaming     = true;
 
-        uint8_t frame_id    = packet_buffer[0];
+        uint8_t frame_id     = packet_buffer[0];
         uint8_t total_chunks = packet_buffer[1];
         uint8_t chunk_index  = packet_buffer[2];
 
@@ -317,8 +329,9 @@ void processUDP() {
                 received_chunk_mask |= chunk_bit;
                 int data_len = len - HEADER_SIZE;
                 int offset   = chunk_index * CHUNK_PAYLOAD_SIZE;
-                if (offset + data_len <= (int)sizeof(frameBuffer)) {
-                    memcpy(&frameBuffer[offset], &packet_buffer[HEADER_SIZE], data_len);
+                if (offset + data_len <= (int)sizeof(frameBufferA)) {
+                    // recv_buf(조립 중 버퍼)에 첨부
+                    memcpy(&recv_buf[offset], &packet_buffer[HEADER_SIZE], data_len);
                     if (offset + data_len > current_data_len)
                         current_data_len = offset + data_len;
                 }
@@ -331,15 +344,14 @@ void processUDP() {
                 if (received_chunk_mask == all_mask) {
                     is_assembling = false;
 
-                    // 도움말 모드 중에는 화면 갱신 억제
                     if (!is_help_mode && current_data_len == CANVAS_BYTES) {
-                        // ★ 핵심: 수신 버퍼를 캔버스 버퍼에 직접 복사 후 전송
-                        uint8_t* canvas_buf = (uint8_t*)display.getCanvas().getBuffer();
-                        if (canvas_buf) {
-                            memcpy(canvas_buf, frameBuffer, CANVAS_BYTES);
-                            display.pushCanvas();
-                            display.incrementFrameCounter();
-                        }
+                        // 순쉘: recv_buf 스왜 → ready_buf로 이동
+                        // recv_buf는 즉시 다음 프레임 조립에 사용 가능
+                        uint8_t* tmp = recv_buf;
+                        recv_buf  = ready_buf;
+                        ready_buf = tmp;
+                        frame_ready = true;  // while 루프 밖에서 pushCanvas() 호출
+                        display.incrementFrameCounter();
                     }
                     reset_assembly();
                 }
@@ -347,6 +359,17 @@ void processUDP() {
         }
 
         packetSize = udp.parsePacket();
+    }
+
+    // ★ [F1] UDP 패킷을 모두 소진한 후 렌더링
+    // pushCanvas() 32ms 블로킹이 다음 while 루프에 영향을 주지 않음
+    if (frame_ready && !is_help_mode) {
+        frame_ready = false;
+        uint8_t* canvas_buf = (uint8_t*)display.getCanvas().getBuffer();
+        if (canvas_buf) {
+            memcpy(canvas_buf, ready_buf, CANVAS_BYTES);
+            display.pushCanvas();
+        }
     }
 }
 
