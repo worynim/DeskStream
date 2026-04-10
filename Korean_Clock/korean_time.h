@@ -25,7 +25,8 @@ public:
     static String getNumericHour(int hour, bool is24h) {
         int h = is24h ? hour : (hour % 12);
         if (!is24h && h == 0) h = 12;
-        return String(h) + "시";
+        char buf[8]; sprintf(buf, "%02d시", h);
+        return String(buf);
     }
 
     static String convertToKorean(int num, const String& unit) {

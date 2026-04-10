@@ -58,7 +58,8 @@ static const uint8_t bell_icon[] = { 0x18, 0x3C, 0x3C, 0x3C, 0xFF, 0xDB, 0x18, 0
 
 struct CachedChar {
     String hex;
-    uint8_t data[256];
+    uint8_t data[512]; 
+    uint16_t dataSize = 0; // 실제 로드된 데이터 크기 (256: 32px, 512: 64px)
 };
 
 class DisplayManager {
@@ -135,6 +136,7 @@ public:
         
         for (int i = 0; i < 4; i++) {
             screens[i]->setFlipMode(is_flipped); // 하드웨어-소프트웨어 플립 일치
+            screens[i]->setBitmapMode(1);        // 투명 비트맵 모드 활성화 (v1.3.57) - 글자 겹침 허용
             screens[i]->clearBuffer();
             lastTexts[i] = "";
         }
@@ -194,13 +196,15 @@ public:
     void loadBitmapCache() {
         bitmapCache.clear();
         File root = LittleFS.open("/");
+        if (!root) return;
         File file = root.openNextFile();
         while (file) {
             String name = file.name();
             if (name.startsWith("c_") && name.endsWith(".bin")) {
                 CachedChar cc;
                 cc.hex = name.substring(2, name.length() - 4);
-                file.read(cc.data, 256);
+                memset(cc.data, 0, 512); // 노이즈 방지 초기화
+                cc.dataSize = file.read(cc.data, 512); // 로드된 크기 기록 (v1.3.55)
                 bitmapCache.push_back(cc);
             }
             file.close();
@@ -242,12 +246,19 @@ public:
         // 1. 캐시에서 검색
         for (const auto& cc : bitmapCache) {
             if (cc.hex == hexStr) {
-                u8g2->drawBitmap(x, y_offset, 4, 64, cc.data);
+                // 규격 자동 판별 (v1.3.55)
+                if (cc.dataSize <= 256) {
+                    // 구형 32px 모드: x 위치 그대로 32px(4바이트) 출력
+                    u8g2->drawBitmap(x, y_offset, 4, 64, cc.data);
+                } else {
+                    // 신규 64px 모드: -16px 오프셋으로 64px(8바이트) 출력 (겹침 허용)
+                    u8g2->drawBitmap(x - 16, y_offset, 8, 64, cc.data);
+                }
                 return;
             }
         }
 
-        // 2. 캐시 미스 시 표준 폰트 사용 (예비 책)
+        // 2. 캐시 미스 시 표준 폰트 사용
         u8g2->setFont(KOREAN_FONT);
         u8g2->drawUTF8(x + (32 - u8g2->getUTF8Width(charStr.c_str())) / 2, TEXT_Y_POS + y_offset, charStr.c_str());
     }
@@ -466,25 +477,25 @@ public:
     void showButtonHelp() {
         const char* titles[4] = {"BTN 1", "BTN 2", "BTN 3", "BTN 4"};
         
-        char chimeStr[16];
-        sprintf(chimeStr, "S: CHIME(%s)", chime_enabled ? "ON" : "OFF");
-        const char* shorts[4] = {chimeStr, "S: NUM<>HAN", "S: ANIM", "S: NEXT"};
+        char chimeStr[20], animStr[32];
+        sprintf(chimeStr, "S:CHIME(%s)", chime_enabled ? "ON" : "OFF");
+        sprintf(animStr, "S:ANIMATION MODE %d", anim_mode);
+        const char* shorts[4] = {chimeStr, "S:NUM <> HAN", animStr, "S:NEXT PAGE"};
         
         char flipStr[16];
-        sprintf(flipStr, "L: FLIP (%s)", is_flipped ? "ON" : "OFF");
-        const char* longs[4]  = {flipStr,  "L: 12/24", "L: -",  "L: -"};
+        sprintf(flipStr, "L:FLIP (%s)", is_flipped ? "ON" : "OFF");
+        const char* longs[4]  = {flipStr,  "L:12/24", "L:-",  "L:-"};
 
         for (int i = 0; i < 4; i++) {
             screens[i]->clearBuffer();
-            screens[i]->setFont(u8g2_font_6x10_tf);
+            screens[i]->setFont(u8g2_font_7x14_tf);
             
             // 버튼 설명은 물리적 위치(i)와 1:1 매칭 (반전시키지 않음)
-            screens[i]->drawStr(0, 10, titles[i]);
+            screens[i]->drawStr(0, 15, titles[i]);
             
             // 기능 설명
-            screens[i]->setFont(u8g2_font_7x14_tf);
-            screens[i]->drawStr(10, 30, shorts[i]);
-            screens[i]->drawStr(10, 50, longs[i]);
+            screens[i]->drawStr(0, 35, shorts[i]);
+            screens[i]->drawStr(0, 55, longs[i]);
         }
         pushParallel(); // 태스크 병렬 전송 활용 (v1.3.45)
     }
