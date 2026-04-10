@@ -41,7 +41,7 @@
 4. `START STREAMING` 버튼을 눌러 스트리밍을 시작합니다.
 
 ### 하드웨어 환경 (ESP32)
-1. `Screen_To_OLEDs` 폴더의 `.ino` 파일을 Arduino IDE 또는 PlatformIO로 업로드합니다.
+1. `Screen_To_OLEDs` 폴더의 `.ino` 파일을 Arduino IDE 로 업로드합니다.
 2. 부팅 시 OLED에 표시되는 WiFi AP(`ESP_SCREEN_OLED`)에 접속하여 네트워크 설정을 완료합니다.
 3. 연결 성공 시 표시되는 IP 주소를 스트리머에 입력합니다.
 
@@ -51,5 +51,3 @@
 - **BTN3**: (Not Used)
 - **BTN4**: 숏 프레스 - 도움말/대기 화면 종료 (Exit) / 롱 프레스 - (Reserved)
 
----
-**개발**: Google Deepmind Antigravity Pair Programming

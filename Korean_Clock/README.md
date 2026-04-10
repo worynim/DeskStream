@@ -1,0 +1,27 @@
+# Korean Clock (한글 시계)
+
+NTP 서버로부터 시간을 동기화하여 4개의 OLED 디스플레이에 한글로 시, 분, 초를 표시하는 ESP32 기반 프로젝트입니다.
+
+## 주요 기능
+- **한글 시간 표시**: "오전", "열두시", "삼십칠분", "오초" 등 친숙한 한글 텍스트 출력
+- **WiFi 자동 연결**: `WiFiManager`를 통해 편리하게 무선 네트워크 설정 가능
+- **정확한 시간 유지**: NTP(Network Time Protocol)를 사용하여 주기적으로 시간을 동기화 (KST 기준)
+- **4단 OLED 디스플레이**: 총 4개의 SSD1306(128x64) OLED를 가로로 배치하여 시각적 정보를 분산 출력
+- **고성능 I2C**: ESP32-C3 하드웨어 및 1MHz I2C 병렬 전송 엔진 최적화
+- **Font Studio v2**: 웹 대시보드에서 TTF 폰트를 업로드하여 기기용 낱자 비트맵으로 자동 변환 및 적용 가능 (실시간 미리보기 지원)
+
+## 하드웨어 구성
+- **MCU**: ESP32-C3
+- **Display**: 4x SSD1306 OLED (128x64)
+- **Input**: 1x Reset/Function Button (GPIO 1)
+- **Output**: Passive Buzzer (GPIO 7)
+
+## 사용 방법
+1. 처음 부팅 시 `Korean_Clock_Setup`이라는 이름의 AP가 생성됩니다.
+2. 스마트폰이나 PC로 해당 AP에 접속하여 WiFi 정보를 입력합니다.
+3. 연결 성공 후 자동으로 NTP 서버에 접속하여 시간을 가져옵니다.
+4. 부팅 시 BTN1(GPIO 1)을 누르고 있으면 저장된 WiFi 정보가 초기화됩니다.
+
+## 라이브러리 의존성
+- `U8g2` (OLED 제어)
+- `WiFiManager` (WiFi 설정 관리)
