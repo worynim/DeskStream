@@ -50,4 +50,15 @@ const int DAYLIGHT_OFFSET_SEC = 0;
 #define STATUS_FONT u8g2_font_6x10_tf           // 상태 메시지용 폰트
 #define TEXT_Y_POS 42                            // 한글 텍스트 출력 높이 (0~63)
 
+// === [8] 애니메이션 설정 ===
+#define ANIMATION_TYPE_NONE 0
+#define ANIMATION_TYPE_SCROLL_UP 1
+#define ANIMATION_STEP_DELAY_MS 1 // 고속 프레임
+
+// === [9] 표시 형식 설정 ===
+#define CLOCK_MODE_HANGUL 0
+#define CLOCK_MODE_NUMERIC 1
+#define HOUR_FORMAT_12H 0
+#define HOUR_FORMAT_24H 1
+
 #endif

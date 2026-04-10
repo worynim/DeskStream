@@ -24,123 +24,242 @@ void configModeCallback(WiFiManager *myWiFiManager) {
     display.u8g2_1.sendBuffer();
 }
 
-void setup() {
-    Serial.begin(115200);
-    Serial.println("\n[SYSTEM] Starting Korean Clock High Performance...");
+// 인터럽트 발생 여부를 기록하는 플래그
+volatile bool btnInterruptFlags[4] = {false, false, false, false};
 
-    // 파일 시스템 초기화
-    if (!LittleFS.begin(true)) {
-        Serial.println("[SYSTEM] LittleFS Mount Failed");
+// ISR (Interrupt Service Routine) - 최소한의 처리만 보장
+void IRAM_ATTR handleBtnInterrupt1() { btnInterruptFlags[0] = true; }
+void IRAM_ATTR handleBtnInterrupt2() { btnInterruptFlags[1] = true; }
+void IRAM_ATTR handleBtnInterrupt3() { btnInterruptFlags[2] = true; }
+void IRAM_ATTR handleBtnInterrupt4() { btnInterruptFlags[3] = true; }
+
+/**
+ * @brief 인터럽트 대응 고성능 버튼 구조체
+ */
+struct Button {
+    int pin;
+    int id; // 0 ~ 3
+    bool lastState;
+    unsigned long fallTime;
+    bool isPressed;
+    bool isLongPressFired; 
+    void (*onShortPress)();
+    void (*onLongPress)();
+    
+    Button(int i, int p, void (*sp)(), void (*lp)()) : id(i), pin(p), lastState(HIGH), fallTime(0), isPressed(false), isLongPressFired(false), onShortPress(sp), onLongPress(lp) {}
+
+    void init() { 
+        pinMode(pin, INPUT_PULLUP); 
+        if (id == 0) attachInterrupt(digitalPinToInterrupt(pin), handleBtnInterrupt1, CHANGE);
+        else if (id == 1) attachInterrupt(digitalPinToInterrupt(pin), handleBtnInterrupt2, CHANGE);
+        else if (id == 2) attachInterrupt(digitalPinToInterrupt(pin), handleBtnInterrupt3, CHANGE);
+        else if (id == 3) attachInterrupt(digitalPinToInterrupt(pin), handleBtnInterrupt4, CHANGE);
     }
 
-    // 버튼 설정
-    pinMode(BTN1_PIN, INPUT_PULLUP);
-    pinMode(BTN2_PIN, INPUT_PULLUP);
-    pinMode(BTN3_PIN, INPUT_PULLUP);
-    pinMode(BTN4_PIN, INPUT_PULLUP);
+    void update() {
+        // 인터럽트가 발생했거나 버튼이 현재 눌려 있는 경우(타이머 체크용) 업데이트 수행
+        bool currentState = digitalRead(pin);
+        unsigned long now = millis();
 
-    // 1. 디스플레이 초기화
+        if (lastState == HIGH && currentState == LOW) { // FALLING
+            fallTime = now;
+            isPressed = true;
+            isLongPressFired = false;
+        } 
+        else if (currentState == LOW) { // STILL PRESSED
+            if (isPressed && !isLongPressFired && (now - fallTime > 1000)) {
+                isLongPressFired = true;
+                if (onLongPress) onLongPress();
+            }
+        } 
+        else if (lastState == LOW && currentState == HIGH) { // RISING
+            if (isPressed && !isLongPressFired && (now - fallTime > 50)) { 
+                if (onShortPress) onShortPress(); 
+            }
+            isPressed = false;
+        }
+        
+        lastState = currentState;
+        btnInterruptFlags[id] = false; // 플래그 초기화
+    }
+};
+
+int uiStage = 0; // 0: Clock, 1: IP, 2: Button Help
+
+// --- 버튼 콜백 정의 ---
+void btn1_short() {
+    display.beep(50, 3000);
+    display.setChime(!display.chime_enabled);
+    if (uiStage == 2) {
+        display.showButtonHelp(); // 도움말 화면 즉시 갱신 (v1.3.52)
+    }
+}
+
+void btn1_long() {
+    display.beep(150, 2000);
+    display.setFlipDisplay(!display.is_flipped);
+    display.clearAll(); // 방향 전환 시 잔상 제거
+    if (uiStage == 1) {
+        display.showLargeIP(WiFi.localIP()); // IP 화면 즉시 갱신 (v1.3.51)
+    } else if (uiStage == 2) {
+        display.showButtonHelp(); // 도움말 화면 즉시 갱신
+    }
+}
+
+void btn2_short() {
+    display.beep(50, 3000);
+    uint8_t nextMode = (display.display_mode == CLOCK_MODE_HANGUL) ? CLOCK_MODE_NUMERIC : CLOCK_MODE_HANGUL;
+    display.setDisplayMode(nextMode);
+    display.clearAll(); // 한글/숫자 전환 시 잔상 제거 (v1.3.48)
+}
+
+void btn2_long() {
+    display.beep(150, 2000);
+    uint8_t nextFormat = (display.hour_format == HOUR_FORMAT_12H) ? HOUR_FORMAT_24H : HOUR_FORMAT_12H;
+    display.setHourFormat(nextFormat);
+    display.clearAll();
+}
+
+void btn3_short() { 
+    display.beep(50, 3000); 
+    uint8_t nextAnim = (display.anim_mode == ANIMATION_TYPE_NONE) ? ANIMATION_TYPE_SCROLL_UP : ANIMATION_TYPE_NONE;
+    display.setAnimMode(nextAnim);
+    // 애니메이션 모드 전환은 다음 렌더링 시 자동 반영되므로 강제 clear 지양
+}
+void btn3_long()  { }
+
+void btn4_short() {
+    display.beep(50, 3000);
+    uiStage = (uiStage + 1) % 3; // 0(시계) -> 1(IP) -> 2(도움말) -> 0(시계)
+    
+    display.clearAll(); // 화면 전환(시계 <-> IP <-> 도움말) 시 잔상 즉시 제거 (v1.3.48)
+
+    if (uiStage == 1) {
+        display.showLargeIP(WiFi.localIP());
+    } else if (uiStage == 2) {
+        display.showButtonHelp();
+    }
+}
+void btn4_long() { }
+
+Button btns[4] = {
+    Button(0, BTN1_PIN, btn1_short, btn1_long),
+    Button(1, BTN2_PIN, btn2_short, btn2_long),
+    Button(2, BTN3_PIN, btn3_short, btn3_long),
+    Button(3, BTN4_PIN, btn4_short, btn4_long)
+};
+
+// 애니메이션 중 등 빈번하게 호출되어 사용자 인터프리트 보장
+void on_yield() {
+    server.handleClient();
+    for (int i = 0; i < 4; i++) {
+        // 인터럽트 플래그가 섰거나 버튼이 눌린 상태면 업데이트
+        if (btnInterruptFlags[i] || btns[i].isPressed) {
+            btns[i].update();
+        }
+    }
+}
+
+void setup() {
+    Serial.begin(115200);
+    Serial.println("\n[SYSTEM] Starting Korean Clock v1.3.4 (Interrupt Driven)");
+
+    if (!LittleFS.begin(true)) Serial.println("[SYSTEM] LittleFS Mount Failed");
+
+    // 1. 버튼 및 인터럽트 설정
+    for (int i = 0; i < 4; i++) btns[i].init();
+
+    // 2. 디스플레이 초기화
     display.begin();
+    display.setYieldCallback(on_yield);
     display.showStatus("Initializing...");
 
-    // 2. WiFi 연결 (WiFiManager)
+    // 3. WiFiManager 및 NTP 설정
     WiFiManager wm;
     wm.setAPCallback(configModeCallback);
-    wm.setConfigPortalTimeout(120); // 2분 후 타임아웃
+    wm.setConfigPortalTimeout(120);
     
-    // 부팅 시 BTN1 눌림 감지하여 WiFi 설정 강제 초기화 기능
-    pinMode(BTN1_PIN, INPUT_PULLUP);
+    // 부팅 시 BTN1 강제 리셋 기능
     if (digitalRead(BTN1_PIN) == LOW) {
-        Serial.println("[WIFI] Resetting Settings...");
         display.showStatus("WiFi Resetting...");
         wm.resetSettings();
         delay(1000);
     }
 
     display.showStatus("WiFi Connecting...");
-    if (!wm.autoConnect(WIFI_SSID_AP)) {
-        Serial.println("[WIFI] Failed to connect and hit timeout");
-        display.showStatus("WiFi Failed! Restarting...");
-        delay(3000);
-        ESP.restart();
-    }
+    if (!wm.autoConnect(WIFI_SSID_AP)) ESP.restart();
 
-    Serial.println("[WIFI] Connected!");
     display.showStatus("WiFi Connected!");
-    Serial.print("IP address: ");
-    Serial.println(WiFi.localIP());
-
-    // 웹 서버 시작
     startWebServer();
 
-    // 3. NTP 설정
     configTime(TIMEZONE_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, NTP_SERVER1, NTP_SERVER2);
     display.showStatus("Syncing Time...");
     
-    // 시간 동기화 완료 대기 (최대 10초)
     struct tm timeinfo;
     int retry = 0;
-    while (!getLocalTime(&timeinfo) && retry < 10) {
-        Serial.println("[NTP] Waiting for time sync...");
-        delay(1000);
-        retry++;
-    }
-
-    if (retry < 10) {
-        Serial.println("[NTP] Time Synchronized");
-        display.showStatus("Time Sync OK!");
-    } else {
-        Serial.println("[NTP] Time Sync Failed");
-        display.showStatus("Time Sync Fail!");
-    }
+    while (!getLocalTime(&timeinfo) && retry < 10) { delay(1000); retry++; }
+    
+    if (retry < 10) display.showStatus("Time Sync OK!");
+    else display.showStatus("Time Sync Fail!");
     
     delay(1000);
 }
 
-void loop() {
-    server.handleClient();
+// 강제 화면 갱신 트리거
+unsigned long forceUpdateTrigger = 0;
 
-    // BTN4 눌림 감지: IP 주소 표시
-    if (digitalRead(BTN4_PIN) == LOW) {
-        display.showStatus("IP: " + WiFi.localIP().toString());
-        delay(3000); // 3초간 표시 (단발성 확인용)
-    }
-    
+void loop() {
+    on_yield(); 
+
     static unsigned long lastUpdate = 0;
     unsigned long now = millis();
 
-    if (now - lastUpdate >= UPDATE_INTERVAL_MS) {
+    // IP/도움말 모드가 아니고, (1초가 지났거나 강제 트리거가 발생했을 때) 갱신
+    if (uiStage == 0 && (forceUpdateTrigger || (now - lastUpdate >= UPDATE_INTERVAL_MS))) {
+        bool isForced = (forceUpdateTrigger > 0);
+        forceUpdateTrigger = 0;
         lastUpdate = now;
 
         struct tm timeinfo;
         if (getLocalTime(&timeinfo)) {
+            // [시보] 정시 알림 로직 (분/초가 0일 때 발생)
+            if (display.chime_enabled && timeinfo.tm_min == 0 && timeinfo.tm_sec == 0) {
+                static int lastChimeHour = -1;
+                if (lastChimeHour != timeinfo.tm_hour) {
+                    display.beep(500, 1000); // 정시 알림: 1000Hz로 0.5초 발생
+                    lastChimeHour = timeinfo.tm_hour;
+                }
+            }
+
             int h = timeinfo.tm_hour;
             int m = timeinfo.tm_min;
             int s = timeinfo.tm_sec;
+            int d = timeinfo.tm_mday;
 
-            // 한글 변환
-            String ampmStr = KoreanTimeConverter::getAmPm(h);
-            String hourStr = KoreanTimeConverter::getHour(h);
-            String minStr = KoreanTimeConverter::getMinute(m);
-            String secStr = KoreanTimeConverter::getSecond(s);
+            String texts[4];
+            bool isHangul = (display.display_mode == CLOCK_MODE_HANGUL);
+            bool is24H = (display.hour_format == HOUR_FORMAT_24H);
 
-            // 시리얼 출력 (디버깅용)
-            Serial.printf("[TIME] %02d:%02d:%02d -> %s %s %s %s\n", 
-                          h, m, s, ampmStr.c_str(), hourStr.c_str(), minStr.c_str(), secStr.c_str());
+            if (is24H) texts[0] = isHangul ? KoreanTimeConverter::getDay(d) : KoreanTimeConverter::getNumericDay(d);
+            else texts[0] = KoreanTimeConverter::getAmPm(h);
 
-            // 4개 OLED에 그리기 (버퍼링)
-            display.drawCenterText(0, ampmStr);
-            display.drawCenterText(1, hourStr);
-            display.drawCenterText(2, minStr);
-            display.drawCenterText(3, secStr);
+            if (!isHangul) {
+                texts[1] = KoreanTimeConverter::getNumericHour(h, is24H);
+            } else {
+                texts[1] = KoreanTimeConverter::getHour(h, is24H);
+            }
 
-            // 실제 전송 (병렬 처리)
-            display.pushParallel();
+            if (!isHangul) {
+                texts[2] = KoreanTimeConverter::getNumericMinute(m);
+                texts[3] = KoreanTimeConverter::getNumericSecond(s);
+            } else {
+                texts[2] = KoreanTimeConverter::getMinute(m);
+                texts[3] = KoreanTimeConverter::getSecond(s);
+            }
+
+            display.updateAll(texts, isForced);
         } else {
-            Serial.println("[SYSTEM] Failed to obtain time");
             display.showStatus("Time Sync Error!");
         }
     }
-    
-    // 버튼 처리 등 추가 로직이 필요한 경우 여기에 작성
 }
