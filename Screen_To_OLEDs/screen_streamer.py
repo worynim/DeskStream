@@ -286,7 +286,7 @@ class VibeStreamerApp:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         _jit_status = "🚀 Numba JIT" if HAS_NUMBA else "⚠️ Python Mode (느림 — pip install numba 권장)"
-        self.root.title(f"Screen To OLEDs — DeskStream Vibe Streamer  [{_jit_status}]")
+        self.root.title(f"Screen To OLEDs — DeskStream Screen Streamer  [{_jit_status}]")
         self.root.geometry("520x920")
         self.root.configure(bg="#2b2b2b")
 
@@ -425,9 +425,7 @@ class VibeStreamerApp:
                                      bg="#3c3f41", fg="white")
         screen_frame.pack(fill="x", padx=10, pady=5)
 
-        self.monitor_combo = ttk.Combobox(screen_frame, state="readonly")
-        self.monitor_combo.pack(fill="x", pady=3)
-        self.monitor_combo.bind("<<ComboboxSelected>>", self._update_overlay)
+        # 모니터 선택 UI 제거됨 (좌표 표시 기능을 통한 수동 배치 유도)
 
         # OLED 레이아웃
         layout_row = tk.Frame(screen_frame, bg="#3c3f41")
@@ -450,17 +448,12 @@ class VibeStreamerApp:
         self.cap_radios: list = []
         for val in ["512", "768", "1024", "1440", "Full"]:
             rb = tk.Radiobutton(cap_row, text=val, variable=self.cap_size_var,
-                                value=val, command=self._update_crop_state,
+                                value=val, command=self._update_overlay,
                                 bg="#3c3f41", fg="white", selectcolor="#555555")
             rb.pack(side=tk.LEFT)
             self.cap_radios.append(rb)
 
-        self.center_crop_var = tk.BooleanVar(value=True)
-        self.chk_crop = tk.Checkbutton(screen_frame, text="Center Crop",
-                                       variable=self.center_crop_var,
-                                       bg="#3c3f41", fg="white", selectcolor="#555555",
-                                       command=self._update_overlay)
-        self.chk_crop.pack(anchor="w")
+        # Center Crop UI 제거됨 (사용자 요청)
 
         # 캡처 영역 오버레이 토글
         self.show_overlay_var = tk.BooleanVar(value=True)
@@ -475,7 +468,7 @@ class VibeStreamerApp:
                                  bg="#3c3f41", fg="white")
         bw_frame.pack(fill="x", padx=10, pady=5)
 
-        self.bw_mode_var = tk.StringVar(value="threshold")
+        self.bw_mode_var = tk.StringVar(value="Atkinson")
         mode_grid = tk.Frame(bw_frame, bg="#3c3f41")
         mode_grid.pack(fill="x", pady=2)
         
@@ -564,6 +557,9 @@ class VibeStreamerApp:
         self.lbl_preview = tk.Label(self.root, bg="black")
         self.lbl_preview.pack(fill="both", expand=True, padx=10, pady=5)
 
+        # 초기 UI 상태 동기화 (Atkinson 선택에 따른 Contrast 슬라이더 표시)
+        self._update_bw_ui()
+
     def _update_bw_ui(self) -> None:
         """이진화 모드에 따라 슬라이더 표시/숨김"""
         if self.bw_mode_var.get() == "threshold":
@@ -574,15 +570,6 @@ class VibeStreamerApp:
             self.contrast_frame.pack(fill="x", pady=2)
             # 디더링 계열 모드 진입 시 가독성을 위해 Contrast를 2.0으로 기본 설정
             self.contrast_var.set(2.0)
-
-    def _update_crop_state(self, event: Any = None) -> None:
-        val: str = self.cap_size_var.get()
-        if val == "Full":
-            self.chk_crop.config(state="normal")
-        else:
-            self.center_crop_var.set(True)
-            self.chk_crop.config(state="disabled")
-        self._update_overlay()
 
     # ──────────────────────────────────────────
     # 캡처 영역 오버레이 (4선 윈도우 방식 — 투명 창 캡처 버그 없음)
@@ -603,24 +590,49 @@ class VibeStreamerApp:
           - 드래그 핸들(✥ 아이콘)로 위치 이동, capture_area 실시간 갱신
         """
         self._hide_overlay()
-        try:
-            mon_idx = self._get_selected_monitor_index()
-        except Exception:
-            return
-
         with mss.mss() as sct:
-            mon = sct.monitors[mon_idx]
+            # 1. 대상 모니터 결정 (기존 핸들 위치 우선)
+            if self.capture_area:
+                cx, cy = self.capture_area['left'], self.capture_area['top']
+                # 현재 핸들이 어느 모니터에 있는지 찾기
+                target_mon = sct.monitors[0] # 전체 영역으로 초기화
+                for m in sct.monitors[1:]:
+                    if (m['left'] <= cx < m['left'] + m['width'] and
+                        m['top'] <= cy < m['top'] + m['height']):
+                        target_mon = m
+                        break
+            else:
+                # 핸들이 없으면 기존 방어 로직대로 선택
+                mon_idx = 1 if len(sct.monitors) > 1 else 0
+                target_mon = sct.monitors[mon_idx]
 
-        new_left, new_top, width, height = self._calc_capture_area(mon)
+            # 2. 크기 계산
+            cap_str = self.cap_size_var.get()
+            is_portrait = "Portrait" in self.layout_var.get()
+            
+            if cap_str == "Full":
+                # [보완] 핸들이 있는 모니터의 전체 크기 적용
+                if is_portrait:
+                    # 세로 모드: 모니터 전체 높이 기준
+                    height = target_mon['height'] - 40 # SAFE_H
+                    width = height // 8
+                else:
+                    # 가로 모드: 모니터 전체 너비 기준
+                    width = target_mon['width'] - 10 # SAFE_W
+                    height = width // 8
+            else:
+                _, _, width, height = self._calc_capture_area(target_mon)
 
-        # [기능 개선] 기존에 드래그했던 위치가 있고, 설정(모니터, 크기)이 같다면 그 좌표를 유지
-        if (self.capture_area and 
-            self.capture_area.get('mon') == mon_idx and
-            self.capture_area.get('width') == width and 
-            self.capture_area.get('height') == height):
-            left, top = self.capture_area['left'], self.capture_area['top']
-        else:
-            left, top = new_left, new_top
+            # 3. 위치 결정 (핸들 고정 원칙, 경계 보정 없음)
+            if self.capture_area:
+                left, top = self.capture_area['left'], self.capture_area['top']
+                # 사용자의 요청에 따라 모든 자동 경계 보정 삭제 (화면 밖 진출 허용)
+            else:
+                left, top, _, _ = self._calc_capture_area(target_mon)
+
+            # mon_idx는 캡처 엔진 전달용 (0이 가장 안전함)
+            mon_idx = 0 
+
 
         # capture_area 갱신/유지
         self.capture_area = {
@@ -630,7 +642,7 @@ class VibeStreamerApp:
         }
 
         pad = 2              # 테두리와 캡처 영역 사이 여백
-        HANDLE_H = 24        # 핸들 바 높이
+        HANDLE_H = 24        # 핸들 바 크기 (정사각형)
         GREEN = "#00FF00"    # 테두리 색상
 
         # 오버레이 원점 (핸들 좌상단)
@@ -662,7 +674,7 @@ class VibeStreamerApp:
             win.config(bg=GREEN)
             self.overlays.append(win)
 
-        # 핸들 윈도우 (드래그 손잡이)
+        # 핸들 윈도우 (드래그용 정사각형 버튼)
         handle_win = tk.Toplevel(self.root)
         handle_win.overrideredirect(True)
         handle_win.attributes('-topmost', True)
@@ -672,6 +684,20 @@ class VibeStreamerApp:
                        font=("Arial", 16, "bold"), bd=0)
         lbl.pack(fill="both", expand=True)
         self.overlays.append(handle_win)
+
+        # 좌표 표시용 별도 윈도우 (핸들 옆에 부착)
+        coord_win = tk.Toplevel(self.root)
+        coord_win.overrideredirect(True)
+        coord_win.attributes('-topmost', True)
+        # 배경을 초록색으로 하고 약간 띄움
+        coord_win.geometry(f"+{ox + HANDLE_H + 5}+{oy}")
+        coord_win.config(bg=GREEN)
+        
+        coord_text = f"{self.capture_area['left']}, {self.capture_area['top']}"
+        self.handle_label = tk.Label(coord_win, text=coord_text, bg=GREEN, fg="black",
+                                     font=("Arial", 10, "bold"), padx=5)
+        self.handle_label.pack()
+        self.overlays.append(coord_win)
 
         # 모든 오버레이 윈도우에 드래그 이벤트 바인딩
         for win in self.overlays:
@@ -746,12 +772,20 @@ class VibeStreamerApp:
         cx2 = pad + w
         cy2 = HANDLE_H + pad + h
 
-        if len(self.overlays) == 5:
+        if len(self.overlays) == 6:
             self.overlays[0].geometry(f"+{new_ox + cx1}+{new_oy + cy1}")  # Top
             self.overlays[1].geometry(f"+{new_ox + cx1}+{new_oy + cy2}")  # Bottom
             self.overlays[2].geometry(f"+{new_ox + cx1}+{new_oy + cy1}")  # Left
             self.overlays[3].geometry(f"+{new_ox + cx2}+{new_oy + cy1}")  # Right
             self.overlays[4].geometry(f"+{new_ox}+{new_oy}")              # Handle
+            self.overlays[5].geometry(f"+{new_ox + HANDLE_H + 5}+{new_oy}") # Coord
+
+            # [기능 추가] 좌표 실시간 업데이트
+            if hasattr(self, 'handle_label'):
+                try:
+                    self.handle_label.config(text=f"{new_ox + pad}, {new_oy + HANDLE_H + pad}")
+                except Exception:
+                    pass
 
     def _hide_overlay(self) -> None:
         """오버레이 윈도우 전체 제거"""
@@ -767,9 +801,7 @@ class VibeStreamerApp:
         if self.show_overlay_var.get():
             self._show_overlay()
 
-    def _get_selected_monitor_index(self) -> int:
-        sel = self.monitor_combo.get()
-        return int(sel.split(":")[0].replace("Monitor", "").strip())
+    # _get_selected_monitor_index() 제거됨 (UI 제거에 따라 Index 1 기본 사용)
 
     def _calc_capture_area(self, mon: dict) -> Tuple[int, int, int, int]:
         """
@@ -833,11 +865,6 @@ class VibeStreamerApp:
     def _get_monitors(self) -> None:
         with mss.mss() as sct:
             self.monitors = sct.monitors
-            items = [f"Monitor {i}: {m['width']}x{m['height']}"
-                     for i, m in enumerate(self.monitors) if i != 0]
-            self.monitor_combo['values'] = items
-            if items:
-                self.monitor_combo.current(0)
 
     # ──────────────────────────────────────────
     # IP 자동 검색
@@ -913,22 +940,18 @@ class VibeStreamerApp:
         self.target_ip_str = self.ip_entry.get()
         if not self.streaming_active:
             self.streaming_active = True
-            # 스트리밍 중 고정: IP/모니터/콘트롤 / 실시간 허용: B&W 모드, Contrast, FPS, Preview
-            all_widgets = ([self.ip_entry, self.btn_scan, self.monitor_combo,
-                            self.chk_crop, self.chk_overlay, self.chk_replayd]
-                           + self.cap_radios + self.layout_radios + self.target_radios)
+            # 스트리밍 중 고정: IP / 실시간 허용: B&W 모드, Contrast, FPS, Preview, Layout, Width, Overlay
+            all_widgets = ([self.ip_entry, self.btn_scan, self.chk_replayd]
+                           + self.target_radios)
             for w in all_widgets:
                 w.config(state="disabled")
 
             # 스트리밍 시작 시 오버레이가 꺼져있었다면 내부적으로라도 위치 데이터를 확보해야 함
             if not self.capture_area:
-                try:
-                    mon_idx = self._get_selected_monitor_index()
-                except Exception:
-                    mon_idx = 1
                 with mss.mss() as sct:
+                    mon_idx = 1 if len(sct.monitors) > 1 else 0
                     mon = sct.monitors[mon_idx]
-                left, top, cap_w, cap_h = self._calc_capture_area(mon)
+                    left, top, cap_w, cap_h = self._calc_capture_area(mon)
                 self.capture_area = {
                     'left': left, 'top': top,
                     'width': cap_w, 'height': cap_h,
@@ -949,8 +972,7 @@ class VibeStreamerApp:
     def stop_streaming(self) -> None:
         self.streaming_active = False
         # self._hide_overlay()  <-- 제거하여 중지 시에도 오버레이 유지
-        all_widgets = ([self.ip_entry, self.btn_scan, self.monitor_combo,
-                        self.chk_crop, self.chk_overlay, self.chk_replayd]
+        all_widgets = ([self.ip_entry, self.btn_scan, self.chk_overlay, self.chk_replayd]
                        + self.cap_radios + self.layout_radios + self.target_radios)
         for w in all_widgets:
             w.config(state="normal")
@@ -1057,9 +1079,10 @@ class VibeStreamerApp:
         last_preview_time = time.time()
 
         try:
-            mon_idx = self._get_selected_monitor_index()
+            with mss.mss() as sct:
+                mon_idx = 1 if len(sct.monitors) > 1 else 0
         except Exception:
-            mon_idx = 1
+            mon_idx = 0
 
         target_fps = self.fps_var.get()
 
