@@ -159,19 +159,26 @@ void on_yield() {
 
 void setup() {
     Serial.begin(115200);
-    Serial.println("\n[SYSTEM] Starting Hangeul Clock v1.5.0 (Refactored)");
+    Serial.println("\n[SYSTEM] Starting Hangeul Clock v1.6.0 (Stabilized)");
 
     if (!LittleFS.begin(true)) Serial.println("[SYSTEM] LittleFS Mount Failed");
 
     // 1. 버튼 및 인터럽트 설정
     for (int i = 0; i < 4; i++) btns[i].init();
 
-    // 2. 디스플레이 초기화
+    // 2. 디스플레이 초기화 및 최우선 멜로디 재생
     display.begin();
+    display.playStartupMelody(); 
+    
+    display.addLog("Hangeul Clock v1.6.0");
+    display.addLog("Stabilized Build");
+    
+    // 3. 비트맵 캐시 로딩 (진행 점 애니메이션 포함)
+    display.loadBitmapCache();
+    
     display.setYieldCallback(on_yield);
-    display.showStatus("Initializing...");
 
-    // 3. WiFiManager 및 NTP 설정
+    // 4. WiFiManager 및 NTP 설정
     WiFiManager wm;
     wm.setAPCallback(configModeCallback);
     wm.setConfigPortalTimeout(WIFI_CONFIG_TIMEOUT);
@@ -183,21 +190,41 @@ void setup() {
         delay(1000);
     }
 
-    display.showStatus("WiFi Connecting...");
-    if (!wm.autoConnect(WIFI_SSID_AP)) ESP.restart();
+    display.addLog("WiFi Connecting");
+    
+    // 점(.) 애니메이션용 루프 (비동기 처리)
+    int dotCount = 0;
+    while (WiFi.status() != WL_CONNECTED && dotCount < 10) {
+        String dots = "WiFi Connecting";
+        for (int j = 0; j <= dotCount % 5; j++) dots += ".";
+        display.updateLastLog(dots);
+        
+        if (wm.autoConnect(WIFI_SSID_AP)) break;
+        
+        delay(500);
+        dotCount++;
+    }
 
-    display.showStatus("WiFi Connected!");
+    if (WiFi.status() != WL_CONNECTED) ESP.restart();
+
+    display.addLog("WiFi Connected!");
     webManager.begin();
 
     configTime(TIMEZONE_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, NTP_SERVER1, NTP_SERVER2);
-    display.showStatus("Syncing Time...");
+    display.addLog("Syncing Time");
     
     struct tm timeinfo;
     int retry = 0;
-    while (!getLocalTime(&timeinfo) && retry < 10) { delay(1000); retry++; }
+    while (!getLocalTime(&timeinfo) && retry < 15) { 
+        String dots = "Syncing Time";
+        for (int j = 0; j <= retry % 5; j++) dots += ".";
+        display.updateLastLog(dots);
+        delay(1000); 
+        retry++; 
+    }
     
-    if (retry < 10) display.showStatus("Time Sync OK!");
-    else display.showStatus("Time Sync Fail!");
+    if (retry < 15) display.addLog("Time Sync OK!");
+    else display.addLog("Time Sync Fail!");
     
     delay(1000);
 }

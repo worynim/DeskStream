@@ -82,8 +82,6 @@ void DisplayManager::begin() {
     pinMode(BUZZER_PIN, OUTPUT);
     digitalWrite(BUZZER_PIN, LOW);
     buzzerTimer = xTimerCreate("BuzzerTimer", pdMS_TO_TICKS(50), pdFALSE, (void*)0, buzzerTimerCallback);
-
-    loadBitmapCache();
 }
 
 void DisplayManager::setFlipDisplay(bool flip) {
@@ -145,17 +143,19 @@ void DisplayManager::saveConfig() {
 }
 
 void DisplayManager::loadBitmapCache() {
-    bitmapCache.clear();
-    cacheIndex.clear();
-    
+    addLog("Bitmap Loading");
     if (!LittleFS.exists("/")) {
-        Serial.println("[ERROR] LittleFS not mounted or empty");
+        updateLastLog("Bitmap Loading: [FS Error]");
         return;
     }
 
     File root = LittleFS.open("/");
     if (!root) return;
     
+    // 로딩 실패 시 기존 캐시 유지를 위해 임시 컨테이너 사용
+    std::vector<CachedChar> tempCache;
+    std::map<String, int> tempIndex;
+
     File file = root.openNextFile();
     while (file) {
         String name = file.name();
@@ -167,18 +167,36 @@ void DisplayManager::loadBitmapCache() {
                 try {
                     cc.data.resize(fileSize);
                     if (file.read(cc.data.data(), fileSize) == fileSize) {
-                        cacheIndex[cc.hex] = bitmapCache.size();
-                        bitmapCache.push_back(std::move(cc));
+                        tempIndex[cc.hex] = tempCache.size();
+                        tempCache.push_back(std::move(cc));
                     }
                 } catch (...) {
-                    Serial.println("[ERROR] Memory allocation failed for " + name);
+                    Serial.println("[ERROR] Memory allocation failure during cache load: " + name);
                 }
             }
         }
         file.close();
         file = root.openNextFile();
+        
+        // 로딩 중 진행 표시 (점 애니메이션)
+        static int dotTicker = 0;
+        if (++dotTicker % 10 == 0) {
+            String dots = "Bitmap Loading";
+            for (int j = 0; j <= (dotTicker / 10) % 5; j++) dots += ".";
+            updateLastLog(dots);
+        }
     }
-    Serial.printf("[SYSTEM] Bitmap Cache Indexed: %d chars (Dynamic Allocation)\n", bitmapCache.size());
+
+    // 성공적으로 읽어들인 경우에만 실제 캐시 교체 (원자적 교체 시뮬레이션)
+    if (!tempCache.empty()) {
+        bitmapCache = std::move(tempCache);
+        cacheIndex = std::move(tempIndex);
+        char logBuf[64];
+        sprintf(logBuf, "Bitmap Loaded: %d", bitmapCache.size());
+        updateLastLog(logBuf);
+    } else {
+        updateLastLog("Bitmap: Empty");
+    }
 }
 
 String DisplayManager::getHexKey(const String& s) {
@@ -451,7 +469,13 @@ void DisplayManager::updateAll(String inTexts[4], bool force) {
 }
 
 void DisplayManager::pushParallel() {
-    if (is_transmitting_hw && hw_task_handle) { ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(I2C_SYNC_TIMEOUT_MS)); is_transmitting_hw = false; }
+    if (is_transmitting_hw && hw_task_handle) {
+        if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(I2C_SYNC_TIMEOUT_MS)) == 0) {
+            Serial.println("[I2C] Sync Timeout! Skipping frame update to avoid race condition.");
+            return; // 배경 태스크가 아직 실행 중이면 데이터 오염 방지를 위해 중단
+        }
+        is_transmitting_hw = false;
+    }
     bool any_hw_dirty = false;
     for (int s = 0; s < 2; s++) {
         hw_dirty_mask[s] = 0; uint8_t* buf = screens[s]->getBufferPtr();
@@ -490,6 +514,7 @@ void DisplayManager::i2c_hw_task(void* arg) {
     DisplayManager* mgr = (DisplayManager*)arg;
     while (1) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        bool has_error = false;
         for (int s = 0; s < 2; s++) {
             uint8_t mask = mgr->hw_dirty_mask[s]; if (mask == 0) continue;
             i2c_master_dev_handle_t dev_h = mgr->i2c_dev_handle[s];
@@ -497,12 +522,89 @@ void DisplayManager::i2c_hw_task(void* arg) {
                 if (!(mask & (1 << p))) continue;
                 uint8_t ft = mgr->hw_first_tile[s][p], tc = mgr->hw_tile_count[s][p], col = ft * 8, len = tc * 8;
                 uint8_t cmd[] = {0x00, (uint8_t)(0xB0|p), (uint8_t)(col & 0x0F), (uint8_t)(0x10|(col>>4))};
-                i2c_master_transmit(dev_h, cmd, 4, pdMS_TO_TICKS(I2C_CMD_TIMEOUT_MS));
+                if (i2c_master_transmit(dev_h, cmd, 4, pdMS_TO_TICKS(I2C_CMD_TIMEOUT_MS)) != ESP_OK) has_error = true;
+                
                 uint8_t tx[129]; tx[0] = 0x40; memcpy(&tx[1], &mgr->shadow_buffer[s][p * SCREEN_WIDTH + col], len);
-                i2c_master_transmit(dev_h, tx, len + 1, pdMS_TO_TICKS(I2C_TX_TIMEOUT_MS));
+                if (i2c_master_transmit(dev_h, tx, len + 1, pdMS_TO_TICKS(I2C_TX_TIMEOUT_MS)) != ESP_OK) has_error = true;
             }
         }
+        
+        if (has_error) {
+            mgr->hw_i2c_error_count++;
+            if (mgr->hw_i2c_error_count > mgr->I2C_ERROR_THRESHOLD) {
+                Serial.println("[I2C] Critical error count reached. Triggering recovery...");
+                mgr->recoverI2CBus();
+            }
+        } else if (mgr->hw_i2c_error_count > 0) {
+            mgr->hw_i2c_error_count--; // 에러가 없으면 점진적으로 감소
+        }
+
         if (mgr->main_task_handle) xTaskNotifyGive(mgr->main_task_handle);
+    }
+}
+
+void DisplayManager::recoverI2CBus() {
+    Serial.println("[I2C] Recovering HW Bus and Screens...");
+    hw_i2c_error_count = 0;
+    
+    // OLED 기기 재설정 및 재시작 (주소 및 콜백 필수 재할당)
+    u8g2_1.getU8x8()->byte_cb = u8x8_byte_esp32_idf_0; 
+    u8g2_1.begin();
+
+    u8g2_2.getU8x8()->byte_cb = u8x8_byte_esp32_idf_1; 
+    u8g2_2.setI2CAddress(I2C_ADDR_HW_1 * 2); 
+    u8g2_2.begin();
+
+    u8g2_3.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast; 
+    u8g2_3.begin();
+
+    u8g2_4.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast; 
+    u8g2_4.setI2CAddress(I2C_ADDR_HW_1 * 2); 
+    u8g2_4.begin();
+    
+    // 강제 업데이트 예약
+    setForceUpdate(true);
+}
+
+void DisplayManager::playStartupMelody() {
+    int melody[] = {2093, 2637, 3136, 4186}; // Do-Mi-Sol-Do
+    for (int i = 0; i < 4; i++) {
+        tone(BUZZER_PIN, melody[i], 100);
+        delay(120);
+    }
+    noTone(BUZZER_PIN);
+    digitalWrite(BUZZER_PIN, LOW); 
+}
+
+void DisplayManager::addLog(const String& msg) {
+    if (log_count < 4) {
+        log_lines[log_count++] = msg;
+    } else {
+        for (int i = 0; i < 3; i++) log_lines[i] = log_lines[i+1];
+        log_lines[3] = msg;
+    }
+    
+    U8G2* u8g2 = screens[0];
+    u8g2->clearBuffer();
+    u8g2->setFont(STATUS_FONT);
+    for (int i = 0; i < log_count; i++) {
+        u8g2->drawStr(0, 12 + (i * 14), log_lines[i].c_str());
+    }
+    pushParallel();
+    Serial.println("[LOG] " + msg);
+}
+
+void DisplayManager::updateLastLog(const String& msg) {
+    if (log_count > 0) {
+        log_lines[log_count - 1] = msg;
+        
+        U8G2* u8g2 = screens[0];
+        u8g2->clearBuffer();
+        u8g2->setFont(STATUS_FONT);
+        for (int i = 0; i < log_count; i++) {
+            u8g2->drawStr(0, 12 + (i * 14), log_lines[i].c_str());
+        }
+        pushParallel();
     }
 }
 
