@@ -397,6 +397,63 @@ public:
                 }
             }
             for (int i = 0; i < 4; i++) if (changed[i]) lastTexts[i] = texts[i];
+        } else if (anim_mode == ANIMATION_TYPE_SCROLL_DOWN) {
+            CharData oldChars[4][8], newChars[4][8];
+            int oldCount[4], newCount[4];
+            for (int i = 0; i < 4; i++) {
+                if (changed[i]) {
+                    bool isCentered = is_flipped ? (i == 3) : (i == 0);
+                    getCharData(lastTexts[i], oldChars[i], oldCount[i], isCentered, i);
+                    getCharData(texts[i], newChars[i], newCount[i], isCentered, i);
+                }
+            }
+
+            for (int step = 0; step <= 16; step++) {
+                int offset = step * 4;
+                for (int i = 0; i < 4; i++) {
+                    if (!changed[i]) continue;
+                    screens[i]->clearBuffer();
+                    
+                    for (int j = 0; j < newCount[i]; j++) {
+                        String nc = newChars[i][j].c; int nx = newChars[i][j].x;
+                        bool isStatic = false; String oc = "";
+                        for (int k = 0; k < oldCount[i]; k++) {
+                            if (oldChars[i][k].x == nx) {
+                                oc = oldChars[i][k].c;
+                                if (oc == nc) isStatic = true;
+                                break;
+                            }
+                        }
+                        if (isStatic) {
+                            drawSingleChar(i, nc, nx, 0);
+                        } else {
+                            if (step < 16 && oc != "") drawSingleChar(i, oc, nx, offset);
+                            drawSingleChar(i, nc, nx, -64 + offset);
+                        }
+                    }
+                    for (int k = 0; k < oldCount[i]; k++) {
+                        int ox = oldChars[i][k].x; bool stillHasPos = false;
+                        for (int j = 0; j < newCount[i]; j++) {
+                            if (newChars[i][j].x == ox) { stillHasPos = true; break; }
+                        }
+                        if (!stillHasPos && step < 16) drawSingleChar(i, oldChars[i][k].c, ox, offset);
+                    }
+
+                    bool isIconScreen = is_flipped ? (i == 3) : (i == 0);
+                    if (isIconScreen && chime_enabled) {
+                        screens[i]->drawXBM(0, 0, 8, 8, bell_icon);
+                    }
+                }
+                pushParallel();
+                if (step < 16) {
+                    unsigned long startDelay = millis();
+                    while(millis() - startDelay < ANIMATION_STEP_DELAY_MS) {
+                        if (on_yield_callback) on_yield_callback();
+                        delay(1);
+                    }
+                }
+            }
+            for (int i = 0; i < 4; i++) if (changed[i]) lastTexts[i] = texts[i];
         }
     }
 

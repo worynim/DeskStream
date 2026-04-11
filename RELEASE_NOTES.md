@@ -1,3 +1,9 @@
+## [v3.5.1] ✅ - 2026-04-11 20:45
+### ✨ Animation & UX Expansion (Hangeul_Clock: 애니메이션 효과 다변화)
+- **Scroll Down 모드 신규 탑재**: 기존 상단 스크롤 외에 위에서 아래로 글자가 내려오는 'Scroll Down' 애니메이션을 구현하여 시각적 생동감을 더했습니다.
+- **3단계 순환 제어 시스템**: 기기 본체의 BTN3를 통해 `장면 전환 없음 -> Scroll Up -> Scroll Down`의 3가지 상태를 자유롭게 순환 전환할 수 있도록 제어 로직을 고도화했습니다.
+- **웹 스튜디오 연동**: Font Studio 웹 대시보드와 실시간 시뮬레이터에 Scroll Down 모드를 통합 반영했습니다.
+
 ## [v3.5.0] ✅ - 2026-04-11 20:25
 ### ✨ Brand Evolution & Font Intelligence (Hangeul_Clock: 명칭 변경 및 폰트 관리 강화)
 - **프로젝트 명칭 전면적 진화 (`Korean_Clock` → `Hangeul_Clock`)**:

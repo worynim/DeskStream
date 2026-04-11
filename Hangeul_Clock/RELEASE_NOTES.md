@@ -1,5 +1,11 @@
 # Release Notes - Hangeul Clock
 
+## [v1.3.68] ✅ - 2026-04-11 20:40
+### ✨ 애니메이션 효과 확장 (Animation Extension)
+- **Scroll Down 모드 추가**: 위에서 아래로 글자가 내려오는 새로운 애니메이션 모드를 추가했습니다.
+- **순환 전환 로직**: BTN3 조작 시 `OFF -> Scroll Up -> Scroll Down` 순으로 순환하도록 사용자 인터페이스를 개선했습니다.
+- **웹 시뮬레이션 지원**: Font Studio 대시보드에서 Scroll Down 효과를 실시간으로 미리 볼 수 있도록 업데이트했습니다.
+
 ## [v1.3.67] ✅ - 2026-04-11 20:15
 ### 🚀 프로젝트 아이덴티티 및 기능 강화 (Identity & Feature Boost)
 - **프로젝트 명칭 변경**: `Korean_Clock`에서 `Hangeul_Clock`으로 공식 명칭을 변경하고, 폴더 및 파일 구조를 전면 리팩토링했습니다.

@@ -79,6 +79,7 @@ const char* font_studio_html = R"rawliteral(
                 <select id="animMode">
                     <option value="0">OFF</option>
                     <option value="1">Scroll Up</option>
+                    <option value="2">Scroll Down</option>
                 </select>
             </div>
             <div class="field">
@@ -281,7 +282,7 @@ const char* font_studio_html = R"rawliteral(
             }
 
             if (changed && animStep >= 16) {
-                if (els.anim.value === "1") { // Scroll Up
+                if (els.anim.value === "1" || els.anim.value === "2") { // Scroll Up or Down
                     lastTimeStrings = [...targetTimeStrings];
                     targetTimeStrings = [...currentTimeStrings];
                     animStep = 0;
@@ -317,15 +318,21 @@ const char* font_studio_html = R"rawliteral(
                         if (isStatic) {
                             drawChar(ctx, nd.c, nd.x, 0);
                         } else {
-                            if (od) drawChar(ctx, od.c, nd.x, -offset);
-                            drawChar(ctx, nd.c, nd.x, 64 - offset);
+                            if (els.anim.value === "1") { // Up
+                                if (od) drawChar(ctx, od.c, nd.x, -offset);
+                                drawChar(ctx, nd.c, nd.x, 64 - offset);
+                            } else if (els.anim.value === "2") { // Down
+                                if (od) drawChar(ctx, od.c, nd.x, offset);
+                                drawChar(ctx, nd.c, nd.x, -64 + offset);
+                            }
                         }
                     });
                     
                     // 사라지는 글자 처리
                     oldData.forEach(od => {
                         if (!currentData.find(nd => nd.x === od.x)) {
-                            drawChar(ctx, od.c, od.x, -offset);
+                            if (els.anim.value === "1") drawChar(ctx, od.c, od.x, -offset);
+                            else if (els.anim.value === "2") drawChar(ctx, od.c, od.x, offset);
                         }
                     });
                 }
@@ -473,7 +480,7 @@ void startWebServer() {
     });
 
     server.begin();
-    Serial.println("[WEB] Font Studio started (0-Based Path)");
+    Serial.println("[WEB] Font Studio started");
 }
 
 #endif

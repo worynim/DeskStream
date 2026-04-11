@@ -53,6 +53,7 @@ const int DAYLIGHT_OFFSET_SEC = 0;
 // === [8] 애니메이션 설정 ===
 #define ANIMATION_TYPE_NONE 0
 #define ANIMATION_TYPE_SCROLL_UP 1
+#define ANIMATION_TYPE_SCROLL_DOWN 2
 #define ANIMATION_STEP_DELAY_MS 2 // 고속 프레임
 
 // === [9] 표시 형식 설정 ===

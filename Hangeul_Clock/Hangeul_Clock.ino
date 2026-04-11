@@ -122,7 +122,7 @@ void btn2_long() {
 
 void btn3_short() { 
     display.beep(50, 3000); 
-    uint8_t nextAnim = (display.anim_mode == ANIMATION_TYPE_NONE) ? ANIMATION_TYPE_SCROLL_UP : ANIMATION_TYPE_NONE;
+    uint8_t nextAnim = (display.anim_mode + 1) % 3;
     display.setAnimMode(nextAnim);
     // 애니메이션 모드 전환은 다음 렌더링 시 자동 반영되므로 강제 clear 지양
 }
