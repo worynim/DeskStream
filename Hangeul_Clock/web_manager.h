@@ -52,12 +52,15 @@ const char* font_studio_html = R"rawliteral(
         .inventory { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 25px; justify-content: center; }
         .badge { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; background: rgba(255,255,255,0.03); border-radius: 4px; color: #444; border: 1px solid transparent; }
         .badge.active { color: var(--primary); border-color: rgba(0,242,254,0.3); background: rgba(0,242,254,0.1); }
+        .footer { margin-top: 30px; text-align: center; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px; }
+        .footer a { color: #555; text-decoration: none; font-size: 0.75rem; letter-spacing: 0.05em; transition: all 0.3s ease; }
+        .footer a:hover { color: var(--primary); text-shadow: 0 0 8px rgba(0,242,254,0.5); }
     </style>
 </head>
 <body>
     <div class="glass">
-        <h1>Korean Clock Font Studio</h1>
-        <p class="desc">낱자 기반 64px 엔진 (0-Based Unified Index)</p>
+        <h1>한글 시계 Font Studio</h1>
+        <p class="desc">DeskStream Project | 현재 적용 폰트: <span id="curFont" style="color:var(--primary)">-</span></p>
         
         <div class="setup-grid">
             <div class="field">
@@ -65,7 +68,7 @@ const char* font_studio_html = R"rawliteral(
                 <input type="file" id="fIn" accept=".ttf,.otf">
             </div>
             <div class="field">
-                <label>2. 낱자 크기: <span id="sVal">48</span>px</label>
+                <label>2. 폰트 크기: <span id="sVal">48</span>px</label>
                 <input type="range" id="sIn" min="20" max="60" value="48">
             </div>
         </div>
@@ -74,22 +77,22 @@ const char* font_studio_html = R"rawliteral(
             <div class="field">
                 <label>3. 애니메이션 (BTN3 Short)</label>
                 <select id="animMode">
-                    <option value="0">OFF (정적)</option>
-                    <option value="1">Scroll Up (상단 스크롤)</option>
+                    <option value="0">OFF</option>
+                    <option value="1">Scroll Up</option>
                 </select>
             </div>
             <div class="field">
                 <label>4. 표시 유형 (BTN2 Short)</label>
                 <select id="displayMode">
-                    <option value="0">한글 (열두시 삼십분)</option>
-                    <option value="1">숫자 (12:30:45)</option>
+                    <option value="0">한글 (열두시 삼십분 사십오초)</option>
+                    <option value="1">숫자 (12시 30분 45초)</option>
                 </select>
             </div>
             <div class="field">
                 <label>5. 시간 형식 (BTN2 Long)</label>
                 <select id="hourFormat">
                     <option value="0">12시간제 (오전/오후)</option>
-                    <option value="1">24시간제 (0~23시)</option>
+                    <option value="1">24시간제 (0시~23시)</option>
                 </select>
             </div>
             <div class="field">
@@ -102,8 +105,8 @@ const char* font_studio_html = R"rawliteral(
             <div class="field">
                 <label>7. 화면 반전 (BTN1 Long)</label>
                 <select id="flipMode">
-                    <option value="0">NORMAL (정순)</option>
-                    <option value="1">FLIP (반전)</option>
+                    <option value="0">NORMAL</option>
+                    <option value="1">FLIP</option>
                 </select>
             </div>
         </div>
@@ -121,6 +124,9 @@ const char* font_studio_html = R"rawliteral(
         <button class="btn-apply" id="apply" onclick="processAll()" disabled>폰트 세트 일괄 업로드</button>
 
         <div class="inventory" id="inv"></div>
+        <div class="footer">
+            <a href="https://gongu.copyright.or.kr/gongu/bbs/B0000018/list.do?menuNo=200195" target="_blank">무료폰트 다운로드</a>
+        </div>
     </div>
 
     <script>
@@ -132,6 +138,7 @@ const char* font_studio_html = R"rawliteral(
             chime: document.getElementById('chime'),
             flip: document.getElementById('flipMode'),
             status: document.getElementById('status'),
+            curFont: document.getElementById('curFont'),
             apply: document.getElementById('apply'),
             pFill: document.getElementById('pFill'),
             pWrap: document.getElementById('pWrap')
@@ -155,8 +162,9 @@ const char* font_studio_html = R"rawliteral(
                 els.hour.value = (data.hour_format ?? 0).toString();
                 els.chime.value = data.chime_enabled ? "1" : "0";
                 els.flip.value = data.is_flipped ? "1" : "0";
+                els.curFont.innerText = data.font_name || "System Default";
                 
-                els.status.innerText = "설정 동기화 완료 (0-Based)";
+                els.status.innerText = "설정 동기화 완료";
             } catch(e) { 
                 els.status.innerText = "설정 로드 실패";
                 console.error(e); 
@@ -204,7 +212,7 @@ const char* font_studio_html = R"rawliteral(
             ctx.fillText(char, x + 16, 32 + yOffset);
         }
 
-        function getKoreanTimeStrings() {
+        function getHangeulTimeStrings() {
             const now = new Date();
             let h = now.getHours(), m = now.getMinutes(), s = now.getSeconds(), d = now.getDate();
             const isHangul = els.disp.value === "0";
@@ -233,20 +241,97 @@ const char* font_studio_html = R"rawliteral(
             return [s0, s1, s2, s3];
         }
 
+        // --- 애니메이션 스토리지 ---
+        let lastTimeStrings = ["", "", "", ""];
+        let targetTimeStrings = ["", "", "", ""];
+        let animStep = 16; 
+
+        function getCharPositions(text, isCentered) {
+            const chars = Array.from(text);
+            const count = chars.length;
+            if (count === 0) return [];
+            let startX = (isCentered) ? (128 - count * 32) / 2 : (96 - (count - 1) * 32) / 2;
+            return chars.map((c, i) => ({
+                c, 
+                x: (isCentered || i < count - 1) ? (startX + i * 32) : 96
+            }));
+        }
+
+        function drawChimeIcon(ctx) {
+            if (els.chime.value !== "1") return;
+            const bell = [0x18, 0x3C, 0x3C, 0x3C, 0xFF, 0xDB, 0x18, 0x00];
+            ctx.fillStyle = "#fff";
+            for(let y=0; y<8; y++) {
+                for(let x=0; x<8; x++) {
+                    if(bell[y] & (1 << (7-x))) ctx.fillRect(x, y, 1, 1);
+                }
+            }
+        }
+
         function render() {
-            const timeStrings = getKoreanTimeStrings();
-            const isFlipped = els.flip.value === "1";
+            const currentTimeStrings = getHangeulTimeStrings();
+            
+            // 초기화
+            if (targetTimeStrings[0] === "") targetTimeStrings = [...currentTimeStrings];
+
+            // 변경 감지
+            let changed = false;
+            for(let i=0; i<4; i++) {
+                if(currentTimeStrings[i] !== targetTimeStrings[i]) { changed = true; break; }
+            }
+
+            if (changed && animStep >= 16) {
+                if (els.anim.value === "1") { // Scroll Up
+                    lastTimeStrings = [...targetTimeStrings];
+                    targetTimeStrings = [...currentTimeStrings];
+                    animStep = 0;
+                } else {
+                    targetTimeStrings = [...currentTimeStrings];
+                    lastTimeStrings = [...targetTimeStrings];
+                    animStep = 16;
+                }
+            }
+
+            if (animStep < 16) animStep++; 
+
             for(let s=0; s<4; s++) {
-                const ctx = pCtx[s]; ctx.fillStyle = "#000"; ctx.fillRect(0,0,128,64);
+                const ctx = pCtx[s]; 
+                ctx.fillStyle = "#000"; ctx.fillRect(0,0,128,64);
                 if (!fontLoaded) continue;
-                const text = isFlipped ? timeStrings[3-s] : timeStrings[s];
-                const chars = Array.from(text);
-                const isCentered = isFlipped ? (s === 3) : (s === 0);
-                let startX = (isCentered) ? (128 - chars.length * 32) / 2 : (96 - (chars.length - 1) * 32) / 2;
-                chars.forEach((c, i) => {
-                    let xPos = (isCentered || i < chars.length - 1) ? (startX + i * 32) : 96;
-                    drawChar(ctx, c, xPos, 0);
-                });
+
+                const isCentered = (s === 0);
+                const currentData = getCharPositions(targetTimeStrings[s], isCentered);
+                
+                if (animStep >= 16 || els.anim.value === "0") {
+                    currentData.forEach(d => drawChar(ctx, d.c, d.x, 0));
+                } else {
+                    const offset = animStep * 4;
+                    const oldData = getCharPositions(lastTimeStrings[s], isCentered);
+                    
+                    // 신규 글자 렌더링 (동적/정적 판별)
+                    currentData.forEach(nd => {
+                        let isStatic = false;
+                        let od = oldData.find(o => o.x === nd.x);
+                        if (od && od.c === nd.c) isStatic = true;
+                        
+                        if (isStatic) {
+                            drawChar(ctx, nd.c, nd.x, 0);
+                        } else {
+                            if (od) drawChar(ctx, od.c, nd.x, -offset);
+                            drawChar(ctx, nd.c, nd.x, 64 - offset);
+                        }
+                    });
+                    
+                    // 사라지는 글자 처리
+                    oldData.forEach(od => {
+                        if (!currentData.find(nd => nd.x === od.x)) {
+                            drawChar(ctx, od.c, od.x, -offset);
+                        }
+                    });
+                }
+
+                // 시보 아이콘 오버레이
+                if (isCentered) drawChimeIcon(ctx);
             }
             requestAnimationFrame(render);
         }
@@ -283,6 +368,16 @@ const char* font_studio_html = R"rawliteral(
                 document.getElementById('b_'+char).classList.add('active');
             }
             await fetch('/api/refresh_cache', { method: 'POST' });
+            
+            // 폰트명 저장
+            if (fIn.files[0]) {
+                await fetch('/api/config', { 
+                    method: 'POST', 
+                    body: JSON.stringify({ font_name: fIn.files[0].name }) 
+                });
+                els.curFont.innerText = fIn.files[0].name;
+            }
+
             els.status.innerText = "전체 업로드 완료!"; els.apply.disabled = false;
         }
     </script>
@@ -316,6 +411,7 @@ void startWebServer() {
         json += "\"display_mode\":" + String((int)display.display_mode) + ",";
         json += "\"hour_format\":" + String((int)display.hour_format) + ",";
         json += "\"chime_enabled\":" + String(display.chime_enabled ? "true" : "false") + ",";
+        json += "\"font_name\":\"" + display.font_name + "\",";
         json += "\"is_flipped\":" + String(display.is_flipped ? "true" : "false");
         json += "}";
         server.send(200, "application/json", json);
@@ -335,6 +431,15 @@ void startWebServer() {
                 return -1;
             };
 
+            auto parseStr = [&](String key) {
+                int pos = body.indexOf("\"" + key + "\":\"");
+                if (pos == -1) return String("");
+                int start = pos + key.length() + 4;
+                int end = body.indexOf("\"", start);
+                if (end == -1) return String("");
+                return body.substring(start, end);
+            };
+
             int am = parseNum("anim_mode");
             if (am != -1) display.setAnimMode((uint8_t)am);
 
@@ -349,6 +454,9 @@ void startWebServer() {
 
             if (body.indexOf("\"is_flipped\":true") != -1) display.setFlipDisplay(true);
             else if (body.indexOf("\"is_flipped\":false") != -1) display.setFlipDisplay(false);
+
+            String fn = parseStr("font_name");
+            if (fn != "") display.setFontName(fn);
 
             forceUpdateTrigger = 1;
             server.send(200, "text/plain", "OK");

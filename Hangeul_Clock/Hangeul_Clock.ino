@@ -4,7 +4,7 @@
 #include "LittleFS.h"
 #include "config.h"
 #include "display_manager.h"
-#include "korean_time.h"
+#include "hangeul_time.h"
 #include <WebServer.h>
 #include "web_manager.h"
 
@@ -19,7 +19,7 @@ void configModeCallback(WiFiManager *myWiFiManager) {
     display.u8g2_1.clearBuffer();
     display.u8g2_1.setFont(u8g2_font_6x10_tf);
     display.u8g2_1.drawStr(0, 10, "WiFi Config Mode");
-    display.u8g2_1.drawStr(0, 25, "SSID: Korean_Clock_Setup");
+    display.u8g2_1.drawStr(0, 25, "SSID: Hangeul_Clock_Setup");
     display.u8g2_1.drawStr(0, 40, "IP: 192.168.4.1");
     display.u8g2_1.sendBuffer();
 }
@@ -162,7 +162,7 @@ void on_yield() {
 
 void setup() {
     Serial.begin(115200);
-    Serial.println("\n[SYSTEM] Starting Korean Clock v1.3.4 (Interrupt Driven)");
+    Serial.println("\n[SYSTEM] Starting Hangeul Clock v1.3.4 (Interrupt Driven)");
 
     if (!LittleFS.begin(true)) Serial.println("[SYSTEM] LittleFS Mount Failed");
 
@@ -240,21 +240,21 @@ void loop() {
             bool isHangul = (display.display_mode == CLOCK_MODE_HANGUL);
             bool is24H = (display.hour_format == HOUR_FORMAT_24H);
 
-            if (is24H) texts[0] = isHangul ? KoreanTimeConverter::getDay(d) : KoreanTimeConverter::getNumericDay(d);
-            else texts[0] = KoreanTimeConverter::getAmPm(h);
+            if (is24H) texts[0] = isHangul ? HangeulTimeConverter::getDay(d) : HangeulTimeConverter::getNumericDay(d);
+            else texts[0] = HangeulTimeConverter::getAmPm(h);
 
             if (!isHangul) {
-                texts[1] = KoreanTimeConverter::getNumericHour(h, is24H);
+                texts[1] = HangeulTimeConverter::getNumericHour(h, is24H);
             } else {
-                texts[1] = KoreanTimeConverter::getHour(h, is24H);
+                texts[1] = HangeulTimeConverter::getHour(h, is24H);
             }
 
             if (!isHangul) {
-                texts[2] = KoreanTimeConverter::getNumericMinute(m);
-                texts[3] = KoreanTimeConverter::getNumericSecond(s);
+                texts[2] = HangeulTimeConverter::getNumericMinute(m);
+                texts[3] = HangeulTimeConverter::getNumericSecond(s);
             } else {
-                texts[2] = KoreanTimeConverter::getMinute(m);
-                texts[3] = KoreanTimeConverter::getSecond(s);
+                texts[2] = HangeulTimeConverter::getMinute(m);
+                texts[3] = HangeulTimeConverter::getSecond(s);
             }
 
             display.updateAll(texts, isForced);

@@ -42,18 +42,18 @@ const int DAYLIGHT_OFFSET_SEC = 0;
 #define HW_TASK_CORE 0
 
 // === [6] 앱 설정 ===
-#define WIFI_SSID_AP "Korean_Clock_Setup"
+#define WIFI_SSID_AP "Hangeul_Clock_Setup"
 #define UPDATE_INTERVAL_MS 1000  // 1초마다 갱신
 
 // === [7] 폰트 및 디자인 설정 ===
-#define KOREAN_FONT u8g2_font_unifont_t_korean2  // 기본 한글 폰트
+#define HANGEUL_FONT u8g2_font_unifont_t_korean2  // 기본 한글 폰트
 #define STATUS_FONT u8g2_font_6x10_tf           // 상태 메시지용 폰트
 #define TEXT_Y_POS 42                            // 한글 텍스트 출력 높이 (0~63)
 
 // === [8] 애니메이션 설정 ===
 #define ANIMATION_TYPE_NONE 0
 #define ANIMATION_TYPE_SCROLL_UP 1
-#define ANIMATION_STEP_DELAY_MS 1 // 고속 프레임
+#define ANIMATION_STEP_DELAY_MS 2 // 고속 프레임
 
 // === [9] 표시 형식 설정 ===
 #define CLOCK_MODE_HANGUL 0

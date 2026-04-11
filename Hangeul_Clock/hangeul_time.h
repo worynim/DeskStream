@@ -1,9 +1,9 @@
-#ifndef KOREAN_TIME_H
-#define KOREAN_TIME_H
+#ifndef HANGEUL_TIME_H
+#define HANGEUL_TIME_H
 
 #include <Arduino.h>
 
-class KoreanTimeConverter {
+class HangeulTimeConverter {
 public:
     static String getAmPm(int hour) {
         return (hour < 12) ? "오전" : "오후";
@@ -29,7 +29,7 @@ public:
         return String(buf);
     }
 
-    static String convertToKorean(int num, const String& unit) {
+    static String convertToHangeul(int num, const String& unit) {
         if (num == 0) return "영" + unit;
         String result = "";
         int tens = num / 10;
@@ -42,9 +42,9 @@ public:
         return result;
     }
 
-    static String getMinute(int minute) { return convertToKorean(minute, "분"); }
-    static String getSecond(int second) { return convertToKorean(second, "초"); }
-    static String getDay(int day) { return convertToKorean(day, "일"); }
+    static String getMinute(int minute) { return convertToHangeul(minute, "분"); }
+    static String getSecond(int second) { return convertToHangeul(second, "초"); }
+    static String getDay(int day) { return convertToHangeul(day, "일"); }
 
     static String getNumericMinute(int minute) {
         char buf[8]; sprintf(buf, "%02d분", minute);

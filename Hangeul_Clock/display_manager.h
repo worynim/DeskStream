@@ -83,6 +83,7 @@ public:
     uint8_t hour_format = HOUR_FORMAT_12H;
     bool is_flipped = false;
     bool chime_enabled = false;
+    String font_name = "System Default";
     Preferences prefs;
 
     // 외부 루프 양보 콜백 (애니메이션 중 버튼 처리용)
@@ -131,6 +132,7 @@ public:
         hour_format = prefs.getUChar("format", HOUR_FORMAT_12H);
         is_flipped = prefs.getBool("flip", true); 
         chime_enabled = prefs.getBool("chime", false);
+        font_name = prefs.getString("font_name", "System Default");
         
         xTaskCreatePinnedToCore(i2c_hw_task, "I2C_HW", HW_TASK_STACK, this, HW_TASK_PRIO, &hw_task_handle, HW_TASK_CORE);
         
@@ -184,12 +186,18 @@ public:
         saveConfig();
     }
 
+    void setFontName(String name) {
+        font_name = name;
+        saveConfig();
+    }
+
     void saveConfig() {
         prefs.putUChar("anim", anim_mode);
         prefs.putUChar("mode", display_mode);
         prefs.putUChar("format", hour_format);
         prefs.putBool("flip", is_flipped);
         prefs.putBool("chime", chime_enabled);
+        prefs.putString("font_name", font_name);
         Serial.println("Config Saved to Preferences");
     }
 
@@ -259,7 +267,7 @@ public:
         }
 
         // 2. 캐시 미스 시 표준 폰트 사용
-        u8g2->setFont(KOREAN_FONT);
+        u8g2->setFont(HANGEUL_FONT);
         u8g2->drawUTF8(x + (32 - u8g2->getUTF8Width(charStr.c_str())) / 2, TEXT_Y_POS + y_offset, charStr.c_str());
     }
 

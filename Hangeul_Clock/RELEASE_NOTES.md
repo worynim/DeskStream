@@ -1,4 +1,10 @@
-# Release Notes - Korean Clock
+# Release Notes - Hangeul Clock
+
+## [v1.3.67] ✅ - 2026-04-11 20:15
+### 🚀 프로젝트 아이덴티티 및 기능 강화 (Identity & Feature Boost)
+- **프로젝트 명칭 변경**: `Korean_Clock`에서 `Hangeul_Clock`으로 공식 명칭을 변경하고, 폴더 및 파일 구조를 전면 리팩토링했습니다.
+- **폰트 매니지먼트 고도화**: 업로드된 폰트명을 비휘발성 메모리(Preferences)에 저장하여 재부팅 후에도 유지되도록 했으며, 웹 대시보드 상단에 현재 적용된 폰트명을 실시간으로 표시합니다.
+- **웹 UI 레이블 최적화**: 대시보드의 설정 항목 레이블을 직관적이고 간결하게 개선하여 가독성을 높였습니다.
 
 ## [v1.3.66] ✅ - 2026-04-11 05:10
 ### 🛠 UI 디자인 통일성 강화 (Design Consistency)
@@ -95,5 +101,5 @@
 ## [v1.0.0] - 2026-04-10
 ### Initial Release (MVP)
 - **Core**: NTP 시간 동기화 및 대한민국 표준시(KST) 적용
-- **Korean Logic**: 숫자를 한글로 변환하는 엔진 구현
+- **Hangeul Logic**: 숫자를 한글로 변환하는 엔진 구현
 - **High-Performance Display**: 1MHz I2C 전송 및 병렬 태스크 가속
