@@ -8,9 +8,6 @@
 #include <WebServer.h>
 #include "web_manager.h"
 
-DisplayManager display;
-WebServer server(80);
-
 /**
  * @brief WiFi 설정 모드(AP) 진입 시 호출되는 콜백
  */
@@ -67,13 +64,13 @@ struct Button {
             isLongPressFired = false;
         } 
         else if (currentState == LOW) { // STILL PRESSED
-            if (isPressed && !isLongPressFired && (now - fallTime > 1000)) {
+            if (isPressed && !isLongPressFired && (now - fallTime > LONG_PRESS_TIME_MS)) {
                 isLongPressFired = true;
                 if (onLongPress) onLongPress();
             }
         } 
         else if (lastState == LOW && currentState == HIGH) { // RISING
-            if (isPressed && !isLongPressFired && (now - fallTime > 50)) { 
+            if (isPressed && !isLongPressFired && (now - fallTime > DEBOUNCE_TIME_MS)) { 
                 if (onShortPress) onShortPress(); 
             }
             isPressed = false;
@@ -130,7 +127,7 @@ void btn3_long()  { }
 
 void btn4_short() {
     display.beep(50, 3000);
-    uiStage = (uiStage + 1) % 3; // 0(시계) -> 1(IP) -> 2(도움말) -> 0(시계)
+    uiStage = (uiStage + 1) % UI_STAGE_COUNT; // 0(시계) -> 1(IP) -> 2(도움말) -> 0(시계)
     
     display.clearAll(); // 화면 전환(시계 <-> IP <-> 도움말) 시 잔상 즉시 제거 (v1.3.48)
 
@@ -151,7 +148,7 @@ Button btns[4] = {
 
 // 애니메이션 중 등 빈번하게 호출되어 사용자 인터프리트 보장
 void on_yield() {
-    server.handleClient();
+    webManager.handleClient();
     for (int i = 0; i < 4; i++) {
         // 인터럽트 플래그가 섰거나 버튼이 눌린 상태면 업데이트
         if (btnInterruptFlags[i] || btns[i].isPressed) {
@@ -162,7 +159,7 @@ void on_yield() {
 
 void setup() {
     Serial.begin(115200);
-    Serial.println("\n[SYSTEM] Starting Hangeul Clock v1.3.4 (Interrupt Driven)");
+    Serial.println("\n[SYSTEM] Starting Hangeul Clock v1.5.0 (Refactored)");
 
     if (!LittleFS.begin(true)) Serial.println("[SYSTEM] LittleFS Mount Failed");
 
@@ -177,7 +174,7 @@ void setup() {
     // 3. WiFiManager 및 NTP 설정
     WiFiManager wm;
     wm.setAPCallback(configModeCallback);
-    wm.setConfigPortalTimeout(120);
+    wm.setConfigPortalTimeout(WIFI_CONFIG_TIMEOUT);
     
     // 부팅 시 BTN1 강제 리셋 기능
     if (digitalRead(BTN1_PIN) == LOW) {
@@ -190,7 +187,7 @@ void setup() {
     if (!wm.autoConnect(WIFI_SSID_AP)) ESP.restart();
 
     display.showStatus("WiFi Connected!");
-    startWebServer();
+    webManager.begin();
 
     configTime(TIMEZONE_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, NTP_SERVER1, NTP_SERVER2);
     display.showStatus("Syncing Time...");
@@ -205,8 +202,6 @@ void setup() {
     delay(1000);
 }
 
-// 강제 화면 갱신 트리거
-unsigned long forceUpdateTrigger = 0;
 
 void handleClockUpdate(bool force = false) {
     struct tm timeinfo;
@@ -240,16 +235,18 @@ void handleClockUpdate(bool force = false) {
     display.updateAll(texts, force);
 }
 
+// 루프 시작
 void loop() {
     on_yield(); 
 
     static unsigned long lastUpdate = 0;
     unsigned long now = millis();
+    
+    bool needsUpdate = display.checkForceUpdate();
 
     // IP/도움말 모드가 아니고, (1초가 지났거나 강제 트리거가 발생했을 때) 갱신
-    if (uiStage == 0 && (forceUpdateTrigger || (now - lastUpdate >= UPDATE_INTERVAL_MS))) {
-        handleClockUpdate(forceUpdateTrigger > 0);
-        forceUpdateTrigger = 0;
+    if (uiStage == 0 && (needsUpdate || (now - lastUpdate >= UPDATE_INTERVAL_MS))) {
+        handleClockUpdate(needsUpdate);
         lastUpdate = now;
     }
 }

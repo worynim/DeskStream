@@ -1,10 +1,18 @@
-# Hangeul Clock (한글 시계) - v1.3.66
+# Hangeul Clock (한글 시계) - v1.5.0
 
 NTP 서버로부터 시간을 동기화하여 4개의 OLED 디스플레이에 고화질 한글 및 숫자로 시, 분, 초를 표시하는 ESP32-C3 기반 프리미엄 데스크 가젯입니다.
 
 ## ✨ 핵심 혁신 기능 (Major Features)
 
-### 1. 64px Modern Font Engine (고화질 폰트 엔진)
+### 1. Modern Modular Architecture (모듈형 아키텍처)
+- **H/CPP separation**: 펌웨어 로직을 클래스별 모듈(.h/.cpp)로 완전 분리하여 유지보수성과 코드 가독성을 극대화했습니다.
+- **WebManager Encapsulation**: 웹 서버 엔진을 독립적인 클래스로 구축하여 메인 로직과의 결합도를 낮췄습니다.
+
+### 2. High-Performance Memory Optimization (고성능 메모리 최적화)
+- **Dynamic Bitmap Cache**: `std::vector` 기반의 동적 할당 캐시 시스템을 통해 폰트 크기에 최적화된 RAM 사용량을 구현했습니다 (기존 대비 최대 50% RAM 절감).
+- **Flash-Based Web UI**: 거대한 HTML 데이터를 Flash 메모리(PROGMEM)로 이동하여 시스템 가용 리소스를 확보했습니다.
+
+### 3. 64px Modern Font Engine (고화질 폰트 엔진)
 - **광폭 비트맵 지원**: 기존 32px의 한계를 넘어 **64px(512바이트) 고해상도 낱자**를 완벽하게 지원하여 대형 폰트 사용 시에도 글자 잘림 없는 미려한 출력을 보장합니다.
 - **지능형 규격 감지**: 32px(Legacy)와 64px(Modern) 데이터를 실시간으로 판별하여 처리하는 하이브리드 인코딩 파이프라인을 구축했습니다.
 

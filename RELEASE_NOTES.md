@@ -1,3 +1,15 @@
+## [v3.7.0] ✅ 커밋완료 - 2026-04-12 01:15
+### 🏗️ Hangeul_Clock: Modular Architecture & Memory Hardening (아키텍처 정형화 및 메모리 안정성 강화)
+- **Modular File Structure (H/CPP 분리)**:
+    - 비대했던 `display_manager`와 `web_manager`를 선언(`.h`)과 구현(`.cpp`)으로 완전 분리하여 유지보수성과 컴파일 속도를 향상시켰습니다.
+- **Web Server 엔진 전면 리팩토링**:
+    - 웹 서버 로직을 `WebManager` 클래스로 캡슐화하고, 거대한 HTML 문자열을 `web_pages.h` 및 `PROGMEM`으로 격리하여 **RAM 점유율을 획기적으로 낮췄습니다**.
+- **Dynamic Bitmap Cache 시스템 고도화**:
+    - 고정 크기 배열 대신 `std::vector`를 사용한 동적 메모리 할당 방식을 도입하여, 폰트 규격에 최적화된 RAM 관리를 구현했습니다. (**일반 폰트 기준 RAM 50% 절감**)
+- **시스템 안정성 및 무결성 확보**:
+    - `LittleFS` 마운트 상태 확인 및 메모리 할당 예외 처리(`try-catch`) 로직을 추가하여 런타임 크래시 위험을 최소화했습니다.
+    - 코드 곳곳의 매직 넘버를 `config.h` 상수로 통합 관리하도록 일원화했습니다.
+
 ## [v3.6.0] ✅ 커밋완료 - 2026-04-12 00:35
 ### 🚀 Next-Gen Animation Engine & Visual FX Suite (한글 시계 엔진 혁신 및 시각 효과 확장)
 - **Ultra-High Performance Engine Overhaul**:

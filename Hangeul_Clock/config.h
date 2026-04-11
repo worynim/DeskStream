@@ -65,4 +65,17 @@ const int DAYLIGHT_OFFSET_SEC = 0;
 #define HOUR_FORMAT_12H 0
 #define HOUR_FORMAT_24H 1
 
+// === [10] 기타 하드코딩 상수 통합 ===
+#define I2C_ADDR_HW_0 0x3C
+#define I2C_ADDR_HW_1 0x3D
+#define CHAR_WIDTH 32
+#define MAX_BITMAP_SIZE 512
+#define WEB_PORT 80
+
+// === [11] UI 및 버튼 동작 상수 ===
+#define UI_STAGE_COUNT 3
+#define LONG_PRESS_TIME_MS 1000
+#define DEBOUNCE_TIME_MS 50
+#define WIFI_CONFIG_TIMEOUT 120
+
 #endif
