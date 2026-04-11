@@ -122,7 +122,7 @@ void btn2_long() {
 
 void btn3_short() { 
     display.beep(50, 3000); 
-    uint8_t nextAnim = (display.anim_mode + 1) % 3;
+    uint8_t nextAnim = (display.anim_mode + 1) % 6;
     display.setAnimMode(nextAnim);
     // 애니메이션 모드 전환은 다음 렌더링 시 자동 반영되므로 강제 clear 지양
 }
@@ -208,6 +208,38 @@ void setup() {
 // 강제 화면 갱신 트리거
 unsigned long forceUpdateTrigger = 0;
 
+void handleClockUpdate(bool force = false) {
+    struct tm timeinfo;
+    if (!getLocalTime(&timeinfo)) {
+        display.showStatus("Time Sync Error!");
+        return;
+    }
+
+    // [시보] 정시 알림 로직
+    if (display.chime_enabled && timeinfo.tm_min == 0 && timeinfo.tm_sec == 0) {
+        static int lastChimeHour = -1;
+        if (lastChimeHour != timeinfo.tm_hour) {
+            display.beep(500, 1000);
+            lastChimeHour = timeinfo.tm_hour;
+        }
+    }
+
+    int h = timeinfo.tm_hour, m = timeinfo.tm_min, s = timeinfo.tm_sec, d = timeinfo.tm_mday;
+    String texts[4];
+    bool isHangul = (display.display_mode == CLOCK_MODE_HANGUL);
+    bool is24H = (display.hour_format == HOUR_FORMAT_24H);
+
+    // 텍스트 생성 (v1.4.0 최적화 구조)
+    if (is24H) texts[0] = isHangul ? HangeulTimeConverter::getDay(d) : HangeulTimeConverter::getNumericDay(d);
+    else texts[0] = HangeulTimeConverter::getAmPm(h);
+
+    texts[1] = isHangul ? HangeulTimeConverter::getHour(h, is24H) : HangeulTimeConverter::getNumericHour(h, is24H);
+    texts[2] = isHangul ? HangeulTimeConverter::getMinute(m) : HangeulTimeConverter::getNumericMinute(m);
+    texts[3] = isHangul ? HangeulTimeConverter::getSecond(s) : HangeulTimeConverter::getNumericSecond(s);
+
+    display.updateAll(texts, force);
+}
+
 void loop() {
     on_yield(); 
 
@@ -216,50 +248,8 @@ void loop() {
 
     // IP/도움말 모드가 아니고, (1초가 지났거나 강제 트리거가 발생했을 때) 갱신
     if (uiStage == 0 && (forceUpdateTrigger || (now - lastUpdate >= UPDATE_INTERVAL_MS))) {
-        bool isForced = (forceUpdateTrigger > 0);
+        handleClockUpdate(forceUpdateTrigger > 0);
         forceUpdateTrigger = 0;
         lastUpdate = now;
-
-        struct tm timeinfo;
-        if (getLocalTime(&timeinfo)) {
-            // [시보] 정시 알림 로직 (분/초가 0일 때 발생)
-            if (display.chime_enabled && timeinfo.tm_min == 0 && timeinfo.tm_sec == 0) {
-                static int lastChimeHour = -1;
-                if (lastChimeHour != timeinfo.tm_hour) {
-                    display.beep(500, 1000); // 정시 알림: 1000Hz로 0.5초 발생
-                    lastChimeHour = timeinfo.tm_hour;
-                }
-            }
-
-            int h = timeinfo.tm_hour;
-            int m = timeinfo.tm_min;
-            int s = timeinfo.tm_sec;
-            int d = timeinfo.tm_mday;
-
-            String texts[4];
-            bool isHangul = (display.display_mode == CLOCK_MODE_HANGUL);
-            bool is24H = (display.hour_format == HOUR_FORMAT_24H);
-
-            if (is24H) texts[0] = isHangul ? HangeulTimeConverter::getDay(d) : HangeulTimeConverter::getNumericDay(d);
-            else texts[0] = HangeulTimeConverter::getAmPm(h);
-
-            if (!isHangul) {
-                texts[1] = HangeulTimeConverter::getNumericHour(h, is24H);
-            } else {
-                texts[1] = HangeulTimeConverter::getHour(h, is24H);
-            }
-
-            if (!isHangul) {
-                texts[2] = HangeulTimeConverter::getNumericMinute(m);
-                texts[3] = HangeulTimeConverter::getNumericSecond(s);
-            } else {
-                texts[2] = HangeulTimeConverter::getMinute(m);
-                texts[3] = HangeulTimeConverter::getSecond(s);
-            }
-
-            display.updateAll(texts, isForced);
-        } else {
-            display.showStatus("Time Sync Error!");
-        }
     }
 }

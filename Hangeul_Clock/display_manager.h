@@ -92,8 +92,9 @@ public:
     // 비동기 부저 제어 (FreeRTOS 타이머)
     TimerHandle_t buzzerTimer = NULL;
 
-    // 비트맵 캐시
+    // 비트맵 캐시 (고속 검색을 위한 Map 인덱싱 도입 v1.4.0)
     std::vector<CachedChar> bitmapCache;
+    std::map<String, int> cacheIndex;
 
     DisplayManager() : 
         u8g2_1(U8G2_R2, 255, 255, U8X8_PIN_NONE), u8g2_2(U8G2_R2, 255, 255, U8X8_PIN_NONE),
@@ -203,6 +204,7 @@ public:
 
     void loadBitmapCache() {
         bitmapCache.clear();
+        cacheIndex.clear();
         File root = LittleFS.open("/");
         if (!root) return;
         File file = root.openNextFile();
@@ -211,14 +213,31 @@ public:
             if (name.startsWith("c_") && name.endsWith(".bin")) {
                 CachedChar cc;
                 cc.hex = name.substring(2, name.length() - 4);
-                memset(cc.data, 0, 512); // 노이즈 방지 초기화
-                cc.dataSize = file.read(cc.data, 512); // 로드된 크기 기록 (v1.3.55)
+                memset(cc.data, 0, 512);
+                cc.dataSize = file.read(cc.data, 512);
+                cacheIndex[cc.hex] = bitmapCache.size();
                 bitmapCache.push_back(cc);
             }
             file.close();
             file = root.openNextFile();
         }
-        Serial.printf("[SYSTEM] Bitmap Cache Loaded: %d chars\n", bitmapCache.size());
+        Serial.printf("[SYSTEM] Bitmap Cache Indexed: %d chars\n", bitmapCache.size());
+    }
+
+    // [Helper] 문자열을 헥사 코드로 변환 (캐시 키 생성)
+    String getHexKey(const String& s) {
+        String hexStr = "";
+        for (int k = 0; k < s.length(); k++) {
+            char buf[3]; sprintf(buf, "%02X", (unsigned char)s[k]); hexStr += buf;
+        }
+        return hexStr;
+    }
+
+    // [Helper] 고속 캐시 참조
+    const CachedChar* findChar(const String& s) {
+        String key = getHexKey(s);
+        if (cacheIndex.count(key)) return &bitmapCache[cacheIndex[key]];
+        return nullptr;
     }
 
     // [잔상 제거] 모든 화면을 즉시 지우고 전송 버퍼를 초기화 (v1.3.48)
@@ -242,33 +261,104 @@ public:
         on_yield_callback = cb;
     }
 
+    // 4x4 베이어 매트릭스 (17단계 디더링용)
+    const uint8_t bayer_matrix[4][4] = {
+        { 0,  8,  2, 10},
+        {12,  4, 14,  6},
+        { 3, 11,  1,  9},
+        {15,  7, 13,  5}
+    };
 
-
-    void drawSingleChar(int idx, const String& charStr, int x, int y_offset) {
+    // [Dithered Fade] 특정 농도(density: 0~16)로 글자 렌더링 (v1.3.70)
+    void drawDitheredChar(int idx, const String& charStr, int x, int density) {
+        if (density <= 0) return;
+        const CachedChar* cc_ptr = findChar(charStr);
+        if (!cc_ptr) return;
+        if (density >= 16) { drawSingleChar(idx, charStr, x, 0); return; }
+        
         U8G2* u8g2 = screens[idx];
-        String hexStr = "";
-        for (int k = 0; k < charStr.length(); k++) {
-            char buf[3]; sprintf(buf, "%02X", (unsigned char)charStr[k]); hexStr += buf;
-        }
-
-        // 1. 캐시에서 검색
-        for (const auto& cc : bitmapCache) {
-            if (cc.hex == hexStr) {
-                // 규격 자동 판별 (v1.3.55)
-                if (cc.dataSize <= 256) {
-                    // 구형 32px 모드: x 위치 그대로 32px(4바이트) 출력
-                    u8g2->drawBitmap(x, y_offset, 4, 64, cc.data);
-                } else {
-                    // 신규 64px 모드: -16px 오프셋으로 64px(8바이트) 출력 (겹침 허용)
-                    u8g2->drawBitmap(x - 16, y_offset, 8, 64, cc.data);
-                }
-                return;
+        int bw = (cc_ptr->dataSize <= 256) ? 4 : 8;
+        int bx = (cc_ptr->dataSize <= 256) ? x : x - 16;
+        for (int r = 0; r < 64; r++) {
+            uint8_t row_mask = 0;
+            for (int px = 0; px < 8; px++) {
+                if (bayer_matrix[r % 4][(bx + px) % 4] < density) row_mask |= (1 << px);
+            }
+            for (int b = 0; b < bw; b++) {
+                uint8_t original = cc_ptr->data[r * bw + b];
+                uint8_t masked = original & row_mask;
+                if (masked) u8g2->drawBitmap(bx + (b * 8), r, 1, 1, &masked);
             }
         }
+    }
 
-        // 2. 캐시 미스 시 표준 폰트 사용
-        u8g2->setFont(HANGEUL_FONT);
-        u8g2->drawUTF8(x + (32 - u8g2->getUTF8Width(charStr.c_str())) / 2, TEXT_Y_POS + y_offset, charStr.c_str());
+    // [Zoom In/Out] 특정 비율(0~100%)로 글자 전체 스케일링 렌더링 (v1.3.71)
+    void drawZoomedChar(int idx, const String& charStr, int x, int scale_percent) {
+        if (scale_percent <= 0) return;
+        if (scale_percent == 100) { drawSingleChar(idx, charStr, x, 0); return; }
+        
+        const CachedChar* cc_ptr = findChar(charStr);
+        if (!cc_ptr) return;
+
+        U8G2* u8g2 = screens[idx];
+        int bw = (cc_ptr->dataSize <= 256) ? 4 : 8;
+        int orig_w = bw * 8;
+        int target_w = (orig_w * scale_percent) / 100;
+        int target_h = (64 * scale_percent) / 100;
+        if (target_w <= 0 || target_h <= 0) return;
+
+        int bx = (cc_ptr->dataSize <= 256) ? x : x - 16;
+        int start_x = bx + (orig_w - target_w) / 2;
+        int start_y = (64 - target_h) / 2;
+
+        for (int r = 0; r < target_h; r++) {
+            int src_y = (r * 64) / target_h;
+            for (int c = 0; c < target_w; c++) {
+                int src_x = (c * orig_w) / target_w;
+                int byte_pos = (src_y * bw) + (src_x / 8);
+                int bit_pos = src_x % 8;
+                if (cc_ptr->data[byte_pos] & (0x80 >> bit_pos)) {
+                    u8g2->drawPixel(start_x + c, start_y + r);
+                }
+            }
+        }
+    }
+
+
+
+    void drawSingleChar(int idx, const String& charStr, int x, int y_offset = 0) {
+        const CachedChar* cc_ptr = findChar(charStr);
+        if (cc_ptr) {
+            U8G2* u8g2 = screens[idx];
+            if (cc_ptr->dataSize <= 256) u8g2->drawBitmap(x, y_offset, 4, 64, cc_ptr->data);
+            else u8g2->drawBitmap(x - 16, y_offset, 8, 64, cc_ptr->data);
+        } else {
+            U8G2* u8g2 = screens[idx];
+            u8g2->setFont(HANGEUL_FONT);
+            u8g2->drawUTF8(x + (32 - u8g2->getUTF8Width(charStr.c_str())) / 2, TEXT_Y_POS + y_offset, charStr.c_str());
+        }
+    }
+
+    // [Vertical Flip] 글자를 특정 높이(h)로 압축하여 렌더링 (v1.3.69)
+    void drawScaledChar(int idx, const String& charStr, int x, int h) {
+        if (h <= 0) return;
+        if (h == 64) { drawSingleChar(idx, charStr, x, 0); return; }
+        
+        const CachedChar* cc_ptr = findChar(charStr);
+        U8G2* u8g2 = screens[idx];
+        if (cc_ptr) {
+            int bw = (cc_ptr->dataSize <= 256) ? 4 : 8;
+            int bx = (cc_ptr->dataSize <= 256) ? x : x - 16;
+            int start_y = (64 - h) / 2;
+            for (int i = 0; i < h; i++) {
+                int src_y = (i * 64) / h;
+                u8g2->drawBitmap(bx, start_y + i, bw, 1, cc_ptr->data + (src_y * bw));
+            }
+        } else {
+            // 폰트 스케일링은 복잡하므로 단순 높이 이동 또는 생략 (캐시 사용 권장)
+            u8g2->setFont(HANGEUL_FONT);
+            u8g2->drawUTF8(x + (32 - u8g2->getUTF8Width(charStr.c_str())) / 2, TEXT_Y_POS, charStr.c_str());
+        }
     }
 
     void getCharData(const String& text, CharData outChars[8], int& count, bool centered, int screenIdx) {
@@ -319,142 +409,114 @@ public:
         bool changed[4] = {false, false, false, false};
         bool anyChanged = false;
         
-        // 사용자 지시 반영: 플립 ON 시 화면 순서 뒤집기
         for (int i = 0; i < 4; i++) {
             texts[i] = is_flipped ? inTexts[3 - i] : inTexts[i];
-            // force가 true이면 내용 변경 여부와 상관없이 무조건 changed를 true로 설정
             if (force || texts[i] != lastTexts[i]) { changed[i] = true; anyChanged = true; }
         }
         if (!anyChanged) return;
 
         if (anim_mode == ANIMATION_TYPE_NONE) {
             for (int i = 0; i < 4; i++) {
-                // 텍스트가 변했거나 강제 갱신(force)인 경우 그리기 수행
                 if (changed[i]) { 
-                    // 시선 기준 맨 왼쪽(User Normal=Flip ON 일 때 i=3)에 종 아이콘 및 중앙 정렬 적용
                     bool isTitleScreen = is_flipped ? (i == 3) : (i == 0);
                     drawCenterText(i, texts[i], isTitleScreen); 
                     lastTexts[i] = texts[i]; 
                 }
             }
             pushParallel();
-        } else if (anim_mode == ANIMATION_TYPE_SCROLL_UP) {
-            CharData oldChars[4][8], newChars[4][8];
-            int oldCount[4], newCount[4];
-            for (int i = 0; i < 4; i++) {
-                if (changed[i]) {
-                    bool isCentered = is_flipped ? (i == 3) : (i == 0);
-                    getCharData(lastTexts[i], oldChars[i], oldCount[i], isCentered, i);
-                    getCharData(texts[i], newChars[i], newCount[i], isCentered, i);
-                }
-            }
-
-            for (int step = 0; step <= 16; step++) {
-                int offset = step * 4;
-                for (int i = 0; i < 4; i++) {
-                    if (!changed[i]) continue;
-                    screens[i]->clearBuffer();
-                    
-                    // 1. 기존/신규 글자 먼저 렌더링 (배경)
-                    for (int j = 0; j < newCount[i]; j++) {
-                        String nc = newChars[i][j].c; int nx = newChars[i][j].x;
-                        bool isStatic = false; String oc = "";
-                        for (int k = 0; k < oldCount[i]; k++) {
-                            if (oldChars[i][k].x == nx) {
-                                oc = oldChars[i][k].c;
-                                if (oc == nc) isStatic = true;
-                                break;
-                            }
-                        }
-                        if (isStatic) {
-                            drawSingleChar(i, nc, nx, 0);
-                        } else {
-                            if (step < 16 && oc != "") drawSingleChar(i, oc, nx, -offset);
-                            drawSingleChar(i, nc, nx, 64 - offset);
-                        }
-                    }
-                    for (int k = 0; k < oldCount[i]; k++) {
-                        int ox = oldChars[i][k].x; bool stillHasPos = false;
-                        for (int j = 0; j < newCount[i]; j++) {
-                            if (newChars[i][j].x == ox) { stillHasPos = true; break; }
-                        }
-                        if (!stillHasPos && step < 16) drawSingleChar(i, oldChars[i][k].c, ox, -offset);
-                    }
-
-                    // 2. [OVERLAY] 시보 아이콘을 글자 위에 마지막으로 덧그림
-                    bool isIconScreen = is_flipped ? (i == 3) : (i == 0);
-                    if (isIconScreen && chime_enabled) {
-                        screens[i]->drawXBM(0, 0, 8, 8, bell_icon);
-                    }
-                }
-                pushParallel();
-                if (step < 16) {
-                    unsigned long startDelay = millis();
-                    while(millis() - startDelay < ANIMATION_STEP_DELAY_MS) {
-                        if (on_yield_callback) on_yield_callback();
-                        delay(1);
-                    }
-                }
-            }
-            for (int i = 0; i < 4; i++) if (changed[i]) lastTexts[i] = texts[i];
-        } else if (anim_mode == ANIMATION_TYPE_SCROLL_DOWN) {
-            CharData oldChars[4][8], newChars[4][8];
-            int oldCount[4], newCount[4];
-            for (int i = 0; i < 4; i++) {
-                if (changed[i]) {
-                    bool isCentered = is_flipped ? (i == 3) : (i == 0);
-                    getCharData(lastTexts[i], oldChars[i], oldCount[i], isCentered, i);
-                    getCharData(texts[i], newChars[i], newCount[i], isCentered, i);
-                }
-            }
-
-            for (int step = 0; step <= 16; step++) {
-                int offset = step * 4;
-                for (int i = 0; i < 4; i++) {
-                    if (!changed[i]) continue;
-                    screens[i]->clearBuffer();
-                    
-                    for (int j = 0; j < newCount[i]; j++) {
-                        String nc = newChars[i][j].c; int nx = newChars[i][j].x;
-                        bool isStatic = false; String oc = "";
-                        for (int k = 0; k < oldCount[i]; k++) {
-                            if (oldChars[i][k].x == nx) {
-                                oc = oldChars[i][k].c;
-                                if (oc == nc) isStatic = true;
-                                break;
-                            }
-                        }
-                        if (isStatic) {
-                            drawSingleChar(i, nc, nx, 0);
-                        } else {
-                            if (step < 16 && oc != "") drawSingleChar(i, oc, nx, offset);
-                            drawSingleChar(i, nc, nx, -64 + offset);
-                        }
-                    }
-                    for (int k = 0; k < oldCount[i]; k++) {
-                        int ox = oldChars[i][k].x; bool stillHasPos = false;
-                        for (int j = 0; j < newCount[i]; j++) {
-                            if (newChars[i][j].x == ox) { stillHasPos = true; break; }
-                        }
-                        if (!stillHasPos && step < 16) drawSingleChar(i, oldChars[i][k].c, ox, offset);
-                    }
-
-                    bool isIconScreen = is_flipped ? (i == 3) : (i == 0);
-                    if (isIconScreen && chime_enabled) {
-                        screens[i]->drawXBM(0, 0, 8, 8, bell_icon);
-                    }
-                }
-                pushParallel();
-                if (step < 16) {
-                    unsigned long startDelay = millis();
-                    while(millis() - startDelay < ANIMATION_STEP_DELAY_MS) {
-                        if (on_yield_callback) on_yield_callback();
-                        delay(1);
-                    }
-                }
-            }
-            for (int i = 0; i < 4; i++) if (changed[i]) lastTexts[i] = texts[i];
+            return;
         }
+
+        // --- 공통 애니메이션 데이터 준비 ---
+        CharData oldChars[4][8], newChars[4][8];
+        int oldCount[4], newCount[4];
+        for (int i = 0; i < 4; i++) {
+            if (changed[i]) {
+                bool isCentered = is_flipped ? (i == 3) : (i == 0);
+                getCharData(lastTexts[i], oldChars[i], oldCount[i], isCentered, i);
+                getCharData(texts[i], newChars[i], newCount[i], isCentered, i);
+            }
+        }
+
+        // --- 단일화된 애니메이션 루프 (v1.4.0) ---
+        for (int step = 0; step <= 16; step++) {
+            for (int i = 0; i < 4; i++) {
+                if (!changed[i]) continue;
+                screens[i]->clearBuffer();
+                
+                // 1. 새 글자 및 유지되는 글자 렌더링
+                for (int j = 0; j < newCount[i]; j++) {
+                    String nc = newChars[i][j].c; int nx = newChars[i][j].x;
+                    String oc = ""; bool isStatic = false;
+                    for (int k = 0; k < oldCount[i]; k++) {
+                        if (oldChars[i][k].x == nx) {
+                            oc = oldChars[i][k].c;
+                            if (oc == nc) isStatic = true;
+                            break;
+                        }
+                    }
+
+                    if (isStatic) {
+                        drawSingleChar(i, nc, nx, 0);
+                    } else {
+                        // 모드별 렌더링 분기 (중앙화)
+                        switch (anim_mode) {
+                            case ANIMATION_TYPE_SCROLL_UP:
+                                if (step < 16 && oc != "") drawSingleChar(i, oc, nx, -(step * 4));
+                                drawSingleChar(i, nc, nx, 64 - (step * 4));
+                                break;
+                            case ANIMATION_TYPE_SCROLL_DOWN:
+                                if (step < 16 && oc != "") drawSingleChar(i, oc, nx, (step * 4));
+                                drawSingleChar(i, nc, nx, -64 + (step * 4));
+                                break;
+                            case ANIMATION_TYPE_VERTICAL_FLIP:
+                                if (step <= 8) { if (oc != "") drawScaledChar(i, oc, nx, ((8 - step) * 64) / 8); }
+                                else { drawScaledChar(i, nc, nx, ((step - 8) * 64) / 8); }
+                                break;
+                            case ANIMATION_TYPE_DITHERED_FADE:
+                                if (step <= 8) { if (oc != "") drawDitheredChar(i, oc, nx, 16 - (step * 2)); }
+                                else { drawDitheredChar(i, nc, nx, (step - 8) * 2); }
+                                break;
+                            case ANIMATION_TYPE_ZOOM:
+                                if (step <= 8) { if (oc != "") drawZoomedChar(i, oc, nx, ((8 - step) * 100) / 8); }
+                                else {
+                                    int sc = (step <= 12) ? ((step - 8) * 150 / 4) : (150 - (step - 12) * 50 / 4);
+                                    drawZoomedChar(i, nc, nx, sc);
+                                }
+                                break;
+                        }
+                    }
+                }
+
+                // 2. 사라지는 글자 렌더링 (구조 단일화)
+                for (int k = 0; k < oldCount[i]; k++) {
+                    int ox = oldChars[i][k].x; String oc = oldChars[i][k].c;
+                    bool stillHasPos = false;
+                    for (int j = 0; j < newCount[i]; j++) { if (newChars[i][j].x == ox) { stillHasPos = true; break; } }
+                    if (stillHasPos) continue;
+
+                    switch (anim_mode) {
+                        case ANIMATION_TYPE_SCROLL_UP:   if (step < 16) drawSingleChar(i, oc, ox, -(step * 4)); break;
+                        case ANIMATION_TYPE_SCROLL_DOWN: if (step < 16) drawSingleChar(i, oc, ox, (step * 4)); break;
+                        case ANIMATION_TYPE_VERTICAL_FLIP: if (step <= 8) drawScaledChar(i, oc, ox, ((8 - step) * 64) / 8); break;
+                        case ANIMATION_TYPE_DITHERED_FADE: if (step <= 8) drawDitheredChar(i, oc, ox, 16 - (step * 2)); break;
+                        case ANIMATION_TYPE_ZOOM:          if (step <= 8) drawZoomedChar(i, oc, ox, ((8 - step) * 100) / 8); break;
+                    }
+                }
+
+                bool isIconScreen = is_flipped ? (i == 3) : (i == 0);
+                if (isIconScreen && chime_enabled) screens[i]->drawXBM(0, 0, 8, 8, bell_icon);
+            }
+            pushParallel();
+            if (step < 16) {
+                unsigned long startDelay = millis();
+                while(millis() - startDelay < ANIMATION_STEP_DELAY_MS) {
+                    if (on_yield_callback) on_yield_callback();
+                    delay(1);
+                }
+            }
+        }
+        for (int i = 0; i < 4; i++) if (changed[i]) lastTexts[i] = texts[i];
     }
 
     void pushParallel() {
