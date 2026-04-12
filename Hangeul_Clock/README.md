@@ -1,3 +1,5 @@
+<img width="778" height="211" alt="image" src="https://github.com/user-attachments/assets/0eabecfa-ce8a-4527-8e50-6d8101b9150c" />
+
 <img width="879" height="1067" alt="image" src="https://github.com/user-attachments/assets/325bc0a3-bf28-45f6-92ca-6e8ce69a8893" />
 
 # Hangeul Clock (한글 시계) - v2.4.4
