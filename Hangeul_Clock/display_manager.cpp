@@ -147,6 +147,8 @@ void DisplayManager::drawCenterText(int idx, const String& text, bool centered) 
     if (centered && configManager.get().chime_enabled) u8g2->drawXBM(0, 0, 8, 8, bell_icon);
 }
 
+extern int uiStage;
+
 void DisplayManager::updateAll(String inTexts[4], bool force) {
     String texts[4];
     bool changed[4] = {false, false, false, false};
@@ -181,6 +183,8 @@ void DisplayManager::updateAll(String inTexts[4], bool force) {
     }
 
     for (int step = 0; step <= 16; step++) {
+        // [Step 4.1] 시계 모드가 아니면 즉시 탈출 (버튼 입력에 의한 Race Condition 방지)
+        if (uiStage != 0) return;
         for (int i = 0; i < 4; i++) {
             if (!changed[i]) continue;
             screens[i]->clearBuffer();

@@ -159,7 +159,7 @@ void on_yield() {
 
 void setup() {
     Serial.begin(115200);
-    Serial.println("\n[SYSTEM] Starting Hangeul Clock v1.8.0 (Canvas Architecture)");
+    Serial.println("\n[SYSTEM] Starting Hangeul Clock v1.8.1 (Canvas Architecture)");
 
     if (!LittleFS.begin(true)) Serial.println("[SYSTEM] LittleFS Mount Failed");
 
@@ -170,7 +170,7 @@ void setup() {
     display.begin();
     display.playStartupMelody(); 
     
-    display.addLog("Hangeul Clock v1.8.0");
+    display.addLog("Hangeul Clock v1.8.1");
     display.addLog("Canvas Architecture");
     
     // 3. 비트맵 캐시 로딩 (진행 점 애니메이션 포함)
@@ -258,6 +258,9 @@ void handleClockUpdate(bool force = false) {
     texts[1] = isHangul ? HangeulTimeConverter::getHour(h, is24H) : HangeulTimeConverter::getNumericHour(h, is24H);
     texts[2] = isHangul ? HangeulTimeConverter::getMinute(m) : HangeulTimeConverter::getNumericMinute(m);
     texts[3] = isHangul ? HangeulTimeConverter::getSecond(s) : HangeulTimeConverter::getNumericSecond(s);
+
+    // [Step 4] '정각' 중복 방지: 0분 0초일 때 초 단위를 비워 "XX시 정각"으로 표시
+    if (isHangul && m == 0 && s == 0) texts[3] = "";
 
     display.updateAll(texts, force);
 }
