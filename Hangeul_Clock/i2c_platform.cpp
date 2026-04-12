@@ -110,13 +110,23 @@ void I2CPlatform::i2c_hw_task(void* arg) {
 
                 // 1. Page/Column 설정 명령
                 uint8_t cmd[] = {0x00, (uint8_t)(0xB0 | p), (uint8_t)(col & 0x0F), (uint8_t)(0x10 | (col >> 4))};
-                if (i2c_master_transmit(dev_h, cmd, 4, pdMS_TO_TICKS(I2C_CMD_TIMEOUT_MS)) != ESP_OK) has_error = true;
+                esp_err_t err = i2c_master_transmit(dev_h, cmd, 4, pdMS_TO_TICKS(I2C_CMD_TIMEOUT_MS));
+                if (err != ESP_OK) {
+                    Serial.printf("[I2C] CMD Error: 0x%X (S:%d, P:%d)\n", err, s, p);
+                    has_error = true;
+                }
 
-                // 2. 데이터 전송
-                uint8_t tx[129];
-                tx[0] = 0x40;
-                memcpy(&tx[1], &plt->_shadow_buffer[s][p * SCREEN_WIDTH + col], len);
-                if (i2c_master_transmit(dev_h, tx, len + 1, pdMS_TO_TICKS(I2C_TX_TIMEOUT_MS)) != ESP_OK) has_error = true;
+                if (!has_error) {
+                    // 2. 데이터 전송
+                    uint8_t tx[129];
+                    tx[0] = 0x40;
+                    memcpy(&tx[1], &plt->_shadow_buffer[s][p * SCREEN_WIDTH + col], len);
+                    err = i2c_master_transmit(dev_h, tx, len + 1, pdMS_TO_TICKS(I2C_TX_TIMEOUT_MS));
+                    if (err != ESP_OK) {
+                        Serial.printf("[I2C] DATA Error: 0x%X (S:%d, P:%d)\n", err, s, p);
+                        has_error = true;
+                    }
+                }
             }
             plt->_hw_dirty_mask[s] = 0; // 전송 완료 후 마스크 초기화
         }
@@ -135,10 +145,54 @@ void I2CPlatform::i2c_hw_task(void* arg) {
 }
 
 void I2CPlatform::recoverBus() {
-    Serial.println("[I2C] Recovering Bus...");
+    Serial.println("[I2C] Physical Bus Recovery Sequence Started...");
+    
+    // 1. 기존 I2C 리소스 해제
+    for (int i = 0; i < 2; i++) {
+        if (_i2c_dev_handle[i]) {
+            i2c_master_bus_rm_device(_i2c_dev_handle[i]);
+            _i2c_dev_handle[i] = nullptr;
+        }
+    }
+    if (_i2c_bus_handle) {
+        i2c_del_master_bus(_i2c_bus_handle);
+        _i2c_bus_handle = nullptr;
+    }
+
+    // 2. Bus Recovery (Clock Pulsing) - Stuck 데이터 라인 해제
+    pinMode(HW_SCL_PIN, OUTPUT_OPEN_DRAIN);
+    pinMode(HW_SDA_PIN, INPUT_PULLUP);
+    
+    for (int i = 0; i < 16; i++) {
+        digitalWrite(HW_SCL_PIN, LOW);
+        delayMicroseconds(10);
+        digitalWrite(HW_SCL_PIN, HIGH);
+        delayMicroseconds(10);
+    }
+    
+    // 3. I2C 버스 및 디바이스 재초기화
+    i2c_master_bus_config_t bus_cfg = {};
+    bus_cfg.i2c_port = I2C_NUM_0;
+    bus_cfg.sda_io_num = (gpio_num_t)HW_SDA_PIN;
+    bus_cfg.scl_io_num = (gpio_num_t)HW_SCL_PIN;
+    bus_cfg.clk_source = I2C_CLK_SRC_DEFAULT;
+    bus_cfg.glitch_ignore_cnt = 7;
+    bus_cfg.flags.enable_internal_pullup = true;
+    
+    if (i2c_new_master_bus(&bus_cfg, &_i2c_bus_handle) == ESP_OK) {
+        for (int i = 0; i < 2; i++) {
+            i2c_device_config_t dev_cfg = {};
+            dev_cfg.dev_addr_length = I2C_ADDR_BIT_LEN_7;
+            dev_cfg.device_address = I2C_ADDRS[i];
+            dev_cfg.scl_speed_hz = I2C_SPEED_HZ;
+            i2c_master_bus_add_device(_i2c_bus_handle, &dev_cfg, &_i2c_dev_handle[i]);
+        }
+        Serial.println("[I2C] HW Bus Re-initialized.");
+    } else {
+        Serial.println("[I2C] Bus Re-init FAILED!");
+    }
+
     _error_count = 0;
-    // 실제 복구 로직은 DisplayManager에서 u8g2.begin()을 다시 호출해야 하므로 
-    // 여기서는 상태만 초기화하거나 필요한 하위 레벨 복구만 수행함
 }
 
 // --- U8g2 콜백 함수 구현 (이관됨) ---

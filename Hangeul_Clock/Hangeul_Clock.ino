@@ -101,7 +101,7 @@ void setup() {
     display.begin();
     display.playStartupMelody(); 
     
-    logger.addLog("Hangeul Clock v1.9.0");
+    logger.addLog("Hangeul Clock v2.0.0");
     logger.addLog("Service Unitized");
     
     // 3. 비트맵 캐시 로딩
@@ -200,6 +200,7 @@ void handleClockUpdate(bool force = false) {
 // 루프 시작
 void loop() {
     on_yield(); 
+    display.updateTick(); 
 
     static unsigned long lastUpdate = 0;
     unsigned long now = millis();

@@ -13,7 +13,8 @@
 
 struct CachedChar {
     String hex;
-    std::vector<uint8_t> data;
+    uint32_t offset;
+    uint32_t size;
 };
 
 struct CharData {
@@ -24,11 +25,13 @@ struct CharData {
 class Renderer {
 public:
     Renderer();
+    ~Renderer(); // 소멸자 추가 (메모리 해제)
     
     // 초기화 및 리소스 관리
     void setScreens(U8G2** screens);
     void loadBitmapCache();
     const CachedChar* findChar(const String& s);
+    const uint8_t* getCharDataPtr(const CachedChar* cc) const; // 데이터 포인터 획득 유틸리티
     String getHexKey(const String& s);
 
     // 그리기 프리미티브
@@ -47,6 +50,7 @@ public:
 private:
     U8G2** _screens = nullptr;
     std::vector<CachedChar> bitmapCache;
+    uint8_t* flatBuffer = nullptr;
     std::map<String, int> cacheIndex;
 
     const uint8_t bayer_matrix[4][4] = {

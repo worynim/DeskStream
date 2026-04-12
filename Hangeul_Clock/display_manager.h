@@ -17,6 +17,27 @@
 #include "config_manager.h"
 #include "renderer.h"
 
+/**
+ * @brief 개별 화면의 애니메이션 연산을 위한 데이터 스냅샷
+ */
+struct ScreenAnimData {
+    CharData oldChars[8];
+    CharData newChars[8];
+    int oldCount;
+    int newCount;
+    bool changed;
+};
+
+/**
+ * @brief 전체 디스크레이 애니메이션 상태 제어 구조체
+ */
+struct AnimationState {
+    bool active = false;
+    uint8_t currentStep = 0;
+    unsigned long lastUpdateMs = 0;
+    ScreenAnimData screens[4];
+};
+
 class DisplayManager;
 extern DisplayManager display;
 
@@ -47,6 +68,8 @@ public:
     void beep(int duration = 50, int freq = 3000);
     void setYieldCallback(void (*cb)());
     void updateAll(String inTexts[4], bool force = false);
+    void updateTick(); // 비차단 애니메이션 진행을 위한 티커
+    bool isAnimating() const { return _animState.active; }
 
     // 헬퍼 및 유틸리티
     void pushParallel();
@@ -62,8 +85,10 @@ private:
     bool _needsForceUpdate = false;
     void (*on_yield_callback)() = nullptr;
     TimerHandle_t buzzerTimer = NULL;
+    AnimationState _animState;
     
     void drawCenterText(int idx, const String& text, bool centered);
+    void renderAnimFrame(int screenIdx, int step); // 단일 프레임 렌더링 내부 함수
 };
 
 #endif

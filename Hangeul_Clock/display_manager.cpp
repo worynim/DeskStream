@@ -178,96 +178,118 @@ void DisplayManager::updateAll(String inTexts[4], bool force) {
         return;
     }
 
-    CharData oldChars[4][8], newChars[4][8];
-    int oldCount[4], newCount[4];
+    // [Step 3.1] 비차단 애니메이션 상태 초기화
+    _animState.active = true;
+    _animState.currentStep = 0;
+    _animState.lastUpdateMs = 0; // 즉시 첫 틱 실행
+
     for (int i = 0; i < 4; i++) {
+        _animState.screens[i].changed = changed[i];
         if (changed[i]) {
             bool isCentered = configManager.get().is_flipped ? (i == 3) : (i == 0);
-            // [Step 5.4] '정각'일 경우 화면 성격과 무관하게 항상 중앙 정렬 수행 (사용자 요청)
             bool forceCenter = (texts[i] == "정각");
-            
-            renderer.getCharData(lastTexts[i], oldChars[i], oldCount[i], isCentered || (lastTexts[i] == "정각"));
-            renderer.getCharData(texts[i], newChars[i], newCount[i], isCentered || forceCenter);
+            renderer.getCharData(lastTexts[i], _animState.screens[i].oldChars, _animState.screens[i].oldCount, isCentered || (lastTexts[i] == "정각"));
+            renderer.getCharData(texts[i], _animState.screens[i].newChars, _animState.screens[i].newCount, isCentered || forceCenter);
+            lastTexts[i] = texts[i]; // 타겟 텍스트 선점
+        }
+    }
+}
+
+void DisplayManager::updateTick() {
+    if (!_animState.active) return;
+
+    // [Step 4.1] 시계 모드가 아니면 애니메이션 중단 (UI 전환 대응)
+    if (uiStage != 0) {
+        _animState.active = false;
+        return;
+    }
+
+    unsigned long now = millis();
+    if (now - _animState.lastUpdateMs < ANIMATION_STEP_DELAY_MS) {
+        // 대기 시간 동안 yield 콜백 실행하여 타 서비스 기회 제공
+        if (on_yield_callback) on_yield_callback();
+        return;
+    }
+
+    _animState.lastUpdateMs = now;
+    _animState.currentStep++;
+
+    if (_animState.currentStep > 16) {
+        _animState.active = false;
+        return;
+    }
+
+    for (int i = 0; i < 4; i++) {
+        if (_animState.screens[i].changed) {
+            renderAnimFrame(i, _animState.currentStep);
+        }
+    }
+    pushParallel();
+}
+
+void DisplayManager::renderAnimFrame(int i, int step) {
+    ScreenAnimData& sd = _animState.screens[i];
+    screens[i]->clearBuffer();
+    
+    for (int j = 0; j < sd.newCount; j++) {
+        String nc = sd.newChars[j].c; int nx = sd.newChars[j].x;
+        String oc = ""; bool isStatic = false;
+        for (int k = 0; k < sd.oldCount; k++) {
+            if (sd.oldChars[k].x == nx) {
+                oc = sd.oldChars[k].c;
+                if (oc == nc) isStatic = true;
+                break;
+            }
+        }
+
+        if (isStatic) {
+            renderer.drawSingleChar(i, nc, nx, 0);
+        } else {
+            switch (configManager.get().anim_mode) {
+                case ANIMATION_TYPE_SCROLL_UP:
+                    if (step < 16 && oc != "") renderer.drawSingleChar(i, oc, nx, -(step * 4));
+                    renderer.drawSingleChar(i, nc, nx, 64 - (step * 4));
+                    break;
+                case ANIMATION_TYPE_SCROLL_DOWN:
+                    if (step < 16 && oc != "") renderer.drawSingleChar(i, oc, nx, (step * 4));
+                    renderer.drawSingleChar(i, nc, nx, -64 + (step * 4));
+                    break;
+                case ANIMATION_TYPE_VERTICAL_FLIP:
+                    if (step <= 8) { if (oc != "") renderer.drawScaledChar(i, oc, nx, ((8 - step) * 64) / 8); }
+                    else { renderer.drawScaledChar(i, nc, nx, ((step - 8) * 64) / 8); }
+                    break;
+                case ANIMATION_TYPE_DITHERED_FADE:
+                    if (step <= 8) { if (oc != "") renderer.drawDitheredChar(i, oc, nx, 16 - (step * 2)); }
+                    else { renderer.drawDitheredChar(i, nc, nx, (step - 8) * 2); }
+                    break;
+                case ANIMATION_TYPE_ZOOM:
+                    if (step <= 8) { if (oc != "") renderer.drawZoomedChar(i, oc, nx, ((8 - step) * 100) / 8); }
+                    else {
+                        int sc = (step <= 12) ? ((step - 8) * 150 / 4) : (150 - (step - 12) * 50 / 4);
+                        renderer.drawZoomedChar(i, nc, nx, sc);
+                    }
+                    break;
+            }
         }
     }
 
-    for (int step = 0; step <= 16; step++) {
-        // [Step 4.1] 시계 모드가 아니면 즉시 탈출 (버튼 입력에 의한 Race Condition 방지)
-        if (uiStage != 0) return;
-        for (int i = 0; i < 4; i++) {
-            if (!changed[i]) continue;
-            screens[i]->clearBuffer();
-            
-            for (int j = 0; j < newCount[i]; j++) {
-                String nc = newChars[i][j].c; int nx = newChars[i][j].x;
-                String oc = ""; bool isStatic = false;
-                for (int k = 0; k < oldCount[i]; k++) {
-                    if (oldChars[i][k].x == nx) {
-                        oc = oldChars[i][k].c;
-                        if (oc == nc) isStatic = true;
-                        break;
-                    }
-                }
+    for (int k = 0; k < sd.oldCount; k++) {
+        int ox = sd.oldChars[k].x; String oc = sd.oldChars[k].c;
+        bool stillHasPos = false;
+        for (int j = 0; j < sd.newCount; j++) { if (sd.newChars[j].x == ox) { stillHasPos = true; break; } }
+        if (stillHasPos) continue;
 
-                if (isStatic) {
-                    renderer.drawSingleChar(i, nc, nx, 0);
-                } else {
-                    switch (configManager.get().anim_mode) {
-                        case ANIMATION_TYPE_SCROLL_UP:
-                            if (step < 16 && oc != "") renderer.drawSingleChar(i, oc, nx, -(step * 4));
-                            renderer.drawSingleChar(i, nc, nx, 64 - (step * 4));
-                            break;
-                        case ANIMATION_TYPE_SCROLL_DOWN:
-                            if (step < 16 && oc != "") renderer.drawSingleChar(i, oc, nx, (step * 4));
-                            renderer.drawSingleChar(i, nc, nx, -64 + (step * 4));
-                            break;
-                        case ANIMATION_TYPE_VERTICAL_FLIP:
-                            if (step <= 8) { if (oc != "") renderer.drawScaledChar(i, oc, nx, ((8 - step) * 64) / 8); }
-                            else { renderer.drawScaledChar(i, nc, nx, ((step - 8) * 64) / 8); }
-                            break;
-                        case ANIMATION_TYPE_DITHERED_FADE:
-                            if (step <= 8) { if (oc != "") renderer.drawDitheredChar(i, oc, nx, 16 - (step * 2)); }
-                            else { renderer.drawDitheredChar(i, nc, nx, (step - 8) * 2); }
-                            break;
-                        case ANIMATION_TYPE_ZOOM:
-                            if (step <= 8) { if (oc != "") renderer.drawZoomedChar(i, oc, nx, ((8 - step) * 100) / 8); }
-                            else {
-                                int sc = (step <= 12) ? ((step - 8) * 150 / 4) : (150 - (step - 12) * 50 / 4);
-                                renderer.drawZoomedChar(i, nc, nx, sc);
-                            }
-                            break;
-                    }
-                }
-            }
-
-            for (int k = 0; k < oldCount[i]; k++) {
-                int ox = oldChars[i][k].x; String oc = oldChars[i][k].c;
-                bool stillHasPos = false;
-                for (int j = 0; j < newCount[i]; j++) { if (newChars[i][j].x == ox) { stillHasPos = true; break; } }
-                if (stillHasPos) continue;
-
-                switch (configManager.get().anim_mode) {
-                    case ANIMATION_TYPE_SCROLL_UP:   if (step < 16) renderer.drawSingleChar(i, oc, ox, -(step * 4)); break;
-                    case ANIMATION_TYPE_SCROLL_DOWN: if (step < 16) renderer.drawSingleChar(i, oc, ox, (step * 4)); break;
-                    case ANIMATION_TYPE_VERTICAL_FLIP: if (step <= 8) renderer.drawScaledChar(i, oc, ox, ((8 - step) * 64) / 8); break;
-                    case ANIMATION_TYPE_DITHERED_FADE: if (step <= 8) renderer.drawDitheredChar(i, oc, ox, 16 - (step * 2)); break;
-                    case ANIMATION_TYPE_ZOOM:          if (step <= 8) renderer.drawZoomedChar(i, oc, ox, ((8 - step) * 100) / 8); break;
-                }
-            }
-
-            bool isIconScreen = configManager.get().is_flipped ? (i == 3) : (i == 0);
-            if (isIconScreen && configManager.get().chime_enabled) screens[i]->drawXBM(0, 0, 8, 8, bell_icon);
-        }
-        pushParallel();
-        if (step < 16) {
-            unsigned long startDelay = millis();
-            while(millis() - startDelay < ANIMATION_STEP_DELAY_MS) {
-                if (on_yield_callback) on_yield_callback();
-                delay(1);
-            }
+        switch (configManager.get().anim_mode) {
+            case ANIMATION_TYPE_SCROLL_UP:   if (step < 16) renderer.drawSingleChar(i, oc, ox, -(step * 4)); break;
+            case ANIMATION_TYPE_SCROLL_DOWN: if (step < 16) renderer.drawSingleChar(i, oc, ox, (step * 4)); break;
+            case ANIMATION_TYPE_VERTICAL_FLIP: if (step <= 8) renderer.drawScaledChar(i, oc, ox, ((8 - step) * 64) / 8); break;
+            case ANIMATION_TYPE_DITHERED_FADE: if (step <= 8) renderer.drawDitheredChar(i, oc, ox, 16 - (step * 2)); break;
+            case ANIMATION_TYPE_ZOOM:          if (step <= 8) renderer.drawZoomedChar(i, oc, ox, ((8 - step) * 100) / 8); break;
         }
     }
-    for (int i = 0; i < 4; i++) if (changed[i]) lastTexts[i] = texts[i];
+
+    bool isIconScreen = configManager.get().is_flipped ? (i == 3) : (i == 0);
+    if (isIconScreen && configManager.get().chime_enabled) screens[i]->drawXBM(0, 0, 8, 8, bell_icon);
 }
 
 void DisplayManager::pushParallel() {

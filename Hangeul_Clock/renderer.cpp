@@ -12,6 +12,10 @@ Renderer renderer;
 
 Renderer::Renderer() {}
 
+Renderer::~Renderer() {
+    if (flatBuffer) free(flatBuffer);
+}
+
 void Renderer::setScreens(U8G2** screens) {
     _screens = screens;
 }
@@ -19,10 +23,19 @@ void Renderer::setScreens(U8G2** screens) {
 void Renderer::clearCache() {
     bitmapCache.clear();
     cacheIndex.clear();
+    if (flatBuffer) {
+        free(flatBuffer);
+        flatBuffer = nullptr;
+    }
+}
+
+const uint8_t* Renderer::getCharDataPtr(const CachedChar* cc) const {
+    if (!cc || !flatBuffer) return nullptr;
+    return flatBuffer + cc->offset;
 }
 
 void Renderer::loadBitmapCache() {
-    logger.addLog("Bitmap Loading");
+    logger.addLog("Bitmap Pre-scanning");
     if (!LittleFS.exists("/")) {
         logger.updateLastLog("Bitmap Loading: [FS Error]");
         return;
@@ -31,9 +44,10 @@ void Renderer::loadBitmapCache() {
     File root = LittleFS.open("/");
     if (!root) return;
     
-    std::vector<CachedChar> tempCache;
-    std::map<String, int> tempIndex;
+    std::vector<CachedChar> tempIndexList;
+    size_t totalBufferSize = 0;
 
+    // Stage 1: 스캔 및 총 크기 계산
     File file = root.openNextFile();
     while (file) {
         String name = file.name();
@@ -42,37 +56,57 @@ void Renderer::loadBitmapCache() {
             if (fileSize > 0 && fileSize <= MAX_BITMAP_SIZE) {
                 CachedChar cc;
                 cc.hex = name.substring(2, name.length() - 4);
-                try {
-                    cc.data.resize(fileSize);
-                    if (file.read(cc.data.data(), fileSize) == fileSize) {
-                        tempIndex[cc.hex] = tempCache.size();
-                        tempCache.push_back(std::move(cc));
-                    }
-                } catch (...) {
-                    Serial.println("[ERROR] Cache load fail: " + name);
-                }
+                cc.size = fileSize;
+                cc.offset = totalBufferSize;
+                totalBufferSize += fileSize;
+                tempIndexList.push_back(cc);
             }
         }
         file.close();
         file = root.openNextFile();
+    }
+
+    if (tempIndexList.empty()) {
+        logger.updateLastLog("Bitmap: Empty");
+        return;
+    }
+
+    // Stage 2: 단일 메모리 할당
+    if (flatBuffer) free(flatBuffer);
+    flatBuffer = (uint8_t*)malloc(totalBufferSize);
+    if (!flatBuffer) {
+        logger.updateLastLog("Bitmap: Malloc Fail");
+        return;
+    }
+
+    // Stage 3: 데이터 로드
+    logger.updateLastLog("Bitmap Loading...");
+    size_t loadedCount = 0;
+    cacheIndex.clear();
+    bitmapCache.clear();
+    
+    for (size_t i = 0; i < tempIndexList.size(); i++) {
+        String fileName = "/c_" + tempIndexList[i].hex + ".bin";
+        File f = LittleFS.open(fileName, "r");
+        if (f) {
+            if (f.read(flatBuffer + tempIndexList[i].offset, tempIndexList[i].size) == tempIndexList[i].size) {
+                cacheIndex[tempIndexList[i].hex] = bitmapCache.size();
+                bitmapCache.push_back(tempIndexList[i]);
+                loadedCount++;
+            }
+            f.close();
+        }
         
-        static int dotTicker = 0;
-        if (++dotTicker % 10 == 0) {
+        if (i % 10 == 0) {
             String dots = "Bitmap Loading";
-            for (int j = 0; j <= (dotTicker / 10) % 5; j++) dots += ".";
+            for (int j = 0; j <= (i / 10) % 5; j++) dots += ".";
             logger.updateLastLog(dots);
         }
     }
 
-    if (!tempCache.empty()) {
-        bitmapCache = std::move(tempCache);
-        cacheIndex = std::move(tempIndex);
-        char logBuf[64];
-        sprintf(logBuf, "Bitmap Loaded: %d", (int)bitmapCache.size());
-        logger.updateLastLog(logBuf);
-    } else {
-        logger.updateLastLog("Bitmap: Empty");
-    }
+    char logBuf[64];
+    sprintf(logBuf, "Bitmap Loaded: %d", (int)loadedCount);
+    logger.updateLastLog(logBuf);
 }
 
 String Renderer::getHexKey(const String& s) {
@@ -95,8 +129,9 @@ void Renderer::drawSingleChar(int screenIdx, const String& charStr, int x, int y
     U8G2* u8g2 = _screens[screenIdx];
     
     if (cc_ptr) {
-        if (cc_ptr->data.size() <= 256) u8g2->drawBitmap(x, y_offset, 4, 64, cc_ptr->data.data());
-        else u8g2->drawBitmap(x - 16, y_offset, 8, 64, cc_ptr->data.data());
+        const uint8_t* data = getCharDataPtr(cc_ptr);
+        if (cc_ptr->size <= 256) u8g2->drawBitmap(x, y_offset, 4, 64, data);
+        else u8g2->drawBitmap(x - 16, y_offset, 8, 64, data);
     } else {
         u8g2->setFont(HANGEUL_FONT);
         u8g2->drawUTF8(x + (32 - u8g2->getUTF8Width(charStr.c_str())) / 2, TEXT_Y_POS + y_offset, charStr.c_str());
@@ -109,16 +144,17 @@ void Renderer::drawDitheredChar(int screenIdx, const String& charStr, int x, int
     if (!cc_ptr) return;
     if (density >= 16) { drawSingleChar(screenIdx, charStr, x, 0); return; }
     
+    const uint8_t* data = getCharDataPtr(cc_ptr);
     U8G2* u8g2 = _screens[screenIdx];
-    int bw = (cc_ptr->data.size() <= 256) ? 4 : 8;
-    int bx = (cc_ptr->data.size() <= 256) ? x : x - 16;
+    int bw = (cc_ptr->size <= 256) ? 4 : 8;
+    int bx = (cc_ptr->size <= 256) ? x : x - 16;
     for (int r = 0; r < 64; r++) {
         uint8_t row_mask = 0;
         for (int px = 0; px < 8; px++) {
             if (bayer_matrix[r % 4][(bx + px) % 4] < density) row_mask |= (1 << px);
         }
         for (int b = 0; b < bw; b++) {
-            uint8_t original = cc_ptr->data[r * bw + b];
+            uint8_t original = data[r * bw + b];
             uint8_t masked = original & row_mask;
             if (masked) u8g2->drawBitmap(bx + (b * 8), r, 1, 1, &masked);
         }
@@ -132,14 +168,15 @@ void Renderer::drawZoomedChar(int screenIdx, const String& charStr, int x, int s
     const CachedChar* cc_ptr = findChar(charStr);
     if (!cc_ptr) return;
 
+    const uint8_t* data = getCharDataPtr(cc_ptr);
     U8G2* u8g2 = _screens[screenIdx];
-    int bw = (cc_ptr->data.size() <= 256) ? 4 : 8;
+    int bw = (cc_ptr->size <= 256) ? 4 : 8;
     int orig_w = bw * 8;
     int target_w = (orig_w * scale_percent) / 100;
     int target_h = (64 * scale_percent) / 100;
     if (target_w <= 0 || target_h <= 0) return;
 
-    int bx = (cc_ptr->data.size() <= 256) ? x : x - 16;
+    int bx = (cc_ptr->size <= 256) ? x : x - 16;
     int start_x = bx + (orig_w - target_w) / 2;
     int start_y = (64 - target_h) / 2;
 
@@ -149,7 +186,7 @@ void Renderer::drawZoomedChar(int screenIdx, const String& charStr, int x, int s
             int src_x = (c * orig_w) / target_w;
             int byte_pos = (src_y * bw) + (src_x / 8);
             int bit_pos = src_x % 8;
-            if (cc_ptr->data[byte_pos] & (0x80 >> bit_pos)) {
+            if (data[byte_pos] & (0x80 >> bit_pos)) {
                 u8g2->drawPixel(start_x + c, start_y + r);
             }
         }
@@ -163,12 +200,13 @@ void Renderer::drawScaledChar(int screenIdx, const String& charStr, int x, int h
     const CachedChar* cc_ptr = findChar(charStr);
     U8G2* u8g2 = _screens[screenIdx];
     if (cc_ptr) {
-        int bw = (cc_ptr->data.size() <= 256) ? 4 : 8;
-        int bx = (cc_ptr->data.size() <= 256) ? x : x - 16;
+        const uint8_t* data = getCharDataPtr(cc_ptr);
+        int bw = (cc_ptr->size <= 256) ? 4 : 8;
+        int bx = (cc_ptr->size <= 256) ? x : x - 16;
         int start_y = (64 - h) / 2;
         for (int i = 0; i < h; i++) {
             int src_y = (i * 64) / h;
-            u8g2->drawBitmap(bx, start_y + i, bw, 1, cc_ptr->data.data() + (src_y * bw));
+            u8g2->drawBitmap(bx, start_y + i, bw, 1, data + (src_y * bw));
         }
     } else {
         u8g2->setFont(HANGEUL_FONT);
