@@ -68,11 +68,21 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
                 <label>2. 폰트 크기: <span id="sVal">48</span>px</label>
                 <input type="range" id="sIn" min="20" max="60" value="48">
             </div>
+            <div class="field">
+                <label>3. 저장 슬롯 (0~4)</label>
+                <select id="fontSlot">
+                    <option value="0">Slot 0 (기존 폰트)</option>
+                    <option value="1">Slot 1</option>
+                    <option value="2">Slot 2</option>
+                    <option value="3">Slot 3</option>
+                    <option value="4">Slot 4</option>
+                </select>
+            </div>
         </div>
 
         <div class="setup-grid">
             <div class="field">
-                <label>3. 애니메이션 (BTN3 Short)</label>
+                <label>4. 애니메이션 (BTN3 Short)</label>
                 <select id="animMode">
                     <option value="0">0. OFF</option>
                     <option value="1">1. Scroll Up</option>
@@ -110,6 +120,13 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
                     <option value="1">FLIP</option>
                 </select>
             </div>
+            <div class="field">
+                <label>8. 색상 반전 (BTN4 Long)</label>
+                <select id="invertMode">
+                    <option value="0">NORMAL (Black BG)</option>
+                    <option value="1">INVERT (White BG)</option>
+                </select>
+            </div>
         </div>
 
         <div class="preview-list">
@@ -139,8 +156,10 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
             hour: document.getElementById('hourFormat'),
             chime: document.getElementById('chime'),
             flip: document.getElementById('flipMode'),
+            invert: document.getElementById('invertMode'),
             status: document.getElementById('status'),
             curFont: document.getElementById('curFont'),
+            slot: document.getElementById('fontSlot'),
             apply: document.getElementById('apply'),
             pFill: document.getElementById('pFill'),
             pWrap: document.getElementById('pWrap'),
@@ -163,7 +182,18 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
                 els.hour.value = (data.hour_format ?? 0).toString();
                 els.chime.value = data.chime_enabled ? "1" : "0";
                 els.flip.value = data.is_flipped ? "1" : "0";
-                els.curFont.innerText = data.font_name || "System Default";
+                els.invert.value = data.is_inverted ? "1" : "0";
+                els.slot.value = (data.font_slot ?? 0).toString();
+                
+                // 슬롯 이름 업데이트
+                if (data.slot_names) {
+                    for(let i=0; i<5; i++) {
+                        const opt = els.slot.options[i];
+                        if (opt) opt.innerText = `Slot ${i} (${data.slot_names[i]})`;
+                    }
+                }
+
+                els.curFont.innerText = `Slot ${data.font_slot}: ${data.font_name || 'System Default'}`;
                 els.status.innerText = "설정 동기화 완료";
             } catch(e) { els.status.innerText = "설정 로드 실패"; }
         }
@@ -175,7 +205,9 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
                 display_mode: parseInt(els.disp.value),
                 hour_format: parseInt(els.hour.value),
                 chime_enabled: els.chime.value === "1",
-                is_flipped: els.flip.value === "1"
+                is_flipped: els.flip.value === "1",
+                is_inverted: els.invert.value === "1",
+                font_slot: parseInt(els.slot.value)
             };
             try {
                 await fetch('/api/config', { method: 'POST', body: JSON.stringify(body) });
@@ -183,7 +215,7 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
             } catch(e) { els.status.innerText = "저장 실패"; }
         }
 
-        [els.anim, els.disp, els.hour, els.chime, els.flip].forEach(el => el.onchange = saveConfig);
+        [els.anim, els.disp, els.hour, els.chime, els.flip, els.invert, els.slot].forEach(el => el.onchange = saveConfig);
         fetchConfig();
         setInterval(fetchConfig, 5000);
 
@@ -202,9 +234,23 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
 
         function drawChar(ctx, char, x, yOffset) {
             const charData = bitmapCache[char];
-            if (charData) ctx.drawImage(charData.canvas, x, yOffset);
+            const isInverted = els.invert.value === "1";
+            if (charData) {
+                if (isInverted) {
+                    // 비트맵 반전 처리 (임시 캔버스 활용)
+                    const tempCanvas = document.createElement('canvas'); tempCanvas.width=64; tempCanvas.height=64;
+                    const tCtx = tempCanvas.getContext('2d');
+                    tCtx.fillStyle = "#fff"; tCtx.fillRect(0,0,64,64);
+                    tCtx.globalCompositeOperation = 'destination-out';
+                    tCtx.drawImage(charData.canvas, 0, 0);
+                    ctx.drawImage(tempCanvas, x, yOffset);
+                } else {
+                    ctx.drawImage(charData.canvas, x, yOffset);
+                }
+            }
             else {
-                ctx.fillStyle = "#fff"; ctx.font = `${els.sIn.value}px ClockFont, sans-serif`;
+                ctx.fillStyle = isInverted ? "#000" : "#fff";
+                ctx.font = `${els.sIn.value}px ClockFont, sans-serif`;
                 ctx.textAlign = "center"; ctx.textBaseline = "middle";
                 ctx.fillText(char, x + 16, 32 + yOffset);
             }
@@ -213,10 +259,23 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
         function drawScaledChar(ctx, charStr, x, h) {
             if (h <= 0) return;
             const charData = bitmapCache[charStr];
-            if (charData) ctx.drawImage(charData.canvas, x, (64 - h) / 2, 64, h);
+            const isInverted = els.invert.value === "1";
+            if (charData) {
+                if (isInverted) {
+                    const tempCanvas = document.createElement('canvas'); tempCanvas.width=64; tempCanvas.height=64;
+                    const tCtx = tempCanvas.getContext('2d');
+                    tCtx.fillStyle = "#fff"; tCtx.fillRect(0,0,64,64);
+                    tCtx.globalCompositeOperation = 'destination-out';
+                    tCtx.drawImage(charData.canvas, 0, 0);
+                    ctx.drawImage(tempCanvas, x, (64 - h) / 2, 64, h);
+                } else {
+                    ctx.drawImage(charData.canvas, x, (64 - h) / 2, 64, h);
+                }
+            }
             else {
                 ctx.save(); ctx.translate(x + 16, 32); ctx.scale(1, h / 64);
-                ctx.fillStyle = "#fff"; ctx.font = `${els.sIn.value}px ClockFont, sans-serif`;
+                ctx.fillStyle = isInverted ? "#000" : "#fff";
+                ctx.font = `${els.sIn.value}px ClockFont, sans-serif`;
                 ctx.textAlign = "center"; ctx.textBaseline = "middle";
                 ctx.fillText(charStr, 0, 0); ctx.restore();
             }
@@ -225,14 +284,25 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
         function drawZoomedChar(ctx, charStr, x, scale) {
             if (scale <= 0) return;
             const charData = bitmapCache[charStr];
+            const isInverted = els.invert.value === "1";
             if (charData) {
                 const w = charData.size <= 256 ? 32 : 64;
                 const bx = charData.size <= 256 ? x : x - 16;
                 const tw = w * scale, th = 64 * scale;
-                ctx.drawImage(charData.canvas, bx + (w - tw) / 2, (64 - th) / 2, tw, th);
+                if (isInverted) {
+                    const tempCanvas = document.createElement('canvas'); tempCanvas.width=64; tempCanvas.height=64;
+                    const tCtx = tempCanvas.getContext('2d');
+                    tCtx.fillStyle = "#fff"; tCtx.fillRect(0,0,64,64);
+                    tCtx.globalCompositeOperation = 'destination-out';
+                    tCtx.drawImage(charData.canvas, 0, 0);
+                    ctx.drawImage(tempCanvas, bx + (w - tw) / 2, (64 - th) / 2, tw, th);
+                } else {
+                    ctx.drawImage(charData.canvas, bx + (w - tw) / 2, (64 - th) / 2, tw, th);
+                }
             } else {
                 ctx.save(); ctx.translate(x + 16, 32); ctx.scale(scale, scale);
-                ctx.fillStyle = "#fff"; ctx.font = `${els.sIn.value}px ClockFont, sans-serif`;
+                ctx.fillStyle = isInverted ? "#000" : "#fff";
+                ctx.font = `${els.sIn.value}px ClockFont, sans-serif`;
                 ctx.textAlign = "center"; ctx.textBaseline = "middle";
                 ctx.fillText(charStr, 0, 0); ctx.restore();
             }
@@ -282,7 +352,7 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
         function drawChimeIcon(ctx) {
             if (els.chime.value !== "1") return;
             const bell = [0x18, 0x3C, 0x3C, 0x3C, 0xFF, 0xDB, 0x18, 0x00];
-            ctx.fillStyle = "#fff";
+            ctx.fillStyle = els.invert.value === "1" ? "#000" : "#fff";
             for(let y=0; y<8; y++) for(let x=0; x<8; x++) if(bell[y] & (1 << (7-x))) ctx.fillRect(x, y, 1, 1);
         }
 
@@ -296,7 +366,8 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
             }
             if (animStep < 16) animStep++; 
             for(let s=0; s<4; s++) {
-                const ctx = pCtx[s]; ctx.fillStyle = "#000"; ctx.fillRect(0,0,128,64);
+                const ctx = pCtx[s]; const isInverted = els.invert.value === "1";
+                ctx.fillStyle = isInverted ? "#fff" : "#000"; ctx.fillRect(0,0,128,64);
                 const isC = (s === 0) || (targetTimeStrings[s] === "정각");
                 const curD = getCharPositions(targetTimeStrings[s], isC);
                 if (animStep >= 16 || els.anim.value === "0") curD.forEach(d => drawChar(ctx, d.c, d.x, 0));
@@ -349,7 +420,7 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
                 }
                 let hex = ""; new TextEncoder().encode(char).forEach(b => hex += b.toString(16).toUpperCase().padStart(2, '0'));
                 const fd = new FormData(); fd.append('file', new Blob([bm]), `c_${hex}.bin`);
-                await fetch('/upload', { method: 'POST', body: fd });
+                await fetch(`/upload?slot=${els.slot.value}`, { method: 'POST', body: fd });
                 els.pFill.style.width = ((i+1)/UNIQ_CHARS.length * 100) + "%";
                 document.getElementById('b_'+char).classList.add('active');
             }

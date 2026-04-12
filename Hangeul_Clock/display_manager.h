@@ -58,11 +58,15 @@ public:
     void applyFlip();
     void setChime(bool enable);
     void setForceUpdate(bool force);
+    void setFontSlot(uint8_t slot);
+    void setInversion(bool invert);
+    void refreshNow();
+    String getSlotName(uint8_t slot);
     bool checkForceUpdate();
     void setDisplayMode(uint8_t mode);
     void setHourFormat(uint8_t format);
     void setAnimMode(uint8_t mode);
-    void setFontName(String name);
+    void setFontName(const String& name);
     void loadBitmapCache();
     void clearAll();
     void beep(int duration = 50, int freq = 3000);
@@ -83,6 +87,7 @@ private:
     uint32_t hw_i2c_error_count = 0;
     const uint32_t I2C_ERROR_THRESHOLD = 50; 
     bool _needsForceUpdate = false;
+    String _slotNames[5];
     void (*on_yield_callback)() = nullptr;
     TimerHandle_t buzzerTimer = NULL;
     AnimationState _animState;

@@ -9,9 +9,8 @@
 ConfigManager configManager;
 
 ConfigManager::ConfigManager() : _isDirty(false) {
-    // 3,000ms(3초) 지연 저장용 소프트웨어 타이머 생성
-    // 타이머 ID로 'this' 포인터를 전달하여 콜백에서 클래스 인스턴스에 접근 가능하게 함
-    _saveTimer = xTimerCreate("SaveTimer", pdMS_TO_TICKS(3000), pdFALSE, (void*)this, _timerCallback);
+    // 5,000ms(5초) 지연 저장용 소프트웨어 타이머 생성
+    _saveTimer = xTimerCreate("SaveTimer", pdMS_TO_TICKS(5000), pdFALSE, (void*)this, _timerCallback);
 }
 
 void ConfigManager::begin() {
@@ -30,7 +29,9 @@ void ConfigManager::load() {
     _settings.hour_format = _prefs.getUChar("format", HOUR_FORMAT_12H);
     _settings.is_flipped = _prefs.getBool("flip", true);
     _settings.chime_enabled = _prefs.getBool("chime", false);
+    _settings.is_inverted = _prefs.getBool("inv", false);
     _settings.font_name = _prefs.getString("font_name", "System Default");
+    _settings.font_slot = _prefs.getUChar("slot", 0);
 
     _prefs.end();
     Serial.println("[CONFIG] Settings loaded from Preferences.");
@@ -58,7 +59,9 @@ void ConfigManager::saveNow() {
     _prefs.putUChar("format", _settings.hour_format);
     _prefs.putBool("flip", _settings.is_flipped);
     _prefs.putBool("chime", _settings.chime_enabled);
+    _prefs.putBool("inv", _settings.is_inverted);
     _prefs.putString("font_name", _settings.font_name);
+    _prefs.putUChar("slot", _settings.font_slot);
 
     _prefs.end();
     _isDirty = false;

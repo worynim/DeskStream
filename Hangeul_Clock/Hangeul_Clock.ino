@@ -69,7 +69,16 @@ void btn3_short() {
     display.setAnimMode(nextAnim);
 }
 
-void btn3_long()  { }
+void btn3_long() {
+    display.beep(150, 2000);
+    uint8_t nextSlot = (configManager.get().font_slot + 1) % 5;
+    display.setFontSlot(nextSlot);
+    
+    // 상태 메시지 출력
+    char msg[16];
+    sprintf(msg, "Font Slot %d", nextSlot);
+    display.showStatus(msg);
+}
 
 void btn4_short() {
     display.beep(50, 3000);
@@ -79,7 +88,12 @@ void btn4_short() {
     else if (uiStage == 2) display.showButtonHelp();
 }
 
-void btn4_long() { }
+void btn4_long() {
+    display.beep(150, 2000);
+    bool nextInv = !configManager.get().is_inverted;
+    display.setInversion(nextInv);
+    display.showStatus(nextInv ? "Invert: ON" : "Invert: OFF");
+}
 
 /**
  * @brief 시스템 양보 및 입력 동기화 (애니메이션 루프 등에서 빈번히 호출됨)

@@ -48,6 +48,7 @@ void DisplayManager::begin() {
     
     for (int i = 0; i < 4; i++) {
         screens[i]->setFlipMode(configManager.get().is_flipped);
+        screens[i]->sendF("c", configManager.get().is_inverted ? 0xA7 : 0xA6);
         screens[i]->setBitmapMode(1);
         screens[i]->clearBuffer();
         lastTexts[i] = "";
@@ -57,6 +58,20 @@ void DisplayManager::begin() {
     pinMode(BUZZER_PIN, OUTPUT);
     digitalWrite(BUZZER_PIN, LOW);
     buzzerTimer = xTimerCreate("BuzzerTimer", pdMS_TO_TICKS(50), pdFALSE, (void*)0, buzzerTimerCallback);
+
+    // 슬롯 이름 초기 캐싱
+    for (int i = 0; i < 5; i++) {
+        String p = "/f" + String(i) + "/name.txt";
+        if (LittleFS.exists(p)) {
+            File f = LittleFS.open(p, "r");
+            if (f) {
+                _slotNames[i] = f.readString();
+                f.close();
+            }
+        } else {
+            _slotNames[i] = "Empty";
+        }
+    }
 }
 
 void DisplayManager::setFlipDisplay(bool flip) {
@@ -106,9 +121,80 @@ void DisplayManager::setAnimMode(uint8_t mode) {
     setForceUpdate(true);
 }
 
-void DisplayManager::setFontName(String name) {
+String DisplayManager::getSlotName(uint8_t slot) {
+    if (slot >= 5) return "";
+    return _slotNames[slot];
+}
+
+void DisplayManager::setFontName(const String& name) {
+    if (configManager.get().font_name == name) return;
+    
     configManager.get().font_name = name;
+    _slotNames[configManager.get().font_slot] = name; // 캐시 업데이트
     configManager.setDirty();
+    
+    // 현재 슬롯 폴더에 name.txt 저장
+    String path = "/f" + String(configManager.get().font_slot) + "/name.txt";
+    File f = LittleFS.open(path, "w");
+    if (f) {
+        f.print(name);
+        f.close();
+    }
+}
+
+void DisplayManager::setFontSlot(uint8_t slot) {
+    if (slot >= 5) slot = 0;
+    
+    // 이미 해당 슬롯이면 중복 로딩 방지
+    if (configManager.get().font_slot == slot && renderer.isCacheLoaded()) {
+        return;
+    }
+    
+    configManager.get().font_slot = slot;
+    
+    // 새 슬롯의 이름 로드
+    String path = "/f" + String(slot) + "/name.txt";
+    if (LittleFS.exists(path)) {
+        File f = LittleFS.open(path, "r");
+        if (f) {
+            configManager.get().font_name = f.readString();
+            f.close();
+        }
+    } else {
+        configManager.get().font_name = "Empty Slot";
+    }
+    
+    configManager.setDirty();
+    
+    // 애니메이션 중이면 즉시 중단 (폰트 맵이 바뀌면 애니메이션 데이터가 무효화됨)
+    if (_animState.active) {
+        _animState.active = false;
+        refreshNow();
+    }
+    
+    // 렌더러 캐시 갱신
+    renderer.loadBitmapCache(slot);
+    
+    // 폰트 로드 후 화면 강제 갱신 (잔상 제거)
+    refreshNow();
+    
+    setForceUpdate(true);
+}
+
+void DisplayManager::refreshNow() {
+    for (int i = 0; i < 4; i++) {
+        bool isTitleScreen = configManager.get().is_flipped ? (i == 3) : (i == 0);
+        drawCenterText(i, lastTexts[i], isTitleScreen);
+    }
+    pushParallel();
+}
+
+void DisplayManager::setInversion(bool invert) {
+    configManager.get().is_inverted = invert;
+    configManager.setDirty();
+    for (int i = 0; i < 4; i++) {
+        screens[i]->sendF("c", invert ? 0xA7 : 0xA6);
+    }
     setForceUpdate(true);
 }
 

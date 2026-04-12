@@ -34,29 +34,58 @@ const uint8_t* Renderer::getCharDataPtr(const CachedChar* cc) const {
     return flatBuffer + cc->offset;
 }
 
-void Renderer::loadBitmapCache() {
-    logger.addLog("Bitmap Pre-scanning");
-    if (!LittleFS.exists("/")) {
-        logger.updateLastLog("Bitmap Loading: [FS Error]");
+void Renderer::loadBitmapCache(int slot) {
+    // 슬롯이 -1이면 설정에서 가져옴
+    #include "config_manager.h"
+    if (slot == -1) slot = configManager.get().font_slot;
+
+    logger.addLog("Bitmap Pre-scanning (Slot " + String(slot) + ")");
+
+    // --- 마이그레이션 로직: 루트의 파일을 /f0으로 이동 ---
+    if (LittleFS.exists("/c_30.bin") && !LittleFS.exists("/f0/c_30.bin")) {
+        logger.addLog("Migrating fonts to /f0...");
+        LittleFS.mkdir("/f0");
+        File r = LittleFS.open("/");
+        File f = r.openNextFile();
+        while (f) {
+            String n = f.name();
+            if (n.startsWith("c_") && n.endsWith(".bin")) {
+                String oldP = "/" + n;
+                String newP = "/f0/" + n;
+                f.close(); // 닫아야 이동 가능할 수도 있음
+                LittleFS.rename(oldP, newP);
+                f = r.openNextFile();
+            } else {
+                f.close();
+                f = r.openNextFile();
+            }
+        }
+        logger.updateLastLog("Migration Done.");
+    }
+
+    String path = "/f" + String(slot);
+    if (!LittleFS.exists(path)) {
+        logger.updateLastLog("Slot " + String(slot) + ": Empty");
+        clearCache();
         return;
     }
 
-    File root = LittleFS.open("/");
-    if (!root) return;
+    File root = LittleFS.open(path);
+    if (!root || !root.isDirectory()) {
+        logger.updateLastLog("Slot " + String(slot) + ": Not a Dir");
+        return;
+    }
     
     std::vector<CachedChar> tempIndexList;
     size_t totalBufferSize = 0;
 
     // Stage 1: 스캔 및 총 크기 계산
     File file = root.openNextFile();
-    if (DEBUG_MODE) Serial.println("[FS] --- Listing All Files Begin ---");
+    if (DEBUG_MODE) Serial.println("[FS] --- Listing Files in " + path + " ---");
     while (file) {
         String name = file.name();
         size_t fileSize = file.size();
         
-        // 모든 파일 목록 출력 (디버그용)
-        if (DEBUG_MODE) Serial.printf("[FS] File: /%-25s | Size: %7d bytes\n", name.c_str(), (int)fileSize);
-
         if (name.startsWith("c_") && name.endsWith(".bin")) {
             if (fileSize > 0 && fileSize <= MAX_BITMAP_SIZE) {
                 CachedChar cc;
@@ -65,15 +94,16 @@ void Renderer::loadBitmapCache() {
                 cc.offset = totalBufferSize;
                 totalBufferSize += fileSize;
                 tempIndexList.push_back(cc);
+                if (DEBUG_MODE) Serial.printf("[FS] Found: %s (%d bytes)\n", name.c_str(), (int)fileSize);
             }
         }
         file.close();
         file = root.openNextFile();
     }
-    if (DEBUG_MODE) Serial.println("[FS] --- Listing All Files End ---");
 
     if (tempIndexList.empty()) {
-        logger.updateLastLog("Bitmap: Empty");
+        logger.updateLastLog("Slot " + String(slot) + ": No Bitmaps");
+        clearCache();
         return;
     }
 
@@ -86,42 +116,35 @@ void Renderer::loadBitmapCache() {
     }
 
     // Stage 3: 데이터 로드
-    logger.updateLastLog("Bitmap Loading...");
-    size_t loadedCount = 0;
+    logger.updateLastLog("Loading Space: " + String(totalBufferSize) + "B");
     cacheIndex.clear();
     bitmapCache.clear();
     
     for (size_t i = 0; i < tempIndexList.size(); i++) {
-        String fileName = "/c_" + tempIndexList[i].hex + ".bin";
+        String fileName = path + "/c_" + tempIndexList[i].hex + ".bin";
         File f = LittleFS.open(fileName, "r");
         if (f) {
             if (f.read(flatBuffer + tempIndexList[i].offset, tempIndexList[i].size) == tempIndexList[i].size) {
                 cacheIndex[tempIndexList[i].hex] = bitmapCache.size();
                 bitmapCache.push_back(tempIndexList[i]);
-                loadedCount++;
             }
             f.close();
         }
-        
-        if (i % 10 == 0) {
-            String dots = "Bitmap Loading";
-            for (int j = 0; j <= (i / 10) % 5; j++) dots += ".";
-            logger.updateLastLog(dots);
-        }
     }
+    logger.updateLastLog("Font Cache Loaded (" + String(bitmapCache.size()) + ")");
 
-    char logBuf[64];
-    sprintf(logBuf, "Bitmap Loaded: %d", (int)loadedCount);
-    logger.updateLastLog(logBuf);
-
-    // 메모리 사용량 리포트 출력
-    Serial.println("\n[MEMORY] --- Memory Usage Report ---");
-    Serial.printf("[MEMORY] Flash (LittleFS) Total: %d bytes\n", (int)LittleFS.totalBytes());
-    Serial.printf("[MEMORY] Flash (LittleFS) Used:  %d bytes\n", (int)LittleFS.usedBytes());
-    Serial.printf("[MEMORY] RAM (Font Cache): %d bytes\n", (int)totalBufferSize);
-    Serial.printf("[MEMORY] RAM (Free Heap):  %d bytes\n", (int)ESP.getFreeHeap());
-    Serial.println("[MEMORY] ---------------------------\n");
+    if (DEBUG_MODE) {
+        // 메모리 사용량 리포트 출력
+        Serial.println("\n[MEMORY] --- Memory Usage Report ---");
+        Serial.printf("[MEMORY] Slot Path: %s\n", path.c_str());
+        Serial.printf("[MEMORY] Flash (LittleFS) Total: %d bytes\n", (int)LittleFS.totalBytes());
+        Serial.printf("[MEMORY] Flash (LittleFS) Used:  %d bytes\n", (int)LittleFS.usedBytes());
+        Serial.printf("[MEMORY] RAM (Font Cache): %d bytes\n", (int)totalBufferSize);
+        Serial.printf("[MEMORY] RAM (Free Heap):  %d bytes\n", (int)ESP.getFreeHeap());
+        Serial.println("[MEMORY] ---------------------------\n");
+    }
 }
+
 
 String Renderer::getHexKey(const String& s) {
     String hexStr = "";

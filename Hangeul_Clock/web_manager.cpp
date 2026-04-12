@@ -36,13 +36,24 @@ void WebManager::handleUploadData() {
     static File fsUploadFile;
     if (upload.status == UPLOAD_FILE_START) {
         String filename = upload.filename;
-        // 보안 패치: 경로 탐색(Directory Traversal) 방지
         if (!filename.startsWith("/")) filename = "/" + filename;
-        if (filename.indexOf("..") != -1) {
-            Serial.println("[WEB] Invalid filename detected: " + filename);
+        
+        // 슬롯 파라미터 확인 (예: /upload?slot=1)
+        int slot = 0;
+        if (server.hasArg("slot")) {
+            slot = server.arg("slot").toInt();
+            if (slot < 0 || slot >= 5) slot = 0;
+        }
+        
+        String path = "/f" + String(slot);
+        if (!LittleFS.exists(path)) LittleFS.mkdir(path);
+        
+        String fullPath = path + filename;
+        if (fullPath.indexOf("..") != -1) {
+            Serial.println("[WEB] Invalid path detected: " + fullPath);
             return; 
         }
-        fsUploadFile = LittleFS.open(filename, "w");
+        fsUploadFile = LittleFS.open(fullPath, "w");
     } else if (upload.status == UPLOAD_FILE_WRITE) {
         if (fsUploadFile) fsUploadFile.write(upload.buf, upload.currentSize);
     } else if (upload.status == UPLOAD_FILE_END) {
@@ -58,31 +69,54 @@ void WebManager::handleRefreshCache() {
 
 void WebManager::handleGetConfig() {
     SystemSettings& s = configManager.get();
+    String slotNames = "[";
+    for(int i=0; i<5; i++) {
+        slotNames += "\"" + display.getSlotName(i) + "\"" + (i < 4 ? "," : "");
+    }
+    slotNames += "]";
+
     String json = "{\"anim_mode\":" + String((int)s.anim_mode) + 
                  ",\"display_mode\":" + String((int)s.display_mode) + 
                  ",\"hour_format\":" + String((int)s.hour_format) + 
                  ",\"chime_enabled\":" + String(s.chime_enabled ? "true":"false") + 
                  ",\"font_name\":\"" + s.font_name + 
-                 "\",\"is_flipped\":" + String(s.is_flipped ? "true":"false") + "}";
+                 "\",\"font_slot\":" + String((int)s.font_slot) +
+                 ",\"slot_names\":" + slotNames +
+                 ",\"is_inverted\":" + String(s.is_inverted ? "true":"false") +
+                 ",\"is_flipped\":" + String(s.is_flipped ? "true":"false") + "}";
     server.send(200, "application/json", json);
 }
 
 void WebManager::handleSetConfig() {
     if (server.hasArg("plain")) {
+        SystemSettings& s = configManager.get();
         String body = server.arg("plain");
         
         int am = parseVal(body, "anim_mode"); 
-        if(am >= 0 && am <= 5) display.setAnimMode(am);
+        if(am >= 0 && am <= 5 && am != s.anim_mode) display.setAnimMode(am);
         
         int dm = parseVal(body, "display_mode"); 
-        if(dm >= 0 && dm <= 1) display.setDisplayMode(dm);
+        if(dm >= 0 && dm <= 1 && dm != s.display_mode) display.setDisplayMode(dm);
         
         int hf = parseVal(body, "hour_format"); 
-        if(hf >= 0 && hf <= 1) display.setHourFormat(hf);
+        if(hf >= 0 && hf <= 1 && hf != s.hour_format) display.setHourFormat(hf);
         
-        if (body.indexOf("\"chime_enabled\"") != -1) display.setChime(parseBool(body, "chime_enabled"));
-        if (body.indexOf("\"is_flipped\"") != -1) display.setFlipDisplay(parseBool(body, "is_flipped"));
+        if (body.indexOf("\"chime_enabled\"") != -1) {
+            bool val = parseBool(body, "chime_enabled");
+            if(val != s.chime_enabled) display.setChime(val);
+        }
+        if (body.indexOf("\"is_flipped\"") != -1) {
+            bool val = parseBool(body, "is_flipped");
+            if(val != s.is_flipped) display.setFlipDisplay(val);
+        }
+        if (body.indexOf("\"is_inverted\"") != -1) {
+            bool val = parseBool(body, "is_inverted");
+            if(val != s.is_inverted) display.setInversion(val);
+        }
         
+        int fs = parseVal(body, "font_slot");
+        if (fs >= 0 && fs <= 4 && fs != s.font_slot) display.setFontSlot(fs);
+
         int fnS = body.indexOf("\"font_name\":\"");
         if (fnS != -1) {
             fnS += 13;

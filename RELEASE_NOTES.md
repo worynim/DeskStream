@@ -1,3 +1,11 @@
+## [v4.2.0] ✅ 커밋완료 - 2026-04-12 22:06
+### Stable & Optimized (Hangeul_Clock: UI/UX Performance & Architectural Polish)
+- **제로-스터터(Zero-Stutter) 웹 API**: 폰트 슬롯 이름 **메모리 캐싱 시스템**을 도입하여, 웹 대시보드 로딩 시 시스템이 5초간 멈추던 LittleFS I/O 병목을 근본적으로 해결했습니다.
+- **애니메이션 잔상 및 멈춤 방지**: `refreshNow()` 보호 로직을 통해 폰트 전환(로딩) 중 문자가 애니메이션 중간 프레임에 멈춰있던 시각적 결함을 완벽히 수정했습니다.
+- **웹 미리보기 색상 반전 연동**: '색상 반전' 설정이 웹 대시보드의 실시간 캔버스 미리보기에도 즉각 반영되도록 렌더링 스크립트를 확장했습니다.
+- **설정 영속성 완결**: `is_inverted`(반전 모드) 및 `font_slot` 필드를 NVS 저장 대상에 추가하여 재부팅 후에도 모든 사용자 설정이 유지되도록 보강했습니다.
+- **아키텍처 정규화**: `DisplayManager` 클래스를 생성자 기반 초기화 구조로 정돈하여 유지보수성과 컴파일 안정성을 확보했습니다.
+
 ## [v4.1.0] ✅ 커밋완료 - 2026-04-12 20:23
 ### Major Update (Hangeul_Clock: Storage Optimization & Reliability Engine)
 - **강력한 시스템 초기화(Factory Reset)**: 부팅 시 BTN 1 롱프레스로 WiFi 설정 및 LittleFS(파일 시스템)를 일괄 포맷하는 기능을 구현했습니다.

@@ -21,7 +21,9 @@ struct SystemSettings {
     uint8_t hour_format;
     bool is_flipped;
     bool chime_enabled;
+    bool is_inverted;
     String font_name;
+    uint8_t font_slot;
 
     // 기본값 설정
     SystemSettings() : 
@@ -30,7 +32,9 @@ struct SystemSettings {
         hour_format(HOUR_FORMAT_12H),
         is_flipped(true),
         chime_enabled(false),
-        font_name("System Default") {}
+        is_inverted(false),
+        font_name("System Default"),
+        font_slot(0) {}
 };
 
 /**

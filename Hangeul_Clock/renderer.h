@@ -29,7 +29,7 @@ public:
     
     // 초기화 및 리소스 관리
     void setScreens(U8G2** screens);
-    void loadBitmapCache();
+    void loadBitmapCache(int slot = -1);
     const CachedChar* findChar(const String& s);
     const uint8_t* getCharDataPtr(const CachedChar* cc) const; // 데이터 포인터 획득 유틸리티
     String getHexKey(const String& s);
