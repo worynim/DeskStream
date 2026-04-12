@@ -4,14 +4,12 @@
 #include <U8g2lib.h>
 #include <Wire.h>
 #include "config.h"
-#include "LittleFS.h"
-#include <Preferences.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/timers.h>
+#include <pgmspace.h>
 #include <vector>
 #include <map>
-#include <pgmspace.h>
+#include <utility>
 #include "i2c_platform.h"
+#include "config_manager.h"
 
 class DisplayManager;
 extern DisplayManager display;
@@ -35,14 +33,6 @@ public:
     uint8_t u8g2_buffers[NUM_SCREENS][SCREEN_WIDTH * PAGES_PER_SCREEN]; 
     TaskHandle_t main_task_handle = nullptr;
     String lastTexts[4];
-    
-    uint8_t anim_mode = ANIMATION_TYPE_SCROLL_UP;
-    uint8_t display_mode = CLOCK_MODE_HANGUL;
-    uint8_t hour_format = HOUR_FORMAT_12H;
-    bool is_flipped = false;
-    bool chime_enabled = false;
-    String font_name = "System Default";
-    Preferences prefs;
 
     DisplayManager();
 

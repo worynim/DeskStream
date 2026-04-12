@@ -86,7 +86,7 @@ int uiStage = 0; // 0: Clock, 1: IP, 2: Button Help
 // --- 버튼 콜백 정의 ---
 void btn1_short() {
     display.beep(50, 3000);
-    display.setChime(!display.chime_enabled);
+    display.setChime(!configManager.get().chime_enabled);
     if (uiStage == 2) {
         display.showButtonHelp(); // 도움말 화면 즉시 갱신 (v1.3.52)
     }
@@ -94,7 +94,7 @@ void btn1_short() {
 
 void btn1_long() {
     display.beep(150, 2000);
-    display.setFlipDisplay(!display.is_flipped);
+    display.setFlipDisplay(!configManager.get().is_flipped);
     display.clearAll(); // 방향 전환 시 잔상 제거
     if (uiStage == 1) {
         display.showLargeIP(WiFi.localIP()); // IP 화면 즉시 갱신 (v1.3.51)
@@ -105,21 +105,21 @@ void btn1_long() {
 
 void btn2_short() {
     display.beep(50, 3000);
-    uint8_t nextMode = (display.display_mode == CLOCK_MODE_HANGUL) ? CLOCK_MODE_NUMERIC : CLOCK_MODE_HANGUL;
+    uint8_t nextMode = (configManager.get().display_mode == CLOCK_MODE_HANGUL) ? CLOCK_MODE_NUMERIC : CLOCK_MODE_HANGUL;
     display.setDisplayMode(nextMode);
     display.clearAll(); // 한글/숫자 전환 시 잔상 제거 (v1.3.48)
 }
 
 void btn2_long() {
     display.beep(150, 2000);
-    uint8_t nextFormat = (display.hour_format == HOUR_FORMAT_12H) ? HOUR_FORMAT_24H : HOUR_FORMAT_12H;
+    uint8_t nextFormat = (configManager.get().hour_format == HOUR_FORMAT_12H) ? HOUR_FORMAT_24H : HOUR_FORMAT_12H;
     display.setHourFormat(nextFormat);
     display.clearAll();
 }
 
 void btn3_short() { 
     display.beep(50, 3000); 
-    uint8_t nextAnim = (display.anim_mode + 1) % 6;
+    uint8_t nextAnim = (configManager.get().anim_mode + 1) % 6;
     display.setAnimMode(nextAnim);
     // 애니메이션 모드 전환은 다음 렌더링 시 자동 반영되므로 강제 clear 지양
 }
@@ -159,7 +159,7 @@ void on_yield() {
 
 void setup() {
     Serial.begin(115200);
-    Serial.println("\n[SYSTEM] Starting Hangeul Clock v1.6.0 (Stabilized)");
+    Serial.println("\n[SYSTEM] Starting Hangeul Clock v1.7.0 (HAL Architecture)");
 
     if (!LittleFS.begin(true)) Serial.println("[SYSTEM] LittleFS Mount Failed");
 
@@ -170,8 +170,8 @@ void setup() {
     display.begin();
     display.playStartupMelody(); 
     
-    display.addLog("Hangeul Clock v1.6.0");
-    display.addLog("Stabilized Build");
+    display.addLog("Hangeul Clock v1.7.0");
+    display.addLog("HAL Architecture");
     
     // 3. 비트맵 캐시 로딩 (진행 점 애니메이션 포함)
     display.loadBitmapCache();
@@ -238,7 +238,7 @@ void handleClockUpdate(bool force = false) {
     }
 
     // [시보] 정시 알림 로직
-    if (display.chime_enabled && timeinfo.tm_min == 0 && timeinfo.tm_sec == 0) {
+    if (configManager.get().chime_enabled && timeinfo.tm_min == 0 && timeinfo.tm_sec == 0) {
         static int lastChimeHour = -1;
         if (lastChimeHour != timeinfo.tm_hour) {
             display.beep(500, 1000);
@@ -248,8 +248,8 @@ void handleClockUpdate(bool force = false) {
 
     int h = timeinfo.tm_hour, m = timeinfo.tm_min, s = timeinfo.tm_sec, d = timeinfo.tm_mday;
     String texts[4];
-    bool isHangul = (display.display_mode == CLOCK_MODE_HANGUL);
-    bool is24H = (display.hour_format == HOUR_FORMAT_24H);
+    bool isHangul = (configManager.get().display_mode == CLOCK_MODE_HANGUL);
+    bool is24H = (configManager.get().hour_format == HOUR_FORMAT_24H);
 
     // 텍스트 생성 (v1.4.0 최적화 구조)
     if (is24H) texts[0] = isHangul ? HangeulTimeConverter::getDay(d) : HangeulTimeConverter::getNumericDay(d);

@@ -45,12 +45,13 @@ void WebManager::handleRefreshCache() {
 }
 
 void WebManager::handleGetConfig() {
-    String json = "{\"anim_mode\":" + String((int)display.anim_mode) + 
-                 ",\"display_mode\":" + String((int)display.display_mode) + 
-                 ",\"hour_format\":" + String((int)display.hour_format) + 
-                 ",\"chime_enabled\":" + String(display.chime_enabled ? "true":"false") + 
-                 ",\"font_name\":\"" + display.font_name + 
-                 "\",\"is_flipped\":" + String(display.is_flipped ? "true":"false") + "}";
+    SystemSettings& s = configManager.get();
+    String json = "{\"anim_mode\":" + String((int)s.anim_mode) + 
+                 ",\"display_mode\":" + String((int)s.display_mode) + 
+                 ",\"hour_format\":" + String((int)s.hour_format) + 
+                 ",\"chime_enabled\":" + String(s.chime_enabled ? "true":"false") + 
+                 ",\"font_name\":\"" + s.font_name + 
+                 "\",\"is_flipped\":" + String(s.is_flipped ? "true":"false") + "}";
     server.send(200, "application/json", json);
 }
 

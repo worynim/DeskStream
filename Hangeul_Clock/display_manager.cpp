@@ -1,4 +1,7 @@
 #include "display_manager.h"
+#include "LittleFS.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/timers.h>
 
 DisplayManager display;
 
@@ -32,18 +35,13 @@ void DisplayManager::begin() {
     u8g2_3.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast; u8g2_3.begin();
     u8g2_4.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast; u8g2_4.setI2CAddress(I2C_ADDR_HW_1 * 2); u8g2_4.begin();
     
-    prefs.begin("clock", false);
-    anim_mode = prefs.getUChar("anim", ANIMATION_TYPE_SCROLL_UP);
-    display_mode = prefs.getUChar("mode", CLOCK_MODE_HANGUL);
-    hour_format = prefs.getUChar("format", HOUR_FORMAT_12H);
-    is_flipped = prefs.getBool("flip", true); 
-    chime_enabled = prefs.getBool("chime", false);
-    font_name = prefs.getString("font_name", "System Default");
+    // 2. 설정 매니저 초기화 및 로드
+    configManager.begin();
     
     // HW 태스크 생성은 i2cPlatform.begin()에서 처리됨
     
     for (int i = 0; i < 4; i++) {
-        screens[i]->setFlipMode(is_flipped);
+        screens[i]->setFlipMode(configManager.get().is_flipped);
         screens[i]->setBitmapMode(1);
         screens[i]->clearBuffer();
         lastTexts[i] = "";
@@ -56,11 +54,12 @@ void DisplayManager::begin() {
 }
 
 void DisplayManager::setFlipDisplay(bool flip) {
-    is_flipped = flip;
-    saveConfig();
+    configManager.get().is_flipped = flip;
+    configManager.setDirty();
     for (int i = 0; i < 4; i++) {
-        screens[i]->setFlipMode(is_flipped);
+        screens[i]->setFlipMode(flip);
     }
+    setForceUpdate(true);
 }
 
 void DisplayManager::applyFlip() {
@@ -68,8 +67,8 @@ void DisplayManager::applyFlip() {
 }
 
 void DisplayManager::setChime(bool enable) {
-    chime_enabled = enable;
-    saveConfig();
+    configManager.get().chime_enabled = enable;
+    configManager.setDirty();
     setForceUpdate(true);
 }
 
@@ -84,34 +83,30 @@ bool DisplayManager::checkForceUpdate() {
 }
 
 void DisplayManager::setDisplayMode(uint8_t mode) {
-    display_mode = mode;
-    saveConfig();
+    configManager.get().display_mode = mode;
+    configManager.setDirty();
+    setForceUpdate(true);
 }
 
 void DisplayManager::setHourFormat(uint8_t format) {
-    hour_format = format;
-    saveConfig();
+    configManager.get().hour_format = format;
+    configManager.setDirty();
+    setForceUpdate(true);
 }
 
 void DisplayManager::setAnimMode(uint8_t mode) {
-    anim_mode = mode;
-    saveConfig();
+    configManager.get().anim_mode = mode;
+    configManager.setDirty();
+    setForceUpdate(true);
 }
 
 void DisplayManager::setFontName(String name) {
-    font_name = name;
-    saveConfig();
+    configManager.get().font_name = name;
+    configManager.setDirty();
+    setForceUpdate(true);
 }
 
-void DisplayManager::saveConfig() {
-    prefs.putUChar("anim", anim_mode);
-    prefs.putUChar("mode", display_mode);
-    prefs.putUChar("format", hour_format);
-    prefs.putBool("flip", is_flipped);
-    prefs.putBool("chime", chime_enabled);
-    prefs.putString("font_name", font_name);
-    Serial.println("Config Saved to Preferences");
-}
+// saveConfig()은 ConfigManager로 대체됨
 
 void DisplayManager::loadBitmapCache() {
     addLog("Bitmap Loading");
@@ -187,10 +182,10 @@ const CachedChar* DisplayManager::findChar(const String& s) {
 void DisplayManager::clearAll() {
     for (int i = 0; i < NUM_SCREENS; i++) {
         screens[i]->clearBuffer();
-        screens[i]->sendBuffer();
         lastTexts[i] = "";
     }
-    // shadow_buffer는 i2cPlatform 내부에 있으므로 직접 접근하지 않음
+    pushParallel(); // 비동기 전송으로 경합 방지
+    setForceUpdate(true); // 즉시 다음 프레임 그리기 예약
 }
 
 void DisplayManager::beep(int duration, int freq) {
@@ -324,7 +319,7 @@ void DisplayManager::drawCenterText(int idx, const String& text, bool centered) 
     for (int j = 0; j < count; j++) {
         drawSingleChar(idx, chars[j].c, chars[j].x, 0);
     }
-    if (centered && chime_enabled) {
+    if (centered && configManager.get().chime_enabled) {
         screens[idx]->drawXBM(0, 0, 8, 8, bell_icon);
     }
 }
@@ -335,15 +330,15 @@ void DisplayManager::updateAll(String inTexts[4], bool force) {
     bool anyChanged = false;
     
     for (int i = 0; i < 4; i++) {
-        texts[i] = is_flipped ? inTexts[3 - i] : inTexts[i];
+        texts[i] = configManager.get().is_flipped ? inTexts[3 - i] : inTexts[i];
         if (force || texts[i] != lastTexts[i]) { changed[i] = true; anyChanged = true; }
     }
     if (!anyChanged) return;
 
-    if (anim_mode == ANIMATION_TYPE_NONE) {
+    if (configManager.get().anim_mode == ANIMATION_TYPE_NONE) {
         for (int i = 0; i < 4; i++) {
             if (changed[i]) { 
-                bool isTitleScreen = is_flipped ? (i == 3) : (i == 0);
+                bool isTitleScreen = configManager.get().is_flipped ? (i == 3) : (i == 0);
                 drawCenterText(i, texts[i], isTitleScreen); 
                 lastTexts[i] = texts[i]; 
             }
@@ -356,7 +351,7 @@ void DisplayManager::updateAll(String inTexts[4], bool force) {
     int oldCount[4], newCount[4];
     for (int i = 0; i < 4; i++) {
         if (changed[i]) {
-            bool isCentered = is_flipped ? (i == 3) : (i == 0);
+            bool isCentered = configManager.get().is_flipped ? (i == 3) : (i == 0);
             getCharData(lastTexts[i], oldChars[i], oldCount[i], isCentered, i);
             getCharData(texts[i], newChars[i], newCount[i], isCentered, i);
         }
@@ -381,7 +376,7 @@ void DisplayManager::updateAll(String inTexts[4], bool force) {
                 if (isStatic) {
                     drawSingleChar(i, nc, nx, 0);
                 } else {
-                    switch (anim_mode) {
+                    switch (configManager.get().anim_mode) {
                         case ANIMATION_TYPE_SCROLL_UP:
                             if (step < 16 && oc != "") drawSingleChar(i, oc, nx, -(step * 4));
                             drawSingleChar(i, nc, nx, 64 - (step * 4));
@@ -415,7 +410,7 @@ void DisplayManager::updateAll(String inTexts[4], bool force) {
                 for (int j = 0; j < newCount[i]; j++) { if (newChars[i][j].x == ox) { stillHasPos = true; break; } }
                 if (stillHasPos) continue;
 
-                switch (anim_mode) {
+                switch (configManager.get().anim_mode) {
                     case ANIMATION_TYPE_SCROLL_UP:   if (step < 16) drawSingleChar(i, oc, ox, -(step * 4)); break;
                     case ANIMATION_TYPE_SCROLL_DOWN: if (step < 16) drawSingleChar(i, oc, ox, (step * 4)); break;
                     case ANIMATION_TYPE_VERTICAL_FLIP: if (step <= 8) drawScaledChar(i, oc, ox, ((8 - step) * 64) / 8); break;
@@ -424,8 +419,8 @@ void DisplayManager::updateAll(String inTexts[4], bool force) {
                 }
             }
 
-            bool isIconScreen = is_flipped ? (i == 3) : (i == 0);
-            if (isIconScreen && chime_enabled) screens[i]->drawXBM(0, 0, 8, 8, bell_icon);
+            bool isIconScreen = configManager.get().is_flipped ? (i == 3) : (i == 0);
+            if (isIconScreen && configManager.get().chime_enabled) screens[i]->drawXBM(0, 0, 8, 8, bell_icon);
         }
         pushParallel();
         if (step < 16) {
@@ -556,7 +551,7 @@ void DisplayManager::updateLastLog(const String& msg) {
 void DisplayManager::showLargeIP(IPAddress ip) {
     for (int i = 0; i < 4; i++) {
         screens[i]->clearBuffer();
-        int ip_idx = is_flipped ? (3 - i) : i;
+        int ip_idx = configManager.get().is_flipped ? (3 - i) : i;
         String segment = String(ip[ip_idx]);
         int charCount = segment.length();
         int totalW = charCount * 32;
@@ -565,7 +560,7 @@ void DisplayManager::showLargeIP(IPAddress ip) {
             drawSingleChar(i, segment.substring(j, j + 1), startX + (j * 32), 0);
         }
         if (i < 3) screens[i]->drawBox(120, 56, 4, 4);
-        bool isTitleScreen = is_flipped ? (i == 3) : (i == 0);
+        bool isTitleScreen = configManager.get().is_flipped ? (i == 3) : (i == 0);
         if (isTitleScreen) {
             screens[i]->setFont(u8g2_font_4x6_tf);
             screens[i]->drawStr(0, 7, "SETTING ADDR");
@@ -577,11 +572,11 @@ void DisplayManager::showLargeIP(IPAddress ip) {
 void DisplayManager::showButtonHelp() {
     const char* titles[4] = {"BTN 1", "BTN 2", "BTN 3", "BTN 4"};
     char chimeStr[20], animStr[32];
-    sprintf(chimeStr, "S:CHIME(%s)", chime_enabled ? "ON" : "OFF");
-    sprintf(animStr, "S:ANIMATION MODE %d", anim_mode);
+    sprintf(chimeStr, "S:CHIME(%s)", configManager.get().chime_enabled ? "ON" : "OFF");
+    sprintf(animStr, "S:ANIMATION MODE %d", configManager.get().anim_mode);
     const char* shorts[4] = {chimeStr, "S:NUM <> HAN", animStr, "S:NEXT PAGE"};
     char flipStr[16];
-    sprintf(flipStr, "L:FLIP (%s)", is_flipped ? "ON" : "OFF");
+    sprintf(flipStr, "L:FLIP (%s)", configManager.get().is_flipped ? "ON" : "OFF");
     const char* longs[4]  = {flipStr,  "L:12/24", "L:-",  "L:-"};
     for (int i = 0; i < 4; i++) {
         screens[i]->clearBuffer();
