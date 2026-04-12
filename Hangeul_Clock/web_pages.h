@@ -407,6 +407,9 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
 
         async function processAll() {
             els.apply.disabled = true; els.pWrap.style.display = "block";
+            // 업로드 시작 전 모든 배지 초기화 (어둡게)
+            UNIQ_CHARS.forEach(c => document.getElementById('b_'+c).classList.remove('active'));
+            
             const tC = document.createElement('canvas'); tC.width = 64; tC.height = 64;
             const tX = tC.getContext('2d');
             for(let i=0; i<UNIQ_CHARS.length; i++) {
@@ -420,9 +423,12 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
                 }
                 let hex = ""; new TextEncoder().encode(char).forEach(b => hex += b.toString(16).toUpperCase().padStart(2, '0'));
                 const fd = new FormData(); fd.append('file', new Blob([bm]), `c_${hex}.bin`);
+                
+                // 해당 글자 배지 강조 (업로드 시도 시점)
+                document.getElementById('b_'+char).classList.add('active');
+                
                 await fetch(`/upload?slot=${els.slot.value}`, { method: 'POST', body: fd });
                 els.pFill.style.width = ((i+1)/UNIQ_CHARS.length * 100) + "%";
-                document.getElementById('b_'+char).classList.add('active');
             }
             await fetch('/api/refresh_cache', { method: 'POST' });
             if (els.fIn.files[0]) await fetch('/api/config', { method: 'POST', body: JSON.stringify({ font_name: els.fIn.files[0].name }) });

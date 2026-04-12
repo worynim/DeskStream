@@ -1,3 +1,8 @@
+## [v4.2.1] ✅ 커밋완료 - 2026-04-12 22:48
+### Improved (Hangeul_Clock: UI/UX Feedback Restoration)
+- **업로드 진행 동기화**: Font Studio에서 '일괄 업로드' 시 각 캐릭터 배지가 전송 순서에 맞춰 하나씩 밝아지는 시각적 진행 표시 기능을 복구했습니다.
+- **배지 초기화 로직**: 업로드 재시작 시 기존 활성화된 배지들을 자동으로 어둡게 초기화하여 진행 상태를 명확하게 파악할 수 있도록 개선했습니다.
+
 ## [v4.2.0] ✅ 커밋완료 - 2026-04-12 22:06
 ### Stable & Optimized (Hangeul_Clock: UI/UX Performance & Architectural Polish)
 - **제로-스터터(Zero-Stutter) 웹 API**: 폰트 슬롯 이름 **메모리 캐싱 시스템**을 도입하여, 웹 대시보드 로딩 시 시스템이 5초간 멈추던 LittleFS I/O 병목을 근본적으로 해결했습니다.

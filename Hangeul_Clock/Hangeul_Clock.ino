@@ -149,7 +149,7 @@ void setup() {
     display.begin();
     display.playStartupMelody(); 
     
-    logger.addLog("Hangeul Clock v2.3.0");
+    logger.addLog("Hangeul Clock");
     logger.addLog("Service Unitized");
     
     // 비트맵 캐시 로딩 (이 작업이 무거워서 이전에는 버튼 감지를 방해함)
