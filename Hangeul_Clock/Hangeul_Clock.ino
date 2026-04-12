@@ -47,6 +47,10 @@ void btn1_long() {
 
 void btn2_short() {
     display.beep(50, 3000);
+    if (!renderer.isCacheLoaded()) {
+        display.showStatus("Font Required!");
+        return;
+    }
     uint8_t nextMode = (configManager.get().display_mode == CLOCK_MODE_HANGUL) ? CLOCK_MODE_NUMERIC : CLOCK_MODE_HANGUL;
     display.setDisplayMode(nextMode);
     display.clearAll();
@@ -87,38 +91,62 @@ void on_yield() {
 
 void setup() {
     Serial.begin(115200);
+    
+    // 1. 시스템 공장 초기화 감지 (최우선 순위)
+    pinMode(BTN1_PIN, INPUT_PULLUP);
+    delay(300); // 핀 및 하드웨어 안정화 대기
+    
+    if (digitalRead(BTN1_PIN) == LOW) {
+        display.begin(); // OLED 피드백을 위해 먼저 초기화
+        display.showStatus("System Resetting...");
+        logger.addLog("!!! FACTORY RESET !!!");
+        
+        // 파일 시스템 드라이버 활성화
+        LittleFS.begin(true);
+        
+        logger.addLog("LittleFS Formatting...");
+        if (LittleFS.format()) {
+            logger.addLog("Format Success!");
+        } else {
+            logger.addLog("Format Failed!");
+        }
+        LittleFS.end();
+        
+        logger.addLog("WiFi Resetting...");
+        WiFiManager wm; // 로컬 객체로 생성하여 초기화
+        wm.resetSettings();
+        
+        logger.addLog("Reset Complete!");
+        delay(2000);
+        ESP.restart();
+    }
 
+    // 2. 일반 부팅 시퀀스
     if (!LittleFS.begin(true)) Serial.println("[SYSTEM] LittleFS Mount Failed");
 
-    // 1. 입력 및 로깅 시스템 초기화
+    // 입력 및 로깅 시스템 초기화
     inputManager.begin();
     inputManager.setCallbacks(0, btn1_short, btn1_long);
     inputManager.setCallbacks(1, btn2_short, btn2_long);
     inputManager.setCallbacks(2, btn3_short, btn3_long);
     inputManager.setCallbacks(3, btn4_short, btn4_long);
 
-    // 2. 디스플레이 초기화 및 시작 피드백
+    // 디스플레이 초기화 및 시작 피드백
     display.begin();
     display.playStartupMelody(); 
     
-    logger.addLog("Hangeul Clock v2.0.1");
+    logger.addLog("Hangeul Clock v2.3.0");
     logger.addLog("Service Unitized");
     
-    // 3. 비트맵 캐시 로딩
+    // 비트맵 캐시 로딩 (이 작업이 무거워서 이전에는 버튼 감지를 방해함)
     display.loadBitmapCache();
     display.setYieldCallback(on_yield);
 
-    // 4. WiFi 연결 시퀀스
+    // WiFi 연결 시퀀스
     WiFiManager wm;
     wm.setAPCallback(configModeCallback);
     wm.setConfigPortalTimeout(WIFI_CONFIG_TIMEOUT);
     
-    if (digitalRead(BTN1_PIN) == LOW) {
-        display.showStatus("WiFi Resetting...");
-        wm.resetSettings();
-        delay(1000);
-    }
-
     logger.addLog("WiFi Connecting");
     
     int dotCount = 0;
@@ -176,7 +204,8 @@ void handleClockUpdate(bool force = false) {
 
     int h = timeinfo.tm_hour, m = timeinfo.tm_min, s = timeinfo.tm_sec, d = timeinfo.tm_mday;
     String texts[4];
-    bool isHangul = (configManager.get().display_mode == CLOCK_MODE_HANGUL);
+    // 커스텀 폰트 캐시가 로드되지 않은 경우 강제로 숫자 모드 사용 (기본 폰트 글자 부족 대응)
+    bool isHangul = (configManager.get().display_mode == CLOCK_MODE_HANGUL) && renderer.isCacheLoaded();
     bool is24H = (configManager.get().hour_format == HOUR_FORMAT_24H);
 
     // 텍스트 생성 (v1.4.0 최적화 구조)

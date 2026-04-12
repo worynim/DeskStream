@@ -82,5 +82,6 @@ const int DAYLIGHT_OFFSET_SEC = 0;
 #define LONG_PRESS_TIME_MS 1000
 #define DEBOUNCE_TIME_MS 50
 #define WIFI_CONFIG_TIMEOUT 120
+#define DEBUG_MODE 1                             // 1: 디버그 정보 출력 활성화, 0: 비활성화
 
 #endif

@@ -28,6 +28,7 @@ public:
     void preparePageUpdate(uint8_t screenIdx, uint8_t page, uint8_t firstTile, uint8_t tileCount);
     void setShadowData(uint8_t screenIdx, int offset, uint8_t data);
     uint8_t getShadowData(uint8_t screenIdx, int offset) const;
+    void invalidateShadow(uint8_t screenIdx);
 
     // 하위 레벨 명령 (SSD1306 전용)
     esp_err_t sendCommand(uint8_t screenIdx, const uint8_t* cmd, size_t len);

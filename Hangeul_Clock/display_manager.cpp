@@ -121,10 +121,16 @@ void DisplayManager::loadBitmapCache() {
 // findChar, getHexKey 로직은 Renderer로 이동됨
 
 void DisplayManager::clearAll() {
-    for (int i = 0; i < NUM_SCREENS; i++) {
-        screens[i]->clearBuffer();
-        lastTexts[i] = "";
+    u8g2_1.clearBuffer();
+    u8g2_2.clearBuffer();
+    u8g2_3.clearBuffer();
+    u8g2_4.clearBuffer();
+    
+    // 섀도우 버퍼를 무효화하여 pushParallel()이 모든 0픽셀을 강제로 전송하게 함
+    for(int i=0; i<NUM_SCREENS; i++) {
+        i2cPlatform.invalidateShadow(i);
     }
+    
     pushParallel(); // 비동기 전송으로 경합 방지
     setForceUpdate(true); // 즉시 다음 프레임 그리기 예약
 }

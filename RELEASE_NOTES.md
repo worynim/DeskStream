@@ -1,3 +1,12 @@
+## [v4.1.0] ✅ 커밋완료 - 2026-04-12 20:23
+### Major Update (Hangeul_Clock: Storage Optimization & Reliability Engine)
+- **강력한 시스템 초기화(Factory Reset)**: 부팅 시 BTN 1 롱프레스로 WiFi 설정 및 LittleFS(파일 시스템)를 일괄 포맷하는 기능을 구현했습니다.
+- **렌더링 무결성 및 잔상 제거**: `invalidateShadow()` 로직을 도입하여 모드 전환 및 부팅 로그 종료 시 발생하던 미세 잔상을 완벽히 해결했습니다.
+- **지능형 폰트 세이프가드(Fallback)**: 
+    - 폰트 팩이 없는 상태에서도 시스템 내장 폰트(`u8g2`)로 시간을 항상 표시합니다.
+    - 글자 누락 방지를 위해 폰트 팩 부재 시 자동으로 **숫자 모드로 고정**하고 전환을 차단하는 보호 로직을 탑재했습니다.
+- **스토리지 및 메모리 리포트**: LittleFS 파일 목록 출력(Debug Mode) 및 실시간 Flash/RAM 점유율 모니터링 기능을 강화했습니다.
+
 ## [v4.0.1] ✅ 커밋완료 - 2026-04-12 18:31
 ### Improved (Hangeul_Clock: Security Hardening & Memory Integrity)
 - **보안 및 안정성 고도화**: API 입력 범위 검증, 파일 업로드 보호 및 힙 메모리 누수 방지 로직 추가.

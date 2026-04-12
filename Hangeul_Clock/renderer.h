@@ -45,6 +45,7 @@ public:
 
     // 캐시 접근
     size_t getCacheSize() const { return bitmapCache.size(); }
+    bool isCacheLoaded() const { return flatBuffer != nullptr; }
     void clearCache();
 
 private:

@@ -73,6 +73,14 @@ void I2CPlatform::setShadowData(uint8_t screenIdx, int offset, uint8_t data) {
     }
 }
 
+void I2CPlatform::invalidateShadow(uint8_t screenIdx) {
+    if (screenIdx < NUM_SCREENS) {
+        // 0xEE는 0x00(Clear)이나 0xFF(Initial)와 다른 특수 값으로, 
+        // 다음 pushParallel 시 강제로 하드웨어 전송을 유도함
+        memset(_shadow_buffer[screenIdx], 0xEE, sizeof(_shadow_buffer[screenIdx]));
+    }
+}
+
 uint8_t I2CPlatform::getShadowData(uint8_t screenIdx, int offset) const {
     if (screenIdx < NUM_SCREENS && offset < (SCREEN_WIDTH * PAGES_PER_SCREEN)) {
         return _shadow_buffer[screenIdx][offset];

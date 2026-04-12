@@ -49,10 +49,15 @@ void Renderer::loadBitmapCache() {
 
     // Stage 1: 스캔 및 총 크기 계산
     File file = root.openNextFile();
+    if (DEBUG_MODE) Serial.println("[FS] --- Listing All Files Begin ---");
     while (file) {
         String name = file.name();
+        size_t fileSize = file.size();
+        
+        // 모든 파일 목록 출력 (디버그용)
+        if (DEBUG_MODE) Serial.printf("[FS] File: /%-25s | Size: %7d bytes\n", name.c_str(), (int)fileSize);
+
         if (name.startsWith("c_") && name.endsWith(".bin")) {
-            size_t fileSize = file.size();
             if (fileSize > 0 && fileSize <= MAX_BITMAP_SIZE) {
                 CachedChar cc;
                 cc.hex = name.substring(2, name.length() - 4);
@@ -65,6 +70,7 @@ void Renderer::loadBitmapCache() {
         file.close();
         file = root.openNextFile();
     }
+    if (DEBUG_MODE) Serial.println("[FS] --- Listing All Files End ---");
 
     if (tempIndexList.empty()) {
         logger.updateLastLog("Bitmap: Empty");
@@ -107,6 +113,14 @@ void Renderer::loadBitmapCache() {
     char logBuf[64];
     sprintf(logBuf, "Bitmap Loaded: %d", (int)loadedCount);
     logger.updateLastLog(logBuf);
+
+    // 메모리 사용량 리포트 출력
+    Serial.println("\n[MEMORY] --- Memory Usage Report ---");
+    Serial.printf("[MEMORY] Flash (LittleFS) Total: %d bytes\n", (int)LittleFS.totalBytes());
+    Serial.printf("[MEMORY] Flash (LittleFS) Used:  %d bytes\n", (int)LittleFS.usedBytes());
+    Serial.printf("[MEMORY] RAM (Font Cache): %d bytes\n", (int)totalBufferSize);
+    Serial.printf("[MEMORY] RAM (Free Heap):  %d bytes\n", (int)ESP.getFreeHeap());
+    Serial.println("[MEMORY] ---------------------------\n");
 }
 
 String Renderer::getHexKey(const String& s) {
@@ -141,7 +155,7 @@ void Renderer::drawSingleChar(int screenIdx, const String& charStr, int x, int y
 void Renderer::drawDitheredChar(int screenIdx, const String& charStr, int x, int density) {
     if (!_screens || screenIdx >= NUM_SCREENS || density <= 0) return;
     const CachedChar* cc_ptr = findChar(charStr);
-    if (!cc_ptr) return;
+    if (!cc_ptr) { drawSingleChar(screenIdx, charStr, x, 0); return; }
     if (density >= 16) { drawSingleChar(screenIdx, charStr, x, 0); return; }
     
     const uint8_t* data = getCharDataPtr(cc_ptr);
@@ -166,7 +180,7 @@ void Renderer::drawZoomedChar(int screenIdx, const String& charStr, int x, int s
     if (scale_percent == 100) { drawSingleChar(screenIdx, charStr, x, 0); return; }
     
     const CachedChar* cc_ptr = findChar(charStr);
-    if (!cc_ptr) return;
+    if (!cc_ptr) { drawSingleChar(screenIdx, charStr, x, 0); return; }
 
     const uint8_t* data = getCharDataPtr(cc_ptr);
     U8G2* u8g2 = _screens[screenIdx];
