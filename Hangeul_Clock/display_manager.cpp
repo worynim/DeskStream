@@ -5,27 +5,7 @@ DisplayManager display;
 // 시보 표시용 종 모양 아이콘 (8x8)
 static const uint8_t bell_icon[] = { 0x18, 0x3C, 0x3C, 0x3C, 0xFF, 0xDB, 0x18, 0x00 };
 
-// ISR 및 콜백 함수 구현
-extern "C" uint8_t u8x8_gpio_and_delay_esp32_c3_fast(u8x8_t* u8x8, uint8_t msg, uint8_t arg_int, void* arg_ptr) {
-  switch (msg) {
-    case U8X8_MSG_GPIO_AND_DELAY_INIT:
-      pinMode(u8x8->pins[U8X8_PIN_I2C_CLOCK], OUTPUT_OPEN_DRAIN);
-      pinMode(u8x8->pins[U8X8_PIN_I2C_DATA], OUTPUT_OPEN_DRAIN);
-      gpio_pullup_en((gpio_num_t)SW_SCL_PIN);
-      gpio_pullup_en((gpio_num_t)SW_SDA_PIN);
-      break;
-    case U8X8_MSG_GPIO_I2C_CLOCK:
-      if (arg_int) GPIO.out_w1ts.val = (1 << SW_SCL_PIN);
-      else GPIO.out_w1tc.val = (1 << SW_SCL_PIN);
-      break;
-    case U8X8_MSG_GPIO_I2C_DATA:
-      if (arg_int) GPIO.out_w1ts.val = (1 << SW_SDA_PIN);
-      else GPIO.out_w1tc.val = (1 << SW_SDA_PIN);
-      break;
-    default: break;
-  }
-  return 1;
-}
+// 하위 레벨 I2C 콜백 및 설정은 i2c_platform.cpp로 이관됨
 
 static void buzzerTimerCallback(TimerHandle_t xTimer) {
     noTone(BUZZER_PIN);
@@ -42,19 +22,10 @@ DisplayManager::DisplayManager() :
 void DisplayManager::begin() {
     applyFlip();
     main_task_handle = xTaskGetCurrentTaskHandle();
-    memset(shadow_buffer, 0xFF, sizeof(shadow_buffer));
-    
     for (int i = 0; i < NUM_SCREENS; i++) screens[i]->getU8g2()->tile_buf_ptr = u8g2_buffers[i];
-    i2c_master_bus_config_t bus_cfg = {};
-    bus_cfg.i2c_port = I2C_NUM_0; bus_cfg.sda_io_num = (gpio_num_t)HW_SDA_PIN; bus_cfg.scl_io_num = (gpio_num_t)HW_SCL_PIN;
-    bus_cfg.clk_source = I2C_CLK_SRC_DEFAULT; bus_cfg.glitch_ignore_cnt = 7; bus_cfg.flags.enable_internal_pullup = true;
-    ESP_ERROR_CHECK(i2c_new_master_bus(&bus_cfg, &i2c_bus_handle));
     
-    i2c_device_config_t dev_cfg = {};
-    dev_cfg.dev_addr_length = I2C_ADDR_BIT_LEN_7; dev_cfg.device_address = I2C_ADDR_HW_0; dev_cfg.scl_speed_hz = I2C_SPEED_HZ;
-    ESP_ERROR_CHECK(i2c_master_bus_add_device(i2c_bus_handle, &dev_cfg, &i2c_dev_handle[0]));
-    dev_cfg.device_address = I2C_ADDR_HW_1;
-    ESP_ERROR_CHECK(i2c_master_bus_add_device(i2c_bus_handle, &dev_cfg, &i2c_dev_handle[1]));
+    // 1. I2C 플랫폼 초기화
+    i2cPlatform.begin();
     
     u8g2_1.getU8x8()->byte_cb = u8x8_byte_esp32_idf_0; u8g2_1.begin();
     u8g2_2.getU8x8()->byte_cb = u8x8_byte_esp32_idf_1; u8g2_2.setI2CAddress(I2C_ADDR_HW_1 * 2); u8g2_2.begin();
@@ -69,7 +40,7 @@ void DisplayManager::begin() {
     chime_enabled = prefs.getBool("chime", false);
     font_name = prefs.getString("font_name", "System Default");
     
-    xTaskCreatePinnedToCore(i2c_hw_task, "I2C_HW", HW_TASK_STACK, this, HW_TASK_PRIO, &hw_task_handle, HW_TASK_CORE);
+    // HW 태스크 생성은 i2cPlatform.begin()에서 처리됨
     
     for (int i = 0; i < 4; i++) {
         screens[i]->setFlipMode(is_flipped);
@@ -219,7 +190,7 @@ void DisplayManager::clearAll() {
         screens[i]->sendBuffer();
         lastTexts[i] = "";
     }
-    memset(shadow_buffer, 0xFF, sizeof(shadow_buffer));
+    // shadow_buffer는 i2cPlatform 내부에 있으므로 직접 접근하지 않음
 }
 
 void DisplayManager::beep(int duration, int freq) {
@@ -469,30 +440,32 @@ void DisplayManager::updateAll(String inTexts[4], bool force) {
 }
 
 void DisplayManager::pushParallel() {
-    if (is_transmitting_hw && hw_task_handle) {
-        if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(I2C_SYNC_TIMEOUT_MS)) == 0) {
-            Serial.println("[I2C] Sync Timeout! Skipping frame update to avoid race condition.");
-            return; // 배경 태스크가 아직 실행 중이면 데이터 오염 방지를 위해 중단
-        }
-        is_transmitting_hw = false;
-    }
+    i2cPlatform.waitForSync(I2C_SYNC_TIMEOUT_MS);
+
     bool any_hw_dirty = false;
     for (int s = 0; s < 2; s++) {
-        hw_dirty_mask[s] = 0; uint8_t* buf = screens[s]->getBufferPtr();
+        uint8_t* buf = screens[s]->getBufferPtr();
         for (int p = 0; p < PAGES_PER_SCREEN; p++) {
             bool page_dirty = false; int first_tile = -1, last_tile = -1;
             for (int t = 0; t < TILES_PER_PAGE; t++) {
                 bool tile_dirty = false;
                 for (int tx = 0; tx < 8; tx++) {
                     int idx = p * SCREEN_WIDTH + t * 8 + tx;
-                    if (buf[idx] != shadow_buffer[s][idx]) { tile_dirty = true; shadow_buffer[s][idx] = buf[idx]; }
+                    if (buf[idx] != i2cPlatform.getShadowData(s, idx)) { 
+                        tile_dirty = true; 
+                        i2cPlatform.setShadowData(s, idx, buf[idx]); 
+                    }
                 }
                 if (tile_dirty) { if (first_tile == -1) first_tile = t; last_tile = t; page_dirty = true; }
             }
-            if (page_dirty) { hw_dirty_mask[s] |= (1 << p); hw_first_tile[s][p] = (uint8_t)first_tile; hw_tile_count[s][p] = (uint8_t)(last_tile - first_tile + 1); any_hw_dirty = true; }
+            if (page_dirty) { 
+                i2cPlatform.preparePageUpdate(s, p, first_tile, last_tile - first_tile + 1);
+                any_hw_dirty = true; 
+            }
         }
     }
-    if (hw_task_handle && any_hw_dirty) { is_transmitting_hw = true; xTaskNotifyGive(hw_task_handle); }
+    if (any_hw_dirty) { i2cPlatform.notifyTransmission(); }
+    
     for (int s = 2; s < 4; s++) {
         uint8_t* buf = screens[s]->getBufferPtr();
         for (int p = 0; p < PAGES_PER_SCREEN; p++) {
@@ -501,7 +474,10 @@ void DisplayManager::pushParallel() {
                 bool tile_dirty = false;
                 for (int tx = 0; tx < 8; tx++) {
                     int idx = p * SCREEN_WIDTH + t * 8 + tx;
-                    if (buf[idx] != shadow_buffer[s][idx]) { tile_dirty = true; shadow_buffer[s][idx] = buf[idx]; }
+                    if (buf[idx] != i2cPlatform.getShadowData(s, idx)) { 
+                        tile_dirty = true; 
+                        i2cPlatform.setShadowData(s, idx, buf[idx]); 
+                    }
                 }
                 if (tile_dirty) { if (first_tile == -1) first_tile = t; last_tile = t; page_dirty = true; }
             }
@@ -510,42 +486,11 @@ void DisplayManager::pushParallel() {
     }
 }
 
-void DisplayManager::i2c_hw_task(void* arg) {
-    DisplayManager* mgr = (DisplayManager*)arg;
-    while (1) {
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-        bool has_error = false;
-        for (int s = 0; s < 2; s++) {
-            uint8_t mask = mgr->hw_dirty_mask[s]; if (mask == 0) continue;
-            i2c_master_dev_handle_t dev_h = mgr->i2c_dev_handle[s];
-            for (int p = 0; p < PAGES_PER_SCREEN; p++) {
-                if (!(mask & (1 << p))) continue;
-                uint8_t ft = mgr->hw_first_tile[s][p], tc = mgr->hw_tile_count[s][p], col = ft * 8, len = tc * 8;
-                uint8_t cmd[] = {0x00, (uint8_t)(0xB0|p), (uint8_t)(col & 0x0F), (uint8_t)(0x10|(col>>4))};
-                if (i2c_master_transmit(dev_h, cmd, 4, pdMS_TO_TICKS(I2C_CMD_TIMEOUT_MS)) != ESP_OK) has_error = true;
-                
-                uint8_t tx[129]; tx[0] = 0x40; memcpy(&tx[1], &mgr->shadow_buffer[s][p * SCREEN_WIDTH + col], len);
-                if (i2c_master_transmit(dev_h, tx, len + 1, pdMS_TO_TICKS(I2C_TX_TIMEOUT_MS)) != ESP_OK) has_error = true;
-            }
-        }
-        
-        if (has_error) {
-            mgr->hw_i2c_error_count++;
-            if (mgr->hw_i2c_error_count > mgr->I2C_ERROR_THRESHOLD) {
-                Serial.println("[I2C] Critical error count reached. Triggering recovery...");
-                mgr->recoverI2CBus();
-            }
-        } else if (mgr->hw_i2c_error_count > 0) {
-            mgr->hw_i2c_error_count--; // 에러가 없으면 점진적으로 감소
-        }
-
-        if (mgr->main_task_handle) xTaskNotifyGive(mgr->main_task_handle);
-    }
-}
+// i2c_hw_task 구현은 i2c_platform.cpp로 이관됨
 
 void DisplayManager::recoverI2CBus() {
     Serial.println("[I2C] Recovering HW Bus and Screens...");
-    hw_i2c_error_count = 0;
+    // 하위 레벨 소프트 초기화 루틴 호출 (필요 시 i2cPlatform.recoverBus() 등)
     
     // OLED 기기 재설정 및 재시작 (주소 및 콜백 필수 재할당)
     u8g2_1.getU8x8()->byte_cb = u8x8_byte_esp32_idf_0; 
@@ -653,24 +598,4 @@ void DisplayManager::showStatus(const String& msg) {
     u8g2->drawStr(0, 10, msg.c_str()); pushParallel();
 }
 
-extern "C" uint8_t u8x8_byte_esp32_idf_0(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr) {
-    switch(msg) {
-        case U8X8_MSG_BYTE_INIT: break;
-        case U8X8_MSG_BYTE_START_TRANSFER: display.i2c_packet_ptr[0] = 0; break;
-        case U8X8_MSG_BYTE_SEND: memcpy(&display.i2c_packet_buf[0][display.i2c_packet_ptr[0]], arg_ptr, arg_int); display.i2c_packet_ptr[0] += arg_int; break;
-        case U8X8_MSG_BYTE_END_TRANSFER: i2c_master_transmit(display.i2c_dev_handle[0], display.i2c_packet_buf[0], display.i2c_packet_ptr[0], pdMS_TO_TICKS(I2C_TX_TIMEOUT_MS)); break;
-        default: return 0;
-    }
-    return 1;
-}
-
-extern "C" uint8_t u8x8_byte_esp32_idf_1(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr) {
-    switch(msg) {
-        case U8X8_MSG_BYTE_INIT: break;
-        case U8X8_MSG_BYTE_START_TRANSFER: display.i2c_packet_ptr[1] = 0; break;
-        case U8X8_MSG_BYTE_SEND: memcpy(&display.i2c_packet_buf[1][display.i2c_packet_ptr[1]], arg_ptr, arg_int); display.i2c_packet_ptr[1] += arg_int; break;
-        case U8X8_MSG_BYTE_END_TRANSFER: i2c_master_transmit(display.i2c_dev_handle[1], display.i2c_packet_buf[1], display.i2c_packet_ptr[1], pdMS_TO_TICKS(I2C_TX_TIMEOUT_MS)); break;
-        default: return 0;
-    }
-    return 1;
-}
+// 하위 레벨 I2C 전송 콜백은 i2c_platform.cpp로 이관됨
