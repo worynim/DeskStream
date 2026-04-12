@@ -46,7 +46,7 @@ const int DAYLIGHT_OFFSET_SEC = 0;
 #define UPDATE_INTERVAL_MS 1000  // 1초마다 갱신
 
 // === [7] 폰트 및 디자인 설정 ===
-#define HANGEUL_FONT u8g2_font_unifont_t_korean2  // 기본 한글 폰트
+#define HANGEUL_FONT u8g2_font_unifont_t_korean1  // 경량 한글 폰트 (메모리 절약)
 #define STATUS_FONT u8g2_font_6x10_tf           // 상태 메시지용 폰트
 #define TEXT_Y_POS 42                            // 한글 텍스트 출력 높이 (0~63)
 

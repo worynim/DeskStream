@@ -159,7 +159,7 @@ void on_yield() {
 
 void setup() {
     Serial.begin(115200);
-    Serial.println("\n[SYSTEM] Starting Hangeul Clock v1.7.0 (HAL Architecture)");
+    Serial.println("\n[SYSTEM] Starting Hangeul Clock v1.8.0 (Canvas Architecture)");
 
     if (!LittleFS.begin(true)) Serial.println("[SYSTEM] LittleFS Mount Failed");
 
@@ -170,8 +170,8 @@ void setup() {
     display.begin();
     display.playStartupMelody(); 
     
-    display.addLog("Hangeul Clock v1.7.0");
-    display.addLog("HAL Architecture");
+    display.addLog("Hangeul Clock v1.8.0");
+    display.addLog("Canvas Architecture");
     
     // 3. 비트맵 캐시 로딩 (진행 점 애니메이션 포함)
     display.loadBitmapCache();

@@ -35,10 +35,11 @@ void DisplayManager::begin() {
     u8g2_3.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast; u8g2_3.begin();
     u8g2_4.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast; u8g2_4.setI2CAddress(I2C_ADDR_HW_1 * 2); u8g2_4.begin();
     
-    // 2. 설정 매니저 초기화 및 로드
+    // 2. 렌더러 초기화
+    renderer.setScreens(screens);
+
+    // 3. 설정 매니저 초기화 및 로드
     configManager.begin();
-    
-    // HW 태스크 생성은 i2cPlatform.begin()에서 처리됨
     
     for (int i = 0; i < 4; i++) {
         screens[i]->setFlipMode(configManager.get().is_flipped);
@@ -109,75 +110,10 @@ void DisplayManager::setFontName(String name) {
 // saveConfig()은 ConfigManager로 대체됨
 
 void DisplayManager::loadBitmapCache() {
-    addLog("Bitmap Loading");
-    if (!LittleFS.exists("/")) {
-        updateLastLog("Bitmap Loading: [FS Error]");
-        return;
-    }
-
-    File root = LittleFS.open("/");
-    if (!root) return;
-    
-    // 로딩 실패 시 기존 캐시 유지를 위해 임시 컨테이너 사용
-    std::vector<CachedChar> tempCache;
-    std::map<String, int> tempIndex;
-
-    File file = root.openNextFile();
-    while (file) {
-        String name = file.name();
-        if (name.startsWith("c_") && name.endsWith(".bin")) {
-            size_t fileSize = file.size();
-            if (fileSize > 0 && fileSize <= MAX_BITMAP_SIZE) {
-                CachedChar cc;
-                cc.hex = name.substring(2, name.length() - 4);
-                try {
-                    cc.data.resize(fileSize);
-                    if (file.read(cc.data.data(), fileSize) == fileSize) {
-                        tempIndex[cc.hex] = tempCache.size();
-                        tempCache.push_back(std::move(cc));
-                    }
-                } catch (...) {
-                    Serial.println("[ERROR] Memory allocation failure during cache load: " + name);
-                }
-            }
-        }
-        file.close();
-        file = root.openNextFile();
-        
-        // 로딩 중 진행 표시 (점 애니메이션)
-        static int dotTicker = 0;
-        if (++dotTicker % 10 == 0) {
-            String dots = "Bitmap Loading";
-            for (int j = 0; j <= (dotTicker / 10) % 5; j++) dots += ".";
-            updateLastLog(dots);
-        }
-    }
-
-    // 성공적으로 읽어들인 경우에만 실제 캐시 교체 (원자적 교체 시뮬레이션)
-    if (!tempCache.empty()) {
-        bitmapCache = std::move(tempCache);
-        cacheIndex = std::move(tempIndex);
-        char logBuf[64];
-        sprintf(logBuf, "Bitmap Loaded: %d", bitmapCache.size());
-        updateLastLog(logBuf);
-    } else {
-        updateLastLog("Bitmap: Empty");
-    }
+    renderer.loadBitmapCache();
 }
 
-String DisplayManager::getHexKey(const String& s) {
-    String hexStr = "";
-    for (int k = 0; k < s.length(); k++) {
-        char buf[3]; sprintf(buf, "%02X", (unsigned char)s[k]); hexStr += buf;
-    }
-    return hexStr;
-}
-
-const CachedChar* DisplayManager::findChar(const String& s) {
-    String key = getHexKey(s);
-    if (cacheIndex.count(key)) return &bitmapCache[cacheIndex[key]];
-    return nullptr;
-}
+// findChar, getHexKey 로직은 Renderer로 이동됨
 
 void DisplayManager::clearAll() {
     for (int i = 0; i < NUM_SCREENS; i++) {
@@ -199,129 +135,16 @@ void DisplayManager::setYieldCallback(void (*cb)()) {
     on_yield_callback = cb;
 }
 
-void DisplayManager::drawDitheredChar(int idx, const String& charStr, int x, int density) {
-    if (density <= 0) return;
-    const CachedChar* cc_ptr = findChar(charStr);
-    if (!cc_ptr) return;
-    if (density >= 16) { drawSingleChar(idx, charStr, x, 0); return; }
-    
-    U8G2* u8g2 = screens[idx];
-    int bw = (cc_ptr->data.size() <= 256) ? 4 : 8;
-    int bx = (cc_ptr->data.size() <= 256) ? x : x - 16;
-    for (int r = 0; r < 64; r++) {
-        uint8_t row_mask = 0;
-        for (int px = 0; px < 8; px++) {
-            if (bayer_matrix[r % 4][(bx + px) % 4] < density) row_mask |= (1 << px);
-        }
-        for (int b = 0; b < bw; b++) {
-            uint8_t original = cc_ptr->data[r * bw + b];
-            uint8_t masked = original & row_mask;
-            if (masked) u8g2->drawBitmap(bx + (b * 8), r, 1, 1, &masked);
-        }
-    }
-}
-
-void DisplayManager::drawZoomedChar(int idx, const String& charStr, int x, int scale_percent) {
-    if (scale_percent <= 0) return;
-    if (scale_percent == 100) { drawSingleChar(idx, charStr, x, 0); return; }
-    
-    const CachedChar* cc_ptr = findChar(charStr);
-    if (!cc_ptr) return;
-
-    U8G2* u8g2 = screens[idx];
-    int bw = (cc_ptr->data.size() <= 256) ? 4 : 8;
-    int orig_w = bw * 8;
-    int target_w = (orig_w * scale_percent) / 100;
-    int target_h = (64 * scale_percent) / 100;
-    if (target_w <= 0 || target_h <= 0) return;
-
-    int bx = (cc_ptr->data.size() <= 256) ? x : x - 16;
-    int start_x = bx + (orig_w - target_w) / 2;
-    int start_y = (64 - target_h) / 2;
-
-    for (int r = 0; r < target_h; r++) {
-        int src_y = (r * 64) / target_h;
-        for (int c = 0; c < target_w; c++) {
-            int src_x = (c * orig_w) / target_w;
-            int byte_pos = (src_y * bw) + (src_x / 8);
-            int bit_pos = src_x % 8;
-            if (cc_ptr->data[byte_pos] & (0x80 >> bit_pos)) {
-                u8g2->drawPixel(start_x + c, start_y + r);
-            }
-        }
-    }
-}
-
-void DisplayManager::drawSingleChar(int idx, const String& charStr, int x, int y_offset) {
-    const CachedChar* cc_ptr = findChar(charStr);
-    if (cc_ptr) {
-        U8G2* u8g2 = screens[idx];
-        if (cc_ptr->data.size() <= 256) u8g2->drawBitmap(x, y_offset, 4, 64, cc_ptr->data.data());
-        else u8g2->drawBitmap(x - 16, y_offset, 8, 64, cc_ptr->data.data());
-    } else {
-        U8G2* u8g2 = screens[idx];
-        u8g2->setFont(HANGEUL_FONT);
-        u8g2->drawUTF8(x + (32 - u8g2->getUTF8Width(charStr.c_str())) / 2, TEXT_Y_POS + y_offset, charStr.c_str());
-    }
-}
-
-void DisplayManager::drawScaledChar(int idx, const String& charStr, int x, int h) {
-    if (h <= 0) return;
-    if (h == 64) { drawSingleChar(idx, charStr, x, 0); return; }
-    
-    const CachedChar* cc_ptr = findChar(charStr);
-    U8G2* u8g2 = screens[idx];
-    if (cc_ptr) {
-        int bw = (cc_ptr->data.size() <= 256) ? 4 : 8;
-        int bx = (cc_ptr->data.size() <= 256) ? x : x - 16;
-        int start_y = (64 - h) / 2;
-        for (int i = 0; i < h; i++) {
-            int src_y = (i * 64) / h;
-            u8g2->drawBitmap(bx, start_y + i, bw, 1, cc_ptr->data.data() + (src_y * bw));
-        }
-    } else {
-        u8g2->setFont(HANGEUL_FONT);
-        u8g2->drawUTF8(x + (32 - u8g2->getUTF8Width(charStr.c_str())) / 2, TEXT_Y_POS, charStr.c_str());
-    }
-}
-
-void DisplayManager::getCharData(const String& text, CharData outChars[8], int& count, bool centered, int screenIdx) {
-    count = 0;
-    if (text == "") return;
-    int i = 0;
-    while (i < text.length() && count < 8) {
-        int len = 1; unsigned char c = (unsigned char)text[i];
-        if (c < 0x80) len = 1; else if ((c & 0xE0) == 0xC0) len = 2; else if ((c & 0xE0) == 0xE0) len = 3; else if ((c & 0xF8) == 0xF0) len = 4;
-        outChars[count].c = text.substring(i, i + len);
-        i += len; count++;
-    }
-    
-    if (centered) {
-        int totalW = count * CHAR_WIDTH;
-        int startX = (SCREEN_WIDTH - totalW) / 2;
-        for (int j = 0; j < count; j++) outChars[j].x = startX + (j * CHAR_WIDTH);
-    } else {
-        outChars[count - 1].x = 96;
-        int numChars = count - 1;
-        if (numChars > 0) {
-            int startX = (96 - (numChars * CHAR_WIDTH)) / 2;
-            for (int j = 0; j < numChars; j++) {
-                outChars[j].x = startX + (j * CHAR_WIDTH);
-            }
-        }
-    }
-}
-
+// drawDitheredChar, drawZoomedChar, drawSingleChar, drawScaledChar, getCharData 로직 Renderer로 이관됨
 void DisplayManager::drawCenterText(int idx, const String& text, bool centered) {
-    screens[idx]->clearBuffer();
+    U8G2* u8g2 = screens[idx];
+    u8g2->clearBuffer();
     CharData chars[8]; int count;
-    getCharData(text, chars, count, centered, idx);
-    for (int j = 0; j < count; j++) {
-        drawSingleChar(idx, chars[j].c, chars[j].x, 0);
+    renderer.getCharData(text, chars, count, centered);
+    for (int i = 0; i < count; i++) {
+        renderer.drawSingleChar(idx, chars[i].c, chars[i].x, 0);
     }
-    if (centered && configManager.get().chime_enabled) {
-        screens[idx]->drawXBM(0, 0, 8, 8, bell_icon);
-    }
+    if (centered && configManager.get().chime_enabled) u8g2->drawXBM(0, 0, 8, 8, bell_icon);
 }
 
 void DisplayManager::updateAll(String inTexts[4], bool force) {
@@ -352,8 +175,8 @@ void DisplayManager::updateAll(String inTexts[4], bool force) {
     for (int i = 0; i < 4; i++) {
         if (changed[i]) {
             bool isCentered = configManager.get().is_flipped ? (i == 3) : (i == 0);
-            getCharData(lastTexts[i], oldChars[i], oldCount[i], isCentered, i);
-            getCharData(texts[i], newChars[i], newCount[i], isCentered, i);
+            renderer.getCharData(lastTexts[i], oldChars[i], oldCount[i], isCentered);
+            renderer.getCharData(texts[i], newChars[i], newCount[i], isCentered);
         }
     }
 
@@ -374,30 +197,30 @@ void DisplayManager::updateAll(String inTexts[4], bool force) {
                 }
 
                 if (isStatic) {
-                    drawSingleChar(i, nc, nx, 0);
+                    renderer.drawSingleChar(i, nc, nx, 0);
                 } else {
                     switch (configManager.get().anim_mode) {
                         case ANIMATION_TYPE_SCROLL_UP:
-                            if (step < 16 && oc != "") drawSingleChar(i, oc, nx, -(step * 4));
-                            drawSingleChar(i, nc, nx, 64 - (step * 4));
+                            if (step < 16 && oc != "") renderer.drawSingleChar(i, oc, nx, -(step * 4));
+                            renderer.drawSingleChar(i, nc, nx, 64 - (step * 4));
                             break;
                         case ANIMATION_TYPE_SCROLL_DOWN:
-                            if (step < 16 && oc != "") drawSingleChar(i, oc, nx, (step * 4));
-                            drawSingleChar(i, nc, nx, -64 + (step * 4));
+                            if (step < 16 && oc != "") renderer.drawSingleChar(i, oc, nx, (step * 4));
+                            renderer.drawSingleChar(i, nc, nx, -64 + (step * 4));
                             break;
                         case ANIMATION_TYPE_VERTICAL_FLIP:
-                            if (step <= 8) { if (oc != "") drawScaledChar(i, oc, nx, ((8 - step) * 64) / 8); }
-                            else { drawScaledChar(i, nc, nx, ((step - 8) * 64) / 8); }
+                            if (step <= 8) { if (oc != "") renderer.drawScaledChar(i, oc, nx, ((8 - step) * 64) / 8); }
+                            else { renderer.drawScaledChar(i, nc, nx, ((step - 8) * 64) / 8); }
                             break;
                         case ANIMATION_TYPE_DITHERED_FADE:
-                            if (step <= 8) { if (oc != "") drawDitheredChar(i, oc, nx, 16 - (step * 2)); }
-                            else { drawDitheredChar(i, nc, nx, (step - 8) * 2); }
+                            if (step <= 8) { if (oc != "") renderer.drawDitheredChar(i, oc, nx, 16 - (step * 2)); }
+                            else { renderer.drawDitheredChar(i, nc, nx, (step - 8) * 2); }
                             break;
                         case ANIMATION_TYPE_ZOOM:
-                            if (step <= 8) { if (oc != "") drawZoomedChar(i, oc, nx, ((8 - step) * 100) / 8); }
+                            if (step <= 8) { if (oc != "") renderer.drawZoomedChar(i, oc, nx, ((8 - step) * 100) / 8); }
                             else {
                                 int sc = (step <= 12) ? ((step - 8) * 150 / 4) : (150 - (step - 12) * 50 / 4);
-                                drawZoomedChar(i, nc, nx, sc);
+                                renderer.drawZoomedChar(i, nc, nx, sc);
                             }
                             break;
                     }
@@ -411,11 +234,11 @@ void DisplayManager::updateAll(String inTexts[4], bool force) {
                 if (stillHasPos) continue;
 
                 switch (configManager.get().anim_mode) {
-                    case ANIMATION_TYPE_SCROLL_UP:   if (step < 16) drawSingleChar(i, oc, ox, -(step * 4)); break;
-                    case ANIMATION_TYPE_SCROLL_DOWN: if (step < 16) drawSingleChar(i, oc, ox, (step * 4)); break;
-                    case ANIMATION_TYPE_VERTICAL_FLIP: if (step <= 8) drawScaledChar(i, oc, ox, ((8 - step) * 64) / 8); break;
-                    case ANIMATION_TYPE_DITHERED_FADE: if (step <= 8) drawDitheredChar(i, oc, ox, 16 - (step * 2)); break;
-                    case ANIMATION_TYPE_ZOOM:          if (step <= 8) drawZoomedChar(i, oc, ox, ((8 - step) * 100) / 8); break;
+                    case ANIMATION_TYPE_SCROLL_UP:   if (step < 16) renderer.drawSingleChar(i, oc, ox, -(step * 4)); break;
+                    case ANIMATION_TYPE_SCROLL_DOWN: if (step < 16) renderer.drawSingleChar(i, oc, ox, (step * 4)); break;
+                    case ANIMATION_TYPE_VERTICAL_FLIP: if (step <= 8) renderer.drawScaledChar(i, oc, ox, ((8 - step) * 64) / 8); break;
+                    case ANIMATION_TYPE_DITHERED_FADE: if (step <= 8) renderer.drawDitheredChar(i, oc, ox, 16 - (step * 2)); break;
+                    case ANIMATION_TYPE_ZOOM:          if (step <= 8) renderer.drawZoomedChar(i, oc, ox, ((8 - step) * 100) / 8); break;
                 }
             }
 
@@ -557,7 +380,7 @@ void DisplayManager::showLargeIP(IPAddress ip) {
         int totalW = charCount * 32;
         int startX = (128 - totalW) / 2;
         for (int j = 0; j < charCount; j++) {
-            drawSingleChar(i, segment.substring(j, j + 1), startX + (j * 32), 0);
+            renderer.drawSingleChar(i, segment.substring(j, j + 1), startX + (j * 32), 0);
         }
         if (i < 3) screens[i]->drawBox(120, 56, 4, 4);
         bool isTitleScreen = configManager.get().is_flipped ? (i == 3) : (i == 0);

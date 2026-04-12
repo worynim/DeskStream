@@ -10,21 +10,12 @@
 #include <utility>
 #include "i2c_platform.h"
 #include "config_manager.h"
+#include "renderer.h"
 
 class DisplayManager;
 extern DisplayManager display;
 
 // 외부 인터페이스 함수 포인터 선언 (i2c_platform.h로 이관됨)
-
-struct CharData {
-    String c;
-    int x;
-};
-
-struct CachedChar {
-    String hex;
-    std::vector<uint8_t> data;
-};
 
 class DisplayManager {
 public:
@@ -46,26 +37,14 @@ public:
     void setHourFormat(uint8_t format);
     void setAnimMode(uint8_t mode);
     void setFontName(String name);
-    void saveConfig();
     void loadBitmapCache();
     void clearAll();
     void beep(int duration = 50, int freq = 3000);
     void setYieldCallback(void (*cb)());
     void updateAll(String inTexts[4], bool force = false);
 
-    // 내부 헬퍼 메서드
-    const CachedChar* findChar(const String& s);
-    String getHexKey(const String& s);
-    void drawSingleChar(int idx, const String& charStr, int x, int y_offset = 0);
-    void drawDitheredChar(int idx, const String& charStr, int x, int density);
-    void drawZoomedChar(int idx, const String& charStr, int x, int scale_percent);
-    void drawScaledChar(int idx, const String& charStr, int x, int h);
-    void getCharData(const String& text, CharData outChars[8], int& count, bool centered, int screenIdx);
-    void drawCenterText(int idx, const String& text, bool centered);
+    // 헬퍼 및 유틸리티
     void pushParallel();
-
-    // static void i2c_hw_task(void* arg); // i2c_platform.h로 이관됨
-
     void showLargeIP(IPAddress ip);
     void showButtonHelp();
     void showStatus(const String& msg);
@@ -80,16 +59,11 @@ private:
     bool _needsForceUpdate = false;
     void (*on_yield_callback)() = nullptr;
     TimerHandle_t buzzerTimer = NULL;
-    std::vector<CachedChar> bitmapCache;
-    std::map<String, int> cacheIndex;
-    const uint8_t bayer_matrix[4][4] = {
-        { 0,  8,  2, 10},
-        {12,  4, 14,  6},
-        { 3, 11,  1,  9},
-        {15,  7, 13,  5}
-    };
+    
     String log_lines[4];
     int log_count = 0;
+    
+    void drawCenterText(int idx, const String& text, bool centered);
 };
 
 #endif
