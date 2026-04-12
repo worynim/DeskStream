@@ -1,3 +1,8 @@
+/**
+ * @file display_manager.cpp
+ * @brief 고수준 디스플레이 및 UI 스테이지 관리 클래스 구현
+ * @details 4개 OLED 디스플레이 제어, 부저 피드백, UI 상태 전환 로직 구현
+ */
 #include "display_manager.h"
 #include "LittleFS.h"
 #include <freertos/FreeRTOS.h>

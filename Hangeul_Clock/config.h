@@ -1,3 +1,8 @@
+/**
+ * @file config.h
+ * @brief 프로젝트 전역 설정 및 하드웨어 핀 맵 정의
+ * @details I2C 주소, Wi-Fi 초기 접속 정보, 애니메이션 타이밍 등 시스템 상수를 관리
+ */
 #ifndef CONFIG_H
 #define CONFIG_H
 

@@ -1,3 +1,8 @@
+/**
+ * @file renderer.h
+ * @brief 고전 수치 및 한글 비트맵 렌더링 엔진 정의
+ * @details 비트맵 캐시 관리 및 디더링, 줌, 스케일링 등 고수준 그래픽 효과 처리
+ */
 #ifndef RENDERER_H
 #define RENDERER_H
 

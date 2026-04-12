@@ -1,3 +1,8 @@
+/**
+ * @file config_manager.cpp
+ * @brief 영속적 설정 관리 클래스 구현
+ * @details LittleFS 및 Preferences를 이용한 설정값 저장, 로드 및 지능형 지연 저장(Lazy Save) 기능 구현
+ */
 #include "config_manager.h"
 
 // 전역 인스턴스 정의

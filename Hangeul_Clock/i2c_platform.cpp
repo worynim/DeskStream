@@ -1,3 +1,8 @@
+/**
+ * @file i2c_platform.cpp
+ * @brief I2C 하드웨어 추상화 및 병렬 전송 클래스 구현
+ * @details 4개 OLED 분산 전송, 버스 자가 치유(Recovery) 및 하드웨어 통신 무결성 확보 로직 구현
+ */
 #include "i2c_platform.h"
 #include "driver/gpio.h"
 #include "soc/gpio_struct.h"

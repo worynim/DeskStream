@@ -1,3 +1,8 @@
+/**
+ * @file i2c_platform.h
+ * @brief I2C 하드웨어 추상화 및 병렬 전송 클래스 정의
+ * @details 4개 OLED 디스플레이를 위한 병렬 I2C 전송 로직 및 버스 자가 치유(Recovery) 관리
+ */
 #ifndef I2C_PLATFORM_H
 #define I2C_PLATFORM_H
 

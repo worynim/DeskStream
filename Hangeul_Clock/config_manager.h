@@ -1,3 +1,8 @@
+/**
+ * @file config_manager.h
+ * @brief 영속적 설정 관리 클래스 정의
+ * @details 사용자 설정값의 저장(Flash), 로드 및 지능형 지연 저장(Lazy Save) 로직을 관리
+ */
 #ifndef CONFIG_MANAGER_H
 #define CONFIG_MANAGER_H
 

@@ -1,3 +1,8 @@
+/**
+ * @file hangeul_time.cpp
+ * @brief 시간-한글 텍스트 변환 로직 클래스 구현
+ * @details 24시간제 한자어 수사 적용, 0분/0초 '정각' 처리 등 상세 시간 변환 로직 구현
+ */
 #include "hangeul_time.h"
 
 String HangeulTimeConverter::getAmPm(int hour) {

@@ -1,3 +1,8 @@
+/**
+ * @file input_manager.cpp
+ * @brief 사용자 입력 핸들링 및 버튼 서비스 클래스 구현
+ * @details 버튼 ISR(Interrupt Service Routine), 디바운싱 및 상태 머신을 이용한 입력 판별 구현
+ */
 #include "input_manager.h"
 
 InputManager inputManager;

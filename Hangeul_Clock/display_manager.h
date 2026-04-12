@@ -1,3 +1,8 @@
+/**
+ * @file display_manager.h
+ * @brief 고수준 디스플레이 및 UI 스테이지 관리 클래스 정의
+ * @details 4개 OLED에 대한 통합 렌더링, 시계/IP/도움말 화면 전환 및 애니메이션 트리거 관리
+ */
 #ifndef DISPLAY_MANAGER_H
 #define DISPLAY_MANAGER_H
 

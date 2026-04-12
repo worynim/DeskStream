@@ -1,3 +1,8 @@
+/**
+ * @file input_manager.h
+ * @brief 사용자 입력 핸들링 및 버튼 서비스 클래스 정의
+ * @details 버튼 디바운싱, 짧은/긴 누름 판별 및 인터럽트 안전 콜백 인터페이스 관리
+ */
 #ifndef INPUT_MANAGER_H
 #define INPUT_MANAGER_H
 

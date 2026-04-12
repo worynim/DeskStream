@@ -1,3 +1,8 @@
+/**
+ * @file logger.cpp
+ * @brief 통합 시스템 로깅 클래스 구현
+ * @details 시리얼 도트 애니메이션 한 줄 출력 알고리즘 및 OLED 1번 다중 라인 로그 렌더링 구현
+ */
 #include "logger.h"
 #include "display_manager.h"
 

@@ -1,3 +1,8 @@
+/**
+ * @file Hangeul_Clock.ino
+ * @brief 한글 시계 메인 엔트리 포인트
+ * @details 시스템 초기화(Setup), 메인 서비스 루프 제어 및 전역 서비스 통합 관리
+ */
 #include <Arduino.h>
 #include <WiFiManager.h>
 #include <time.h>
@@ -96,8 +101,8 @@ void setup() {
     display.begin();
     display.playStartupMelody(); 
     
-    logger.addLog("Hangeul Clock v1.8.1");
-    logger.addLog("Canvas Architecture");
+    logger.addLog("Hangeul Clock v1.9.0");
+    logger.addLog("Service Unitized");
     
     // 3. 비트맵 캐시 로딩
     display.loadBitmapCache();

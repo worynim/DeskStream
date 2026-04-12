@@ -1,3 +1,8 @@
+/**
+ * @file renderer.cpp
+ * @brief 고전 수치 및 한글 비트맵 렌더링 엔진 구현
+ * @details LittleFS 비트맵 데이터 로딩, 캐싱 및 픽셀 스케일링/디더링 연산 로직 구현
+ */
 #include "renderer.h"
 #include "LittleFS.h"
 #include "display_manager.h"

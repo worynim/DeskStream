@@ -1,3 +1,8 @@
+/**
+ * @file web_pages.h
+ * @brief 웹 설정 대시보드 및 폰트 스튜디오 리소스
+ * @details HTML, CSS, JavaScript 등으로 구성된 임베디드 웹 페이지 리소스 관리 (PROGMEM 활용)
+ */
 #ifndef WEB_PAGES_H
 #define WEB_PAGES_H
 
