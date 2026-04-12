@@ -1,6 +1,7 @@
 #include "renderer.h"
 #include "LittleFS.h"
 #include "display_manager.h"
+#include "logger.h"
 
 Renderer renderer;
 
@@ -16,9 +17,9 @@ void Renderer::clearCache() {
 }
 
 void Renderer::loadBitmapCache() {
-    display.addLog("Bitmap Loading");
+    logger.addLog("Bitmap Loading");
     if (!LittleFS.exists("/")) {
-        display.updateLastLog("Bitmap Loading: [FS Error]");
+        logger.updateLastLog("Bitmap Loading: [FS Error]");
         return;
     }
 
@@ -54,7 +55,7 @@ void Renderer::loadBitmapCache() {
         if (++dotTicker % 10 == 0) {
             String dots = "Bitmap Loading";
             for (int j = 0; j <= (dotTicker / 10) % 5; j++) dots += ".";
-            display.updateLastLog(dots);
+            logger.updateLastLog(dots);
         }
     }
 
@@ -63,9 +64,9 @@ void Renderer::loadBitmapCache() {
         cacheIndex = std::move(tempIndex);
         char logBuf[64];
         sprintf(logBuf, "Bitmap Loaded: %d", (int)bitmapCache.size());
-        display.updateLastLog(logBuf);
+        logger.updateLastLog(logBuf);
     } else {
-        display.updateLastLog("Bitmap: Empty");
+        logger.updateLastLog("Bitmap: Empty");
     }
 }
 

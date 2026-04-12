@@ -47,6 +47,9 @@ String HangeulTimeConverter::getMinute(int minute) {
     return convertToHangeul(minute, "분"); 
 }
 
+/**
+ * @brief 초 단위 변환: 0초일 때 '정각' 반환
+ */
 String HangeulTimeConverter::getSecond(int second) { 
     if (second == 0) return "정각";
     return convertToHangeul(second, "초"); 

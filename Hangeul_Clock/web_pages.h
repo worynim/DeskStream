@@ -126,7 +126,7 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
     </div>
 
     <script>
-        const UNIQ_CHARS = "오전후한시두세네다섯여일곱덟아홉열영이삼사육칠팔구십분초0123456789".split("");
+        const UNIQ_CHARS = "오전후한시두세네다섯여일곱덟아홉열영이삼사육칠팔구십분초정각0123456789".split("");
         const bitmapCache = {};
         const els = {
             anim: document.getElementById('animMode'),
@@ -237,25 +237,32 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
             const now = new Date();
             let h = now.getHours(), m = now.getMinutes(), s = now.getSeconds(), d = now.getDate();
             const isHangul = els.disp.value === "0", is24H = els.hour.value === "1";
+            
             const toHangulNum = (num, unit) => {
+                if (num === 0 && (unit === "분" || unit === "초")) return "정각";
                 const tList = ["", "십", "이십", "삼십", "사십", "오십"], nList = ["", "일", "이", "삼", "사", "오", "육", "칠", "팔", "구"];
                 if (num === 0) return "영" + unit;
                 return tList[Math.floor(num / 10)] + nList[num % 10] + unit;
             };
+            
             const toNumericNum = (num, unit) => num.toString().padStart(2, '0') + unit;
+            
             const getHangulHour = (h, is24h) => {
                 let hr = is24h ? h : (h % 12 || 12);
-                const h_ones = ["", "한", "두", "세", "네", "다섯", "여섯", "일곱", "여덟", "아홉", "열", "열한", "열두"];
                 if (is24h && hr === 0) return "영시";
+                if (is24h && hr >= 13) return toHangulNum(hr, "시");
+                const h_ones = ["", "한", "두", "세", "네", "다섯", "여섯", "일곱", "여덟", "아홉", "열", "열한", "열두"];
                 if (hr <= 12) return h_ones[hr] + "시";
-                if (hr < 20) return "열" + h_ones[hr-10] + "시";
-                if (hr === 20) return "스무시";
-                return "스물" + h_ones[hr-20] + "시";
+                return hr + "시";
             };
+
             let s0 = is24H ? (isHangul ? toHangulNum(d, "일") : d + "일") : (h < 12 ? "오전" : "오후");
             let s1 = isHangul ? getHangulHour(h, is24H) : toNumericNum(is24H ? h : (h % 12 || 12), "시");
             let s2 = isHangul ? toHangulNum(m, "분") : toNumericNum(m, "분");
             let s3 = isHangul ? toHangulNum(s, "초") : toNumericNum(s, "초");
+
+            if (isHangul && m === 0 && s === 0) s3 = "";
+
             return [s0, s1, s2, s3];
         }
 
@@ -285,10 +292,12 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
             if (animStep < 16) animStep++; 
             for(let s=0; s<4; s++) {
                 const ctx = pCtx[s]; ctx.fillStyle = "#000"; ctx.fillRect(0,0,128,64);
-                const isC = (s === 0), curD = getCharPositions(targetTimeStrings[s], isC);
+                const isC = (s === 0) || (targetTimeStrings[s] === "정각");
+                const curD = getCharPositions(targetTimeStrings[s], isC);
                 if (animStep >= 16 || els.anim.value === "0") curD.forEach(d => drawChar(ctx, d.c, d.x, 0));
                 else {
-                    const off = animStep * 4, oldD = getCharPositions(lastTimeStrings[s], isC), mode = els.anim.value;
+                    const isOC = (s === 0) || (lastTimeStrings[s] === "정각");
+                    const off = animStep * 4, oldD = getCharPositions(lastTimeStrings[s], isOC), mode = els.anim.value;
                     curD.forEach(nd => {
                         let od = oldD.find(o => o.x === nd.x);
                         if (od && od.c === nd.c) drawChar(ctx, nd.c, nd.x, 0);
@@ -314,7 +323,7 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
                         }
                     });
                 }
-                if (isC) drawChimeIcon(ctx);
+                if (s === 0 && els.chime.value === "1") drawChimeIcon(ctx);
             }
             requestAnimationFrame(render);
         }

@@ -7,6 +7,8 @@
 #include "hangeul_time.h"
 #include <WebServer.h>
 #include "web_manager.h"
+#include "input_manager.h"
+#include "logger.h"
 
 /**
  * @brief WiFi 설정 모드(AP) 진입 시 호출되는 콜백
@@ -21,93 +23,28 @@ void configModeCallback(WiFiManager *myWiFiManager) {
     display.u8g2_1.sendBuffer();
 }
 
-// 인터럽트 발생 여부를 기록하는 플래그
-volatile bool btnInterruptFlags[4] = {false, false, false, false};
-
-// ISR (Interrupt Service Routine) - 최소한의 처리만 보장
-void IRAM_ATTR handleBtnInterrupt1() { btnInterruptFlags[0] = true; }
-void IRAM_ATTR handleBtnInterrupt2() { btnInterruptFlags[1] = true; }
-void IRAM_ATTR handleBtnInterrupt3() { btnInterruptFlags[2] = true; }
-void IRAM_ATTR handleBtnInterrupt4() { btnInterruptFlags[3] = true; }
-
-/**
- * @brief 인터럽트 대응 고성능 버튼 구조체
- */
-struct Button {
-    int pin;
-    int id; // 0 ~ 3
-    bool lastState;
-    unsigned long fallTime;
-    bool isPressed;
-    bool isLongPressFired; 
-    void (*onShortPress)();
-    void (*onLongPress)();
-    
-    Button(int i, int p, void (*sp)(), void (*lp)()) : id(i), pin(p), lastState(HIGH), fallTime(0), isPressed(false), isLongPressFired(false), onShortPress(sp), onLongPress(lp) {}
-
-    void init() { 
-        pinMode(pin, INPUT_PULLUP); 
-        if (id == 0) attachInterrupt(digitalPinToInterrupt(pin), handleBtnInterrupt1, CHANGE);
-        else if (id == 1) attachInterrupt(digitalPinToInterrupt(pin), handleBtnInterrupt2, CHANGE);
-        else if (id == 2) attachInterrupt(digitalPinToInterrupt(pin), handleBtnInterrupt3, CHANGE);
-        else if (id == 3) attachInterrupt(digitalPinToInterrupt(pin), handleBtnInterrupt4, CHANGE);
-    }
-
-    void update() {
-        // 인터럽트가 발생했거나 버튼이 현재 눌려 있는 경우(타이머 체크용) 업데이트 수행
-        bool currentState = digitalRead(pin);
-        unsigned long now = millis();
-
-        if (lastState == HIGH && currentState == LOW) { // FALLING
-            fallTime = now;
-            isPressed = true;
-            isLongPressFired = false;
-        } 
-        else if (currentState == LOW) { // STILL PRESSED
-            if (isPressed && !isLongPressFired && (now - fallTime > LONG_PRESS_TIME_MS)) {
-                isLongPressFired = true;
-                if (onLongPress) onLongPress();
-            }
-        } 
-        else if (lastState == LOW && currentState == HIGH) { // RISING
-            if (isPressed && !isLongPressFired && (now - fallTime > DEBOUNCE_TIME_MS)) { 
-                if (onShortPress) onShortPress(); 
-            }
-            isPressed = false;
-        }
-        
-        lastState = currentState;
-        btnInterruptFlags[id] = false; // 플래그 초기화
-    }
-};
-
 int uiStage = 0; // 0: Clock, 1: IP, 2: Button Help
 
 // --- 버튼 콜백 정의 ---
 void btn1_short() {
     display.beep(50, 3000);
     display.setChime(!configManager.get().chime_enabled);
-    if (uiStage == 2) {
-        display.showButtonHelp(); // 도움말 화면 즉시 갱신 (v1.3.52)
-    }
+    if (uiStage == 2) display.showButtonHelp();
 }
 
 void btn1_long() {
     display.beep(150, 2000);
     display.setFlipDisplay(!configManager.get().is_flipped);
-    display.clearAll(); // 방향 전환 시 잔상 제거
-    if (uiStage == 1) {
-        display.showLargeIP(WiFi.localIP()); // IP 화면 즉시 갱신 (v1.3.51)
-    } else if (uiStage == 2) {
-        display.showButtonHelp(); // 도움말 화면 즉시 갱신
-    }
+    display.clearAll();
+    if (uiStage == 1) display.showLargeIP(WiFi.localIP());
+    else if (uiStage == 2) display.showButtonHelp();
 }
 
 void btn2_short() {
     display.beep(50, 3000);
     uint8_t nextMode = (configManager.get().display_mode == CLOCK_MODE_HANGUL) ? CLOCK_MODE_NUMERIC : CLOCK_MODE_HANGUL;
     display.setDisplayMode(nextMode);
-    display.clearAll(); // 한글/숫자 전환 시 잔상 제거 (v1.3.48)
+    display.clearAll();
 }
 
 void btn2_long() {
@@ -121,112 +58,98 @@ void btn3_short() {
     display.beep(50, 3000); 
     uint8_t nextAnim = (configManager.get().anim_mode + 1) % 6;
     display.setAnimMode(nextAnim);
-    // 애니메이션 모드 전환은 다음 렌더링 시 자동 반영되므로 강제 clear 지양
 }
+
 void btn3_long()  { }
 
 void btn4_short() {
     display.beep(50, 3000);
-    uiStage = (uiStage + 1) % UI_STAGE_COUNT; // 0(시계) -> 1(IP) -> 2(도움말) -> 0(시계)
-    
-    display.clearAll(); // 화면 전환(시계 <-> IP <-> 도움말) 시 잔상 즉시 제거 (v1.3.48)
-
-    if (uiStage == 1) {
-        display.showLargeIP(WiFi.localIP());
-    } else if (uiStage == 2) {
-        display.showButtonHelp();
-    }
+    uiStage = (uiStage + 1) % UI_STAGE_COUNT;
+    display.clearAll();
+    if (uiStage == 1) display.showLargeIP(WiFi.localIP());
+    else if (uiStage == 2) display.showButtonHelp();
 }
+
 void btn4_long() { }
 
-Button btns[4] = {
-    Button(0, BTN1_PIN, btn1_short, btn1_long),
-    Button(1, BTN2_PIN, btn2_short, btn2_long),
-    Button(2, BTN3_PIN, btn3_short, btn3_long),
-    Button(3, BTN4_PIN, btn4_short, btn4_long)
-};
-
-// 애니메이션 중 등 빈번하게 호출되어 사용자 인터프리트 보장
+/**
+ * @brief 시스템 양보 및 입력 동기화 (애니메이션 루프 등에서 빈번히 호출됨)
+ */
 void on_yield() {
     webManager.handleClient();
-    for (int i = 0; i < 4; i++) {
-        // 인터럽트 플래그가 섰거나 버튼이 눌린 상태면 업데이트
-        if (btnInterruptFlags[i] || btns[i].isPressed) {
-            btns[i].update();
-        }
-    }
+    inputManager.update();
 }
 
 void setup() {
     Serial.begin(115200);
-    Serial.println("\n[SYSTEM] Starting Hangeul Clock v1.8.1 (Canvas Architecture)");
 
     if (!LittleFS.begin(true)) Serial.println("[SYSTEM] LittleFS Mount Failed");
 
-    // 1. 버튼 및 인터럽트 설정
-    for (int i = 0; i < 4; i++) btns[i].init();
+    // 1. 입력 및 로깅 시스템 초기화
+    inputManager.begin();
+    inputManager.setCallbacks(0, btn1_short, btn1_long);
+    inputManager.setCallbacks(1, btn2_short, btn2_long);
+    inputManager.setCallbacks(2, btn3_short, btn3_long);
+    inputManager.setCallbacks(3, btn4_short, btn4_long);
 
-    // 2. 디스플레이 초기화 및 최우선 멜로디 재생
+    // 2. 디스플레이 초기화 및 시작 피드백
     display.begin();
     display.playStartupMelody(); 
     
-    display.addLog("Hangeul Clock v1.8.1");
-    display.addLog("Canvas Architecture");
+    logger.addLog("Hangeul Clock v1.8.1");
+    logger.addLog("Canvas Architecture");
     
-    // 3. 비트맵 캐시 로딩 (진행 점 애니메이션 포함)
+    // 3. 비트맵 캐시 로딩
     display.loadBitmapCache();
-    
     display.setYieldCallback(on_yield);
 
-    // 4. WiFiManager 및 NTP 설정
+    // 4. WiFi 연결 시퀀스
     WiFiManager wm;
     wm.setAPCallback(configModeCallback);
     wm.setConfigPortalTimeout(WIFI_CONFIG_TIMEOUT);
     
-    // 부팅 시 BTN1 강제 리셋 기능
     if (digitalRead(BTN1_PIN) == LOW) {
         display.showStatus("WiFi Resetting...");
         wm.resetSettings();
         delay(1000);
     }
 
-    display.addLog("WiFi Connecting");
+    logger.addLog("WiFi Connecting");
     
-    // 점(.) 애니메이션용 루프 (비동기 처리)
     int dotCount = 0;
     while (WiFi.status() != WL_CONNECTED && dotCount < 10) {
         String dots = "WiFi Connecting";
         for (int j = 0; j <= dotCount % 5; j++) dots += ".";
-        display.updateLastLog(dots);
-        
+        logger.updateLastLog(dots);
         if (wm.autoConnect(WIFI_SSID_AP)) break;
-        
         delay(500);
         dotCount++;
     }
 
     if (WiFi.status() != WL_CONNECTED) ESP.restart();
 
-    display.addLog("WiFi Connected!");
+    logger.addLog("WiFi Connected!");
     webManager.begin();
 
+    // 5. 시간 동기화 (NTP)
     configTime(TIMEZONE_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, NTP_SERVER1, NTP_SERVER2);
-    display.addLog("Syncing Time");
+    logger.addLog("Syncing Time");
     
     struct tm timeinfo;
     int retry = 0;
     while (!getLocalTime(&timeinfo) && retry < 15) { 
         String dots = "Syncing Time";
         for (int j = 0; j <= retry % 5; j++) dots += ".";
-        display.updateLastLog(dots);
+        logger.updateLastLog(dots);
         delay(1000); 
         retry++; 
     }
     
-    if (retry < 15) display.addLog("Time Sync OK!");
-    else display.addLog("Time Sync Fail!");
+    if (retry < 15) logger.addLog("Time Sync OK!");
+    else logger.addLog("Time Sync Fail!");
     
     delay(1000);
+    display.clearAll(); // [Step 5.1] 부팅 로그 종료 후 시계 시작 전 잔상 완벽 소거
 }
 
 
@@ -259,8 +182,12 @@ void handleClockUpdate(bool force = false) {
     texts[2] = isHangul ? HangeulTimeConverter::getMinute(m) : HangeulTimeConverter::getNumericMinute(m);
     texts[3] = isHangul ? HangeulTimeConverter::getSecond(s) : HangeulTimeConverter::getNumericSecond(s);
 
-    // [Step 4] '정각' 중복 방지: 0분 0초일 때 초 단위를 비워 "XX시 정각"으로 표시
-    if (isHangul && m == 0 && s == 0) texts[3] = "";
+    // [Step 5.3] '정각' 표현 최적화: 
+    // 정시(0분 0초)일 때는 '오전 한시 정각' (Screen 3에 정각)
+    // 그 외 0초일 때는 '오전 한시 오분 정각' (Screen 4에 정각) 이 나오도록 명시적으로 보장
+    if (isHangul && m == 0 && s == 0) {
+        texts[3] = ""; // Screen 4 비우기 (Screen 3가 정각을 담당)
+    }
 
     display.updateAll(texts, force);
 }

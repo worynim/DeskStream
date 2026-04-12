@@ -140,11 +140,12 @@ void DisplayManager::drawCenterText(int idx, const String& text, bool centered) 
     U8G2* u8g2 = screens[idx];
     u8g2->clearBuffer();
     CharData chars[8]; int count;
-    renderer.getCharData(text, chars, count, centered);
+    renderer.getCharData(text, chars, count, centered || (text == "정각"));
     for (int i = 0; i < count; i++) {
         renderer.drawSingleChar(idx, chars[i].c, chars[i].x, 0);
     }
-    if (centered && configManager.get().chime_enabled) u8g2->drawXBM(0, 0, 8, 8, bell_icon);
+    bool isTitleScreen = configManager.get().is_flipped ? (idx == 3) : (idx == 0);
+    if (isTitleScreen && configManager.get().chime_enabled) u8g2->drawXBM(0, 0, 8, 8, bell_icon);
 }
 
 extern int uiStage;
@@ -177,8 +178,11 @@ void DisplayManager::updateAll(String inTexts[4], bool force) {
     for (int i = 0; i < 4; i++) {
         if (changed[i]) {
             bool isCentered = configManager.get().is_flipped ? (i == 3) : (i == 0);
-            renderer.getCharData(lastTexts[i], oldChars[i], oldCount[i], isCentered);
-            renderer.getCharData(texts[i], newChars[i], newCount[i], isCentered);
+            // [Step 5.4] '정각'일 경우 화면 성격과 무관하게 항상 중앙 정렬 수행 (사용자 요청)
+            bool forceCenter = (texts[i] == "정각");
+            
+            renderer.getCharData(lastTexts[i], oldChars[i], oldCount[i], isCentered || (lastTexts[i] == "정각"));
+            renderer.getCharData(texts[i], newChars[i], newCount[i], isCentered || forceCenter);
         }
     }
 
@@ -343,37 +347,6 @@ void DisplayManager::playStartupMelody() {
     digitalWrite(BUZZER_PIN, LOW); 
 }
 
-void DisplayManager::addLog(const String& msg) {
-    if (log_count < 4) {
-        log_lines[log_count++] = msg;
-    } else {
-        for (int i = 0; i < 3; i++) log_lines[i] = log_lines[i+1];
-        log_lines[3] = msg;
-    }
-    
-    U8G2* u8g2 = screens[0];
-    u8g2->clearBuffer();
-    u8g2->setFont(STATUS_FONT);
-    for (int i = 0; i < log_count; i++) {
-        u8g2->drawStr(0, 12 + (i * 14), log_lines[i].c_str());
-    }
-    pushParallel();
-    Serial.println("[LOG] " + msg);
-}
-
-void DisplayManager::updateLastLog(const String& msg) {
-    if (log_count > 0) {
-        log_lines[log_count - 1] = msg;
-        
-        U8G2* u8g2 = screens[0];
-        u8g2->clearBuffer();
-        u8g2->setFont(STATUS_FONT);
-        for (int i = 0; i < log_count; i++) {
-            u8g2->drawStr(0, 12 + (i * 14), log_lines[i].c_str());
-        }
-        pushParallel();
-    }
-}
 
 void DisplayManager::showLargeIP(IPAddress ip) {
     for (int i = 0; i < 4; i++) {
