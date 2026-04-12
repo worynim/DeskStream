@@ -1,3 +1,7 @@
+## [v4.0.1] ✅ 커밋완료 - 2026-04-12 18:31
+### Improved (Hangeul_Clock: Security Hardening & Memory Integrity)
+- **보안 및 안정성 고도화**: API 입력 범위 검증, 파일 업로드 보호 및 힙 메모리 누수 방지 로직 추가.
+
 ## [v4.0.0] ✅ 커밋완료 - 2026-04-12 18:16
 ### Major Update (Hangeul_Clock: Production-Grade Reliability & UX Overhaul)
 - **하드웨어 자가 치유(I2C Self-Healing)**: 물리적 버스 복구 로직 및 섀도우 버퍼 최적화.

@@ -64,10 +64,15 @@ InputManager::InputManager() {
 }
 
 void InputManager::begin() {
-    btns[0] = new Button(0, BTN1_PIN);
-    btns[1] = new Button(1, BTN2_PIN);
-    btns[2] = new Button(2, BTN3_PIN);
-    btns[3] = new Button(3, BTN4_PIN);
+    static Button b1(0, BTN1_PIN);
+    static Button b2(1, BTN2_PIN);
+    static Button b3(2, BTN3_PIN);
+    static Button b4(3, BTN4_PIN);
+    
+    btns[0] = &b1;
+    btns[1] = &b2;
+    btns[2] = &b3;
+    btns[3] = &b4;
 }
 
 void InputManager::setCallbacks(int id, void (*shortPress)(), void (*longPress)()) {

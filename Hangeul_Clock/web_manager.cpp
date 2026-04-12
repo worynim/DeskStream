@@ -35,7 +35,14 @@ void WebManager::handleUploadData() {
     HTTPUpload& upload = server.upload();
     static File fsUploadFile;
     if (upload.status == UPLOAD_FILE_START) {
-        fsUploadFile = LittleFS.open("/" + upload.filename, "w");
+        String filename = upload.filename;
+        // 보안 패치: 경로 탐색(Directory Traversal) 방지
+        if (!filename.startsWith("/")) filename = "/" + filename;
+        if (filename.indexOf("..") != -1) {
+            Serial.println("[WEB] Invalid filename detected: " + filename);
+            return; 
+        }
+        fsUploadFile = LittleFS.open(filename, "w");
     } else if (upload.status == UPLOAD_FILE_WRITE) {
         if (fsUploadFile) fsUploadFile.write(upload.buf, upload.currentSize);
     } else if (upload.status == UPLOAD_FILE_END) {
@@ -64,9 +71,14 @@ void WebManager::handleSetConfig() {
     if (server.hasArg("plain")) {
         String body = server.arg("plain");
         
-        int am = parseVal(body, "anim_mode"); if(am != -1) display.setAnimMode(am);
-        int dm = parseVal(body, "display_mode"); if(dm != -1) display.setDisplayMode(dm);
-        int hf = parseVal(body, "hour_format"); if(hf != -1) display.setHourFormat(hf);
+        int am = parseVal(body, "anim_mode"); 
+        if(am >= 0 && am <= 5) display.setAnimMode(am);
+        
+        int dm = parseVal(body, "display_mode"); 
+        if(dm >= 0 && dm <= 1) display.setDisplayMode(dm);
+        
+        int hf = parseVal(body, "hour_format"); 
+        if(hf >= 0 && hf <= 1) display.setHourFormat(hf);
         
         if (body.indexOf("\"chime_enabled\"") != -1) display.setChime(parseBool(body, "chime_enabled"));
         if (body.indexOf("\"is_flipped\"") != -1) display.setFlipDisplay(parseBool(body, "is_flipped"));
@@ -75,7 +87,13 @@ void WebManager::handleSetConfig() {
         if (fnS != -1) {
             fnS += 13;
             int fnE = body.indexOf("\"", fnS);
-            if (fnE != -1) display.setFontName(body.substring(fnS, fnE));
+            if (fnE != -1) {
+                String fontName = body.substring(fnS, fnE);
+                // 파일명 검증: 간단한 길이 및 문자 제한
+                if (fontName.length() > 0 && fontName.length() < 32) {
+                    display.setFontName(fontName);
+                }
+            }
         }
         
         display.setForceUpdate(true);

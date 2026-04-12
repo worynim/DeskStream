@@ -52,7 +52,8 @@ void I2CPlatform::notifyTransmission() {
 void I2CPlatform::waitForSync(uint32_t timeout_ms) {
     if (_is_transmitting && _hw_task_handle) {
         if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(timeout_ms)) == 0) {
-            Serial.println("[I2C] Sync Timeout!");
+            Serial.printf("[I2C] Sync Timeout! (%d ms)\n", timeout_ms);
+            _error_count += 5; // 동기화 타임아웃은 심각한 지연이므로 가중치 부여
         }
         _is_transmitting = false;
     }

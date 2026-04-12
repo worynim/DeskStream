@@ -1,5 +1,11 @@
 # Release Notes - Hangeul Clock
 
+## [v2.0.1] - 2026-04-12 18:31
+### 🛡️ 보안 고도화 및 메모리 무결성 패치 (Security & Stability Patch)
+- **API 보안 수립**: 설정 변경 API에 대한 범위 검증(Whitelist) 및 파일 업로드 경로 탐색 방지 로직을 추가했습니다.
+- **메모리 보호 리팩토링**: `InputManager`의 내부 객체 할당 방식을 정적 할당으로 전환하여 힙 메모리 안정을 도모했습니다.
+- **통신 신뢰성 패치**: I2C 동기화 실패 카운팅을 정교화하여 하드웨어 복구 시퀀스의 민감도를 튜닝했습니다.
+
 ## [v2.0.0] - 2026-04-12 18:18
 ### 🛡️ 하드웨어 안정성 및 UX 엔진 전면 개편 (Production-Grade Reliability & UX Overhaul)
 - **I2C 하드웨어 자가 치유(Self-Healing) 시스템 (Phase 1)**:

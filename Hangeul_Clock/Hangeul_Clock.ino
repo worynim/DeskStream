@@ -101,7 +101,7 @@ void setup() {
     display.begin();
     display.playStartupMelody(); 
     
-    logger.addLog("Hangeul Clock v2.0.0");
+    logger.addLog("Hangeul Clock v2.0.1");
     logger.addLog("Service Unitized");
     
     // 3. 비트맵 캐시 로딩
