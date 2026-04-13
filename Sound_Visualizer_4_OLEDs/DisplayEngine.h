@@ -1,3 +1,9 @@
+// worynim@gmail.com
+/**
+ * @file DisplayEngine.h
+ * @brief DisplayEngine 클래스 정의 및 레이아웃 상수 선언
+ * @details 4분할 OLED 제어를 위한 데이터 구조체 및 하드웨어 가속 렌더링 인터페이스 제공
+ */
 #ifndef DISPLAY_ENGINE_H
 #define DISPLAY_ENGINE_H
 

@@ -1,3 +1,9 @@
+// worynim@gmail.com
+/**
+ * @file web_handlers.cpp
+ * @brief 웹 서버 요청 핸들러 및 API 라우팅 구현
+ * @details Wi-Fi 연결, 지연 저장 설정 및 실시간 모니터링을 위한 백엔드 로직 처리
+ */
 #include "web_handlers.h"
 #include "web_index.h"
 #include "data_manager.h"

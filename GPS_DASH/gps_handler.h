@@ -1,7 +1,8 @@
+// worynim@gmail.com
 /**
  * @file gps_handler.h
- * @author Antigravity
- * @brief GPS 데이터 수신 및 파싱을 위한 전용 헤더 파일 (Adafruit GPS Library 사용)
+ * @brief TinyGPS++를 이용한 GPS 데이터 파싱 및 관리
+ * @details 시리얼 포트로부터 GPS 원시 데이터를 수신하여 유효성 검사 및 정보 추출 처리
  */
 
 #ifndef GPS_HANDLER_H

@@ -1,3 +1,9 @@
+// worynim@gmail.com
+/**
+ * @file AudioAnalyzer.h
+ * @brief 오디오 데이터 분석 클래스 및 FFT 상수 선언
+ * @details 고성능 주파수 분석을 위한 클래스 인터페이스 및 밴드 필터링 매개변수 정의
+ */
 #ifndef AUDIO_ANALYZER_H
 #define AUDIO_ANALYZER_H
 

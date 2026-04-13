@@ -1,7 +1,8 @@
+// worynim@gmail.com
 /**
  * @file display_handler.h
- * @author Antigravity
- * @brief 4개의 OLED 디스플레이 제어를 위한 전용 헤더 파일
+ * @brief 4개의 OLED 디스플레이 제어 및 렌더링 관리
+ * @details U8g2 라이브러리를 이용한 하드웨어/소프트웨어 I2C 혼합 제어 및 GPS 정보 시각화 로직 구현
  */
 
 #ifndef DISPLAY_HANDLER_H

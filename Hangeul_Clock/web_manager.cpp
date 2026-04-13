@@ -1,3 +1,4 @@
+// worynim@gmail.com
 /**
  * @file web_manager.cpp
  * @brief 웹 설정 대시보드 및 API 서버 클래스 구현

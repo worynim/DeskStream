@@ -1,3 +1,9 @@
+// worynim@gmail.com
+/**
+ * @file display_utils.cpp
+ * @brief 공통 디스플레이 헬퍼 및 드로잉 유틸리티 구현
+ * @details 텍스트 정렬, 진행 바 드로잉, 시스템 아이콘 렌더링 등 공통 UI 요소 처리
+ */
 #include "display_utils.h"
 #include "config.h"
 #include "soc/gpio_struct.h"

@@ -1,3 +1,9 @@
+// worynim@gmail.com
+/**
+ * @file display_utils.h
+ * @brief 디스플레이 유틸리티 함수 선언
+ * @details 효율적인 OLED 렌더링을 위한 상수 및 헬퍼 함수 인터페이스 제공
+ */
 #ifndef DISPLAY_UTILS_H
 #define DISPLAY_UTILS_H
 

@@ -1,3 +1,9 @@
+// worynim@gmail.com
+/**
+ * @file web_handlers.h
+ * @brief DS_DECK 설정을 위한 웹 인터페이스 핸들러
+ * @details 프리미엄 웹 UI 제공, JSON 기반 설정 저장 및 로드, 아이콘 업로드 및 디더링 미리보기 기능 포함
+ */
 #ifndef WEB_HANDLERS_H
 #define WEB_HANDLERS_H
 

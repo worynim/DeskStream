@@ -1,3 +1,9 @@
+// worynim@gmail.com
+/**
+ * @file Stats_Monitor.ino
+ * @brief BLE 기반 PC 시스템 자원 정보 표시 펌웨어
+ * @details BLE HID 또는 커스텀 GATT 프로필을 통해 PC로부터 CPU, RAM, 네트워크 상태를 수신하여 OLED에 렌더링
+ */
 #include <Arduino.h>
 #include <BLEDevice.h>
 #include <BLEServer.h>

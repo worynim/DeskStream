@@ -1,3 +1,9 @@
+// worynim@gmail.com
+/**
+ * @file config.h
+ * @brief 사운드 비주얼라이저 전역 설정 및 하드웨어 구성
+ * @details I2S 핀 배열, FFT 해상도, 디스플레이 속도 및 시각화 스타일 매개변수 관리
+ */
 #ifndef CONFIG_H
 #define CONFIG_H
 

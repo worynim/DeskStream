@@ -1,3 +1,9 @@
+// worynim@gmail.com
+/**
+ * @file data_manager.cpp
+ * @brief 실시간 외부 정보(날씨, 코인, 환율 등) 수집 및 파싱 구현
+ * @details HTTPClient를 통한 API 요청 처리 및 JSON 데이터의 지능적 파싱 관리
+ */
 #include "data_manager.h"
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>

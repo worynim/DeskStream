@@ -1,3 +1,9 @@
+// worynim@gmail.com
+/**
+ * @file config.h
+ * @brief 스마트 정보 스테이션 전역 설정 및 상수 정의
+ * @details Wi-Fi 정보, API 키, 핀 맵 및 서비스 갱신 간격 관리
+ */
 #ifndef CONFIG_H
 #define CONFIG_H
 

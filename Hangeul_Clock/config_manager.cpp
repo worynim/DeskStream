@@ -1,3 +1,4 @@
+// worynim@gmail.com
 /**
  * @file config_manager.cpp
  * @brief 영속적 설정 관리 클래스 구현

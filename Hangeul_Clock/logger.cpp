@@ -1,3 +1,4 @@
+// worynim@gmail.com
 /**
  * @file logger.cpp
  * @brief 통합 시스템 로깅 클래스 구현

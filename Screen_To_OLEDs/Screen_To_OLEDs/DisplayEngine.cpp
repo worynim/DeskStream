@@ -1,3 +1,9 @@
+// worynim@gmail.com
+/**
+ * @file DisplayEngine.cpp
+ * @brief ESP32 기반 4분할 OLED 디스플레이 렌더링 엔진 구현
+ * @details 고속 프레임 전송을 위한 I2C 드라이버 최적화 및 4개 디스플레이 동시 제어 로직 구현
+ */
 #include "DisplayEngine.h"
 #include "driver/gpio.h"
 #include "esp_err.h"

@@ -1,5 +1,9 @@
 # 📝 Release Notes - Stats_Monitor
 
+## [v1.5.0] - 2026-04-13
+### Changed
+- **소스 코드 문서화 표준화**: BLE 펌웨어 및 Python 클라이언트(Metrics, BLE Client 등) 소스 파일 상단에 작성자 이메일(@worynim@gmail.com) 및 Doxygen 스타일 주석을 도입하여 프로젝트 무결성을 확보했습니다.
+
 ## [v1.4.2] - 2026-04-05
 ### 🚀 Improved
 - **밝기 설정 최적화**: 매직 넘버로 관리되던 밝기 설정값을 배열(`BRIGHTNESS_LEVELS`) 구조로 개선하여 코드 유지보수성을 높였습니다.

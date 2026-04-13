@@ -1,3 +1,9 @@
+// worynim@gmail.com
+/**
+ * @file widgets_display.cpp
+ * @brief 정보 타입별 전용 위젯 렌더링 구현
+ * @details 날씨, 시세, 뉴스 등의 데이터를 각각의 UI 컴포넌트로 시각화하는 로직 처리
+ */
 #include "widgets_display.h"
 #include <time.h>
 #include <WiFi.h>

@@ -1,3 +1,9 @@
+// worynim@gmail.com
+/**
+ * @file market.h
+ * @brief 국내외 증시 및 시장 지수 정보 처리
+ * @details KOSPI, S&P500 등 주요 지수 데이터를 수집하고 시장 동향 시각화 데이터 선언
+ */
 #ifndef MARKET_H
 #define MARKET_H
 

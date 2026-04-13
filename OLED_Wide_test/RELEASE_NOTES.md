@@ -1,5 +1,9 @@
 # Release Notes - OLED Wide Test
 
+## [v1.2.0] - 2026-04-13
+### Changed
+- **소스 코드 문서화 표준화**: 모든 .ino 파일 상단에 작성자 이메일(@worynim@gmail.com) 및 Doxygen 스타일 헤더 주석을 추가했습니다.
+
 ## [v1.1.1] - Button Responsiveness Patch (2026-04-01)
 ### 🛠️ 성능 최적화
 - **실시간 버튼 스캔 강화**: 렌더링 엔진(`pushSmartWideCanvas`) 및 프레임 대기 루프 내부에 버튼 핸들러를 통합하여, 화면 전송 중에도 즉각적인 플립 반응성을 확보했습니다.

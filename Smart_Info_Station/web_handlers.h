@@ -1,3 +1,9 @@
+// worynim@gmail.com
+/**
+ * @file web_handlers.h
+ * @brief 웹 서버 초기화 및 핸들러 함수 선언
+ * @details 외부 웹 자원 연결 및 서버 시작을 위한 인터페이스 정의
+ */
 #ifndef WEB_HANDLERS_H
 #define WEB_HANDLERS_H
 

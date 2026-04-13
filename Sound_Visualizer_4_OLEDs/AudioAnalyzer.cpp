@@ -1,3 +1,9 @@
+// worynim@gmail.com
+/**
+ * @file AudioAnalyzer.cpp
+ * @brief 고속 FFT 기반 오디오 스펙트럼 분석 엔진 구현
+ * @details I2S DMA 데이터 수집, 가우스 가중치 적용 FFT 및 주파수 밴드 평활화 처리
+ */
 #include "AudioAnalyzer.h"
 #include "soc/soc_caps.h"
 

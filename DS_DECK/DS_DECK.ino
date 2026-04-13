@@ -1,3 +1,9 @@
+// worynim@gmail.com
+/**
+ * @file DS_DECK.ino
+ * @brief BLE 매크로 키보드 (Stream Deck 스타일) 메인 펌웨어
+ * @details 4개의 OLED 디스플레이를 독립적으로 제어하며, BLE HID를 통한 단축키 및 문자열 전송 기능 구현
+ */
 #include <Arduino.h>
 #include <U8g2lib.h>
 #include <Wire.h>
@@ -36,6 +42,7 @@ uint8_t shadow_buffer[4][1024] = { 0 };
 
 // === 매크로 설정 전역 배열 (web_handlers.h의 정의를 사용) ===
 KeyConfig deckConfigs[4];
+bool isShowingIP = false;
 
 // === 고속 SW I2C 콜백 (레지스터 직접 제어) ===
 extern "C" uint8_t u8x8_gpio_and_delay_esp32_c3_fast(u8x8_t* u8x8, uint8_t msg, uint8_t arg_int, void* arg_ptr) {
@@ -126,7 +133,10 @@ void loadConfig() {
 }
 
 void drawDefaultScreen(int idx) {
-  displays[idx]->clearBuffer();
+  uint8_t* buf = displays[idx]->getBufferPtr();
+  if (buf) memset(buf, 0, 1024); // clearBuffer() 대신 직접 메모리 초기화로 속도 향상
+  
+  displays[idx]->setFontPosBaseline(); // 상태 복구 (중요: IP 화면의 Top 정렬 영향 방지)
 
   char path[24];
   sprintf(path, "/icon%d.bin", idx + 1);
@@ -174,6 +184,49 @@ void drawDefaultScreen(int idx) {
   }
 
   pushDirty(idx);
+}
+
+// === OLED 헬퍼 함수 (Smart_Info_Station 스타일) ===
+void u8g2_prepare(U8G2* u8g2) {
+  u8g2->setBitmapMode(1);
+  u8g2->setDrawColor(1);
+  u8g2->setFontMode(1);
+  u8g2->setFontPosTop();
+}
+
+void drawCenteredText(U8G2* u8g2, String text, int y) {
+  const char* str = text.c_str();
+  int textWidth = u8g2->getUTF8Width(str);
+  int x = (128 - textWidth) / 2;
+  if (x < 0) x = 0;
+  u8g2->drawStr(x, y, str);
+}
+
+void display_ip_page() {
+  IPAddress ip = WiFi.localIP();
+  for (int i = 0; i < 4; i++) {
+    displays[i]->clearBuffer();
+    u8g2_prepare(displays[i]);
+
+    // 첫 번째 화면에만 제목 표시
+    if (i == 0) {
+      displays[i]->setFont(u8g2_font_6x10_tf);
+      drawCenteredText(displays[i], "SETTING ADDR", 5);
+    }
+
+    // IP 각 마디를 크게 표시
+    displays[i]->setFont(u8g2_font_maniac_tr);
+    String segment = String(ip[i]);
+    drawCenteredText(displays[i], segment, 25);
+
+    // 마지막 화면 제외하고 점(.) 표시용 세로 바 또는 점 추가 (옵션)
+    if (i < 3) {
+      displays[i]->setFont(u8g2_font_ncenB14_tr);
+      displays[i]->drawStr(115, 35, ".");
+    }
+    pushDirty(i);
+  }
+  isShowingIP = true;
 }
 
 // === ASCII/Dashboard 코드를 Raw HID 코드로 변환하는 통합 헬퍼 함수 ===
@@ -242,6 +295,8 @@ struct Button {
   unsigned long pressTime = 0;
   bool active = false;
   unsigned long feedbackEnd = 0;
+  bool isPressed = false;
+  bool isLongPressFired = false;
 
   Button(int p, int i)
     : pin(p), index(i) {}
@@ -254,10 +309,43 @@ struct Button {
     bool state = digitalRead(pin);
     unsigned long now = millis();
 
+    // 1. 버튼이 눌리는 순간 (Falling Edge)
     if (state == LOW && lastState == HIGH) {
       pressTime = now;
-    } else if (state == HIGH && lastState == LOW) {
-      if (now - pressTime > 50 && now - pressTime < 1000) {
+      isPressed = true;
+      isLongPressFired = false;
+    } 
+    // 2. 버튼이 눌려있는 동안 (Holding)
+    else if (state == LOW) {
+      if (isPressed && !isLongPressFired && (now - pressTime >= 1000)) {
+        isLongPressFired = true;
+        
+        Serial.print("[BTN ");
+        Serial.print(index + 1);
+        Serial.println("] Long Press");
+
+        // BTN4 롱 프레스: IP 주소 표시
+        if (index == 3 && !isShowingIP) {
+          display_ip_page();
+          tone(BUZZER_PIN, 1500, 200);
+        }
+      }
+    }
+    // 3. 버튼을 떼는 순간 (Rising Edge)
+    else if (state == HIGH && lastState == LOW) {
+      isPressed = false;
+      
+      // 롱 프레스가 실행되지 않았을 때만 숏 프레스 체크 (디바운싱 50ms)
+      if (!isLongPressFired && (now - pressTime > 50)) {
+        if (isShowingIP) {
+          // IP 표시 중 아무 버튼이나 누르면 원래 화면으로 복구
+          isShowingIP = false;
+          for (int i = 0; i < 4; i++) drawDefaultScreen(i);
+          tone(BUZZER_PIN, 2000, 50);
+          lastState = HIGH; // 중복 입력 방지
+          return;
+        }
+
         displays[index]->clearBuffer();
         displays[index]->setFont(u8g2_font_6x10_tf);
         displays[index]->drawStr(10, 35, "PRESSED!");
@@ -387,10 +475,6 @@ struct Button {
         active = true;
         feedbackEnd = now + 150;
         tone(BUZZER_PIN, 3000, 50);
-      } else if (now - pressTime >= 1000) {
-        Serial.print("[BTN ");
-        Serial.print(index + 1);
-        Serial.println("] Long Press");
       }
     }
     lastState = state;
@@ -409,24 +493,40 @@ void setup() {
   Serial.begin(115200);
   Serial.println("\n[SYSTEM] DS DECK Booting...");
 
-  // 1. LittleFS 초기화
+  // 1. 하드웨어 및 OLED 초기화 (사용자 피드백용)
+  Wire.begin(HW_SDA_PIN, HW_SCL_PIN);
+  Wire.setClock(400000);
+  
+  // 1번 OLED 우선 기동하여 로그 표시
+  u8g2_1.setI2CAddress(0x3C * 2);
+  u8g2_1.begin();
+  u8g2_1.clearBuffer();
+  u8g2_1.setFont(u8g2_font_6x10_tf);
+  u8g2_1.drawStr(0, 10, "DS DECK SYSTEM");
+  u8g2_1.drawStr(0, 25, "Booting...");
+  pushDirty(0); // sendBuffer() 대신 pushDirty() 사용하여 shadow_buffer 동기화
+
+  // 2. BLE 최우선 시작 (WiFi 이전에 실행하여 검색성 확보)
+  u8g2_1.drawStr(0, 40, "> BLE INIT...");
+  pushDirty(0);
+  bleKeyboard.begin();
+  bleKeyboard.setTapDelay(1);
+  Serial.println("[BLE] Bluetooth Started");
+
+  // 3. LittleFS 및 설정 로드
+  u8g2_1.drawStr(0, 55, "> FS MOUNT...");
+  pushDirty(0);
   if (!LittleFS.begin(true)) {
     Serial.println("[FS] LittleFS Mount Failed");
   } else {
     loadConfig();
   }
 
-  // 2. 하드웨어 초기화 (버튼, I2C)
+  // 나머지 하드웨어 및 OLED 초기화
   for (int i = 0; i < 4; i++) btns[i].init();
   pinMode(BUZZER_PIN, OUTPUT);
   digitalWrite(BUZZER_PIN, LOW);
 
-  Wire.begin(HW_SDA_PIN, HW_SCL_PIN);
-  Wire.setClock(400000);
-
-  // 3. OLED 초기화
-  u8g2_1.setI2CAddress(0x3C * 2);
-  u8g2_1.begin();
   u8g2_2.setI2CAddress(0x3D * 2);
   u8g2_2.begin();
   u8g2_3.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast;
@@ -435,22 +535,25 @@ void setup() {
   u8g2_4.setI2CAddress(0x3D * 2);
   u8g2_4.begin();
 
-  for (int i = 0; i < 4; i++) drawDefaultScreen(i);
+  // 4. WiFi 연결 (WiFiManager) - 여기서 블로킹되어도 BLE는 이미 작동 중
+  u8g2_1.clearBuffer();
+  u8g2_1.drawStr(0, 10, "DS DECK SYSTEM");
+  u8g2_1.drawStr(0, 30, "> WiFi Connecting...");
+  u8g2_1.drawStr(0, 45, "(Wait 60s or Setup)");
+  pushDirty(0);
 
-  // 4. WiFi 연결 (WiFiManager)
   WiFiManager wm;
   wm.setConfigPortalTimeout(60);
   if (wm.autoConnect("DS_DECK_SETUP")) {
     Serial.println("[NET] Connected to WiFi");
-    Serial.println(WiFi.localIP());
-    // WebServer 라우팅 설정
     initWebHandlers();
+  } else {
+    Serial.println("[NET] WiFi Timeout - Standalone Mode");
   }
 
-  // 5. BLE 시작
-  bleKeyboard.begin();
-  bleKeyboard.setTapDelay(1);  // 초고속 타이핑으로 상향 조정 (5ms -> 1ms)
-  Serial.println("[BLE] Bluetooth Deck Ready.");
+  // 5. 최종 화면 출력 (여기서 pushDirty가 로그를 지워줌)
+  for (int i = 0; i < 4; i++) drawDefaultScreen(i);
+  Serial.println("[SYSTEM] Ready.");
 }
 
 void loop() {

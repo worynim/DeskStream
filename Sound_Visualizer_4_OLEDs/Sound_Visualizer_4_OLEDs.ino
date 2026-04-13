@@ -1,3 +1,9 @@
+// worynim@gmail.com
+/**
+ * @file Sound_Visualizer_4_OLEDs.ino
+ * @brief 4개의 OLED를 이용한 고성능 오디오 시각화 메인 펌웨어
+ * @details I2S 마이크 입력을 분석하여 실시간 음악 스펙트럼 및 비주얼 이펙트를 4개의 OLED에 렌더링
+ */
 #include <Arduino.h>
 #include <Ticker.h>
 #include <Preferences.h>

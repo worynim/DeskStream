@@ -1,18 +1,8 @@
+// worynim@gmail.com
 /**
- * Screen_To_OLEDs — ESP32 펌웨어 메인
- * 
- * PC에서 전송된 512x64 1-bit 흑백 비트맵을
- * DeskStream 하드웨어의 OLED 4개에 실시간 표시합니다.
- * 
- * UDP 프로토콜:
- *   - 헤더: [Frame ID(1)] [Total Chunks(1)] [Chunk Index(1)]
- *   - 페이로드: 1024 bytes (총 4 청크 = 4096 bytes/frame)
- * 
- * 버튼 배치 (config.h 참조):
- *   BTN1 (GPIO 1): Short=미사용 / Long=화면 플립 (180도 회전)
- *   BTN2 (GPIO 4): Short=밝기 DOWN / Long=도움말 화면 토글
- *   BTN3 (GPIO 10): Short=밝기 UP / Long=미사용
- *   BTN4 (GPIO 9): 확장 예비
+ * @file Screen_To_OLEDs.ino
+ * @brief PC 화면 스트리밍 수신 및 4분할 OLED 출력용 펌웨어
+ * @details PC로부터 전송된 비트맵 데이터를 수신하여 4개의 OLED 디스플레이에 분할 및 실시간 렌더링 처리
  */
 
 #include <Arduino.h>

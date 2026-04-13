@@ -1,3 +1,4 @@
+// worynim@gmail.com
 /**
  * @file display_manager.h
  * @brief 고수준 디스플레이 및 UI 스테이지 관리 클래스 정의

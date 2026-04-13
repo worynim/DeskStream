@@ -1,3 +1,9 @@
+// worynim@gmail.com
+/**
+ * @file usdkrw.h
+ * @brief USD/KRW 환율 정보 처리
+ * @details 실시간 환율 API를 연동하여 외환 정보를 수집하고 전역 상태에 갱신
+ */
 #ifndef USDKRW_H
 #define USDKRW_H
 

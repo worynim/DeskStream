@@ -1,3 +1,4 @@
+// worynim@gmail.com
 /**
  * @file i2c_platform.cpp
  * @brief I2C 하드웨어 추상화 및 병렬 전송 클래스 구현

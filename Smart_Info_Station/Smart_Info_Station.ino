@@ -1,3 +1,9 @@
+// worynim@gmail.com
+/**
+ * @file Smart_Info_Station.ino
+ * @brief 멀티 소스 정보를 OLED에 교차 표시하는 정보 스테이션 메인 펌웨어
+ * @details 날씨, 증시, 코인 등 외부 API 데이터를 주기적으로 수집하여 4개의 OLED에 시네마틱하게 표시
+ */
 #include <Arduino.h>
 #include <U8g2lib.h>
 #include <WiFiManager.h>

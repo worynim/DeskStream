@@ -1,3 +1,9 @@
+// worynim@gmail.com
+/**
+ * @file OLED_Wide_test.ino
+ * @brief 와이드 OLED 디스플레이 드라이버 및 렌더링 성능 테스트
+ * @details U8g2 및 LovyanGFX를 이용한 디스플레이 초기화, 통신 속도 측정 및 그래픽 출력 테스트 구현
+ */
 #include <Arduino.h>
 #include <U8g2lib.h>
 #include <Wire.h>

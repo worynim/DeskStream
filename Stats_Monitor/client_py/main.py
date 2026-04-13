@@ -1,3 +1,9 @@
+# worynim@gmail.com
+"""
+@file main.py
+@brief PC 시스템 정보 수집 및 BLE 전송 메인 스크립트
+@details psutil을 이용한 메트릭 수집 및 BLE 클라이언트를 통한 ESP32 데이터 전송 통합 관리
+"""
 import asyncio
 import threading
 import sys

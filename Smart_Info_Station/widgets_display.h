@@ -1,3 +1,9 @@
+// worynim@gmail.com
+/**
+ * @file widgets_display.h
+ * @brief 위젯 인터페이스 및 드로잉 함수 선언
+ * @details 각 정보 소스별 렌더링 함수들을 관리하기 위한 헤더
+ */
 #ifndef WIDGETS_DISPLAY_H
 #define WIDGETS_DISPLAY_H
 

@@ -1,3 +1,9 @@
+// worynim@gmail.com
+/**
+ * @file btc.h
+ * @brief 비트코인 및 암호화폐 시세 정보 처리
+ * @details 외부 API로부터 최신 비트코인 시세를 수집하고 캐싱하는 로직 인터페이스
+ */
 #ifndef BTC_H
 #define BTC_H
 

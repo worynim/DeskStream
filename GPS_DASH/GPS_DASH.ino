@@ -1,7 +1,8 @@
+// worynim@gmail.com
 /**
  * @file GPS_DASH.ino
- * @author Antigravity
- * @brief GPS 정보를 4개의 OLED 디스플레이에 표시하는 프로그램 (심플 버전)
+ * @brief GPS 정보를 4개의 OLED 디스플레이에 표시하는 메인 펌웨어
+ * @details GPS 수신 데이터를 기반으로 속도, 위치, 시간을 각각의 OLED에 시각화하며, OTA 업데이트를 지원함
  */
 #include <Arduino.h>
 #include <Preferences.h>

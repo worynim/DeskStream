@@ -1,3 +1,4 @@
+// worynim@gmail.com
 /**
  * @file hangeul_time.cpp
  * @brief 시간-한글 텍스트 변환 로직 클래스 구현

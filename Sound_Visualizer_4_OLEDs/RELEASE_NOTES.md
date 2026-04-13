@@ -1,5 +1,9 @@
 # Release Notes - Sound Visualizer
 
+## [v3.4.0] - 2026-04-13
+### Changed
+- **소스 코드 문서화 표준화**: FFT 가속 엔진 및 렌더링 프레임워크를 포함한 모든 소스 파일 상단에 작성자 이메일(@worynim@gmail.com) 및 기술 주석을 추가했습니다.
+
 ## [v3.3.0] - Oscilloscope Mode & Help Interface (2026-04-02)
 ### 🚀 주요 추가 및 개선 사항
 - **오실로스코프 모드(Oscilloscope Mode) 추가**:

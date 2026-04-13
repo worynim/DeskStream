@@ -1,3 +1,9 @@
+// worynim@gmail.com
+/**
+ * @file config.h
+ * @brief 스트리밍 성능 및 네트워크 설정 구성을 위한 상방 정의 헤더
+ * @details WiFi 설정, I2C 속도, 디스플레이 해상도 및 스트리밍 프로토콜 관련 상수 관리
+ */
 #ifndef CONFIG_H
 #define CONFIG_H
 

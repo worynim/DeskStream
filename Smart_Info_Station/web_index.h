@@ -1,3 +1,9 @@
+// worynim@gmail.com
+/**
+ * @file web_index.h
+ * @brief 스마트 정보 스테이션 웹 대시보드 리소스
+ * @details 설정 페이지 HTML, CSS 및 성공 알림 페이지 리소스 정의 (PROGMEM 활용)
+ */
 #ifndef WEB_INDEX_H
 #define WEB_INDEX_H
 

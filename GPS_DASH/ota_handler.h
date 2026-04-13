@@ -1,7 +1,8 @@
+// worynim@gmail.com
 /**
  * @file ota_handler.h
- * @author Antigravity
- * @brief WiFi AP 모드 및 웹 기반 OTA 업로드 기능을 위한 전용 헤더 파일 (디버그 로그 뷰어 포함)
+ * @brief 웹 서버 기반 무선 펌웨어 업데이트(OTA) 관리
+ * @details WiFi AP 모드 진입 및 웹 브라우저를 통한 펌웨어 파일 업로드 및 시스템 재부팅 처리
  */
 
 #ifndef OTA_HANDLER_H

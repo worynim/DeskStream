@@ -1,5 +1,9 @@
 # Release Notes - Screen_To_OLEDs
 
+## [V1.5.0] - 2026-04-13
+### Changed
+- **소스 코드 문서화 표준화**: 모든 .ino, .h, .py 파일 상단에 작성자 이메일(@worynim@gmail.com) 및 Doxygen 스타일 주석을 추가하여 프로젝트 무결성을 강화했습니다.
+
 ## [V1.4.0] - 2026-04-10
 
 ### 🚀 UX 혁신 및 지능형 캡처 엔진 (Intelligent Capture)

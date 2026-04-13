@@ -1,3 +1,4 @@
+// worynim@gmail.com
 /**
  * @file renderer.cpp
  * @brief 고전 수치 및 한글 비트맵 렌더링 엔진 구현

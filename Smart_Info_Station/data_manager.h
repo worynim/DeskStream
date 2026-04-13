@@ -1,3 +1,9 @@
+// worynim@gmail.com
+/**
+ * @file data_manager.h
+ * @brief DataManager 클래스 정의 및 데이터 구조체 선언
+ * @details 정보별 데이터 컨테이너 및 API 연동을 위한 전역 서비스 선언
+ */
 #ifndef DATA_MANAGER_H
 #define DATA_MANAGER_H
 

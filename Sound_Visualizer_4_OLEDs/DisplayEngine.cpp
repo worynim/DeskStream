@@ -1,3 +1,9 @@
+// worynim@gmail.com
+/**
+ * @file DisplayEngine.cpp
+ * @brief ESP32 최적화 4분할 OLED 멀티태스킹 렌더링 엔진
+ * @details 듀얼 코어를 활용한 배경 렌더링 태스크 및 I2C 하드웨어 가속 제어 로직 구현
+ */
 #include "DisplayEngine.h"
 #include "driver/gpio.h"
 #include "esp_err.h"

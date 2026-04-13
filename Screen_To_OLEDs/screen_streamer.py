@@ -1,19 +1,8 @@
+# worynim@gmail.com
 """
-pc_vibe_streamer.py — Screen To OLEDs PC Sender
-=================================================
-DeskStream 하드웨어(OLED 4개, 512x64)에 PC 화면을 실시간 전송합니다.
-
-전송 포맷:
-  - 캔버스: 512 x 64 (1-bit 흑백, 4096 bytes / frame)
-  - UDP 청크: 1024 bytes × 4 = 4096 bytes
-  - 헤더: [Frame ID(1)] [Total Chunks(1)] [Chunk Index(1)]
-
-이진화 모드:
-  1. Threshold   : 밝기 기준값(0~255)으로 단순 흑/백 분류
-  2. Dithering   : Floyd-Steinberg 디더링 (오차 확산)
-
-requirements:
-  pip install Pillow mss numpy pillow-avif-plugin
+@file screen_streamer.py
+@brief PC 화면 캡처 및 ESP32 전송용 Python 클라이언트
+@details 실시간 화면 캡처, 각종 디더링 알고리즘(Atkinson, Floyd-Steinberg 등) 적용 및 UDP 데이터 전송 구현
 """
 
 import io

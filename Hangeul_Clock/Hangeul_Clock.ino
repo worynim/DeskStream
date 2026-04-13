@@ -1,3 +1,4 @@
+// worynim@gmail.com
 /**
  * @file Hangeul_Clock.ino
  * @brief 한글 시계 메인 엔트리 포인트

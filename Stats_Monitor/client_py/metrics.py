@@ -1,3 +1,9 @@
+# worynim@gmail.com
+"""
+@file metrics.py
+@brief PC 성능 지표(CPU, RAM, DISK 등) 추출 엔진
+@details 운영체제별 하드웨어 사용량 수집 로직 및 데이터 포매팅 처리
+"""
 import psutil
 import platform
 import subprocess

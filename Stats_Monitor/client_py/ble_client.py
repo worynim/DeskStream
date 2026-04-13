@@ -1,3 +1,9 @@
+# worynim@gmail.com
+"""
+@file ble_client.py
+@brief BLE(Bluetooth Low Energy) 통신 클라이언트 구현
+@details ESP32 Stats Monitor 장치 검색, 연결 및 특성값(Characteristic) 쓰기 처리
+"""
 import asyncio
 import json
 from bleak import BleakScanner, BleakClient

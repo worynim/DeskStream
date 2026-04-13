@@ -1,3 +1,4 @@
+// worynim@gmail.com
 /**
  * @file config.h
  * @brief 프로젝트 전역 설정 및 하드웨어 핀 맵 정의

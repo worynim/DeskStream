@@ -1,3 +1,19 @@
+## [v4.4.0] ✅ 커밋완료 - 2026-04-13 19:22
+### Improved (Global: Source Code Documentation Standardization)
+- **전 소스 파일 헤더 표준화**: DeskStream 내 모든 프로젝트(8개)의 소스 파일(INO, CPP, H, PY) 상단에 작성자 이메일(`worynim@gmail.com`) 및 Doxygen 스타일의 표준 헤더 주석을 도입했습니다.
+- **프로젝트 무결성 및 유지보수성 강화**: 각 파일의 역할(@file, @brief, @details)을 명시하여 코드베이스 전반의 일관성을 확보하고 전문적인 문서화 체계를 구축했습니다.
+- **적용 범위**: Hangeul_Clock, DS_DECK, GPS_DASH, OLED_Wide_test, Screen_To_OLEDs, Smart_Info_Station, Sound_Visualizer_4_OLEDs, Stats_Monitor 전 프로젝트.
+
+## [v4.3.0] ✅ 커밋완료 - 2026-04-13 18:45
+### Major Update (DS_DECK: Reactive Button Engine & IP Visualizer)
+- **IP 주소 분산 출력 (Long-Press BTN4)**: BTN4를 1초 이상 누르면 현재 할당된 IP를 4개의 OLED에 걸쳐 큰 글씨로 표시하여 네트워크 상태를 직관적으로 확인할 수 있게 했습니다.
+- **즉시 반응형 버튼 시스템 개선**: 롱 프레스 동작이 버튼을 뗄 때가 아니라, 임계 시간(1000ms)에 도달하는 즉시 실행되도록 리팩토링하여 타 프로젝트들과의 조작감을 통일했습니다.
+- **부팅 시각화 및 로그 시스템**: 시작 단계별(BLE, FS, WiFi) 진행 상황을 OLED1에 실시간으로 표시하는 로그 시스템을 도입했습니다.
+- **렌더링 무결성 확보 및 버그 수정**: 
+    - 부팅 로그 종료 후 발생하던 화면 잔상 문제 해결.
+    - 폰트 정렬 상태 유실로 인한 아이콘 위치 어정쩡함 버그 수정.
+    - 초기화 순서 최적화를 통한 블루투스 기기 검색 가시성 확보.
+
 ## [v4.2.1] ✅ 커밋완료 - 2026-04-12 22:48
 ### Improved (Hangeul_Clock: UI/UX Feedback Restoration)
 - **업로드 진행 동기화**: Font Studio에서 '일괄 업로드' 시 각 캐릭터 배지가 전송 순서에 맞춰 하나씩 밝아지는 시각적 진행 표시 기능을 복구했습니다.

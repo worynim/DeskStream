@@ -1,3 +1,4 @@
+// worynim@gmail.com
 /**
  * @file logger.h
  * @brief 통합 시스템 로깅 클래스 정의
