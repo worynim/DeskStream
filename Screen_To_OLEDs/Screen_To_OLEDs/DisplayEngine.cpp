@@ -192,7 +192,6 @@ void DisplayEngine::pushCanvas(bool force_no_flip) {
     }
 
     uint32_t transmit_start = micros();
-    frame_counter++;
     uint8_t* canvas_ptr = (uint8_t*)canvas.getBuffer();
     if (!canvas_ptr) return;
 

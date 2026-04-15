@@ -373,7 +373,7 @@ class VibeStreamerApp:
         ip_frame.pack(fill="x", padx=10, pady=5)
 
         # 전송 모드 선택 (단일/전체)
-        self.target_mode_var = tk.StringVar(value="broadcast")
+        self.target_mode_var = tk.StringVar(value="direct")
         self.last_unicast_ip = CONFIG['DEFAULT_IP']
         
         mode_row = tk.Frame(ip_frame, bg="#3c3f41")
@@ -392,7 +392,7 @@ class VibeStreamerApp:
         tk.Label(ip_row, text="IP:", **style).pack(side=tk.LEFT)
         self.ip_entry = tk.Entry(ip_row, width=16)
         
-        # 기본 모드(Broadcast)에 맞춰 초기 IP 설정
+        # 초기 전송 모드(Direct) 및 IP 설정
         initial_ip = CONFIG['DEFAULT_IP']
         if self.target_mode_var.get() == "broadcast" and "." in initial_ip:
             parts = initial_ip.split(".")
@@ -1011,7 +1011,7 @@ class VibeStreamerApp:
         else:
             new_w = target_w
             new_h = int(new_w / src_ratio)
-        img_gray = img_gray_full.resize((new_w, new_h), Image.BOX)
+        img_gray = img_gray_full.resize((new_w, new_h), Image.LANCZOS)
         left = (new_w - target_w) // 2
         top  = (new_h - target_h) // 2
         img_gray = img_gray.crop((left, top, left + target_w, top + target_h))
