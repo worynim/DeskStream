@@ -7,12 +7,15 @@
 
 import io
 import gc
+import json
+import logging
 import socket
 import time
 import threading
 import queue
 import subprocess
 import os
+from pathlib import Path
 import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageEnhance, ImageTk, ImageFilter
@@ -47,6 +50,44 @@ CONFIG = {
     'DEFAULT_IP':             '192.168.10.34',
     'REPLAYD_MEM_LIMIT_MB':   500,
 }
+
+
+def _load_user_config(defaults: dict) -> dict:
+    """
+    config.json 존재 시 기본값(defaults)을 사용자 설정으로 덮어씀.
+    파일 없거나 파싱 실패 시 defaults 그대로 반환.
+
+    Parameters:
+        defaults: 기본 설정 딕셔너리 (CONFIG)
+
+    Returns:
+        최종 설정 딕셔너리
+    """
+    config_path = Path(__file__).parent / "config.json"
+    if not config_path.exists():
+        return defaults
+    try:
+        with open(config_path, encoding='utf-8') as f:
+            overrides = json.load(f)
+        cfg = dict(defaults)
+        cfg.update({k: v for k, v in overrides.items() if k in defaults})
+        print(f"[Config] config.json 반영: {list(overrides.keys())}")
+        return cfg
+    except Exception as e:
+        print(f"[Config] config.json 로드 실패: {e} — 기본값 사용")
+        return defaults
+
+CONFIG = _load_user_config(CONFIG)
+
+# =============================================
+# [로깅 설정]
+# =============================================
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    datefmt='%H:%M:%S'
+)
+logger = logging.getLogger("ScreenStreamer")
 
 
 # =============================================
@@ -298,6 +339,7 @@ class VibeStreamerApp:
 
         self.net_queue   = queue.Queue(maxsize=3)
         self.frame_id: int = 0
+        self._send_error_count: int = 0  # [Step 3] 연속 UDP 전송 실패 카운터
 
         # 캡처 영역 오버레이: 4개 선 윈도우 + 핸들 방식 (투명 창 캡처 버그 없음)
         self.overlays: list = []          # [Top, Bottom, Left, Right, Handle]
@@ -358,8 +400,8 @@ class VibeStreamerApp:
                         subprocess.run(["killall", "-9", "replayd"], capture_output=True)
                         time.sleep(0.5)
                         break
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"replayd 메모리 관리 중 오류: {e}")
 
     # ──────────────────────────────────────────
     # UI 구성
@@ -708,8 +750,8 @@ class VibeStreamerApp:
                 for win in self.overlays:
                     try:
                         win.attributes('-topmost', True)
-                    except Exception:
-                        pass
+                    except tk.TclError:
+                        pass  # 윈도우 이미 소멸된 경우 정상
             self.root.after(1000, self._keep_overlay_on_top)
 
     def _ol_drag_start(self, event: Any) -> None:
@@ -902,24 +944,24 @@ class VibeStreamerApp:
             self.ip_entry.insert(0, self.last_unicast_ip)
 
     def _discover_esp32_ip(self) -> Optional[str]:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        try:
-            s.bind(('', CONFIG['DISCOVERY_PORT']))
-        except Exception:
-            return None
-        s.settimeout(1.5)
+        # [Step 2 수정] with 문으로 소켓 자동 해제 — bind 실패 시에도 누수 없음
         found = None
-        start = time.time()
-        while time.time() - start < 2.0:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             try:
-                data, addr = s.recvfrom(1024)
-                if CONFIG['DISCOVERY_MSG'] in data:
-                    found = addr[0]
-                    break
+                s.bind(('', CONFIG['DISCOVERY_PORT']))
             except Exception:
-                continue
-        s.close()
+                return None
+            s.settimeout(1.5)
+            start = time.time()
+            while time.time() - start < 2.0:
+                try:
+                    data, addr = s.recvfrom(1024)
+                    if CONFIG['DISCOVERY_MSG'] in data:
+                        found = addr[0]
+                        break
+                except Exception:
+                    continue
         return found
 
     # ──────────────────────────────────────────
@@ -1055,7 +1097,7 @@ class VibeStreamerApp:
         - 프리뷰 10fps 제한: 불필요 시 PIL 객체 생성 안 함
         - 상세 타이밍 표시: Cap(캡처) / Proc(처리) / Total(총) ms
         """
-        print("[Producer] Started")
+        logger.info("[Producer] 스레드 시작")
 
         # ── GC 비활성화: 핫루프 내 임시 numpy/PIL 객체에 의한 주기적 GC 스파이크 방지 ──
         gc.disable()
@@ -1087,7 +1129,7 @@ class VibeStreamerApp:
         except Exception:
             area = {}
 
-        # ── _manage_replayd_memory 별도 스레드로 분리 (subprocess 호출 연샀 루프 블로킹 제거) ──
+        # ── _manage_replayd_memory 별도 스레드로 분리 (subprocess 호출 연쇄 루프 블로킹 제거) ──
         def _replayd_worker() -> None:
             self._manage_replayd_memory()
         _replayd_thread: Optional[threading.Thread] = None
@@ -1097,14 +1139,17 @@ class VibeStreamerApp:
 
         try:
             while self.streaming_active:
-                # MSS_RESTART_INTERVAL마다 세션 교체 + GC 수동 수행
-                if loop_idx > 0 and loop_idx % CONFIG['MSS_RESTART_INTERVAL'] == 0:
-                    gc.collect()
-                    try:
-                        sct.close()
-                    except Exception:
-                        pass
-                    sct = mss.mss()
+                # [Step 4 개선] GC 세대별 분리: 짧은 주기(젊은 세대) / 긴 주기(전체 + mss 재시작)
+                if loop_idx > 0:
+                    if loop_idx % CONFIG['MSS_RESTART_INTERVAL'] == 0:
+                        gc.collect()  # 전체 GC
+                        try:
+                            sct.close()
+                        except Exception:
+                            pass
+                        sct = mss.mss()
+                    elif loop_idx % 300 == 0:
+                        gc.collect(0)  # 젊은 세대만 수집 (< 1ms)
 
                 # replayd 메모리 관리: 별도 스레드로 실행 (핸루프 블로킹 제거)
                 if self._c_replayd and loop_idx % 100 == 0:
@@ -1149,7 +1194,7 @@ class VibeStreamerApp:
                 want_preview = (self._c_preview and
                                 (now - last_preview_time) >= 0.1)
 
-                # ── Phase 2~4: 처리 + 전송 (바열 내 예외를 잘라서 프로듀서 전체 충돌 방지) ──
+                # ── Phase 2~4: 처리 + 전송 (배열 내 예외를 잘라서 프로듀서 전체 충돌 방지) ──
                 try:
                     raw_bytes, preview, cnv_ms, rsz_ms, bin_ms, pak_ms = self.process_image_from_bgra(
                         sct_img.bgra, sct_img.width, sct_img.height,
@@ -1177,7 +1222,7 @@ class VibeStreamerApp:
 
                 except Exception as _proc_err:
                     # 프레임 처리 실패시 루프를 죽이지 않고 다음 프레임으로 계속
-                    print(f"[Producer] frame err: {_proc_err}")
+                    logger.warning(f"[Producer] 프레임 처리 오류: {_proc_err}")
 
                 # ── Deadline Clock FPS 제한 ──
                 # sleep(남은시간) 대신 절대 마감 시각 기준으로 대기
@@ -1229,7 +1274,7 @@ class VibeStreamerApp:
                 sct.close()
             except Exception:
                 pass
-            print("[Producer] Stopped")
+            logger.info("[Producer] 스레드 종료")
 
     # ──────────────────────────────────────────
     # UDP 전송 루프 (송신 스레드)
@@ -1243,29 +1288,42 @@ class VibeStreamerApp:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)  # 브로드캐스트 전송 허용
         chunk_size = CONFIG['CHUNK_SIZE']
 
-        while self.streaming_active:
-            try:
-                fid, data = self.net_queue.get(timeout=0.5)
-            except queue.Empty:
-                continue
-
-            total = (len(data) + chunk_size - 1) // chunk_size
-            for i in range(total):
-                header  = bytes([fid, min(total, 255), i])
-                payload = data[i * chunk_size: (i + 1) * chunk_size]
+        # [Step 2 수정] try/finally로 예외 발생 시에도 소켓 안전 해제 보장
+        try:
+            while self.streaming_active:
                 try:
-                    sock.sendto(header + payload, (self.target_ip_str, CONFIG['UDP_PORT']))
-                except Exception:
+                    fid, data = self.net_queue.get(timeout=0.5)
+                except queue.Empty:
+                    continue
+
+                total = (len(data) + chunk_size - 1) // chunk_size
+                for i in range(total):
+                    header  = bytes([fid, min(total, 255), i])
+                    payload = data[i * chunk_size: (i + 1) * chunk_size]
+                    try:
+                        sock.sendto(header + payload, (self.target_ip_str, CONFIG['UDP_PORT']))
+                        if self._send_error_count >= 10:  # 네트워크 복구 감지
+                            self.root.after(0, lambda: self.scan_status_var.set("Ready"))
+                        self._send_error_count = 0
+                    except OSError as _send_err:
+                        self._send_error_count += 1
+                        logger.debug(f"UDP 전송 실패 ({self._send_error_count}회): {_send_err}")
+                        if self._send_error_count == 10:
+                            self.root.after(0, lambda: self.scan_status_var.set("⚠ Network Error"))
+                    # 청크 간 500μs 딜레이: ESP32가 pushCanvas() 블로킹 중일 때
+                    # 다음 청크를 즉시 보내면 UDP 수신 버퍼에 쌓여 누락 발생
+                    # → 약간 분산하여 전송하면 조립 성공률 현저히 향상
+                    if i < total - 1:
+                        time.sleep(0.0005)  # 500μs × 3 = 1.5ms 추가, 30fps에서 무시 가능
+
+                # task_done(): ValueError 방어 (큐 상태 불일치 시 스레드 사망 방지)
+                try:
+                    self.net_queue.task_done()
+                except ValueError:
                     pass
-                # 청크 간 500μs 딜레이: ESP32가 pushCanvas() 블로킹 중일 때
-                # 다음 청크를 즉시 보내면 UDP 수신 버퍼에 쌓여 누락 발생
-                # → 약간 분산하여 전송하면 조립 성공률 현저히 향상
-                if i < total - 1:
-                    time.sleep(0.0005)  # 500μs × 3 = 1.5ms 추가, 30fps에서 무시 가능
-
-            self.net_queue.task_done()
-
-        sock.close()
+        finally:
+            sock.close()
+            logger.info("[Sender] 소켓 해제 완료")
 
     # ──────────────────────────────────────────
     # 프리뷰 갱신 (메인 스레드에서 호출)

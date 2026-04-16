@@ -1,0 +1,6 @@
+{
+    "_comment": "Screen_To_OLEDs 사용자 설정 파일 — 이 파일로 코드 수정 없이 설정 변경 가능",
+    "DEFAULT_IP": "192.168.10.34",
+    "REPLAYD_MEM_LIMIT_MB": 500,
+    "MSS_RESTART_INTERVAL": 3000
+}

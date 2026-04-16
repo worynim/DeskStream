@@ -68,13 +68,7 @@ bool btn2_last_state       = HIGH;
 unsigned long btn2_fall_time = 0;
 bool btn2_long_press_fired = false;
 
-// BTN3 (밝기UP)
-bool btn3_last_state       = HIGH;
-unsigned long btn3_fall_time = 0;
-
-// BTN4 (예비)
-bool btn4_last_state       = HIGH;
-unsigned long btn4_fall_time = 0;
+// BTN3, BTN4: 미사용 — 상태 변수 없음 (필요 시 추가 예정)
 
 // 도움말 모드
 bool is_help_mode = false;
@@ -90,11 +84,7 @@ void beepAsync(int duration = 30, int freq = 2000) {
     buzzer_ticker.once_ms(duration, stopBuzzer);
 }
 
-// 기존 updateTone 및 melody 관련 변수들은 단순화를 위해 제거하거나 무시 가능
-// 여기서는 가장 요청이 많은 비프음을 Ticker로 정확히 제어하게 함
-void updateTone() {
-    // Ticker가 자동으로 끄므로 루프에서의 업데이트는 불필요
-}
+// [Step 1 정리] updateTone()은 Ticker 방식으로 전환되어 불필요 — 제거됨
 
 // ==========================================
 // [화면 제어 함수]
@@ -406,13 +396,7 @@ void processButtons() {
     }
     btn2_last_state = b2;
 
-    // ── BTN3: 미사용 ──
-    bool b3 = digitalRead(BTN3_PIN);
-    btn3_last_state = b3;
-
-    // ── BTN4: 예비 (현재 미할당) ──
-    bool b4 = digitalRead(BTN4_PIN);
-    btn4_last_state = b4;
+    // ── BTN3, BTN4: 미사용 (핀 초기화는 setup()에서 INPUT_PULLUP으로 유지) ──
 }
 
 // ==========================================
@@ -494,9 +478,6 @@ void setup() {
 // [loop()]
 // ==========================================
 void loop() {
-    // 비차단 부저 업데이트 (매 사이클 필수)
-    updateTone();
-
     // 버튼 처리
     processButtons();
 
