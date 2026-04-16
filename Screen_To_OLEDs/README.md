@@ -2,6 +2,14 @@
 
 모니터(mac)의 화면을 실시간으로 캡처하여 DeskStream 하드웨어(4개의 OLED 매트릭스)로 스트리밍하는 프로젝트입니다.
 
+## 🏗 아키텍처 (Architecture)
+
+본 프로젝트는 고성능 스트리밍을 위해 기능별로 모듈화된 설계를 따릅니다.
+
+- **`screen_streamer.py`**: 메인 애플리케이션. UI 구동, 화면 캡처(Producer), 데이터 송신(Sender) 스레드 관리 및 전체 파이프라인 제어를 담당합니다.
+- **`image_processor.py`**: 이미지 처리 전문 모듈. Numba JIT를 활용한 고속 디더링 알고리즘 및 1-bit 패킹 로직이 집약되어 있습니다.
+- **`config.json`**: 사용자 외부 설정 파일. 소스 수정 없이 IP 및 시스템 파라미터를 조정합니다.
+
 ## 🚀 주요 기능
 
 ### macOS 스트리머 (`screen_streamer.py`)
