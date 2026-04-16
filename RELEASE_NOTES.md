@@ -1,3 +1,9 @@
+## [v4.7.0] ✅ 커밋완료 - 2026-04-16 15:47
+### Major Update (Screen_To_OLEDs: Network & Overlay Modularization)
+- **네트워크 매니저 분리 (`network_manager.py`)**: IP 자동 검색 및 UDP 송신 루프를 독립 모듈로 추출하여 통신 계층의 결합도를 낮추었습니다.
+- **오버레이 매니저 분리 (`overlay_manager.py`)**: 캡처 영역 시각화 및 드래그 제어 로직을 통합 관리하여 UI 메인 코드의 복잡성을 개선했습니다.
+- **아키텍처 정밀화**: 메인 앱(`screen_streamer.py`)의 불필요한 중복 코드를 제거하고, 모듈 간 역할 분담(SOC)을 명확히 구현했습니다.
+
 ## [v4.6.0] ✅ 커밋완료 - 2026-04-16 15:00
 ### Major Update (Screen_To_OLEDs: Image Processor Modularization)
 - **이미지 처리 엔진 모듈 파편화 해결**: `screen_streamer.py`에 집중되어 있던 모든 이미지 처리 로직을 별도의 전용 모듈(`image_processor.py`)로 분리하여 코드 가독성과 유지보수성을 극대화했습니다.

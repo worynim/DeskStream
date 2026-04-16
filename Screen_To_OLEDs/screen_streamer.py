@@ -25,6 +25,8 @@ from typing import Optional, Tuple, List, Dict, Any
 
 # [Step 5] 이미지 처리 로직을 image_processor.py로 분리
 from image_processor import apply_threshold, apply_dithering, pack_bits, HAS_NUMBA
+from overlay_manager import OverlayManager
+from network_manager import NetworkManager
 
 
 
@@ -182,9 +184,12 @@ class VibeStreamerApp:
         self._check_os_for_reset()
         self._setup_ui()
         self._get_monitors()
+        # 매니저 초기화 (Step 6)
+        self.overlay_mgr = OverlayManager(self.root, self)
+        self.net_mgr     = NetworkManager(self, CONFIG)
         self.root.after(500, self.scan_ip)
-        self.root.after(100, self._toggle_overlay)   # 시작 시 오버레이 표시
-        self.root.after(200, self._refresh_settings_cache)  # 설정 캐시 동기화 시작
+        self.root.after(100, self.overlay_mgr.show_overlay)  # 시작 시 오버레이 표시
+        self.root.after(200, self._refresh_settings_cache)   # 설정 캐시 동기화 시작
 
     # ──────────────────────────────────────────
     # 설정값 캐시 동기화 (메인 스레드 전용)
@@ -318,7 +323,7 @@ class VibeStreamerApp:
         self.chk_overlay = tk.Checkbutton(screen_frame, text="Show Capture Area Overlay",
                                           variable=self.show_overlay_var,
                                           bg="#3c3f41", fg="white", selectcolor="#555555",
-                                          command=self._toggle_overlay)
+                                          command=self._update_overlay)
         self.chk_overlay.pack(anchor="w")
 
         # ── 이진화 설정 영역 ──
@@ -429,235 +434,12 @@ class VibeStreamerApp:
             # 디더링 계열 모드 진입 시 가독성을 위해 Contrast를 2.0으로 기본 설정
             self.contrast_var.set(2.0)
 
-    # ──────────────────────────────────────────
-    # 캡처 영역 오버레이 (4선 윈도우 방식 — 투명 창 캡처 버그 없음)
-    # ──────────────────────────────────────────
-    def _toggle_overlay(self) -> None:
-        if self.show_overlay_var.get():
-            self._show_overlay()
-        else:
-            self._hide_overlay()
-
-    def _show_overlay(self) -> None:
-        """
-        캡처 영역을 초록색 4개 선 윈도우 + 핸들로 표시.
-        
-        matrix_streamer_overlay.py 방식:
-          - 완전 불투명한 얇은 바(1px) 4개로 테두리만 표현
-          - 중앙은 완전히 비어 있어 캡처 화면이 그대로 전달됨
-          - 드래그 핸들(✥ 아이콘)로 위치 이동, capture_area 실시간 갱신
-        """
-        self._hide_overlay()
-        with mss.mss() as sct:
-            # 1. 대상 모니터 결정 (기존 핸들 위치 우선)
-            if self.capture_area:
-                cx, cy = self.capture_area['left'], self.capture_area['top']
-                # 현재 핸들이 어느 모니터에 있는지 찾기
-                target_mon = sct.monitors[0] # 전체 영역으로 초기화
-                for m in sct.monitors[1:]:
-                    if (m['left'] <= cx < m['left'] + m['width'] and
-                        m['top'] <= cy < m['top'] + m['height']):
-                        target_mon = m
-                        break
-            else:
-                # 핸들이 없으면 기존 방어 로직대로 선택
-                mon_idx = 1 if len(sct.monitors) > 1 else 0
-                target_mon = sct.monitors[mon_idx]
-
-            # 2. 크기 계산
-            cap_str = self.cap_size_var.get()
-            is_portrait = "Portrait" in self.layout_var.get()
-            
-            if cap_str == "Full":
-                # [보완] 핸들이 있는 모니터의 전체 크기 적용
-                if is_portrait:
-                    # 세로 모드: 모니터 전체 높이 기준
-                    height = target_mon['height'] - 40 # SAFE_H
-                    width = height // 8
-                else:
-                    # 가로 모드: 모니터 전체 너비 기준
-                    width = target_mon['width'] - 10 # SAFE_W
-                    height = width // 8
-            else:
-                _, _, width, height = self._calc_capture_area(target_mon)
-
-            # 3. 위치 결정 (핸들 고정 원칙, 경계 보정 없음)
-            if self.capture_area:
-                left, top = self.capture_area['left'], self.capture_area['top']
-                # 사용자의 요청에 따라 모든 자동 경계 보정 삭제 (화면 밖 진출 허용)
-            else:
-                left, top, _, _ = self._calc_capture_area(target_mon)
-
-            # mon_idx는 캡처 엔진 전달용 (0이 가장 안전함)
-            mon_idx = 0 
-
-
-        # capture_area 갱신/유지
-        self.capture_area = {
-            'left': left, 'top': top,
-            'width': width, 'height': height,
-            'mon': mon_idx
-        }
-
-        pad = 2              # 테두리와 캡처 영역 사이 여백
-        HANDLE_H = 24        # 핸들 바 크기 (정사각형)
-        GREEN = "#00FF00"    # 테두리 색상
-
-        # 오버레이 원점 (핸들 좌상단)
-        ox = left - pad
-        oy = top - HANDLE_H - pad
-        self.overlay_ox = ox
-        self.overlay_oy = oy
-
-        # 캡처 영역 상대 좌표 (오버레이 원점 기준)
-        cx1 = pad - 1
-        cy1 = HANDLE_H + pad - 1
-        cx2 = pad + width
-        cy2 = HANDLE_H + pad + height
-
-        # 4개의 선 윈도우 (Top / Bottom / Left / Right)
-        line_configs = [
-            (ox + cx1,      oy + cy1,      cx2 - cx1 + 1, 1),  # Top
-            (ox + cx1,      oy + cy2,      cx2 - cx1 + 1, 1),  # Bottom
-            (ox + cx1,      oy + cy1,      1, cy2 - cy1 + 1),  # Left
-            (ox + cx2,      oy + cy1,      1, cy2 - cy1 + 1),  # Right
-        ]
-
-        self.overlays = []
-        for (x, y, gw, gh) in line_configs:
-            win = tk.Toplevel(self.root)
-            win.overrideredirect(True)
-            win.attributes('-topmost', True)
-            win.geometry(f"{gw}x{gh}+{x}+{y}")
-            win.config(bg=GREEN)
-            self.overlays.append(win)
-
-        # 핸들 윈도우 (드래그용 정사각형 버튼)
-        handle_win = tk.Toplevel(self.root)
-        handle_win.overrideredirect(True)
-        handle_win.attributes('-topmost', True)
-        handle_win.geometry(f"{HANDLE_H}x{HANDLE_H}+{ox}+{oy}")
-        handle_win.config(bg=GREEN)
-        lbl = tk.Label(handle_win, text="✥", bg=GREEN, fg="black",
-                       font=("Arial", 16, "bold"), bd=0)
-        lbl.pack(fill="both", expand=True)
-        self.overlays.append(handle_win)
-
-        # 좌표 표시용 별도 윈도우 (핸들 옆에 부착)
-        coord_win = tk.Toplevel(self.root)
-        coord_win.overrideredirect(True)
-        coord_win.attributes('-topmost', True)
-        # 배경을 초록색으로 하고 약간 띄움
-        coord_win.geometry(f"+{ox + HANDLE_H + 5}+{oy}")
-        coord_win.config(bg=GREEN)
-        
-        coord_text = f"{self.capture_area['left']}, {self.capture_area['top']}"
-        self.handle_label = tk.Label(coord_win, text=coord_text, bg=GREEN, fg="black",
-                                     font=("Arial", 10, "bold"), padx=5)
-        self.handle_label.pack()
-        self.overlays.append(coord_win)
-
-        # 모든 오버레이 윈도우에 드래그 이벤트 바인딩
-        for win in self.overlays:
-            win.bind("<ButtonPress-1>",   self._ol_drag_start)
-            win.bind("<B1-Motion>",       self._ol_drag_move)
-            win.bind("<ButtonRelease-1>", self._ol_drag_end)
-            for child in win.winfo_children():
-                child.bind("<ButtonPress-1>",   self._ol_drag_start)
-                child.bind("<B1-Motion>",       self._ol_drag_move)
-                child.bind("<ButtonRelease-1>", self._ol_drag_end)
-
-        self.root.focus_force()
-        self._keep_overlay_on_top()
-
-    def _keep_overlay_on_top(self) -> None:
-        """1초 주기로 오버레이가 항상 최상위에 있도록 유지"""
-        if self.overlays and self.show_overlay_var.get():
-            if not self.is_dragging:
-                for win in self.overlays:
-                    try:
-                        win.attributes('-topmost', True)
-                    except tk.TclError:
-                        pass  # 윈도우 이미 소멸된 경우 정상
-            self.root.after(1000, self._keep_overlay_on_top)
-
-    def _ol_drag_start(self, event: Any) -> None:
-        """오버레이 드래그 시작"""
-        self.is_dragging   = True
-        self.drag_start_x  = event.x_root
-        self.drag_start_y  = event.y_root
-        self.win_start_x   = self.overlay_ox
-        self.win_start_y   = self.overlay_oy
-
-    def _ol_drag_move(self, event: Any) -> None:
-        """드래그 중: 오버레이 위치 실시간 갱신"""
-        dx = event.x_root - self.drag_start_x
-        dy = event.y_root - self.drag_start_y
-        self._update_overlay_positions(self.win_start_x + dx, self.win_start_y + dy)
-
-    def _ol_drag_end(self, event: Any) -> None:
-        """드래그 완료: capture_area 갱신 후 드래그 플래그 해제"""
-        dx = event.x_root - self.drag_start_x
-        dy = event.y_root - self.drag_start_y
-        self._update_overlay_positions(self.win_start_x + dx, self.win_start_y + dy)
-        self.is_dragging = False
-        try:
-            self.root.focus_force()
-        except Exception:
-            pass
-
-    def _update_overlay_positions(self, new_ox: int, new_oy: int) -> None:
-        """
-        오버레이 5개 윈도우 위치 갱신 및 capture_area.left/top 동기화.
-        """
-        self.overlay_ox = new_ox
-        self.overlay_oy = new_oy
-
-        if not self.capture_area:
-            return
-
-        pad = 2
-        HANDLE_H = 24
-        w = self.capture_area['width']
-        h = self.capture_area['height']
-
-        # capture_area의 실제 좌표 갱신 (캡처 루프가 이 값을 읽음)
-        self.capture_area['left'] = new_ox + pad
-        self.capture_area['top']  = new_oy + HANDLE_H + pad
-
-        cx1 = pad - 1
-        cy1 = HANDLE_H + pad - 1
-        cx2 = pad + w
-        cy2 = HANDLE_H + pad + h
-
-        if len(self.overlays) == 6:
-            self.overlays[0].geometry(f"+{new_ox + cx1}+{new_oy + cy1}")  # Top
-            self.overlays[1].geometry(f"+{new_ox + cx1}+{new_oy + cy2}")  # Bottom
-            self.overlays[2].geometry(f"+{new_ox + cx1}+{new_oy + cy1}")  # Left
-            self.overlays[3].geometry(f"+{new_ox + cx2}+{new_oy + cy1}")  # Right
-            self.overlays[4].geometry(f"+{new_ox}+{new_oy}")              # Handle
-            self.overlays[5].geometry(f"+{new_ox + HANDLE_H + 5}+{new_oy}") # Coord
-
-            # [기능 추가] 좌표 실시간 업데이트
-            if hasattr(self, 'handle_label'):
-                try:
-                    self.handle_label.config(text=f"{new_ox + pad}, {new_oy + HANDLE_H + pad}")
-                except Exception:
-                    pass
-
-    def _hide_overlay(self) -> None:
-        """오버레이 윈도우 전체 제거"""
-        for win in self.overlays:
-            try:
-                win.destroy()
-            except Exception:
-                pass
-        self.overlays = []
-
     def _update_overlay(self, event: Any = None) -> None:
-        """설정 변경 시 오버레이 위치/크기 갱신"""
+        """오버레이 체크박스 상태에 따라 표시/숨김"""
         if self.show_overlay_var.get():
-            self._show_overlay()
+            self.overlay_mgr.show_overlay()
+        else:
+            self.overlay_mgr.hide_overlay()
 
     # _get_selected_monitor_index() 제거됨 (UI 제거에 따라 Index 1 기본 사용)
 
@@ -731,12 +513,8 @@ class VibeStreamerApp:
         """IP 자동 검색 — 비동기 실행으로 UI 블로킹 없음"""
         self.scan_status_var.set("Scanning...")
         self.btn_scan.config(state="disabled")
-        threading.Thread(target=self._scan_ip_async, daemon=True).start()
+        self.net_mgr.scan_ip_async(self._on_scan_done)
 
-    def _scan_ip_async(self) -> None:
-        """백그라운드에서 ESP32 IP 검색 수행"""
-        found = self._discover_esp32_ip()
-        self.root.after(0, self._on_scan_done, found)
 
     def _on_scan_done(self, found: Optional[str]) -> None:
         """IP 검색 완료 후 메인 스레드에서 UI 업데이트"""
@@ -770,26 +548,6 @@ class VibeStreamerApp:
             self.ip_entry.delete(0, tk.END)
             self.ip_entry.insert(0, self.last_unicast_ip)
 
-    def _discover_esp32_ip(self) -> Optional[str]:
-        # [Step 2 수정] with 문으로 소켓 자동 해제 — bind 실패 시에도 누수 없음
-        found = None
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            try:
-                s.bind(('', CONFIG['DISCOVERY_PORT']))
-            except Exception:
-                return None
-            s.settimeout(1.5)
-            start = time.time()
-            while time.time() - start < 2.0:
-                try:
-                    data, addr = s.recvfrom(1024)
-                    if CONFIG['DISCOVERY_MSG'] in data:
-                        found = addr[0]
-                        break
-                except Exception:
-                    continue
-        return found
 
     # ──────────────────────────────────────────
     # 스트리밍 시작/정지
@@ -818,12 +576,12 @@ class VibeStreamerApp:
 
             # 오버레이 표시 여부와 상관없이 위치를 동기화하기 위해 호출
             if self.show_overlay_var.get():
-                self._show_overlay()
+                self.overlay_mgr.show_overlay()
 
             while not self.net_queue.empty():
                 self.net_queue.get_nowait()
             threading.Thread(target=self._producer_loop, daemon=True).start()
-            threading.Thread(target=self._udp_sender_loop, daemon=True).start()
+            threading.Thread(target=self.net_mgr.udp_sender_loop, daemon=True).start()
             self.btn_start.config(state=tk.DISABLED)
             self.btn_stop.config(state=tk.NORMAL)
 
@@ -1102,55 +860,6 @@ class VibeStreamerApp:
             except Exception:
                 pass
             logger.info("[Producer] 스레드 종료")
-
-    # ──────────────────────────────────────────
-    # UDP 전송 루프 (송신 스레드)
-    # ──────────────────────────────────────────
-    def _udp_sender_loop(self) -> None:
-        """
-        4096 bytes를 1024 bytes 청크로 분할하여 UDP 전송.
-        헤더: [Frame ID(1)] [Total Chunks(1)] [Chunk Index(1)]
-        """
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)  # 브로드캐스트 전송 허용
-        chunk_size = CONFIG['CHUNK_SIZE']
-
-        # [Step 2 수정] try/finally로 예외 발생 시에도 소켓 안전 해제 보장
-        try:
-            while self.streaming_active:
-                try:
-                    fid, data = self.net_queue.get(timeout=0.5)
-                except queue.Empty:
-                    continue
-
-                total = (len(data) + chunk_size - 1) // chunk_size
-                for i in range(total):
-                    header  = bytes([fid, min(total, 255), i])
-                    payload = data[i * chunk_size: (i + 1) * chunk_size]
-                    try:
-                        sock.sendto(header + payload, (self.target_ip_str, CONFIG['UDP_PORT']))
-                        if self._send_error_count >= 10:  # 네트워크 복구 감지
-                            self.root.after(0, lambda: self.scan_status_var.set("Ready"))
-                        self._send_error_count = 0
-                    except OSError as _send_err:
-                        self._send_error_count += 1
-                        logger.debug(f"UDP 전송 실패 ({self._send_error_count}회): {_send_err}")
-                        if self._send_error_count == 10:
-                            self.root.after(0, lambda: self.scan_status_var.set("⚠ Network Error"))
-                    # 청크 간 500μs 딜레이: ESP32가 pushCanvas() 블로킹 중일 때
-                    # 다음 청크를 즉시 보내면 UDP 수신 버퍼에 쌓여 누락 발생
-                    # → 약간 분산하여 전송하면 조립 성공률 현저히 향상
-                    if i < total - 1:
-                        time.sleep(0.0005)  # 500μs × 3 = 1.5ms 추가, 30fps에서 무시 가능
-
-                # task_done(): ValueError 방어 (큐 상태 불일치 시 스레드 사망 방지)
-                try:
-                    self.net_queue.task_done()
-                except ValueError:
-                    pass
-        finally:
-            sock.close()
-            logger.info("[Sender] 소켓 해제 완료")
 
     # ──────────────────────────────────────────
     # 프리뷰 갱신 (메인 스레드에서 호출)
