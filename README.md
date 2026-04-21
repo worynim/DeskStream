@@ -1,7 +1,8 @@
 # 🖥️ DeskStream: ESP32-C3 4-OLED Multifunctional Board
 
 DeskStream은 ESP32-C3와 4개의 OLED 디스플레이를 활용한 다기능 데스크톱 정보 스테이션 프로젝트입니다.
-https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
+
+-https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
 ## 🛠️ 하드웨어 사양 (Hardware Specification)
 - **MCU**: ESP32-C3 (SuperMini)
