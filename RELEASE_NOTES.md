@@ -1,3 +1,8 @@
+## [v4.10.0] ✅ 커밋완료 - 2026-04-21 21:06
+### Improved (Global: Documentation & Video Guides)
+- **프로젝트 전반 YouTube 매뉴얼 링크 추가**: DeskStream 루트 및 8개 개별 프로젝트 README 파일에 관련 유튜브 플레이리스트 링크를 추가하여 사용자의 접근성을 높였습니다.
+- **문서화 일관성 확보**: 모든 하위 프로젝트의 설명란에 동일한 소스(YouTube)를 명시하여 통합된 문서 체계를 구축했습니다.
+
 ## [v4.9.0] ✅ 커밋완료 - 2026-04-21 18:12
 ### Performance Optimization (Screen_To_OLEDs: Static Frame Skipping)
 - **정적 프레임 스킵 모드 개선 (완벽 검사)**: 화면에 변화가 없을 때 이미지 처리 및 UDP 전송을 생략하는 `Skip Static Frames` 기능을 추가했습니다.

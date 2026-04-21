@@ -2,6 +2,8 @@
 
 이 프로젝트는 **ESP32 C3 SuperMini** 보드와 4개의 OLED 디스플레이를 사용하여 실시간 GPS 정보를 시각화하는 하드웨어 대시보드입니다. 모든 데이터 수집 및 웹 서버 기능을 제거하고 오직 **하드웨어 제어와 GPS 데이터 디스플레이**에 집중하도록 리팩토링되었습니다.
 
+https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
+
 ## 🚀 주요 기능 및 특징
 
 1.  **실시간 GPS 정보 시각화 (8개 모드 순환)**

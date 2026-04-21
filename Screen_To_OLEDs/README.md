@@ -2,6 +2,8 @@
 
 모니터(mac)의 화면을 실시간으로 캡처하여 DeskStream 하드웨어(4개의 OLED 매트릭스)로 스트리밍하는 프로젝트입니다.
 
+https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
+
 ## 🏗 아키텍처 (Architecture)
 
 본 프로젝트는 고성능 스트리밍을 위해 기능별로 모듈화된 설계를 따릅니다.

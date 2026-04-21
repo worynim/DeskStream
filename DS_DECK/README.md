@@ -2,6 +2,8 @@
 
 ESP32-C3와 4개의 OLED를 이용한 독립형 블루투스 매크로 패드 프로젝트입니다.
 
+https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
+
 ## 🛠 필수 개발 환경
 - **Board Manager**: ESP32 by Espressif Systems (v3.x 이상 권장)
 - **Board Selection**: ESP32C3 Dev Module

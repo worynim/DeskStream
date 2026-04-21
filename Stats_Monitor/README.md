@@ -2,6 +2,8 @@
 
 PC/Mac의 시스템 지표(CPU, GPU, RAM, SSD, 온도, 소비전력)를 실시간으로 표시해주는 데스크 가젯 프로젝트입니다.
 
+https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
+
 ## 🛠️ 하드웨어 구성
 - **MCU**: ESP32-C3
 - **Display**: 4 x SSD1306 OLED (128x64)

@@ -6,6 +6,8 @@
 
 NTP 서버로부터 시간을 동기화하여 4개의 OLED 디스플레이에 고화질 한글 및 숫자로 시, 분, 초를 표시하는 ESP32-C3 기반 프리미엄 데스크 가젯입니다.
 
+https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
+
 ## ✨ 핵심 혁신 기능 (Major Features)
 
 ### 1. Modern Modular Architecture (모듈형 아키텍처)

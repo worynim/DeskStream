@@ -2,6 +2,8 @@
 
 이 프로젝트는 4개의 128x64 OLED(SSD1306)를 가로로 배치하여 하나의 **512x64 초광폭(Ultra-Wide) 디스플레이**로 제어하는 Arduino 프로젝트입니다. ESP32-C3의 하드웨어 및 소프트웨어 자원을 극한으로 활용하여 부드러운 고속 그래픽 출력을 구현했습니다.
 
+https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
+
 ## 🚀 주요 특징 및 성능 최적화
 
 ### 1. 하이브리드 I2C 드라이버
