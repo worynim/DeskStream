@@ -128,6 +128,10 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
                     <option value="1">INVERT (White BG)</option>
                 </select>
             </div>
+            <div class="field">
+                <label>9. OLED 밝기: <span id="brVal">1</span></label>
+                <input type="range" id="brIn" min="1" max="255" value="1">
+            </div>
         </div>
 
         <div class="preview-list">
@@ -165,7 +169,9 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
             pFill: document.getElementById('pFill'),
             pWrap: document.getElementById('pWrap'),
             sIn: document.getElementById('sIn'),
-            fIn: document.getElementById('fIn')
+            fIn: document.getElementById('fIn'),
+            brIn: document.getElementById('brIn'),
+            brVal: document.getElementById('brVal')
         };
 
         UNIQ_CHARS.forEach(c => {
@@ -185,6 +191,8 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
                 els.flip.value = data.is_flipped ? "1" : "0";
                 els.invert.value = data.is_inverted ? "1" : "0";
                 els.slot.value = (data.font_slot ?? 0).toString();
+                els.brIn.value = (data.brightness ?? 1).toString();
+                els.brVal.innerText = els.brIn.value;
                 
                 // 슬롯 이름 업데이트
                 if (data.slot_names) {
@@ -208,7 +216,8 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
                 chime_enabled: els.chime.value === "1",
                 is_flipped: els.flip.value === "1",
                 is_inverted: els.invert.value === "1",
-                font_slot: parseInt(els.slot.value)
+                font_slot: parseInt(els.slot.value),
+                brightness: parseInt(els.brIn.value)
             };
             try {
                 await fetch('/api/config', { method: 'POST', body: JSON.stringify(body) });
@@ -217,6 +226,8 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
         }
 
         [els.anim, els.disp, els.hour, els.chime, els.flip, els.invert, els.slot].forEach(el => el.onchange = saveConfig);
+        els.brIn.oninput = () => { els.brVal.innerText = els.brIn.value; };
+        els.brIn.onchange = saveConfig;
         fetchConfig();
         setInterval(fetchConfig, 5000);
 

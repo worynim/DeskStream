@@ -50,6 +50,7 @@ void DisplayManager::begin() {
     for (int i = 0; i < 4; i++) {
         screens[i]->setFlipMode(configManager.get().is_flipped);
         screens[i]->sendF("c", configManager.get().is_inverted ? 0xA7 : 0xA6);
+        screens[i]->setContrast(configManager.get().brightness);
         screens[i]->setBitmapMode(1);
         screens[i]->clearBuffer();
         lastTexts[i] = "";
@@ -197,6 +198,14 @@ void DisplayManager::setInversion(bool invert) {
         screens[i]->sendF("c", invert ? 0xA7 : 0xA6);
     }
     setForceUpdate(true);
+}
+
+void DisplayManager::setBrightness(uint8_t brightness) {
+    configManager.get().brightness = brightness;
+    configManager.setDirty();
+    for (int i = 0; i < 4; i++) {
+        screens[i]->setContrast(brightness);
+    }
 }
 
 // saveConfig()은 ConfigManager로 대체됨
@@ -465,6 +474,16 @@ void DisplayManager::playStartupMelody() {
     }
     noTone(BUZZER_PIN);
     digitalWrite(BUZZER_PIN, LOW); 
+}
+
+void DisplayManager::playChimeMelody() {
+    // 경쾌한 '띠링~' 소리 (C7 -> G7)
+    tone(BUZZER_PIN, 2093, 80);  // 도 (C7)
+    delay(100);
+    tone(BUZZER_PIN, 3136, 150); // 솔 (G7)
+    delay(160);
+    noTone(BUZZER_PIN);
+    digitalWrite(BUZZER_PIN, LOW);
 }
 
 

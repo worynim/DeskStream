@@ -33,6 +33,7 @@ void ConfigManager::load() {
     _settings.is_inverted = _prefs.getBool("inv", false);
     _settings.font_name = _prefs.getString("font_name", "System Default");
     _settings.font_slot = _prefs.getUChar("slot", 0);
+    _settings.brightness = _prefs.getUChar("bright", 1);
 
     _prefs.end();
     Serial.println("[CONFIG] Settings loaded from Preferences.");
@@ -63,6 +64,7 @@ void ConfigManager::saveNow() {
     _prefs.putBool("inv", _settings.is_inverted);
     _prefs.putString("font_name", _settings.font_name);
     _prefs.putUChar("slot", _settings.font_slot);
+    _prefs.putUChar("bright", _settings.brightness);
 
     _prefs.end();
     _isDirty = false;

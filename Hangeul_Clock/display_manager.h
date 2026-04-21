@@ -61,6 +61,7 @@ public:
     void setForceUpdate(bool force);
     void setFontSlot(uint8_t slot);
     void setInversion(bool invert);
+    void setBrightness(uint8_t brightness);
     void refreshNow();
     String getSlotName(uint8_t slot);
     bool checkForceUpdate();
@@ -83,6 +84,7 @@ public:
     void showStatus(const String& msg);
     void recoverI2CBus(); // I2C 버스 및 디스플레이 복구 로직
     void playStartupMelody(); // 시작 멜로디 재생
+    void playChimeMelody(); // 시보 멜로디 재생
 
 private:
     uint32_t hw_i2c_error_count = 0;

@@ -212,7 +212,7 @@ void handleClockUpdate(bool force = false) {
     if (configManager.get().chime_enabled && timeinfo.tm_min == 0 && timeinfo.tm_sec == 0) {
         static int lastChimeHour = -1;
         if (lastChimeHour != timeinfo.tm_hour) {
-            display.beep(500, 1000);
+            display.playChimeMelody();
             lastChimeHour = timeinfo.tm_hour;
         }
     }

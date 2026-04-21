@@ -1,3 +1,9 @@
+## [v4.8.0] ✅ 커밋완료 - 2026-04-21 17:21
+### Improved (Hangeul_Clock: Brightness Control & Audio UX)
+- **OLED 밝기 제어 시스템**: 웹 대시보드 슬라이더 추가 및 Flash 저장 로직 구현 (최소 밝기 1 제한으로 안정성 확보).
+- **시보 멜로디 개선**: 단조로운 비프음에서 경쾌한 2음절(C7-G7) "띠링~" 소리로 업그레이드.
+- **코드 무결성 패치**: 필드 누락으로 인한 컴파일 오류 해결 및 설정 동기화 강화.
+
 ## [v4.7.0] ✅ 커밋완료 - 2026-04-16 15:47
 ### Major Update (Screen_To_OLEDs: Network & Overlay Modularization)
 - **네트워크 매니저 분리 (`network_manager.py`)**: IP 자동 검색 및 UDP 송신 루프를 독립 모듈로 추출하여 통신 계층의 결합도를 낮추었습니다.

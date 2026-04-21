@@ -25,6 +25,7 @@ struct SystemSettings {
     bool is_inverted;
     String font_name;
     uint8_t font_slot;
+    uint8_t brightness;
 
     // 기본값 설정
     SystemSettings() : 
@@ -35,7 +36,8 @@ struct SystemSettings {
         chime_enabled(false),
         is_inverted(false),
         font_name("System Default"),
-        font_slot(0) {}
+        font_slot(0),
+        brightness(1) {}
 };
 
 /**

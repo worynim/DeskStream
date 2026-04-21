@@ -84,6 +84,7 @@ void WebManager::handleGetConfig() {
                  "\",\"font_slot\":" + String((int)s.font_slot) +
                  ",\"slot_names\":" + slotNames +
                  ",\"is_inverted\":" + String(s.is_inverted ? "true":"false") +
+                 ",\"brightness\":" + String((int)s.brightness) +
                  ",\"is_flipped\":" + String(s.is_flipped ? "true":"false") + "}";
     server.send(200, "application/json", json);
 }
@@ -117,6 +118,9 @@ void WebManager::handleSetConfig() {
         
         int fs = parseVal(body, "font_slot");
         if (fs >= 0 && fs <= 4 && fs != s.font_slot) display.setFontSlot(fs);
+
+        int br = parseVal(body, "brightness");
+        if (br >= 1 && br <= 255 && br != s.brightness) display.setBrightness(br);
 
         int fnS = body.indexOf("\"font_name\":\"");
         if (fnS != -1) {
