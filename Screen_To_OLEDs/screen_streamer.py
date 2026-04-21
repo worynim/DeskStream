@@ -15,6 +15,7 @@ import threading
 import queue
 import subprocess
 import os
+import hashlib
 from pathlib import Path
 import tkinter as tk
 from tkinter import ttk
@@ -165,6 +166,7 @@ class VibeStreamerApp:
         self._c_preview:   bool  = True
         self._c_fps:       int   = 30
         self._c_replayd:   bool  = False
+        self._c_skip_static: bool = True
 
         self.net_queue   = queue.Queue(maxsize=3)
         self.frame_id: int = 0
@@ -207,6 +209,7 @@ class VibeStreamerApp:
         self._c_preview   = self.preview_on.get()
         self._c_fps       = self.fps_var.get()
         self._c_replayd   = self.manage_replayd_var.get()
+        self._c_skip_static= self.skip_static_var.get()
         self.root.after(50, self._refresh_settings_cache)  # 50ms마다 반복
 
     # ──────────────────────────────────────────
@@ -398,6 +401,12 @@ class VibeStreamerApp:
                                           bg="#3c3f41", fg="white", selectcolor="#555555")
         self.chk_replayd.pack(anchor="w")
 
+        self.skip_static_var = tk.BooleanVar(value=True)
+        self.chk_skip_static = tk.Checkbutton(perf_frame, text="Skip Static Frames",
+                                              variable=self.skip_static_var,
+                                              bg="#3c3f41", fg="white", selectcolor="#555555")
+        self.chk_skip_static.pack(anchor="w")
+
         # ── 시작/정지 버튼 ──
         btn_frame = tk.Frame(self.root, pady=10, bg="#2b2b2b")
         btn_frame.pack(fill="x", padx=10)
@@ -557,7 +566,7 @@ class VibeStreamerApp:
         if not self.streaming_active:
             self.streaming_active = True
             # 스트리밍 중 고정: IP / 실시간 허용: B&W 모드, Contrast, FPS, Preview, Layout, Width, Overlay
-            all_widgets = ([self.ip_entry, self.btn_scan, self.chk_replayd]
+            all_widgets = ([self.ip_entry, self.btn_scan, self.chk_replayd, self.chk_skip_static]
                            + self.target_radios)
             for w in all_widgets:
                 w.config(state="disabled")
@@ -588,7 +597,7 @@ class VibeStreamerApp:
     def stop_streaming(self) -> None:
         self.streaming_active = False
         # self._hide_overlay()  <-- 제거하여 중지 시에도 오버레이 유지
-        all_widgets = ([self.ip_entry, self.btn_scan, self.chk_overlay, self.chk_replayd]
+        all_widgets = ([self.ip_entry, self.btn_scan, self.chk_overlay, self.chk_replayd, self.chk_skip_static]
                        + self.cap_radios + self.layout_radios + self.target_radios)
         for w in all_widgets:
             w.config(state="normal")
@@ -684,6 +693,9 @@ class VibeStreamerApp:
         """
         logger.info("[Producer] 스레드 시작")
 
+        self._last_frame_hash = b""
+        self._last_sent_time = time.perf_counter()
+
         # ── GC 비활성화: 핫루프 내 임시 numpy/PIL 객체에 의한 주기적 GC 스파이크 방지 ──
         gc.disable()
 
@@ -768,6 +780,31 @@ class VibeStreamerApp:
                 if cap_time > max_cap:
                     max_cap = cap_time
 
+                # ── Step 8: 정적 프레임 스킵 (화면 변화 없을 때 처리/전송 생략) ──
+                # mss의 .bgra 프로퍼티는 호출 시마다 bytes를 새로 할당하므로 변수에 캐싱합니다.
+                bgra_buf = sct_img.bgra
+                
+                if self._c_skip_static:
+                    # Python 내장 hash()는 C레벨 SipHash를 사용하여 전체 배열(수 MB)도 1~3ms 만에
+                    # 초고속으로 검사합니다. 100% 모든 픽셀의 변화를 감지할 수 있습니다.
+                    frame_hash = hash(bgra_buf)
+                    
+                    # 1초 지났으면 KeepAlive용으로 프레임을 한 번 강제 전송함
+                    now_perf = time.perf_counter()
+                    if frame_hash == self._last_frame_hash and (now_perf - self._last_sent_time) < 1.0:
+                        # 화면 변화 없음 + 1초 이내 -> 이번 프레임 생략
+                        frames += 1
+                        frame_deadline += 1.0 / target_fps
+                        sleep_until = frame_deadline - time.perf_counter()
+                        if sleep_until > 0.002:
+                            time.sleep(sleep_until - 0.001)
+                        elif sleep_until < -0.05:
+                            frame_deadline = time.perf_counter()
+                        continue
+                        
+                    self._last_frame_hash = frame_hash
+                    self._last_sent_time = now_perf
+
                 # 설정값 읽기 — 캐시된 Python 변수 사용 (Tkinter .get() 호출 금지)
                 # 이유: Tkinter StringVar/IntVar.get()을 백그라운드 스레드에서 호출하면
                 #       Tcl 뮤텍스 대기로 50~200ms 블로킹 발생 (FPS 6fps 급락의 원인)
@@ -782,7 +819,7 @@ class VibeStreamerApp:
                 # ── Phase 2~4: 처리 + 전송 (배열 내 예외를 잘라서 프로듀서 전체 충돌 방지) ──
                 try:
                     raw_bytes, preview, cnv_ms, rsz_ms, bin_ms, pak_ms = self.process_image_from_bgra(
-                        sct_img.bgra, sct_img.width, sct_img.height,
+                        bgra_buf, sct_img.width, sct_img.height,
                         bw_mode, threshold, contrast, layout, want_preview
                     )
 
