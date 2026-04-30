@@ -1,3 +1,10 @@
+## [v4.11.1] ✅ 커밋완료 - 2026-04-30 11:06
+### Improved & Fixed (Game_Of_Life: FreeRTOS Button Polling Engine)
+- **버튼 반응성 완벽 해결 (RTOS Task)**: 
+    - 메인 루프의 I2C 디스플레이 렌더링(약 50ms 소요) 도중 버튼 입력이 무시되는(Blocking) 근본적인 문제를 해결했습니다.
+    - FreeRTOS를 활용한 독립적인 백그라운드 태스크(`buttonTask`)를 신설하여, 화면 렌더링 부하와 무관하게 5ms 주기마다 버튼 상태를 스캔하고 깃발(Flag)을 설정하는 논블로킹(Non-blocking) 아키텍처를 도입했습니다.
+- **FPS 설정 최적화**: 사용자의 요청에 따라 시뮬레이션 속도(FPS) 단계를 5, 15, 30에서 **5, 10, 20**으로 실사용에 맞게 조정했습니다.
+
 ## [v4.11.0] ✅ 커밋완료 - 2026-04-30 11:00
 ### Major Update (Game_Of_Life: Standalone Simulation Engine)
 - **Standalone Simulation Engine**: 외부 장치(WiFi, PC) 의존성 없는 고성능 Game of Life 엔진 구현.

@@ -1,5 +1,10 @@
 # Release Notes - DeskStream Game of Life
 
+## [v1.0.1] ✅ 커밋완료 - 2026-04-30
+### 🚀 Improved & Fixed
+- **FreeRTOS Button Polling Task**: 메인 루프의 렌더링 블로킹 시간(약 50ms) 동안 짧은 버튼 입력이 무시되는 현상을 완벽히 해결하기 위해, 5ms마다 독립적으로 버튼을 스캔하는 백그라운드 태스크 엔진 도입.
+- **FPS 조정**: 시뮬레이션 3단계 속도를 5/15/30에서 5/10/20 FPS로 현실화.
+
 ## [v1.0.0] - 2026-04-30
 ### 🌟 New Features
 - **Standalone Engine**: 외부 장치 의존성 없는 ESP32-C3 단독 Game of Life 엔진 구현.

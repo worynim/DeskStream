@@ -20,9 +20,7 @@ bool isPlaying = true;
 int fpsMode = 1; // 0=5fps, 1=10fps, 2=20fps
 int frameDelay = 100; // approx 10fps
 
-uint32_t lastDebounceTime[4] = {0, 0, 0, 0};
-bool lastFlickerState[4] = {HIGH, HIGH, HIGH, HIGH};
-bool lastStableState[4] = {HIGH, HIGH, HIGH, HIGH};
+volatile bool btnFlag[4] = {false, false, false, false};
 
 void playStartupMelody() {
     int melody[] = {2093, 2637, 3136, 4186}; // Do-Mi-Sol-Do
@@ -33,53 +31,64 @@ void playStartupMelody() {
     noTone(BUZZER_PIN);
 }
 
-void handleButtons() {
-    uint32_t now = millis();
+void buttonTask(void* parameter) {
+    uint32_t lastDebounceTime[4] = {0, 0, 0, 0};
+    bool lastFlickerState[4] = {HIGH, HIGH, HIGH, HIGH};
+    bool lastStableState[4] = {HIGH, HIGH, HIGH, HIGH};
     int pins[] = {BTN1_PIN, BTN2_PIN, BTN3_PIN, BTN4_PIN};
     
-    for (int i = 0; i < 4; i++) {
-        bool reading = digitalRead(pins[i]);
-        
-        // 핀 상태가 변경되었으면 타이머 초기화 (바운싱 중)
-        if (reading != lastFlickerState[i]) {
-            lastDebounceTime[i] = now;
-        }
-        
-        // 상태가 50ms 이상 유지되었으면 안정된 상태로 간주
-        if ((now - lastDebounceTime[i]) > 50) {
-            if (reading != lastStableState[i]) {
-                lastStableState[i] = reading;
-                
-                // 안정된 상태가 LOW(눌림) 일 때 액션 실행
-                if (lastStableState[i] == LOW) {
-                    if (i == 0) { // BTN1: Play/Pause
-                        isPlaying = !isPlaying;
-                        tone(BUZZER_PIN, isPlaying ? 2000 : 1000, 50);
-                    } else if (i == 1) { // BTN2: Step (only if paused)
-                        if (!isPlaying) {
-                            engine.computeNextGeneration();
-                            mapEngineToBuffers();
-                            pushParallel();
-                            tone(BUZZER_PIN, 1500, 30);
-                        }
-                    } else if (i == 2) { // BTN3: Speed Toggle
-                        fpsMode = (fpsMode + 1) % 3;
-                        if (fpsMode == 0) frameDelay = 200; // 5fps
-                        else if (fpsMode == 1) frameDelay = 100;  // 10fps
-                        else frameDelay = 50;  // 20fps
-                        tone(BUZZER_PIN, 1000 + fpsMode * 500, 50);
-                    } else if (i == 3) { // BTN4: Reset Pattern
-                        engine.randomize();
-                        if (!isPlaying) {
-                            mapEngineToBuffers();
-                            pushParallel();
-                        }
-                        tone(BUZZER_PIN, 800, 100);
+    while (true) {
+        uint32_t now = millis();
+        for (int i = 0; i < 4; i++) {
+            bool reading = digitalRead(pins[i]);
+            if (reading != lastFlickerState[i]) {
+                lastDebounceTime[i] = now;
+            }
+            if ((now - lastDebounceTime[i]) > 20) {
+                if (reading != lastStableState[i]) {
+                    lastStableState[i] = reading;
+                    if (lastStableState[i] == LOW) {
+                        btnFlag[i] = true;
                     }
                 }
             }
+            lastFlickerState[i] = reading;
         }
-        lastFlickerState[i] = reading;
+        vTaskDelay(pdMS_TO_TICKS(5)); // 5ms마다 스캔 (렌더링 루프와 독립적)
+    }
+}
+
+void processButtonFlags() {
+    if (btnFlag[0]) { // BTN1: Play/Pause
+        btnFlag[0] = false;
+        isPlaying = !isPlaying;
+        tone(BUZZER_PIN, isPlaying ? 2000 : 1000, 50);
+    }
+    if (btnFlag[1]) { // BTN2: Step
+        btnFlag[1] = false;
+        if (!isPlaying) {
+            engine.computeNextGeneration();
+            mapEngineToBuffers();
+            pushParallel();
+            tone(BUZZER_PIN, 1500, 30);
+        }
+    }
+    if (btnFlag[2]) { // BTN3: Speed Toggle
+        btnFlag[2] = false;
+        fpsMode = (fpsMode + 1) % 3;
+        if (fpsMode == 0) frameDelay = 200; // 5fps
+        else if (fpsMode == 1) frameDelay = 100;  // 10fps
+        else frameDelay = 50;  // 20fps
+        tone(BUZZER_PIN, 1000 + fpsMode * 500, 50);
+    }
+    if (btnFlag[3]) { // BTN4: Reset Pattern
+        btnFlag[3] = false;
+        engine.randomize();
+        if (!isPlaying) {
+            mapEngineToBuffers();
+            pushParallel();
+        }
+        tone(BUZZER_PIN, 800, 100);
     }
 }
 
@@ -173,6 +182,9 @@ void setup() {
     pinMode(BUZZER_PIN, OUTPUT);
     digitalWrite(BUZZER_PIN, LOW);
 
+    // 버튼 전용 백그라운드 태스크 시작
+    xTaskCreate(buttonTask, "ButtonTask", 2048, NULL, 5, NULL);
+
     // I2C 플랫폼 초기화 (병렬 전송 Task 포함)
     Serial.println("[System] Initializing I2C Platform...");
     i2cPlatform.begin();
@@ -220,7 +232,7 @@ void setup() {
 void loop() {
     unsigned long loop_start = millis();
 
-    handleButtons();
+    processButtonFlags();
 
     if (isPlaying) {
         // unsigned long start_time = micros();
@@ -237,7 +249,7 @@ void loop() {
     
     // FPS 조절 대기 로직 (버튼 반응성을 위해 짧게 나눠서 대기)
     while (millis() - loop_start < frameDelay) {
-        handleButtons();
+        processButtonFlags();
         delay(5);
     }
 }
