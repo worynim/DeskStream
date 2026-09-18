@@ -55,6 +55,8 @@ void btn2_short() {
     uint8_t nextMode = (configManager.get().display_mode == CLOCK_MODE_HANGUL) ? CLOCK_MODE_NUMERIC : CLOCK_MODE_HANGUL;
     display.setDisplayMode(nextMode);
     display.clearAll();
+    if (uiStage == 1) display.showLargeIP(WiFi.localIP());
+    else if (uiStage == 2) display.showButtonHelp();
 }
 
 void btn2_long() {
@@ -62,23 +64,30 @@ void btn2_long() {
     uint8_t nextFormat = (configManager.get().hour_format == HOUR_FORMAT_12H) ? HOUR_FORMAT_24H : HOUR_FORMAT_12H;
     display.setHourFormat(nextFormat);
     display.clearAll();
+    if (uiStage == 1) display.showLargeIP(WiFi.localIP());
+    else if (uiStage == 2) display.showButtonHelp();
 }
 
-void btn3_short() { 
-    display.beep(50, 3000); 
+void btn3_short() {
+    display.beep(50, 3000);
     uint8_t nextAnim = (configManager.get().anim_mode + 1) % 6;
     display.setAnimMode(nextAnim);
+    if (uiStage == 2) display.showButtonHelp();
 }
 
 void btn3_long() {
     display.beep(150, 2000);
     uint8_t nextSlot = (configManager.get().font_slot + 1) % 5;
     display.setFontSlot(nextSlot);
-    
-    // 상태 메시지 출력
-    char msg[16];
-    sprintf(msg, "Font Slot %d", nextSlot);
-    display.showStatus(msg);
+
+    // 도움말 페이지에서는 페이지 갱신으로 현재 슬롯 표시, 그 외에는 상태 메시지 출력
+    if (uiStage == 2) {
+        display.showButtonHelp();
+    } else {
+        char msg[16];
+        sprintf(msg, "Font Slot %d", nextSlot);
+        display.showStatus(msg);
+    }
 }
 
 void btn4_short() {
