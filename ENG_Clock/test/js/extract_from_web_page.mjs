@@ -26,6 +26,8 @@ const NAMES = [
     // (renderer.cpp의 static_assert가 config.h와의 일치를 컴파일 타점에 막는다)
     'GLYPH_W', 'GLYPH_H', 'RASTER_W', 'X_OFFSET', 'BYTES_PER_ROW',
     'MAX_PER_LINE', 'LINE_HEIGHT', 'SCREEN_W', 'SCREEN_H',
+    // [사용자 지정 사다리] 총폭을 (n+1)글자분으로 — layout_engine.h의 PITCH_SUM_OFFSET와 짝이다
+    'PITCH_SUM_OFFSET',
     // 문자집합 → 펌웨어 캐시가 런타임에 찾는 키 집합
     'UNIQ_CHARS',
     // 비트 패킹 → U8g2 drawBitmap 규약 (DOM을 분리해 순수 함수로 둔다)
@@ -38,6 +40,18 @@ const NAMES = [
     'computeGlyphBaselineFor',
     // 미리보기 캐시 → 폰트·크기가 바뀔 때마다 전부 새로 그려야 한다 (버그 회귀)
     'buildGlyphCache',
+    // 잉크 폭 측정 → layout_engine.cpp linePitch()/lineStartX()의 상한 (§6.16).
+    // 펌웨어 renderer_geometry.h inkWidthOf()의 미러.
+    // packGlyph도 필요하다 — 잉크를 **업로드 바이트**에서 재야(웹-기기 불일치 수정)
+    // 펌웨어와 같은 입력을 쓰게 되고, 이건 DOM을 건드린다.
+    'packGlyph', 'glyphInkWidth', 'maxInkWidthOf', 'previewInkWidth',
+    // 가로 간격 확장 → layout_engine.cpp linePitch() · lineStartX()
+    'linePitch', 'lineStartX',
+    // [§6.16b] 줄별 잉크 → layout_engine.cpp measureLineInk() / Renderer::inkOf()의 미러.
+    //   이게 빠져 있으면 웹 미러가 폰트 최대로만 상한을 걸어 펌웨어보다 **좁게** 잡힌다.
+    'inkOfChar', 'previewInkByChar', 'measureLineInk',
+    // [§6.16c] 겹침 없는 최소 피치 → linePitch()가 완화를 되돌릴 하단으로 쓴다
+    'measureLineFloor',
     // 글자 크기 → [bug 1 수정] 슬라이더 값을 그대로 쓴다 (자동 축소 fitSizeWith/commonSize는 삭제됨)
     'currentGlyphSize',
     // 웹 설정 → 저장 확인 전에는 5초 폴링이 값을 되돌리지 않아야 한다 (버그 2 회귀)

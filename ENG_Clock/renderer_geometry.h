@@ -39,4 +39,23 @@ const CellGeometry* geometryForSize(uint32_t size);
 /** @brief 현재 표시 모드의 기본 기하 (캐시 미적용 시 폴백 렌더링용) */
 const CellGeometry& defaultGeometry();
 
+/**
+ * @brief 비트맵 1글자의 실제 잉크 폭 (픽셀)
+ *
+ * @param data        row-major 비트맵. U8g2 drawBitmap 규약(MSB 우선) — 0x80이 가장 왼쪽 열
+ * @param bytesPerRow 1행당 바이트 수 (CellGeometry::bytesPerRow)
+ * @param glyphH      행 수 (CellGeometry::glyphH)
+ * @return 잉크가 차지하는 열 수. 잉크가 없거나 인자가 잘못되면 0
+ *
+ * @details 48×64 래스터(384B)는 **어떤 크기의 폰트든 폭이 48으로 같다.**
+ *          그래서 geometryForSize()는 "몇 px 폰트인지"를 알려 주지 못하고,
+ *          큰 폰트에서 글자가 겹치는 문제도 파일 크기만으로는 고칠 수 없다.
+ *          레이아웃 간격(linePitch)의 상한이 되어야 할 값은 래스터 폭이 아니라
+ *          **실제로 그려지는 잉크 폭**이므로 여기서 잰다.
+ *
+ * @note 잉크는 래스터 안에서 가로 중앙 정렬된다(웹 Font Studio의 glyphCenterX).
+ *       따라서 폰트 전체의 최대 잉크 폭 하나면 모든 글자에 맞는 피치를 얻는다.
+ */
+uint8_t inkWidthOf(const uint8_t* data, uint8_t bytesPerRow, uint8_t glyphH);
+
 #endif

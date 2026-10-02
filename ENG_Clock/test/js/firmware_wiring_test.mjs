@@ -13,6 +13,7 @@
  * (계산 자체를 복제하지 않고 상수만 가져와 식을 재현하므로, 상수가 바뀌면 함께 걸린다.)
  */
 import { readFileSync } from 'fs';
+import { linePitch } from './_extracted.mjs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -230,7 +231,76 @@ chk('웹 미리보기도 같은 규칙으로 singleLine 을 넘긴다',
     /layoutWrap\(targetTimeStrings\[s\], !isWordPreview && s !== 0\)/.test(web)
     && /layoutWrap\(lastTimeStrings\[s\], !isWordPreview && s !== 0\)/.test(web));
 chk('웹 JS layoutWrap도 singleLine 파라미터를 받는다 (펌웨어 미러)',
-    /function layoutWrap\(text, singleLine = false\)/.test(web));
+    /function layoutWrap\(text, singleLine = false, inkWidth = previewInkWidth\)/.test(web));
+
+// ===================================================================
+// [간격 확장 §6.16] 글자 수에 따른 피치 — 웹 ↔ 펌웨어 배선
+// ===================================================================
+console.log('\n간격 확장 (§6.16): 잉크 폭 → 피치');
+
+chk('펌웨어가 inkWidthOf()로 잉크 폭을 잰다',
+    /inkWidthOf\(getCharDataPtr\(&cc\), cc\.geom->bytesPerRow, cc\.geom->glyphH\)/.test(rc)
+    && /measureMaxInkWidth\(\);/.test(rc));
+// [§6.16b] 펌웨어는 줄별 잉크를 조회하는 trampoline까지 함께 넘겨야 한다.
+//   이것이 없으면 펌웨어는 폰트 최대로만 상한을 걸어 **웹보다 피치가 넓어진다.**
+chk('getCharData가 잉크 폭과 줄별 조회 함수를 layoutWrap에 넘긴다',
+    /laidCount,\s*\n\s*singleLine, maxInkWidth,\s*\n\s*&Renderer::inkOfTrampoline, this\)/.test(rc));
+chk('clearCache가 잉크 폭을 0으로 되돌린다 (캐시 없음 = 확장 없음)',
+    /maxInkWidth = 0;/.test(rc));
+// §6.16b — 글자별 표는 로드 시점에만 유효하므로, 조기 반환 전에 함께 비운다.
+chk('글자별 잉크 표(inkByChar)를 로드·초기화 경로에서 함께 비운다',
+    /inkByChar\.clear\(\);/.test(rc));
+chk('layoutWrap이 잉크 폭과 조회 함수를 인자로 받는다',
+    /int& outCount, bool singleLine = false, int inkWidth = 0,\s*\n\s*InkWidthFn inkFn = nullptr, void\* inkCtx = nullptr\)/.test(read('layout_engine.h')));
+chk('웹 미리보기도 잉크 폭을 잰다 (알파 > 128 = packPixels와 같은 임계값)',
+    /px\[\(y \* RASTER_W \+ x\) \* 4 \+ 3\] > 128/.test(web)
+    && /previewInkWidth = maxInkWidthOf\(bitmapCache\);/.test(web));
+// §6.16b — 웹도 글자별 표를 채운다. 이것이 없으면 웹이 폰트 최대로 묶여 좁게 나온다.
+chk('웹도 글자별 잉크 표를 채운다 (펌웨어 inkByChar의 미러)',
+    /previewInkByChar = \{\};/.test(web)
+    && /for \(const ch of UNIQ_CHARS\) previewInkByChar\[ch\] = glyphInkWidth/.test(web));
+// [사용자 지정 사다리] 총폭을 (n+1) 글자분으로 — 양쪽 식이 어긋나면 조용히 간격이 갈린다
+chk('양쪽 모두 총폭을 (n+1)글자분으로 맞춘다 (사용자 지정 사다리)',
+    /const int total = \(charCount \+ 1 > maxLine\) \? maxLine \* cellW : \(charCount \+ 1\) \* cellW;/.test(leSrc)
+    && /const total = \(charCount \+ PITCH_SUM_OFFSET > MAX_PER_LINE\)/.test(web)
+    && /\? MAX_PER_LINE \* GLYPH_W : \(charCount \+ PITCH_SUM_OFFSET\) \* GLYPH_W;/.test(web));
+chk('사다리 오프셋 상수가 양쪽에 같다',
+    /#define PITCH_SUM_OFFSET 1/.test(read('layout_engine.h'))
+    && /const PITCH_SUM_OFFSET = 1;/.test(web));
+// [핵심 회귀] 잉크 하단은 **목표가 아니라 하한**이다. 한때 완화를 이 값으로
+// 되돌려 간격을 겹치기 직전에 딱 붙였고, 그게 "AM/ONE/FORTY가 너무 붙어"의 원인이었다.
+chk('잉크 하단은 올리기만 한다 (목표로 좁히지 않는다)',
+    /if \(floor > spread\) spread = floor;/.test(leSrc)
+    && /if \(floor > spread\) spread = floor;/.test(web));
+chk('양쪽 모두 겹침 없는 하단(measureLineFloor)을 잰다',
+    /int measureLineFloor\(/.test(read('layout_engine.h'))
+    && /const int floor = \(lineFloor > cellW\) \? lineFloor/.test(leSrc)
+    && /function measureLineFloor\(lineText, fallback\)/.test(web)
+    && /const floor = \(lineFloor > GLYPH_W\) \? lineFloor/.test(web));
+// [웹-기기 일치] 잉크는 **업로드할 바이트**에서 져야 한다. 캔버스를 다시 읽으면
+//   premultiplied alpha / GPU 반올림으로 1~2px 어긋나 기기만 간격이 벌어진다.
+chk('웹 잉크를 캔버스 아닌 업로드 바이트에서 잰다 (웹-기기 간격 일치)',
+    /const bm = packGlyph\(canvas\);/.test(web)
+    && /inkWidthOf\(getCharDataPtr\(&cc\)/.test(rc));
+// 화면 적합 상한(잘림 방지)이 양쪽에 같아야 한다
+chk('화면 적합 상한이 양쪽에 같다',
+    /const int fit = \(screenWidth - inkCap\) \/ \(charCount - 1\);/.test(leSrc)
+    && /const fit = Math\.floor\(\(SCREEN_W - inkCap\) \/ \(charCount - 1\)\);/.test(web));
+// 9자는 총폭 126 = 9 × glyphW 라서 **어떤 잉크에서도** 14여야 한다 (사용자 요구사항).
+//   문자열 일치 대신 산식을 직접 돌려 확인한다 — 식이 바뀌면 이게 먼저 깨진다.
+chk('펌웨어 linePitch: 9자 → 14 (= glyphW, 잉크와 무관하게)',
+    (() => {
+        for (const ink of [0, 11, 14, 24, 43]) {
+            if (linePitch(9, ink, ink, ink) !== 14) return false;
+        }
+        return true;
+    })());
+chk('펌웨어 lineStartX: 확장이 없으면 기존 셀 중앙 정렬 경로로 분기',
+    /if \(pitch <= cellW\) return \(screenWidth - charCount \* pitch\) \/ 2;/.test(leSrc)
+    && /if \(pitch <= GLYPH_W\) return Math\.floor\(\(SCREEN_W - charCount \* pitch\) \/ 2\);/.test(web));
+chk('음수 나눗셈을 JS Math.floor에 맞춘다 (교차 검증이 정수를 비교한다)',
+    /static int floorDiv\(int a, int b\)/.test(leSrc)
+    && /Math\.floor\(\(SCREEN_W - inkSpan\) \/ 2\)/.test(web));
 
 // ===================================================================
 // 수정할 사항 3 — 숫자 모드 첫 화면의 요일은 영문

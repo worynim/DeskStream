@@ -141,12 +141,105 @@ static void testSelfConsistency() {
     }
 }
 
+/**
+ * [간격 확장 §6.16] inkWidthOf() — 레이아웃 피치의 상한이 되는 실제 잉크 폭.
+ * 비트 순서는 U8g2 drawBitmap 규약(MSB 우선)이라 0x80이 **가장 왼쪽 열**이다.
+ * 이 순서를 뒤집으면 잉크 폭이 틀어져 큰 폰트의 간격이 과하게 벌어진다.
+ */
+static void testInkWidth() {
+    printf("잉크 폭 측정 (inkWidthOf)\n");
+
+    check("NULL → 0",        inkWidthOf(NULL, 6, 64) == 0);
+    check("bytesPerRow 0 → 0", inkWidthOf((const uint8_t*)"\xFF", 0, 64) == 0);
+    check("glyphH 0 → 0",    inkWidthOf((const uint8_t*)"\xFF", 6, 0) == 0);
+
+    // 6바이트(=48열) × 1행 버퍼를 만들어 열 단위로 검증한다.
+    uint8_t row[6];
+    memset(row, 0, sizeof(row));
+
+    check("완전히 빈 글리프 → 0", inkWidthOf(row, 6, 1) == 0);
+
+    row[0] = 0x80;   // 0열
+    check("0열만 → 1",  inkWidthOf(row, 6, 1) == 1);
+
+    row[0] = 0x01;   // 7열
+    check("MSB 우선 — 0x01은 7열", inkWidthOf(row, 6, 1) == 1);
+    row[0] = 0x81;   // 0열 + 7열
+    check("0..7열 → 8", inkWidthOf(row, 6, 1) == 8);
+
+    memset(row, 0, sizeof(row));
+    row[0] = 0x80;   // 0열
+    row[5] = 0x01;   // 47열 (48px 래스터의 마지막 열)
+    check("0..47열 → 48 (래스터 전체)", inkWidthOf(row, 6, 1) == 48);
+
+    memset(row, 0, sizeof(row));
+    row[1] = 0x40;   // 9열
+    row[4] = 0x02;   // 38열
+    check("9..38열 → 30", inkWidthOf(row, 6, 1) == 30);
+
+    // 세로로만 긴 글리프(세로선) — 폭은 1이어야 한다
+    memset(row, 0, sizeof(row));
+    uint8_t col[6 * 4];
+    memset(col, 0, sizeof(col));
+    for (int r = 0; r < 4; r++) col[r * 6] = 0x10;   // 3열만 4행
+    check("세로선(3열 × 4행) → 1", inkWidthOf(col, 6, 4) == 1);
+
+    // 중간 열에 구멍이 뚫린 글리프 — 폭은 양끝 기준이어야 한다
+    memset(col, 0, sizeof(col));
+    col[0] = 0x80;   // 0열
+    col[1] = 0x01;   // 15열
+    check("구멍이 있어도 양끝 기준 → 16", inkWidthOf(col, 6, 2) == 16);
+
+    // 384B 기하(6B × 64행) 크기 버퍼 — 실제 업로드 형식과 같은 형태
+    static uint8_t glyph384[6 * 64];
+    memset(glyph384, 0, sizeof(glyph384));
+    for (int r = 0; r < 64; r++) glyph384[r * 6 + 2] = 0xF0;   // 17..20열
+    check("384B 기하 17..20열 → 4", inkWidthOf(glyph384, 6, 64) == 4);
+    check("384B 기하 48px 넘지 않음", inkWidthOf(glyph384, 6, 64) <= 48);
+
+    // [회귀] 행 우선 순회의 함정 — 위쪽이 넓고 아래쪽이 좁은 글리프("W" 모양).
+    //   순회가 행 우선이므로 "마지막으로 만난 잉크 픽셀"은 최우열이 아니라
+    //   **마지막 잉크 행의** 우끝이다. 예전 구현은 그걸 최우열로 착각했다.
+    //   조건이 중요하다: 하단 4행에도 잉크가 있어야 한다(마지막 잉크 행 자체가
+    //   좁아야 함). 하단을 통째로 비우면 마지막 잉크 행이 넓은 윗행이 되어
+    //   버그가 드러나지 않는다 — 처음에 그렇게 짜서 회귀 테스트가 통과해 버렸다.
+    //   col은 4행 버퍼라 8행을 담을 수 없다 — 여기를 건드리면 스택이 깨진다.
+    uint8_t wedge[6 * 8];
+    memset(wedge, 0, sizeof(wedge));
+    for (int r = 0; r < 4; r++) {          // 상단: 0, 8, 16, 32, 40열
+        wedge[r * 6 + 0] = 0x80;           // 0열
+        wedge[r * 6 + 1] = 0x80;           // 8열
+        wedge[r * 6 + 2] = 0x80;           // 16열
+        wedge[r * 6 + 4] = 0x80;           // 32열
+        wedge[r * 6 + 5] = 0x80;           // 40열 ← 상단에만
+    }
+    for (int r = 4; r < 8; r++) {          // 하단: 40열이 없고 잉크는 남아 있음
+        wedge[r * 6 + 0] = 0x80;
+        wedge[r * 6 + 1] = 0x80;
+        wedge[r * 6 + 2] = 0x80;
+        wedge[r * 6 + 4] = 0x80;
+    }
+    check("회귀: 위가 넓은 글리프 0..40열 → 41 (구버그는 33)", inkWidthOf(wedge, 6, 8) == 41);
+
+    // 좌끝도 min이어야 한다 — 최좌열이 **아래쪽 행에만** 있는 글리프.
+    memset(wedge, 0, sizeof(wedge));
+    wedge[0 * 6 + 1] = 0x20;               // 10열 — 최상단에만
+    for (int r = 1; r < 8; r++) {          // 7..30열 — 나머지 행
+        wedge[r * 6 + 0] = 0x01;           // 7열   ← 최좌열이 여기에만
+        wedge[r * 6 + 1] = 0xFF;           // 8..15열
+        wedge[r * 6 + 2] = 0xFF;           // 16..23열
+        wedge[r * 6 + 3] = 0xFE;           // 24..30열
+    }
+    check("회귀: 좌끝도 min — 7..30열 → 24 (구버그는 21)", inkWidthOf(wedge, 6, 8) == 24);
+}
+
 int main() {
     printf("=== CellGeometry 단위 테스트 ===\n\n");
     testKoreanRegression();
     testEnglishGeometry();
     testUnknownSize();
     testSelfConsistency();
+    testInkWidth();
 
     printf("\n=== 결과: %d passed, %d failed ===\n", g_pass, g_fail);
     return g_fail == 0 ? 0 : 1;

@@ -32,3 +32,29 @@ const CellGeometry* geometryForSize(uint32_t size) {
 const CellGeometry& defaultGeometry() {
     return GEOM_64B;   // 영어판 기본 (PLAN §3.1)
 }
+
+uint8_t inkWidthOf(const uint8_t* data, uint8_t bytesPerRow, uint8_t glyphH) {
+    if (!data || bytesPerRow == 0 || glyphH == 0) return 0;
+
+    // [§6.16 수정 — 브라우저 픽셀 검증에서 발견] 순회는 **행 우선(row-major)**이라
+    // "처음/마지막으로 만난 픽셀"이 곧 최좌/최우열이 아니다. 그것은 잉크가 있는
+    // 첫 행의 좌끝 / 마지막 행의 우끝일 뿐이다.
+    //   W처럼 위쪽이 가장 넓은 글리프는 열 14~34가 모두 켜져도, 최하단 잉크 행의
+    //   우끝이 29라서 21을 16으로 잘못 잰다(겹침 해소가 안 되는 원인).
+    // 따라서 양쪽 모두 명시적 min/max로 갱신해야 한다.
+    int first = -1, last = -1;
+    for (int r = 0; r < glyphH; r++) {
+        const uint8_t* row = data + r * bytesPerRow;
+        for (int b = 0; b < bytesPerRow; b++) {
+            if (row[b] == 0) continue;   // 빈 바이트는 8열을 한 번에 건너뛴다
+            for (int p = 0; p < 8; p++) {
+                if (!(row[b] & (0x80 >> p))) continue;   // MSB 우선 — drawBitmap/packGlyph 규약
+                const int col = b * 8 + p;
+                if (first < 0 || col < first) first = col;
+                if (col > last) last = col;
+            }
+        }
+    }
+    if (first < 0) return 0;   // 완전히 빈 글리프(공백 등)
+    return (uint8_t)(last - first + 1);
+}

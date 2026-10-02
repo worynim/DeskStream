@@ -75,15 +75,6 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
     <div class="glass">
         <h1>English Clock Font Studio</h1>
         <p class="desc">DeskStream Project &middot; Current font: <span id="curFont" style="color:var(--primary)">-</span></p>
-        <p class="hint">
-            Cell pitch is <b>14 px</b> &middot; raster <b>48 &times; 64</b> &middot; up to <b>9 characters per line</b> &middot; <b>2 lines</b>.<br>
-            Single-line screens use the <b>full 64&nbsp;px</b> height; two-line screens keep glyphs
-            inside their 32&nbsp;px band. Vertical centering is calibrated on the <b>capital
-            letters (A&ndash;Z)</b> &mdash; digits with tails may extend past their baseline.<br>
-            The size slider is applied <b>as-is</b> — glyphs wider than 14 px will overlap neighbouring
-            letters (that is intentional). Prefer a <b>condensed</b> family (Bebas, Oswald, Archivo Narrow)
-            for clean spacing.
-        </p>
 
         <div class="setup-grid">
             <div class="field">
@@ -222,6 +213,9 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
         const LINE_HEIGHT = 32;
         const SCREEN_W = 128;
         const SCREEN_H = 64;
+        // [사용자 지정 사다리] n 글자 줄의 총 폭을 (n+1) 글자분으로 맞춘다.
+        //   layout_engine.h linePitch()의 미러 — 규칙은 저기에만 적혀 있다.
+        const PITCH_SUM_OFFSET = 1;
         // 래스터가 피치보다 넓은 만큼의 보정 — 그릴 때 x − X_OFFSET 이고,
         // 펌웨어 xOffset(−17) = −X_OFFSET 이다. 넘친 잉크는 옆 글자 위로 겹쳐 그려진다 (사용자 요구).
         const X_OFFSET = (RASTER_W - GLYPH_W) / 2;
@@ -239,6 +233,10 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
         // 주의: "이동량(shift)"이 아니라 **그릴 y 값 자체**다 — v4 초판에서 이 둘을
         // 혼동해 래스터 중앙을 다시 더해 잉크가 밀리는 회귀가 있었다 (PLAN §6.13e).
         let glyphBaselineY = GLYPH_H / 2;
+        // [간격 확장 §6.16] 현재 폰트의 최대 잉크 폭. layoutWrap()가 이를 읽어
+        // 글자가 적은 줄의 피치를 넓힌다 (펌웨어 Renderer::maxInkWidth 미러).
+        // refreshPreviewCache()가 폰트·크기마다 다시 잰다. 폰트 미로드 시 0 = 확장 없음.
+        let previewInkWidth = 0;
         const els = {
             anim: document.getElementById('animMode'),
             disp: document.getElementById('displayMode'),
@@ -523,6 +521,66 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
         }
 
         /**
+         * [간격 확장 §6.16] 글리프 캔버스 1장의 실제 잉크 폭을 잰다.
+         * 펌웨어 renderer_geometry.h `inkWidthOf()`의 미러다.
+         * 잉크 판정은 알파 > 128 — packPixels()의 업로드 임계값과 같은 규약이라
+         * "화면에서 보이는 폭"과 "디바이스로 올라가는 폭"이 어긋나지 않는다.
+         *
+         * [웹-기기 간격 불일치] 아래 구현은 **캔버스가 아니라 업로드할 바이트**를 잰다.
+         * @param {HTMLCanvasElement} canvas RASTER_W × GLYPH_H 래스터
+         * @returns {number} 잉크 열 수. 빈 글리프라면 0
+         */
+        function glyphInkWidth(canvas) {
+            // [웹-기기 간격 불일치 수정] **캔버스가 아니라 업로드할 바이트를** 잰다.
+            // 펌웨어는 LittleFS에 올라간 384바이트에서 잉크를 잰다(inkWidthOf).
+            // 캔버스 알파를 다시 읽는 경로에는 premultiplied alpha나 GPU 반올림이
+            // 끼어 1~2px 어긋나고, 그게 간격으로 드러난다("웹은 괜찮은데 기기만 더 벌어진다").
+            // 펌웨어와 같은 바이트를 재야 두 값이 정의상 같아진다.
+            const bm = packGlyph(canvas);
+            let first = -1, last = -1;
+            for (let y = 0; y < GLYPH_H; y++) {
+                for (let b = 0; b < BYTES_PER_ROW; b++) {
+                    const byte = bm[y * BYTES_PER_ROW + b];
+                    if (byte === 0) continue;
+                    for (let p = 0; p < 8; p++) {
+                        if (!(byte & (1 << (7 - p)))) continue;   // MSB 우선 — inkWidthOf 규약
+                        const col = b * 8 + p;
+                        if (first < 0 || col < first) first = col;
+                        if (col > last) last = col;
+                    }
+                }
+            }
+            return first < 0 ? 0 : last - first + 1;
+        }
+
+        /**
+         * [간격 확장 §6.16] 캐시된 폰트 전체의 최대 잉크 폭.
+         * RASTER_W는 어떤 크기의 폰트든 48로 같으므로, 파일 크기만으로는
+         * 폰트 크기를 알 수 없다 — 실제로 그려지는 폭을 재야 피치를 정할 수 있다.
+         * @param {Object<string, HTMLCanvasElement>} cache buildGlyphCache() 결과
+         * @returns {number} 최대 잉크 폭 (픽셀)
+         */
+        function maxInkWidthOf(cache) {
+            let max = 0;
+            for (const ch of Object.keys(cache)) {
+                const w = glyphInkWidth(cache[ch]);
+                if (w > max) max = w;
+            }
+            return max;
+        }
+
+        /**
+         * [§6.16b] layout_engine.h `InkWidthFn`의 JS 미러 — 글자 하나 → 잉크 폭.
+         * 펌웨어가 캐시 표(Renderer::inkOf)를 조회하는 것과 같은 자리다.
+         * previewInkByChar가 채워지면 measureLineInk()가 이 함수를 쓴다.
+         */
+        let previewInkByChar = {};
+        function inkOfChar(ch) {
+            const w = previewInkByChar[ch];
+            return (typeof w === 'number') ? w : previewInkWidth;
+        }
+
+        /**
          * [bug 1 수정] 렌더링에 쓸 글자 크기 = 슬라이더 값 그대로.
          * 자동 축소(commonSize)가 있던 시절에는 이 값이 슬라이더와 무관하게 고정됐다.
          * 메모이제이션도 필요 없다 — 잴 것이 없기 때문이다.
@@ -539,6 +597,11 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
             const size = currentGlyphSize();
             glyphBaselineY = computeGlyphBaselineFor(size);
             bitmapCache = buildGlyphCache(UNIQ_CHARS, ch => renderGlyph(ch, size));
+            previewInkWidth = maxInkWidthOf(bitmapCache);   // §6.16 — 간격 확장의 상한
+            // [§6.16b] 글자별 잉크 — 줄마다 다른 상한을 걸기 위해 필요하다.
+            //   펌웨어의 Renderer::inkByChar와 같은 역할이다.
+            previewInkByChar = {};
+            for (const ch of UNIQ_CHARS) previewInkByChar[ch] = glyphInkWidth(bitmapCache[ch]);
         }
 
         /**
@@ -651,15 +714,111 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
         }
 
         /**
+         * [간격 확장 §6.16] 한 줄의 가로 피치 — layout_engine.cpp `linePitch()`의 미러.
+         * @param {number} charCount 이 줄의 셀 수 (공백 셀 포함)
+         * @param {number} inkWidth 폰트 최대 잉크 폭 (0이면 확장 없음)
+         * @returns {number} 셀 간격. 항상 GLYPH_W 이상
+         *
+         * 9자면 126/9 = GLYPH_W가 되어 **기존과 완전히 같아진다.**
+         * 글자가 적을수록 넓어지되, `inkWidth`를 넘겨 더 벌리지는 않는다 —
+         * 그 이상은 겹침이 이미 풀렸기 때문이다.
+         */
+        function linePitch(charCount, lineInk, fontInk, lineFloor) {
+            if (charCount <= 1) return GLYPH_W;
+            // 작은 폰트는 늘리지 않는다 — 이미 셀 안에 들어 있다.
+            if (fontInk <= GLYPH_W) return GLYPH_W;
+            // [사용자 지정 사다리] n 글자 줄의 총 폭을 (n+1) 글자분으로 맞춘다.
+            //   9자 126(변화 없음) · 8자 126 · 7자 112 · 6자 98 · 5자 84 …
+            const total = (charCount + PITCH_SUM_OFFSET > MAX_PER_LINE)
+                        ? MAX_PER_LINE * GLYPH_W : (charCount + PITCH_SUM_OFFSET) * GLYPH_W;
+            let spread = Math.floor(total / charCount);
+            // 잉크는 목표가 아니라 제한 두 개로만 쓴다.
+            const inkCap = (lineInk > GLYPH_W) ? lineInk : fontInk;
+            // 1) 겹침 방지 — 하단은 최소 필요한 값이라 **올린다**.
+            //    잉크를 모르면 하단을 만들지 않는다(폰트 최댓값을 하한으로 쓰면 모든
+            //    짧은 줄이 W 폭까지 밀린다). layout_engine.cpp와 동일한 규칙.
+            const floor = (lineFloor > GLYPH_W) ? lineFloor
+                        : ((lineInk > GLYPH_W) ? lineInk : 0);
+            if (floor > spread) spread = floor;
+            // 2) 화면 밖 잘림 방지 — 잘림은 겹침보다 나쁘다.
+            const fit = Math.floor((SCREEN_W - inkCap) / (charCount - 1));
+            if (spread > fit) spread = fit;
+            return Math.max(GLYPH_W, spread);
+        }
+
+        /**
+         * [§6.16c] 이 줄의 겹침 없는 최소 피치 — layout_engine.cpp `measureLineFloor()`의 미러.
+         * 잉크는 래스터 안에서 **중앙 정렬**되므로 두 글자의 빈틈은
+         * `피치 − (inkA + inkB) / 2`다. 겹치지 않으려면 그 이상이어야 하고,
+         * 줄의 하한은 인접 쌍의 최댓값이다. 공백은 그려지지 않으므로 쌍에서 제외한다.
+         * @param {string} lineText 이 줄에 놓일 문자열
+         * @param {number} fallback 조회 실패 시 대체할 값 (보통 줄 최대)
+         * @returns {number} 필요한 최소 피치
+         */
+        function measureLineFloor(lineText, fallback) {
+            let floorInk = 0, prevInk = -1, seen = false;
+            for (const ch of Array.from(lineText)) {
+                if (ch === ' ') continue;
+                const w = inkOfChar(ch);
+                if (seen) {
+                    const pair = Math.floor((prevInk + w + 1) / 2);   // 올림
+                    if (pair > floorInk) floorInk = pair;
+                }
+                prevInk = w; seen = true;
+            }
+            return floorInk ? floorInk : fallback;
+        }
+
+        /**
+         * [§6.16b] 한 줄의 최대 잉크 폭 — layout_engine.cpp `measureLineInk()`의 미러.
+         * @param {string} lineText 이 줄에 놓일 문자열
+         * @param {number} fallback 조회 실패 시 대체할 값 (보통 폰트 최대)
+         * @returns {number} 이 줄의 최대 잉크 폭
+         *
+         * 공백도 한 **셀이므로** 문자를 하나씩 소비하되 잉크 상한에는 넣지 않는다
+         * (그려지지 않으므로). 펌웨어는 캐시 표를, 웹은 캔버스를 본다.
+         */
+        function measureLineInk(lineText, fallback) {
+            if (!inkOfChar) return fallback;
+            let maxInk = 0;
+            for (const ch of Array.from(lineText)) {
+                if (ch === ' ') continue;
+                const w = inkOfChar(ch);
+                if (w > maxInk) maxInk = w;
+            }
+            return maxInk ? maxInk : fallback;
+        }
+
+        /**
+         * [간격 확장 §6.16] 한 줄의 첫 셀 x — layout_engine.cpp `lineStartX()`의 미러.
+         * @param {number} charCount 이 줄의 셀 수
+         * @param {number} pitch linePitch()가 준 간격
+         * @param {number} inkWidth 폰트 최대 잉크 폭
+         * @returns {number} 첫 셀의 x
+         *
+         * 피치가 GLYPH_W와 같으면(9자·작은 폰트) 기존 셀 중앙 정렬을 그대로 쓴다.
+         * 넓어졌을 때만 잉크 블록((n−1)×피치 + 잉크폭)을 화면 중앙에 둔다 —
+         * 잉크는 셀의 중앙에 있으므로 셀 폭으로 중앙 정렬하면 왼쪽으로 쏠린다.
+         */
+        function lineStartX(charCount, pitch, lineInk) {
+            if (pitch <= GLYPH_W) return Math.floor((SCREEN_W - charCount * pitch) / 2);
+            const inkSpan = (charCount - 1) * pitch + lineInk;
+            return Math.floor((SCREEN_W - inkSpan) / 2) + Math.floor((lineInk - GLYPH_W) / 2);
+        }
+
+        /**
          * 펌웨어 layout_engine.cpp layoutWrap()의 행 단위 미러.
          * - 어절이 2개 이상이면 첫 어절만 줄 0, 나머지는 줄 1부터
          * - 단어는 절대 쪼개지 않는다
          * - 가로 중앙 + 세로 중앙 (1줄이면 y=16, 2줄이면 y=0)
          * @param {boolean} [singleLine] [수정할 사항 1] true면 "어절 2개 이상 → 2줄" 규칙을
          *        건너뛴다 (숫자 모드 "02 H"). 펌웨어 layout_engine.cpp의 4번째 규칙과 1:1 대응.
+         * @param {number} [inkWidth] [간격 확장 §6.16] 폰트 최대 잉크 폭.
+         *        기본값은 previewInkWidth(미리보기에서는 refreshPreviewCache가 채운다).
+         *        0이면 간격을 늘리지 않는다 — 펌웨어의 inkWidth 기본값과 같다.
          * @returns {{chars: Array<{c,x,y,line}>, dropped: number}}
          */
-        function layoutWrap(text, singleLine = false) {
+        function layoutWrap(text, singleLine = false, inkWidth = previewInkWidth) {
             const words = text.split(' ').filter(w => w.length > 0);
             if (words.length === 0) return { chars: [], dropped: 0 };
 
@@ -693,27 +852,34 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
                 dropped += n; break;              // 단어는 전부 또는 아무것도
             }
 
-            // 2단계: 문자 단위 배치 + x/y 좌표 배정
+            // 2단계: 줄 문자열 구성 → 줄 잉크 측정 → 문자 단위 x/y 배정
             // 세로 중앙: (64 - 줄수×32)/2 → 1줄 16, 2줄 0
             const baseY = Math.floor((SCREEN_H - lines * LINE_HEIGHT) / 2);
             const out = [];
             let wi = 0;
             for (let ln = 0; ln < lines; ln++) {
                 const need = lineCount[ln];
-                const startX = Math.floor((SCREEN_W - need * GLYPH_W) / 2);
+                // 이 줄의 문자들을 먼저 모은다 — [§6.16b] 줄 잉크를 재려면
+                // 좌표보다 글자가 먼저 필요하다. 어절 사이 공백은 한 셀로 넣어 둔다.
+                const cells = [];
                 let placed = 0;
                 while (wi < words.length && placed < need) {
-                    if (placed > 0) {
-                        // 같은 줄에 이어지는 어절 사이 — 공백 셀 한 칸 (lineCount에 포함됨)
-                        out.push({ c: ' ', x: startX + placed * GLYPH_W, y: baseY + ln * LINE_HEIGHT, line: ln });
-                        placed++;
-                    }
-                    const chars = Array.from(words[wi]);
-                    for (const c of chars) {
-                        out.push({ c, x: startX + placed * GLYPH_W, y: baseY + ln * LINE_HEIGHT, line: ln });
-                        placed++;   // 문자마다 x가 GLYPH_W씩 전진해야 한다
-                    }
+                    if (placed > 0) { cells.push(' '); placed++; }   // 같은 줄 어절 사이 공백 셀
+                    for (const c of Array.from(words[wi])) { cells.push(c); placed++; }
                     wi++;
+                }
+                // [사용자 지정 사다리] 글자가 적은 줄일수록 피치가 넓어진다.
+                // 9자 · 작은 폰트에서는 pitch가 GLYPH_W 그대로라 좌표가 바뀌지 않는다.
+                // [§6.16b] 상한은 이 줄의 실제 잉크로 건다 (폰트 최대로 묶지 않는다).
+                const lineText = cells.join('');
+                const lineInk = measureLineInk(lineText, inkWidth);
+                // [하한] 이 줄의 겹침 없는 최소 피치 — 사다리보다 좁으면 이것까지 올린다
+                const lineFloor = measureLineFloor(lineText, lineInk);
+                const pitch = linePitch(cells.length, lineInk, inkWidth, lineFloor);
+                const startX = lineStartX(cells.length, pitch, lineInk);
+                for (let i = 0; i < cells.length; i++) {
+                    out.push({ c: cells[i], x: startX + i * pitch,
+                               y: baseY + ln * LINE_HEIGHT, line: ln });
                 }
             }
             return { chars: out, dropped };

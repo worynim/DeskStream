@@ -32,10 +32,40 @@ void Renderer::setScreens(U8G2** screens) {
 void Renderer::clearCache() {
     bitmapCache.clear();
     cacheIndex.clear();
+    maxInkWidth = 0;   // PLAN §6.16 — 캐시가 없으므로 잉크도 모른다(간격 확장 없음)
+    inkByChar.clear(); // §6.16b — 글자별 잉크 표도 같은 이유로 함께 비운다
     if (flatBuffer) {
         free(flatBuffer);
         flatBuffer = nullptr;
     }
+}
+
+void Renderer::measureMaxInkWidth() {
+    maxInkWidth = 0;
+    inkByChar.clear();
+    for (size_t i = 0; i < bitmapCache.size(); i++) {
+        const CachedChar& cc = bitmapCache[i];
+        if (!cc.geom) continue;
+        uint8_t w = inkWidthOf(getCharDataPtr(&cc), cc.geom->bytesPerRow, cc.geom->glyphH);
+        if (w > maxInkWidth) maxInkWidth = w;
+        inkByChar[cc.hex] = w;   // §6.16b — 줄마다 다른 상한을 쓰려면 글자별 값이 필요하다
+    }
+}
+
+uint8_t Renderer::inkOf(const char* s, uint8_t len) const {
+    if (!s || len == 0) return maxInkWidth;
+    String hex = getHexKey(String(s, len));
+    std::map<String, uint8_t>::const_iterator it = inkByChar.find(hex);
+    return (it == inkByChar.end()) ? maxInkWidth : it->second;
+}
+
+/**
+ * [§6.16b] InkWidthFn은 extern "C"가 아니라 **비-static 멤버 함수**를 넘길 수 없다.
+ * layoutWrap이 Cache를 몰라도 되도록 하는 유일한 통로여서, 여기서만 시그니처를 맞춘다.
+ */
+uint8_t Renderer::inkOfTrampoline(void* ctx, const char* text, uint8_t len) {
+    Renderer* self = static_cast<Renderer*>(ctx);
+    return self ? self->inkOf(text, len) : 0;
 }
 
 const uint8_t* Renderer::getCharDataPtr(const CachedChar* cc) const {
@@ -44,6 +74,12 @@ const uint8_t* Renderer::getCharDataPtr(const CachedChar* cc) const {
 }
 
 void Renderer::loadBitmapCache(int slot) {
+    // [§6.16] 잉크 폭은 이번 로드의 결과다. 중간에 return하는 경로(디렉터리 아님,
+    // malloc 실패)가 clearCache()를 거치지 않아 이전 값이 남을 수 있으므로
+    // **어떤 조기 반환보다 앞에서** 0으로 되돌린다.
+    maxInkWidth = 0;
+    inkByChar.clear();   // §6.16b — 글자별 표도 같은 이유로 함께 비운다
+
     // 슬롯이 -1이면 설정에서 가져옴
     if (slot == -1) slot = configManager.get().font_slot;
 
@@ -150,6 +186,11 @@ void Renderer::loadBitmapCache(int slot) {
     }
     logger.updateLastLog("Font Cache Loaded (" + String(bitmapCache.size()) + ")");
 
+    // [PLAN §6.16] 레이아웃 간격 확장에 쓸 폰트 최대 잉크 폭을 잰다.
+    // 래스터 폭(48)으로는 폰트 크기를 알 수 없으므로 실제 픽셀을 훑어야 한다.
+    // 38자 × 384B = 14.6KB 스캔이라 업로드 1회에 1회뿐이다.
+    measureMaxInkWidth();
+
     if (DEBUG_MODE) {
         // 메모리 사용량 리포트 출력
         Serial.println("\n[MEMORY] --- Memory Usage Report ---");
@@ -163,7 +204,7 @@ void Renderer::loadBitmapCache(int slot) {
 }
 
 
-String Renderer::getHexKey(const String& s) {
+String Renderer::getHexKey(const String& s) const {
     String hexStr = "";
     for (int k = 0; k < s.length(); k++) {
         char buf[3]; sprintf(buf, "%02X", (unsigned char)s[k]); hexStr += buf;
@@ -365,10 +406,17 @@ bool Renderer::getCharData(const String& text, CharData outChars[], int& count, 
     const CellGeometry& g = defaultGeometry();
 
     // 원본 문자열을 유지한 채 부분 문자열 포인터만 얻는다 (복사 비용 없음).
+    // maxInkWidth를 넘겨 글자가 적은 줄의 간격이 넓어지도록 한다 (PLAN §6.16).
+    // 캐시가 없을 때(=0)는 확장하지 않아 기존 고정 피치로 돌아간다.
+    //
+    // [§6.16b] inkOfTrampoline을 넘겨 **줄마다 실제 잉크**로 상한을 건다.
+    //   layoutWrap은 순수 함수로 유지된다 — 캐시를 직접 아는 쪽은 이 trampoline뿐.
     LayoutChar laid[LAYOUT_MAX_CHARS];
     int laidCount = 0;
     bool complete = layoutWrap(text.c_str(), text.length(), g, laid,
-                                LAYOUT_MAX_CHARS, SCREEN_WIDTH, laidCount, singleLine);
+                                LAYOUT_MAX_CHARS, SCREEN_WIDTH, laidCount,
+                                singleLine, maxInkWidth,
+                                &Renderer::inkOfTrampoline, this);
     count = laidCount;
     for (int i = 0; i < laidCount; i++) {
         outChars[i].c = String(laid[i].text, laid[i].len);   // String 생성
