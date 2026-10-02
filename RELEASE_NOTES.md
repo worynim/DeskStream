@@ -1,3 +1,19 @@
+## [v4.12.0] ✅ 커밋완료 - 2026-10-02 19:10
+### Major Update (ENG_Clock: English Language Clock 신규 프로젝트)
+- **신규 서브 프로젝트 ENG_Clock v1.0.0**: `Hangeul_Clock` v2.6.0의 기능·품질을 100% 유지하면서 텍스트만 영어로 교체한 영어 단어 시계. 
+- **2-Line Word Layout (어절 단위 2줄 레이아웃)**:
+    - 영어 최장 단어 `SEVENTEEN`(9자)을 수용하기 위해 한 화면 4자 제한을 깨는 어절 단위 줄바꿈을 도입. 어절 2개 이상이면 무조건 2줄로 분리하고 줄별 가로 중앙 정렬.
+    - 글자 수 기준 강제 줄바꿈은 `WEDNESDAY`를 깨뜨리므로 기각. 1줄 세로 정렬은 `LayoutChar::y`로 사전 계산해 호출부 복제를 차단.
+- **POS TZ 시간대 시스템**:
+    - 고정 오프셋을 POSIX TZ 문자열(`KST-9` 등)로 교체하여 DST를 자동 처리. 웹 UI에서 12개 지역 프리셋 + Custom 입력, NVS 영속 저장, 화이트리스트 입력 검증(`tz_util`).
+- **Font Studio (잉크 중앙 정렬 래스터라이저)**:
+    - 브라우저에서 TTF를 38개 영문 낱자의 64px 비트맵으로 변환해 기기에 직접 업로드 (폰트 슬롯 5개, LittleFS).
+    - em 박스 중앙이 아닌 **실측 잉크 박스 합집합**(대문자 A–Z 기준)을 래스터 세로 중앙에 배치하여 크기와 무관하게 위·아래 여백이 균등 유지. 글자별 가로 잉크 중앙 정렬 지원.
+- **호스트 테스트 인프라 (AGENTS.md 테스트 규칙 준수)**:
+    - Arduino 의존 없는 순수 C++ 모듈 분리(`english_time_core`, `tz_util`, `layout_engine`, `renderer_geometry`)로 네이티브 단위 테스트 4종(263 cases) 구축.
+    - 웹 페이지 JS ↔ 펌웨어 C++ 결과를 숫자로 대조하는 교차 검증 6종(3,411 cases) + `bash test/js/run_all.sh` 전체 실행 스크립트. 실제 브라우저 픽셀 검증 페이지 생성기 포함.
+- **문서화**: 프로젝트 README 신설, 루트 README에 10번째 서브 프로젝트로 등록.
+
 ## [v4.11.1] ✅ 커밋완료 - 2026-04-30 11:06
 ### Improved & Fixed (Game_Of_Life: FreeRTOS Button Polling Engine)
 - **버튼 반응성 완벽 해결 (RTOS Task)**: 

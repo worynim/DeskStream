@@ -14,7 +14,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 - 상세 정보: [hardware.md](./hardware.md) 참조
 
 ## 📁 주요 프로젝트 (Sub-Projects)
-본 저장소는 DeskStream 보드용으로 개발된 9가지 주요 프로그램을 포함하고 있습니다.
+본 저장소는 DeskStream 보드용으로 개발된 10가지 주요 프로그램을 포함하고 있습니다.
 
 ### 1. [Smart_Info_Station: 스마트 정보 스테이션 (v2.9.0)](./Smart_Info_Station/)
 - **기능**: 시계, 날씨, 미세먼지, 유튜브 구독자 수, 증시 지수, 가상화폐 가격, 환율 실시간 모니터링.
@@ -62,6 +62,14 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 ### 9. [Game_Of_Life: 단독 구동형 생명 게임](./Game_Of_Life/)
 - **기능**: Conway의 생명 게임(Game of Life) 시뮬레이션을 512x64 대화면에서 무한 루프로 실행.
 - **특징**: 1-bit 메모리 최적화(총 8KB 사용), 4개 버튼을 통한 **재생/일시정지, 수동 단계 진행, 속도 조절(5/10/20 FPS), 패턴 리셋** 지원.
+
+### 10. [ENG_Clock: 고화질 폰트 영어 시계 (v1.0.0)](./ENG_Clock/)
+- **기능**: NTP 동기화 기반의 고화질 영어 단어 시계. `Hangeul_Clock`의 아키텍처와 품질을 유지하며 텍스트만 영어로 포트.
+- **특징**: 
+    - **2-Line Word Layout**: 영어 최장 단어(`SEVENTEEN`, 9자)를 수용하는 어절 단위 2줄 레이아웃.
+    - **POS TZ 시간대 시스템**: DST 자동 처리, 웹 UI에서 12개 지역 프리셋 + Custom 입력.
+    - **Font Studio**: 브라우저에서 TTF를 잉크 중앙 정렬 64px 비트맵으로 래스터화해 직접 업로드.
+    - **호스트 테스트 인프라**: 네이티브 C++ 단위 테스트 + 웹↔펌웨어 교차 검증(`bash test/js/run_all.sh`).
 
 ## 🚀 주요 기술적 특징
 - **하이브리드 I2C 아키텍처**: 하드웨어 I2C와 레지스터 직접 제어 기반 고속 소프트웨어 I2C를 병렬로 사용하여 4개의 화면을 끊김 없이 제어합니다.
