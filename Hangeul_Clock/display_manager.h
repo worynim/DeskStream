@@ -25,9 +25,9 @@
 struct ScreenAnimData {
     CharData oldChars[8];
     CharData newChars[8];
-    int oldCount;
-    int newCount;
-    bool changed;
+    int oldCount = 0;
+    int newCount = 0;
+    bool changed = false;
 };
 
 /**
@@ -36,6 +36,8 @@ struct ScreenAnimData {
 struct AnimationState {
     bool active = false;
     uint8_t currentStep = 0;
+    uint8_t maxStep = ANIMATION_STEPS_DEFAULT; // 모드별 총 프레임 수
+    uint8_t transitionId = 0;                 // 전환마다 증가 → 눈의 시드가 달라진다
     unsigned long lastUpdateMs = 0;
     ScreenAnimData screens[4];
 };
@@ -111,6 +113,16 @@ private:
     
     void drawCenterText(int idx, const String& text, bool centered);
     void renderAnimFrame(int screenIdx, int step); // 단일 프레임 렌더링 내부 함수
+
+    /**
+     * @brief 눈 조립 모드의 단일 프레임을 그린다
+     * @details 새 글자 픽셀은 위에서 떨어져 쌓이고, 사라지는 옛 글자 픽셀은 아래로 가라앉는다.
+     */
+    void renderSnowFrame(int screenIdx, int step);
+
+    void drawChimeIcon(int idx);
+    int findOldIndexAtX(const ScreenAnimData& sd, int x) const; // 해당 x에 놓인 옛 글자의 인덱스(-1이면 없음)
+    int findNewIndexAtX(const ScreenAnimData& sd, int x) const; // 해당 x에 놓인 새 글자의 인덱스(-1이면 없음)
 };
 
 #endif

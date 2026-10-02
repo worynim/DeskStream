@@ -40,7 +40,21 @@ public:
     void drawDitheredChar(int screenIdx, const String& charStr, int x, int density);
     void drawZoomedChar(int screenIdx, const String& charStr, int x, int scale_percent);
     void drawScaledChar(int screenIdx, const String& charStr, int x, int h);
-    
+
+    /**
+     * @brief 눈송이가 떨어져 쌓이며 글자를 조립한다
+     * @param progress 애니메이션 진행도 (0 ~ ANIM_PROGRESS_FULL)
+     * @param seed    눈의 결정적 시드 (같은 값이면 같은 눈이 나온다)
+     */
+    void drawAssemblingChar(int screenIdx, const String& charStr, int x, uint8_t progress, uint16_t seed);
+
+    /**
+     * @brief 글자 픽셀이 아래로 가라앉으며 흩어진다
+     * @param progress 애니메이션 진행도 (0 ~ ANIM_PROGRESS_FULL)
+     * @param seed    눈의 결정적 시드
+     */
+    void drawDispersingChar(int screenIdx, const String& charStr, int x, uint8_t progress, uint16_t seed);
+
     // 텍스트 레이아웃 헬퍼
     void getCharData(const String& text, CharData outChars[8], int& count, bool centered);
 
@@ -50,6 +64,9 @@ public:
     void clearCache();
 
 private:
+    /** 글자 비트맵의 바이트 폭 (32px 글자=4, 64px 글자=8) */
+    int charBitWidth(const CachedChar* cc) const;
+
     U8G2** _screens = nullptr;
     std::vector<CachedChar> bitmapCache;
     uint8_t* flatBuffer = nullptr;

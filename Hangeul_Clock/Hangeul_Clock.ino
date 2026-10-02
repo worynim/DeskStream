@@ -72,7 +72,7 @@ void btn2_long() {
 
 void btn3_short() {
     display.beep(50, 3000);
-    uint8_t nextAnim = (configManager.get().anim_mode + 1) % 6;
+    uint8_t nextAnim = (configManager.get().anim_mode + 1) % ANIMATION_TYPE_COUNT;
     display.setAnimMode(nextAnim);
     if (uiStage == 2) display.showButtonHelp();
 }

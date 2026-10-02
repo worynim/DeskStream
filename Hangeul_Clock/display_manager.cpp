@@ -17,6 +17,18 @@ static const uint8_t bell_icon[] = { 0x18, 0x3C, 0x3C, 0x3C, 0xFF, 0xDB, 0x18, 0
 
 // 하위 레벨 I2C 콜백 및 설정은 i2c_platform.cpp로 이관됨
 
+/**
+ * @brief 눈 조립용 결정적 시드 조합
+ * @details 전환마다 transitionId가 증가하므로 매초 다른 눈이 오고,
+ *         같은 화면 안에서도 문자 슬롯과 x 위치에 따라 시선이 흩어진다.
+ *         조립(k)과 소멸(k + offset) 시드가 겹치지 않도록 소멸 슬롯만 뒤로 민다.
+ */
+#define SNOW_DISPERSE_SLOT_OFFSET 8
+
+static uint16_t snowSeed(uint8_t transitionId, int screenIdx, int slot, int x) {
+    return (uint16_t)(transitionId * 7919 + screenIdx * 131 + slot * 17 + x * 3);
+}
+
 static void buzzerTimerCallback(TimerHandle_t xTimer) {
     noTone(BUZZER_PIN);
     digitalWrite(BUZZER_PIN, LOW);
@@ -256,6 +268,26 @@ void DisplayManager::setYieldCallback(void (*cb)()) {
 }
 
 // drawDitheredChar, drawZoomedChar, drawSingleChar, drawScaledChar, getCharData 로직 Renderer로 이관됨
+void DisplayManager::drawChimeIcon(int idx) {
+    bool isTitleScreen = configManager.get().is_flipped ? (idx == 3) : (idx == 0);
+    if (isTitleScreen && configManager.get().chime_enabled) screens[idx]->drawXBM(0, 0, 8, 8, bell_icon);
+}
+
+int DisplayManager::findOldIndexAtX(const ScreenAnimData& sd, int x) const {
+    for (int k = 0; k < sd.oldCount; k++) {
+        if (sd.oldChars[k].x == x) return k;
+    }
+    return -1;
+}
+
+int DisplayManager::findNewIndexAtX(const ScreenAnimData& sd, int x) const {
+    for (int j = 0; j < sd.newCount; j++) {
+        if (sd.newChars[j].x == x) return j;
+    }
+    return -1;
+}
+
+
 void DisplayManager::drawCenterText(int idx, const String& text, bool centered) {
     U8G2* u8g2 = screens[idx];
     u8g2->clearBuffer();
@@ -264,8 +296,7 @@ void DisplayManager::drawCenterText(int idx, const String& text, bool centered) 
     for (int i = 0; i < count; i++) {
         renderer.drawSingleChar(idx, chars[i].c, chars[i].x, 0);
     }
-    bool isTitleScreen = configManager.get().is_flipped ? (idx == 3) : (idx == 0);
-    if (isTitleScreen && configManager.get().chime_enabled) u8g2->drawXBM(0, 0, 8, 8, bell_icon);
+    drawChimeIcon(idx);
 }
 
 extern int uiStage;
@@ -294,8 +325,23 @@ void DisplayManager::updateAll(String inTexts[4], bool force) {
     }
 
     // [Step 3.1] 비차단 애니메이션 상태 초기화
+    bool isSnow = (configManager.get().anim_mode == ANIMATION_TYPE_SNOW_ASSEMBLE);
+
+    // 이전 전환이 끝나기 전에 새 전환이 시작될 수 있다(매초 호출되기 때문).
+    // 이번에 변경되지 않은 화면이 이전 전환에서 애니메이션 중이었다면, 아래 루프에서
+    // changed가 false로 덮어써져 렌더링이 완전히 멈추고 중간 프레임이 화면에 남는다.
+    // 그 잔상을 먼저 정착된 최종 상태로 지운다.
+    for (int i = 0; i < 4; i++) {
+        if (_animState.screens[i].changed && !changed[i]) {
+            bool isTitleScreen = configManager.get().is_flipped ? (i == 3) : (i == 0);
+            drawCenterText(i, lastTexts[i], isTitleScreen);
+        }
+    }
+
     _animState.active = true;
     _animState.currentStep = 0;
+    _animState.maxStep = isSnow ? ANIMATION_STEPS_SNOW : ANIMATION_STEPS_DEFAULT;
+    _animState.transitionId++;      // 이번 전환에만 쓰이는 눈 시드
     _animState.lastUpdateMs = 0; // 즉시 첫 틱 실행
 
     for (int i = 0; i < 4; i++) {
@@ -320,7 +366,9 @@ void DisplayManager::updateTick() {
     }
 
     unsigned long now = millis();
-    if (now - _animState.lastUpdateMs < ANIMATION_STEP_DELAY_MS) {
+    unsigned long stepDelay = (configManager.get().anim_mode == ANIMATION_TYPE_SNOW_ASSEMBLE)
+                              ? ANIMATION_STEP_DELAY_SNOW_MS : ANIMATION_STEP_DELAY_MS;
+    if (now - _animState.lastUpdateMs < stepDelay) {
         // 대기 시간 동안 yield 콜백 실행하여 타 서비스 기회 제공
         if (on_yield_callback) on_yield_callback();
         return;
@@ -329,7 +377,7 @@ void DisplayManager::updateTick() {
     _animState.lastUpdateMs = now;
     _animState.currentStep++;
 
-    if (_animState.currentStep > 16) {
+    if (_animState.currentStep > _animState.maxStep) {
         _animState.active = false;
         return;
     }
@@ -343,21 +391,21 @@ void DisplayManager::updateTick() {
 }
 
 void DisplayManager::renderAnimFrame(int i, int step) {
+    // 눈 조립은 픽셀 단위 연산이라 기존 글자 단위 전환 경로와 분리한다.
+    if (configManager.get().anim_mode == ANIMATION_TYPE_SNOW_ASSEMBLE) {
+        renderSnowFrame(i, step);
+        return;
+    }
+
     ScreenAnimData& sd = _animState.screens[i];
     screens[i]->clearBuffer();
-    
+
     for (int j = 0; j < sd.newCount; j++) {
         String nc = sd.newChars[j].c; int nx = sd.newChars[j].x;
-        String oc = ""; bool isStatic = false;
-        for (int k = 0; k < sd.oldCount; k++) {
-            if (sd.oldChars[k].x == nx) {
-                oc = sd.oldChars[k].c;
-                if (oc == nc) isStatic = true;
-                break;
-            }
-        }
+        int oi = findOldIndexAtX(sd, nx);
+        String oc = (oi >= 0) ? sd.oldChars[oi].c : "";
 
-        if (isStatic) {
+        if (oc == nc) {
             renderer.drawSingleChar(i, nc, nx, 0);
         } else {
             switch (configManager.get().anim_mode) {
@@ -390,9 +438,7 @@ void DisplayManager::renderAnimFrame(int i, int step) {
 
     for (int k = 0; k < sd.oldCount; k++) {
         int ox = sd.oldChars[k].x; String oc = sd.oldChars[k].c;
-        bool stillHasPos = false;
-        for (int j = 0; j < sd.newCount; j++) { if (sd.newChars[j].x == ox) { stillHasPos = true; break; } }
-        if (stillHasPos) continue;
+        if (findNewIndexAtX(sd, ox) >= 0) continue;
 
         switch (configManager.get().anim_mode) {
             case ANIMATION_TYPE_SCROLL_UP:   if (step < 16) renderer.drawSingleChar(i, oc, ox, -(step * 4)); break;
@@ -403,8 +449,37 @@ void DisplayManager::renderAnimFrame(int i, int step) {
         }
     }
 
-    bool isIconScreen = configManager.get().is_flipped ? (i == 3) : (i == 0);
-    if (isIconScreen && configManager.get().chime_enabled) screens[i]->drawXBM(0, 0, 8, 8, bell_icon);
+    drawChimeIcon(i);
+}
+
+void DisplayManager::renderSnowFrame(int i, int step) {
+    ScreenAnimData& sd = _animState.screens[i];
+    uint8_t progress = (uint8_t)((int)step * ANIM_PROGRESS_FULL / (int)_animState.maxStep);
+    screens[i]->clearBuffer();
+
+    // 새 글자: 눈송이가 떨어져 쌓이며 조립된다.
+    for (int j = 0; j < sd.newCount; j++) {
+        int nx = sd.newChars[j].x;
+        int oi = findOldIndexAtX(sd, nx);
+        if (oi >= 0 && sd.oldChars[oi].c == sd.newChars[j].c) {
+            renderer.drawSingleChar(i, sd.newChars[j].c, nx, 0); // 그대로인 글자는 움직이지 않는다
+            continue;
+        }
+        uint16_t seed = snowSeed(_animState.transitionId, i, j, nx);
+        renderer.drawAssemblingChar(i, sd.newChars[j].c, nx, progress, seed);
+    }
+
+    // 사라지는 옛 글자: 눈처럼 아래로 가라앉으며 흩어진다.
+    // 같은 자리를 새 글자가 넘겨받더라도 함께 가라앉는다. 겹쳐 그려도 단색 픽셀이므로 문제가 없다.
+    for (int k = 0; k < sd.oldCount; k++) {
+        int ox = sd.oldChars[k].x;
+        int ni = findNewIndexAtX(sd, ox);
+        if (ni >= 0 && sd.newChars[ni].c == sd.oldChars[k].c) continue; // 같은 글자는 이미 정적으로 그렸다
+        uint16_t seed = snowSeed(_animState.transitionId, i, k + SNOW_DISPERSE_SLOT_OFFSET, ox);
+        renderer.drawDispersingChar(i, sd.oldChars[k].c, ox, progress, seed);
+    }
+
+    drawChimeIcon(i);
 }
 
 void DisplayManager::pushParallel() {

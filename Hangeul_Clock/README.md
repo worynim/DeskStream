@@ -27,7 +27,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
 ### 4. Non-blocking Animation State Machine (비차단 애니메이션 엔진)
 - **실시간 반응성 확보**: 애니메이션 루프를 `delay()` 기반에서 `updateTick()` 상태 머신 구조로 재설계하여, 화려한 효과가 재생되는 중에도 버튼 조작이나 웹 설정 변경이 즉각적으로 반영됩니다.
-- **프레임 동기화**: 10ms 단위의 정밀한 틱 제어를 통해 애니메이션의 부드러움을 유지하면서 시스템 리소스를 효율적으로 분배합니다.
+- **프레임 동기화**: 모드별 프레임 예산(기본 16프레임 × 10ms, 눈 조립 48프레임 × 16ms)을 상수로 분리해, 모드마다 다른 재생 시간을 정밀한 틱 제어합니다.
 
 ### 5. 64px Modern Font Engine (고화질 폰트 엔진)
 - **광폭 비트맵 지원**: 기존 32px의 한계를 넘어 **64px(512바이트) 고해상도 낱자**를 완벽하게 지원하여 대형 폰트 사용 시에도 글자 잘림 없는 미려한 출력을 보장합니다.
@@ -76,7 +76,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 | **i2c_platform.h/cpp** | **HAL** | 하드웨어 I2C 인터페이스 추상화 및 4개 OLED에 대한 고속 병렬 전송 로직 구현 |
 | **input_manager.h/cpp** | **Service** | 버튼 입력 디바운싱, 짧은/긴 누름 감지 및 인터럽트 안전 콜백 관리 |
 | **logger.h/cpp** | **Service** | 통합 로깅 시스템. OLED 상태 표시와 시erial 모니터(도트 애니메이션 포함) 출력 관리 |
-| **renderer.h/cpp** | **Engine** | 비트맵 캐시 관리 및 고수준 그래픽 렌더링 엔진 (Dither, Zoom, Flip 등) |
+| **renderer.h/cpp** | **Engine** | 비트맵 캐시 관리 및 고수준 그래픽 렌더링 엔진 (Dither, Zoom, Flip 등). 눈 조립 모드의 픽셀 운동학(해시·도착 시각·중력 궤적)도 이 파일에 있다 |
 | **web_manager.h/cpp** | **Web** | 비동기 웹 서버, JSON API 처리 및 기기-웹 대시보드 간 설정 동기화 관리 |
 | **web_pages.h** | **Resource** | 폰트 스튜디오 및 대시보드용 임베디드 HTML/Javascript/CSS 리소스 |
 

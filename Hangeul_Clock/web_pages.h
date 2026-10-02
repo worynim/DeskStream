@@ -94,6 +94,7 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
                     <option value="3">3. Vertical Flip</option>
                     <option value="4">4. Dithered Fade</option>
                     <option value="5">5. Zoom In/Out</option>
+                    <option value="6">6. Snow Assemble</option>
                 </select>
             </div>
             <div class="field">
@@ -429,7 +430,7 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
             return [s0, s1, s2, s3];
         }
 
-        let lastTimeStrings = ["", "", "", ""], targetTimeStrings = ["", "", "", ""], animStep = 16; 
+        let lastTimeStrings = ["", "", "", ""], targetTimeStrings = ["", "", "", ""], animStep = 16, animTransition = 0;
         function getCharPositions(text, isCentered) {
             const chars = Array.from(text), count = chars.length;
             if (count === 0) return [];
@@ -444,25 +445,124 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
             for(let y=0; y<8; y++) for(let x=0; x<8; x++) if(bell[y] & (1 << (7-x))) ctx.fillRect(x, y, 1, 1);
         }
 
+        // ── 눈 조립 모드 (펌웨어 renderer.cpp / display_manager.cpp 미러) ──
+        // 모드별 총 프레임 수. 눈 조립만 48프레임(기존 모드는 16)이다. config.h와 맞춰야 한다.
+        const ANIM_MAX_STEP = {1:16, 2:16, 3:16, 4:16, 5:16, 6:48};
+        const SNOW_W = 128, SNOW_H = 64, SNOW_SPAWN_Y = -2, SNOW_PROGRESS_FULL = 255, SNOW_ARRIVAL_MAX = 240;
+
+        /** C++ 정수 나눗셈(0 방향 절삭)을 그대로 흉내낸다 */
+        const idiv = (a, b) => Math.trunc(a / b);
+
+        /** 좌표 기반 결정적 해시 — 매 프레임 같은 눈이 나오도록 위치가 깜빡이지 않는다 */
+        function animHash(seed, x, y) {
+            let h = Math.imul(seed, 2654435761) >>> 0;
+            h = (h ^ ((Math.imul(x, 40503) & 0xFFFF) + 0x9E3779B9)) >>> 0;
+            h = (h ^ ((Math.imul(y, 42137) & 0xFFFF) + 0x85EBCA6B)) >>> 0;
+            h = (h ^ (h >>> 15)) >>> 0;
+            h = Math.imul(h, 2246822519) >>> 0;
+            h = (h ^ (h >>> 13)) >>> 0;
+            return (h >>> 8) & 0xFFFF;
+        }
+
+        /** 아래쪽 픽셀일수록 늦게 도착하고, 같은 높이는 해시로 흩뿌린다 */
+        function animArrival(seed, px, py) {
+            const base = idiv(py * 200, SNOW_H);
+            const jitter = (animHash(seed, px, py) % 81) - 40;
+            return Math.max(0, Math.min(SNOW_ARRIVAL_MAX, base + jitter));
+        }
+
+        /** 위에서 떨어져 e = t² 가속으로 조립되는 픽셀 위치 */
+        function animAssembling(seed, px, py, progress) {
+            const arrive = animArrival(seed, px, py);
+            if (progress >= arrive) return {x: px, y: py, on: 1};
+            const den = arrive, eNum = progress * progress, eDen = den * den;
+            const spawn = animHash((seed ^ 0x5A5A) & 0xFFFF, px, py) % SNOW_W;
+            const sway = (animHash((seed ^ 0xA5A5) & 0xFFFF, px, py) % 9) - 4;
+            const x = spawn + idiv((px - spawn) * progress, den) + idiv(sway * progress * (den - progress), den * 48);
+            const y = SNOW_SPAWN_Y + idiv((py - SNOW_SPAWN_Y) * eNum, eDen);
+            return {x: x, y: y, on: (y >= 0 && y < SNOW_H) ? 1 : 0};
+        }
+
+        /** 아래로 가라앉으며 흩어지는 픽셀 위치 */
+        function animDispersing(seed, px, py, progress) {
+            const h = animHash(seed, px, py);
+            const delay = h % 48;
+            if (progress <= delay) return {x: px, y: py, on: 1};
+            const num = progress - delay, den = SNOW_PROGRESS_FULL - delay;
+            const drift = ((h >>> 8) % 7) - 3;
+            const y = py + idiv((SNOW_H - py) * num * num, den * den);
+            const x = px + idiv(drift * num, 128);
+            return {x: x, y: y, on: (y < SNOW_H) ? 1 : 0};
+        }
+
+        function snowSeed(transitionId, screenIdx, slot, x) {
+            return (transitionId * 7919 + screenIdx * 131 + slot * 17 + x * 3) & 0xFFFF;
+        }
+
+        /**
+         * 글자의 켜진 픽셀 목록 [x0,y0,x1,y1,...]을 캐시한다.
+         * 오프스크린 캔버스에 글자를 렌더링한 뒤 getImageData로 뽑는다. 폰트·크기·반전 여부가
+         * 바뀌면 캐시 키도 바뀌어 자동으로 무효화된다.
+         */
+        const snowPixelCache = {};
+        function getSnowPixels(charStr, x) {
+            const key = `${charStr}|${x}|${els.sIn.value}|${els.invert.value}|${fontLoaded}`;
+            if (snowPixelCache[key]) return snowPixelCache[key];
+            const off = document.createElement('canvas'); off.width = 32; off.height = SNOW_H;
+            const octx = off.getContext('2d', {willReadFrequently: true});
+            octx.fillStyle = "#fff";
+            octx.font = `${els.sIn.value}px ClockFont, sans-serif`;
+            octx.textAlign = "center"; octx.textBaseline = "middle";
+            octx.fillText(charStr, 16, SNOW_H / 2);
+            const img = octx.getImageData(0, 0, 32, SNOW_H).data;
+            const pts = [];
+            for (let y = 0; y < SNOW_H; y++)
+                for (let px = 0; px < 32; px++)
+                    if (img[(y * 32 + px) * 4 + 3] > 128) pts.push(px, y);
+            snowPixelCache[key] = pts;
+            return pts;
+        }
+
+        function drawSnowChar(ctx, charStr, x, progress, seed) {
+            const pts = getSnowPixels(charStr, x);
+            ctx.fillStyle = els.invert.value === "1" ? "#000" : "#fff";
+            for (let i = 0; i < pts.length; i += 2) {
+                const p = animAssembling(seed, x + pts[i], pts[i + 1], progress);
+                if (p.on) ctx.fillRect(p.x, p.y, 1, 1);
+            }
+        }
+
+        function drawDispersingSnowChar(ctx, charStr, x, progress, seed) {
+            const pts = getSnowPixels(charStr, x);
+            ctx.fillStyle = els.invert.value === "1" ? "#000" : "#fff";
+            for (let i = 0; i < pts.length; i += 2) {
+                const p = animDispersing(seed, x + pts[i], pts[i + 1], progress);
+                if (p.on) ctx.fillRect(p.x, p.y, 1, 1);
+            }
+        }
+
         function render() {
             const currentTimeStrings = getHangeulTimeStrings();
             if (targetTimeStrings[0] === "") targetTimeStrings = [...currentTimeStrings];
+            const mode = els.anim.value, maxStep = ANIM_MAX_STEP[mode] ?? 16;
+            const snowProgress = Math.trunc(animStep * SNOW_PROGRESS_FULL / maxStep);
             let changed = currentTimeStrings.some((s, i) => s !== targetTimeStrings[i]);
-            if (changed && animStep >= 16) {
+            if (changed && animStep >= maxStep) {
                 lastTimeStrings = [...targetTimeStrings]; targetTimeStrings = [...currentTimeStrings];
-                animStep = (["1", "2", "3", "4", "5"].includes(els.anim.value)) ? 0 : 16;
+                animTransition++; // 펌웨어의 transitionId와 같은 역할: 전환마다 다른 눈
+                animStep = (mode !== "0") ? 0 : maxStep;
             }
-            if (animStep < 16) animStep++; 
+            if (animStep < maxStep) animStep++;
             for(let s=0; s<4; s++) {
                 const ctx = pCtx[s]; const isInverted = els.invert.value === "1";
                 ctx.fillStyle = isInverted ? "#fff" : "#000"; ctx.fillRect(0,0,128,64);
                 const isC = (s === 0) || (targetTimeStrings[s] === "정각");
                 const curD = getCharPositions(targetTimeStrings[s], isC);
-                if (animStep >= 16 || els.anim.value === "0") curD.forEach(d => drawChar(ctx, d.c, d.x, 0));
+                if (animStep >= maxStep || mode === "0") curD.forEach(d => drawChar(ctx, d.c, d.x, 0));
                 else {
                     const isOC = (s === 0) || (lastTimeStrings[s] === "정각");
-                    const off = animStep * 4, oldD = getCharPositions(lastTimeStrings[s], isOC), mode = els.anim.value;
-                    curD.forEach(nd => {
+                    const off = animStep * 4, oldD = getCharPositions(lastTimeStrings[s], isOC);
+                    curD.forEach((nd, slot) => {
                         let od = oldD.find(o => o.x === nd.x);
                         if (od && od.c === nd.c) drawChar(ctx, nd.c, nd.x, 0);
                         else {
@@ -472,18 +572,24 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
                                 case "3": if(animStep<=8) { if(od) drawScaledChar(ctx, od.c, nd.x, ((8-animStep)/8)*64); } else drawScaledChar(ctx, nd.c, nd.x, ((animStep-8)/8)*64); break;
                                 case "4": ctx.save(); if(animStep<=8) { ctx.globalAlpha=(8-animStep)/8; if(od) drawChar(ctx, od.c, nd.x, 0); } else { ctx.globalAlpha=(animStep-8)/8; drawChar(ctx, nd.c, nd.x, 0); } ctx.restore(); break;
                                 case "5": if(animStep<=8) { if(od) drawZoomedChar(ctx, od.c, nd.x, (8-animStep)/8); } else { let sc = (animStep<=12)?((animStep-8)*1.5/4):(1.5-(animStep-12)*0.5/4); drawZoomedChar(ctx, nd.c, nd.x, sc); } break;
+                                case "6": drawSnowChar(ctx, nd.c, nd.x, snowProgress, snowSeed(animTransition, s, slot, nd.x)); break;
                             }
                         }
                     });
-                    oldD.forEach(od => {
-                        if (!curD.find(nd => nd.x === od.x)) {
-                            switch(mode) {
-                                case "1": drawChar(ctx, od.c, od.x, -off); break;
-                                case "2": drawChar(ctx, od.c, od.x, off); break;
-                                case "3": if(animStep<=8) drawScaledChar(ctx, od.c, od.x, ((8-animStep)/8)*64); break;
-                                case "4": if(animStep<=8) { ctx.save(); ctx.globalAlpha=(8-animStep)/8; drawChar(ctx, od.c, od.x, 0); ctx.restore(); } break;
-                                case "5": if(animStep<=8) drawZoomedChar(ctx, od.c, od.x, (8-animStep)/8); break;
-                            }
+                    oldD.forEach((od, slot) => {
+                        const replaced = curD.find(nd => nd.x === od.x);
+                        // 같은 글자는 첫 번째 반복문에서 이미 정적으로 그렸다
+                        if (replaced && replaced.c === od.c) return;
+                        // 기존 모드는 같은 자리를 새 글자가 넘겨받으면 옛 글자를 그냥 지운다.
+                        // 눈 조립만 새 글자와 함께 가라앉힌다 (펌웨어 renderSnowFrame와 동일)
+                        if (replaced && mode !== "6") return;
+                        switch(mode) {
+                            case "1": drawChar(ctx, od.c, od.x, -off); break;
+                            case "2": drawChar(ctx, od.c, od.x, off); break;
+                            case "3": if(animStep<=8) drawScaledChar(ctx, od.c, od.x, ((8-animStep)/8)*64); break;
+                            case "4": if(animStep<=8) { ctx.save(); ctx.globalAlpha=(8-animStep)/8; drawChar(ctx, od.c, od.x, 0); ctx.restore(); } break;
+                            case "5": if(animStep<=8) drawZoomedChar(ctx, od.c, od.x, (8-animStep)/8); break;
+                            case "6": drawDispersingSnowChar(ctx, od.c, od.x, snowProgress, snowSeed(animTransition, s, slot + 8, od.x)); break;
                         }
                     });
                 }

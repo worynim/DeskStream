@@ -99,7 +99,7 @@ void WebManager::handleSetConfig() {
         String body = server.arg("plain");
         
         int am = parseVal(body, "anim_mode"); 
-        if(am >= 0 && am <= 5 && am != s.anim_mode) display.setAnimMode(am);
+        if(am >= 0 && am < ANIMATION_TYPE_COUNT && am != s.anim_mode) display.setAnimMode(am);
         
         int dm = parseVal(body, "display_mode"); 
         if(dm >= 0 && dm <= 1 && dm != s.display_mode) display.setDisplayMode(dm);
