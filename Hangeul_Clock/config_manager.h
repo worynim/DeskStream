@@ -3,15 +3,18 @@
  * @file config_manager.h
  * @brief 영속적 설정 관리 클래스 정의
  * @details 사용자 설정값의 저장(Flash), 로드 및 지능형 지연 저장(Lazy Save) 로직을 관리
+ * @note [SYNC] ENG_Clock/config_manager.h — timezone 필드 추가
  */
 #ifndef CONFIG_MANAGER_H
 #define CONFIG_MANAGER_H
 
 #include <Arduino.h>
+#include <string.h>
 #include <Preferences.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/timers.h>
 #include "config.h"
+#include "tz_util.h"
 
 /**
  * @brief 시스템의 모든 비휘발성 설정을 담는 구조체
@@ -27,8 +30,12 @@ struct SystemSettings {
     uint8_t font_slot;
     uint8_t brightness;
 
+    // POSIX TZ 문자열 (예: "KST-9", "EST5EDT,M3.2.0,M11.1.0").
+    // setenv("TZ", ...)로 직접 사용되므로 웹 입력 검증이 필수다.
+    char timezone[TIMEZONE_MAX_LEN];
+
     // 기본값 설정
-    SystemSettings() : 
+    SystemSettings() :
         anim_mode(ANIMATION_TYPE_SCROLL_UP),
         display_mode(CLOCK_MODE_HANGUL),
         hour_format(HOUR_FORMAT_12H),
@@ -37,7 +44,10 @@ struct SystemSettings {
         is_inverted(false),
         font_name("System Default"),
         font_slot(0),
-        brightness(1) {}
+        brightness(1) {
+        strncpy(timezone, DEFAULT_TIMEZONE, sizeof(timezone) - 1);
+        timezone[sizeof(timezone) - 1] = '\0';
+    }
 };
 
 /**

@@ -3,6 +3,7 @@
  * @file display_manager.h
  * @brief 고수준 디스플레이 및 UI 스테이지 관리 클래스 정의
  * @details 4개 OLED에 대한 통합 렌더링, 시계/IP/도움말 화면 전환 및 애니메이션 트리거 관리
+ * @note [SYNC] ENG_Clock/display_manager.h — applyTimezone() 추가
  */
 #ifndef DISPLAY_MANAGER_H
 #define DISPLAY_MANAGER_H
@@ -68,6 +69,19 @@ public:
     void setDisplayMode(uint8_t mode);
     void setHourFormat(uint8_t format);
     void setAnimMode(uint8_t mode);
+
+    /**
+     * @brief 설정된 POSIX TZ를 환경변수에 적용하고 NTP를 재동기화한다
+     * @details lwIP는 UTC를 내부 보관하고 localtime() 호출 시점에 TZ를 적용한다.
+     *          configTzTime()이 setenv("TZ", tz) + tzset()까지 해 준다.
+     *          configTime(오프셋, ...)은 절대 쓰지 않는다 — 코어가 오프셋을
+     *          POSIX TZ로 강제 변환해 설정값을 덮어써서 항상 UTC가 된다.
+     *
+     * @note 입력 검증은 config_manager(로드)와 web_manager(입력)가 이미 수행한다
+     *       (둘 다 tz_util::isValidTimezone). 여기서는 검증된 값만 사용한다.
+     */
+    void applyTimezone();
+
     void setFontName(const String& name);
     void loadBitmapCache();
     void clearAll();

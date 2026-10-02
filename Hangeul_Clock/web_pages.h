@@ -3,6 +3,9 @@
  * @file web_pages.h
  * @brief 웹 설정 대시보드 및 폰트 스튜디오 리소스
  * @details HTML, CSS, JavaScript 등으로 구성된 임베디드 웹 페이지 리소스 관리 (PROGMEM 활용)
+ * @note [SYNC] ENG_Clock/web_pages.h — 시간대 셀렉트 + POSIX TZ 입력칸 추가.
+ *       옵션 value가 곧 POSIX TZ 문자열이라 펌웨어와 매핑 테이블이 없다.
+ *       tzSel/tzCustom/tzPending 는 ENG판과 동일 계약이다.
  */
 #ifndef WEB_PAGES_H
 #define WEB_PAGES_H
@@ -134,6 +137,32 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
             </div>
         </div>
 
+        <div class="setup-grid">
+            <div class="field">
+                <label>10. 시간대 (DST 자동 적용)</label>
+                <select id="tzSel">
+                    <option value="KST-9">Asia/Seoul (UTC+9)</option>
+                    <option value="JST-9">Asia/Tokyo (UTC+9)</option>
+                    <option value="CST-8">Asia/Shanghai (UTC+8)</option>
+                    <option value="IST-5:30">Asia/Kolkata (UTC+5:30)</option>
+                    <option value="GMT0BST,M3.5.0/1,M10.5.0">Europe/London (UTC+0/+1)</option>
+                    <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Berlin (UTC+1/+2)</option>
+                    <option value="AEST-10AEDT,M10.1.0,M4.1.0/3">Australia/Sydney (UTC+10/+11)</option>
+                    <option value="EST5EDT,M3.2.0,M11.1.0">America/New_York (UTC-5/-4)</option>
+                    <option value="CST6CDT,M3.2.0,M11.1.0">America/Chicago (UTC-6/-5)</option>
+                    <option value="MST7MDT,M3.2.0,M11.1.0">America/Denver (UTC-7/-6)</option>
+                    <option value="PST8PDT,M3.2.0,M11.1.0">America/Los_Angeles (UTC-8/-7)</option>
+                    <option value="UTC0">UTC (no offset)</option>
+                    <option value="CUSTOM">직접 입력&hellip; (아래 POSIX TZ)</option>
+                </select>
+            </div>
+            <div class="field">
+                <label>POSIX TZ 문자열 <span id="tzHint" style="color:#666">(읽기 전용)</span></label>
+                <input type="text" id="tzCustom" maxlength="47" spellcheck="false" readonly
+                       style="background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:12px;color:#fff;font-family:ui-monospace,monospace;width:100%;">
+            </div>
+        </div>
+
         <div class="preview-list">
             <div class="preview-item"><div class="preview-label">SCREEN 1</div><canvas id="p0" width="128" height="64"></canvas></div>
             <div class="preview-item"><div class="preview-label">SCREEN 2</div><canvas id="p1" width="128" height="64"></canvas></div>
@@ -171,7 +200,10 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
             sIn: document.getElementById('sIn'),
             fIn: document.getElementById('fIn'),
             brIn: document.getElementById('brIn'),
-            brVal: document.getElementById('brVal')
+            brVal: document.getElementById('brVal'),
+            tzSel: document.getElementById('tzSel'),
+            tzCustom: document.getElementById('tzCustom'),
+            tzHint: document.getElementById('tzHint')
         };
 
         UNIQ_CHARS.forEach(c => {
@@ -179,6 +211,20 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
             d.className = 'badge'; d.id = 'b_' + c; d.innerText = c;
             document.getElementById('inv').appendChild(d);
         });
+
+        /** Custom 모드 여부에 따라 TZ 입력칸을 편집 가능/읽기전용으로 전환한다 */
+        function setTzEditable(editable, value) {
+            els.tzCustom.readOnly = !editable;
+            els.tzHint.innerText = editable ? "(입력 가능 — 전송 시 적용)" : "(읽기 전용)";
+            if (value !== undefined) els.tzCustom.value = value;
+        }
+
+        /**
+         * 서버 반영을 아직 확인하지 못한 시간대 값 — 5초 폴링이 이를 옛 값으로 되돌린다.
+         * 사용자가 시간대를 바꾸고 POST가 오기 전에 폴링 응답이 도착하면 선택이 튀었다가
+         * 되감기는 문제다. 저장이 확인되면 해제하고, 실패하면 그대로 둔다(재시도 가능).
+         */
+        let tzPending = false;
 
         async function fetchConfig() {
             try {
@@ -193,7 +239,21 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
                 els.slot.value = (data.font_slot ?? 0).toString();
                 els.brIn.value = (data.brightness ?? 1).toString();
                 els.brVal.innerText = els.brIn.value;
-                
+
+                // 시간대: 저장된 POSIX 문자열과 일치하는 옵션을 선택하고,
+                // 목록에 없는 문자열이면 Custom 모드로 입력칸을 연다.
+                if (typeof data.timezone === 'string' && data.timezone.length
+                    && !tzPending && els.tzSel !== document.activeElement) {
+                    let matched = false;
+                    for (const opt of els.tzSel.options) {
+                        if (opt.value !== 'CUSTOM' && opt.value === data.timezone) {
+                            els.tzSel.value = opt.value; matched = true; break;
+                        }
+                    }
+                    if (!matched) els.tzSel.value = 'CUSTOM';
+                    setTzEditable(els.tzSel.value === 'CUSTOM', data.timezone);
+                }
+
                 // 슬롯 이름 업데이트
                 if (data.slot_names) {
                     for(let i=0; i<5; i++) {
@@ -217,17 +277,33 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
                 is_flipped: els.flip.value === "1",
                 is_inverted: els.invert.value === "1",
                 font_slot: parseInt(els.slot.value),
-                brightness: parseInt(els.brIn.value)
+                brightness: parseInt(els.brIn.value),
+                timezone: els.tzCustom.value
             };
+            tzPending = true;
             try {
-                await fetch('/api/config', { method: 'POST', body: JSON.stringify(body) });
+                const res = await fetch('/api/config', { method: 'POST', body: JSON.stringify(body) });
+                // 응답을 확인하지 않으면 거절된 시간대도 "설정 저장됨"으로 보인다.
+                // fetch는 네트워크 단절에서만 reject 된다.
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                tzPending = false;
                 els.status.innerText = "설정 저장됨";
-            } catch(e) { els.status.innerText = "저장 실패"; }
+            } catch(e) {
+                // 실패하면 tzPending을 지우지 않는다. 그래야 다음 폴링이 사용자 값을
+                // 지워버리지 않고, 사용자가 재시도할 수 있다.
+                els.status.innerText = `저장 실패 (${e.message}) — 값을 확인하고 다시 시도하세요`;
+            }
         }
 
         [els.anim, els.disp, els.hour, els.chime, els.flip, els.invert, els.slot].forEach(el => el.onchange = saveConfig);
         els.brIn.oninput = () => { els.brVal.innerText = els.brIn.value; };
         els.brIn.onchange = saveConfig;
+        // 시간대 선택: 옵션의 value가 곧 POSIX TZ 문자열이므로 별도 매핑 테이블이 없다.
+        els.tzSel.onchange = () => {
+            if (els.tzSel.value === 'CUSTOM') setTzEditable(true);   // 값은 사용자가 입력
+            else { setTzEditable(false, els.tzSel.value); saveConfig(); }
+        };
+        els.tzCustom.onchange = saveConfig;
         fetchConfig();
         setInterval(fetchConfig, 5000);
 

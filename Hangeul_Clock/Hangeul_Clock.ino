@@ -3,6 +3,8 @@
  * @file Hangeul_Clock.ino
  * @brief 한글 시계 메인 엔트리 포인트
  * @details 시스템 초기화(Setup), 메인 서비스 루프 제어 및 전역 서비스 통합 관리
+ * @note [SYNC] ENG_Clock/ENG_Clock.ino — 고정 오프셋 NTP를 POSIX TZ 기반
+ *       DisplayManager::applyTimezone()로 교체
  */
 #include <Arduino.h>
 #include <WiFiManager.h>
@@ -188,8 +190,10 @@ void setup() {
     logger.addLog("WiFi Connected!");
     webManager.begin();
 
-    // 5. 시간 동기화 (NTP)
-    configTime(TIMEZONE_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, NTP_SERVER1, NTP_SERVER2);
+    // 5. 시간 동기화 (NTP + POSIX TZ)
+    // configManager.begin()이 display.begin() 내부에서 이미 끝났으므로
+    // 이 시점의 configManager.get().timezone은 NVS에서 로드·검증된 값이다.
+    display.applyTimezone();
     logger.addLog("Syncing Time");
     
     struct tm timeinfo;

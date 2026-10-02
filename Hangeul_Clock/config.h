@@ -23,10 +23,14 @@
 #define BUZZER_PIN 7
 
 // === [2] NTP 및 시간 설정 ===
-#define NTP_SERVER1 "kr.pool.ntp.org"
+// 고정 오프셋 대신 POSIX TZ 문자열을 쓴다 (웹에서 설정, DST 자동 처리).
+// NTP는 UTC로 수신하고 localtime() 시점에 TZ 환경변수가 적용된다.
+#define NTP_SERVER1 "pool.ntp.org"
 #define NTP_SERVER2 "time.nist.gov"
-const int TIMEZONE_OFFSET_SEC = 9 * 3600; // 대한민국 UTC+9
-const int DAYLIGHT_OFFSET_SEC = 0;
+
+// 웹에서 시간대를 설정하기 전까지의 폴백 (config_manager가 NVS에 보관)
+#define DEFAULT_TIMEZONE "KST-9"
+#define TIMEZONE_MAX_LEN 48   // SystemSettings.timezone 배열 크기와 일치해야 한다
 
 // === [3] 디스플레이 설정 ===
 #define NUM_SCREENS 4

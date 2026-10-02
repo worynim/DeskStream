@@ -3,6 +3,7 @@
  * @file display_manager.cpp
  * @brief 고수준 디스플레이 및 UI 스테이지 관리 클래스 구현
  * @details 4개 OLED 디스플레이 제어, 부저 피드백, UI 상태 전환 로직 구현
+ * @note [SYNC] ENG_Clock/display_manager.cpp — applyTimezone() 추가
  */
 #include "display_manager.h"
 #include "LittleFS.h"
@@ -121,6 +122,18 @@ void DisplayManager::setAnimMode(uint8_t mode) {
     configManager.get().anim_mode = mode;
     configManager.setDirty();
     setForceUpdate(true);
+}
+
+void DisplayManager::applyTimezone() {
+    const char* tz = configManager.get().timezone;
+    // configTime(0, 0, ...)을 쓰면 코어(esp32-hal-time.c)가 마지막에 setTimeZone(-0, 0)을
+    //   호출해 setenv("TZ", "UTC0DST0")로 **방금 설정한 TZ를 덮어쓴다**. GMT 오프셋 0을
+    //   POSIX TZ로 강제 변환하기 때문에 어떤 타임존을 골라도 항상 UTC로 표시된다.
+    // configTzTime()은 SNTP 서버 설정 후 setenv("TZ", tz) + tzset()까지 해 주는
+    //   코어 제공 함수이므로 별도의 setenv/tzset이 필요 없다.
+    configTzTime(tz, NTP_SERVER1, NTP_SERVER2);
+    Serial.printf("[TZ] Applied: %s\n", tz);
+    setForceUpdate(true);   // 다음 루프에서 새 시각으로 즉시 재렌더링
 }
 
 String DisplayManager::getSlotName(uint8_t slot) {
@@ -501,8 +514,10 @@ void DisplayManager::showLargeIP(IPAddress ip) {
         if (i < 3) screens[i]->drawBox(120, 56, 4, 4);
         bool isTitleScreen = configManager.get().is_flipped ? (i == 3) : (i == 0);
         if (isTitleScreen) {
-            screens[i]->setFont(u8g2_font_4x6_tf);
-            screens[i]->drawStr(0, 7, "SETTING ADDR");
+            // 폰트를 6x10으로 통일했다. 글자 높이가 6px→10px로 커지므로 baseline을
+            //   y=7에서 y=10으로 내린다 (y=7이면 윗부분이 화면 밖으로 잘린다).
+            screens[i]->setFont(STATUS_FONT);
+            screens[i]->drawStr(0, 10, "SETTING ADDR");
         }
     }
     pushParallel();
@@ -522,7 +537,9 @@ void DisplayManager::showButtonHelp() {
     const char* longs[4]  = {flipStr,  fmtStr, fontStr,  "L:INVERT"};
     for (int i = 0; i < 4; i++) {
         screens[i]->clearBuffer();
-        screens[i]->setFont(u8g2_font_7x14_tf);
+        // 폰트를 6x10으로 통일했다. 14px→10px로 줄었으므로 3줄 baseline(y=15/35/55)은
+        //   그대로 두어도 잘리지 않고 20px 간격 유지된다.
+        screens[i]->setFont(STATUS_FONT);
         screens[i]->drawStr(0, 15, titles[i]);
         screens[i]->drawStr(0, 35, shorts[i]);
         screens[i]->drawStr(0, 55, longs[i]);

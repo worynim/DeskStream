@@ -2,7 +2,7 @@
 
 <img width="879" height="1067" alt="image" src="https://github.com/user-attachments/assets/325bc0a3-bf28-45f6-92ca-6e8ce69a8893" />
 
-# Hangeul Clock (한글 시계) - v2.6.0
+# Hangeul Clock (한글 시계) - v2.7.0
 
 NTP 서버로부터 시간을 동기화하여 4개의 OLED 디스플레이에 고화질 한글 및 숫자로 시, 분, 초를 표시하는 ESP32-C3 기반 프리미엄 데스크 가젯입니다.
 

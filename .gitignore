@@ -9,6 +9,7 @@ build/
 .vscode/
 .idea/
 .gemini/
+.playwright-mcp/
 RISK.md
 PLAN.md
 리뷰.md

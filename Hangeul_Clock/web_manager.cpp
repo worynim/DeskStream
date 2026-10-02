@@ -3,9 +3,12 @@
  * @file web_manager.cpp
  * @brief 웹 설정 대시보드 및 API 서버 클래스 구현
  * @details 비동기 HTTP 핸들러 및 JSON 설정 데이터 입출력 로직 구현
+ * @note [SYNC] ENG_Clock/web_manager.cpp — timezone JSON 입출력 및 검증 추가
  */
 #include "web_manager.h"
 #include "web_pages.h"
+#include "tz_util.h"
+#include <string.h>   // strlen — JSON 키 파싱 오프셋 계산용
 
 // 전역 객체 정의
 WebServer server(WEB_PORT);
@@ -85,7 +88,8 @@ void WebManager::handleGetConfig() {
                  ",\"slot_names\":" + slotNames +
                  ",\"is_inverted\":" + String(s.is_inverted ? "true":"false") +
                  ",\"brightness\":" + String((int)s.brightness) +
-                 ",\"is_flipped\":" + String(s.is_flipped ? "true":"false") + "}";
+                 ",\"is_flipped\":" + String(s.is_flipped ? "true":"false") +
+                 ",\"timezone\":\"" + s.timezone + "\"}";
     server.send(200, "application/json", json);
 }
 
@@ -122,9 +126,35 @@ void WebManager::handleSetConfig() {
         int br = parseVal(body, "brightness");
         if (br >= 1 && br <= 255 && br != s.brightness) display.setBrightness(br);
 
-        int fnS = body.indexOf("\"font_name\":\"");
+        // POSIX TZ 문자열. setenv("TZ", ...)로 직접 들어가므로 화이트리스트 검증을 통과해야 한다.
+        // font_name과 동일한 문자열 파싱 패턴을 쓰되, 검증은 tz_util::isValidTimezone()에 위임한다
+        // — NVS 로드와 웹 입력이 같은 검증기를 써야 한다.
+        //
+        // 파싱 오프셋은 리터럴 실제 길이(strlen)로 계산한다. 이전처럼 다른 키의 오프셋을
+        // 복사하면 "\"timezone\":\""(12자) 어긋나 첫 글자가 유실된다 ("KST-9" → "ST-9").
+        static const char TZ_JSON_KEY[] = "\"timezone\":\"";
+        int tzS = body.indexOf(TZ_JSON_KEY);
+        if (tzS != -1) {
+            tzS += strlen(TZ_JSON_KEY);
+            int tzE = body.indexOf('"', tzS);
+            if (tzE > tzS) {
+                String newTz = body.substring(tzS, tzE);
+                if (!isValidTimezone(newTz.c_str())) {
+                    Serial.println("[WEB] Rejected invalid timezone: " + newTz);
+                } else if (newTz != s.timezone) {
+                    strncpy(s.timezone, newTz.c_str(), sizeof(s.timezone) - 1);
+                    s.timezone[sizeof(s.timezone) - 1] = '\0';   // NUL 종료 보장
+                    configManager.setDirty();
+                    display.applyTimezone();
+                }
+            }
+        }
+
+        // timezone과 같은 오프셋 버그가 재발하지 않도록 리터럴 길이를 직접 계산한다.
+        static const char FONT_JSON_KEY[] = "\"font_name\":\"";
+        int fnS = body.indexOf(FONT_JSON_KEY);
         if (fnS != -1) {
-            fnS += 13;
+            fnS += strlen(FONT_JSON_KEY);
             int fnE = body.indexOf("\"", fnS);
             if (fnE != -1) {
                 String fontName = body.substring(fnS, fnE);
