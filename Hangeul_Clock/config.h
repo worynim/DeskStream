@@ -68,14 +68,19 @@
 #define ANIMATION_TYPE_DITHERED_FADE 4
 #define ANIMATION_TYPE_ZOOM 5
 #define ANIMATION_TYPE_SNOW_ASSEMBLE 6
-#define ANIMATION_TYPE_COUNT 7      // BTN3 순환 및 웹 입력 검증 상한
+#define ANIMATION_TYPE_SPLIT_FLAP 7
+#define ANIMATION_TYPE_COUNT 8      // BTN3 순환 및 웹 입력 검증 상한
 #define ANIMATION_STEP_DELAY_MS 10  // 고속 프레임 (기존 모드 공통)
 
-#define ANIMATION_STEPS_DEFAULT 16  // 기존 모드 프레임 수
+#define ANIMATION_STEPS_DEFAULT 16  // 기존 모드 및 분할 플랩 프레임 수
 #define ANIMATION_STEP_DELAY_SNOW_MS 16
 #define ANIMATION_STEPS_SNOW 48    // 눈 조립 모드: 48 x 16ms = 약 0.8초
 #define ANIM_SNOW_FALLBACK_THRESHOLD 128 // 픽셀 조립이 불가능한 글자는 진행도 절반 이후에 시스템 폰트로 그린다
-#define ANIM_PROGRESS_FULL 255          // 눈 조립 애니메이션 진행도의 만점 (스텝 → 0~255 매핑 상한)
+#define ANIM_PROGRESS_FULL 255          // 픽셀/행 단위 애니메이션 진행도의 만점 (스텝 → 0~255 매핑 상한)
+
+// 분할 플랩 접힘 기하 (web_pages.h의 FLAP_HALF_H / FLAP_PHASE_SPLIT과 맞춰야 한다)
+#define ANIM_FLAP_HALF_H (SCREEN_HEIGHT / 2) // 글자를 접는 축의 높이 절반 (위쪽 0~31, 아래쪽 32~63)
+#define ANIM_FLAP_PHASE_SPLIT 128              // 이 진행도부터 아래쪽 절반 접힘으로 넘어간다
 
 // === [9] 표시 형식 설정 ===
 #define CLOCK_MODE_HANGUL 0

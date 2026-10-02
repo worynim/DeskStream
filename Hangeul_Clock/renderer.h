@@ -55,6 +55,16 @@ public:
      */
     void drawDispersingChar(int screenIdx, const String& charStr, int x, uint8_t progress, uint16_t seed);
 
+    /**
+     * @brief 글자를 상하 2등분해 순서대로 접으며 바꾼다 (분할 플랩)
+     * @details 위쪽 절반이 먼저 가운데선을 축으로 접혀 수평으로 눕고, 그 자리에 새 글자의
+     *          위쪽 절반이 펼쳐진다. 이어 아래쪽 절반이 같은 방식으로 접힌다.
+     * @param oldStr  접혀 사라질 옛 글자 (빈 문자열이면 새로 등장하는 글자)
+     * @param newStr  펼쳐질 새 글자 (빈 문자열이면 사라지는 글자)
+     * @param progress 애니메이션 진행도 (0 ~ ANIM_PROGRESS_FULL)
+     */
+    void drawFlapChar(int screenIdx, const String& oldStr, const String& newStr, int x, uint8_t progress);
+
     // 텍스트 레이아웃 헬퍼
     void getCharData(const String& text, CharData outChars[8], int& count, bool centered);
 

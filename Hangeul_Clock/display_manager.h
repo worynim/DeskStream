@@ -120,6 +120,13 @@ private:
      */
     void renderSnowFrame(int screenIdx, int step);
 
+    /**
+     * @brief 분할 플랩 모드의 단일 프레임을 그린다
+     * @details 한 열의 접힘 전체(옛 글자가 접히고 새 글자가 펼쳐짐)를 한 번의
+     *          drawFlapChar 호출로 그린다. 새 글자가 없는 열은 사라지는 글자로 접어 닫는다.
+     */
+    void renderFlapFrame(int screenIdx, int step);
+
     void drawChimeIcon(int idx);
     int findOldIndexAtX(const ScreenAnimData& sd, int x) const; // 해당 x에 놓인 옛 글자의 인덱스(-1이면 없음)
     int findNewIndexAtX(const ScreenAnimData& sd, int x) const; // 해당 x에 놓인 새 글자의 인덱스(-1이면 없음)

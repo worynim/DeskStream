@@ -95,6 +95,7 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
                     <option value="4">4. Dithered Fade</option>
                     <option value="5">5. Zoom In/Out</option>
                     <option value="6">6. Snow Assemble</option>
+                    <option value="7">7. Split Flap</option>
                 </select>
             </div>
             <div class="field">
@@ -446,9 +447,11 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
         }
 
         // ── 눈 조립 모드 (펌웨어 renderer.cpp / display_manager.cpp 미러) ──
-        // 모드별 총 프레임 수. 눈 조립만 48프레임(기존 모드는 16)이다. config.h와 맞춰야 한다.
-        const ANIM_MAX_STEP = {1:16, 2:16, 3:16, 4:16, 5:16, 6:48};
+        // 모드별 총 프레임 수. 눈 조립만 48프레임(나머지는 16)이다. config.h와 맞춰야 한다.
+        const ANIM_MAX_STEP = {1:16, 2:16, 3:16, 4:16, 5:16, 6:48, 7:16};
         const SNOW_W = 128, SNOW_H = 64, SNOW_SPAWN_Y = -2, SNOW_PROGRESS_FULL = 255, SNOW_ARRIVAL_MAX = 240;
+        // 분할 플랩 접힘 기하 (펌웨어 config.h의 ANIM_FLAP_* / SNOW_H와 맞춰야 한다)
+        const FLAP_H = SNOW_H / 2, FLAP_PHASE_SPLIT = 128;
 
         /** C++ 정수 나눗셈(0 방향 절삭)을 그대로 흉내낸다 */
         const idiv = (a, b) => Math.trunc(a / b);
@@ -541,11 +544,74 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
             }
         }
 
+        // ── 분할 플랩 모드 (펌웨어 renderer.cpp 미러) ──
+        // 글자를 상하 2등분해 순서대로 접는다. 위쪽 절반이 먼저 가운데선을 축으로 접혀
+        // 수평으로 눕고, 그 자리에 새 글자의 위쪽 절반이 펼쳐진다. 이어 아래쪽 절반이
+        // 같은 방식으로 접힌다. 펌웨어와 같은 정수 나눗셈(idiv)을 쓴다.
+
+        /**
+         * 글자의 켜진 픽셀을 원본 행별로 묶어 캐시한다 (rows[원본행] = [x, x, ...]).
+         * getSnowPixels 결과를 행 기준으로 재배열한 것이다. 접힘은 목표 행 → 원본 행을
+         * 찾는 방식이라 픽셀 나열이 아닌 행 인덱스로 접근해야 한다. 반환 좌표는 셀 기준
+         *이라 x와 무관하므로 0을 넣어 snowPixelCache에 중복 항목을 만들지 않는다.
+         */
+        const flapRowCache = {};
+        function getFlapRows(charStr) {
+            const key = `${charStr}|${els.sIn.value}|${els.invert.value}|${fontLoaded}`;
+            if (flapRowCache[key]) return flapRowCache[key];
+            const pts = getSnowPixels(charStr, 0);
+            const rows = [];
+            for (let i = 0; i < SNOW_H; i++) rows.push([]);
+            for (let i = 0; i < pts.length; i += 2) rows[pts[i + 1]].push(pts[i]);
+            flapRowCache[key] = rows;
+            return rows;
+        }
+
+        /** 접히는 위쪽 절반에서 목표 행 y가 보여줘야 하는 원본 행 (축 y = FLAP_H - 1) */
+        function flapTopSrcRow(y, h) {
+            return (FLAP_H - 1) - idiv(((FLAP_H - 1) - y) * FLAP_H, h);
+        }
+
+        /** 접히는 아래쪽 절반에서 목표 행 y의 원본 행 (축 y = FLAP_H) */
+        function flapBottomSrcRow(y, h) {
+            return FLAP_H + idiv((y - FLAP_H) * FLAP_H, h);
+        }
+
+        function drawFlapRow(ctx, rows, srcY, x, dstY) {
+            const row = rows[srcY];
+            if (!row) return; // 방어: 범위를 벗어난 원본 행이면 rAF 루프를 죽이지 않는다
+            for (let i = 0; i < row.length; i++) ctx.fillRect(x + row[i], dstY, 1, 1);
+        }
+
+        /**
+         * 한 열의 접힘 전체를 그린다. oldStr/newStr 중 빈 문자열이면 그 글자는 존재하지 않는다.
+         * 펌웨어 renderer.cpp의 drawFlapChar와 1:1로 대응한다.
+         */
+        function drawFlapChar(ctx, oldStr, newStr, x, progress) {
+            const oldRows = oldStr ? getFlapRows(oldStr) : null;
+            const newRows = newStr ? getFlapRows(newStr) : null;
+            if (!oldRows && !newRows) return;
+            ctx.fillStyle = els.invert.value === "1" ? "#000" : "#fff";
+
+            if (progress < FLAP_PHASE_SPLIT) {
+                const h = FLAP_H - idiv(progress * FLAP_H, FLAP_PHASE_SPLIT);
+                if (oldRows) for (let y = FLAP_H; y < SNOW_H; y++) drawFlapRow(ctx, oldRows, y, x, y);
+                if (newRows) for (let y = 0; y < FLAP_H - h; y++) drawFlapRow(ctx, newRows, y, x, y);
+                if (oldRows && h > 0) for (let y = FLAP_H - h; y < FLAP_H; y++) drawFlapRow(ctx, oldRows, flapTopSrcRow(y, h), x, y);
+            } else {
+                const h = FLAP_H - idiv((progress - FLAP_PHASE_SPLIT) * FLAP_H, SNOW_PROGRESS_FULL - FLAP_PHASE_SPLIT);
+                if (newRows) for (let y = 0; y < FLAP_H; y++) drawFlapRow(ctx, newRows, y, x, y);
+                if (oldRows && h > 0) for (let y = FLAP_H; y < FLAP_H + h; y++) drawFlapRow(ctx, oldRows, flapBottomSrcRow(y, h), x, y);
+                if (newRows) for (let y = FLAP_H + h; y < SNOW_H; y++) drawFlapRow(ctx, newRows, y, x, y);
+            }
+        }
+
         function render() {
             const currentTimeStrings = getHangeulTimeStrings();
             if (targetTimeStrings[0] === "") targetTimeStrings = [...currentTimeStrings];
             const mode = els.anim.value, maxStep = ANIM_MAX_STEP[mode] ?? 16;
-            const snowProgress = Math.trunc(animStep * SNOW_PROGRESS_FULL / maxStep);
+            // 진행도는 눈 조립과 분할 플랩이 같은 0~255 매핑을 공유한다 (펌웨어 ANIM_PROGRESS_FULL)
+        const animProgress = Math.trunc(animStep * SNOW_PROGRESS_FULL / maxStep);
             let changed = currentTimeStrings.some((s, i) => s !== targetTimeStrings[i]);
             if (changed && animStep >= maxStep) {
                 lastTimeStrings = [...targetTimeStrings]; targetTimeStrings = [...currentTimeStrings];
@@ -572,7 +638,8 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
                                 case "3": if(animStep<=8) { if(od) drawScaledChar(ctx, od.c, nd.x, ((8-animStep)/8)*64); } else drawScaledChar(ctx, nd.c, nd.x, ((animStep-8)/8)*64); break;
                                 case "4": ctx.save(); if(animStep<=8) { ctx.globalAlpha=(8-animStep)/8; if(od) drawChar(ctx, od.c, nd.x, 0); } else { ctx.globalAlpha=(animStep-8)/8; drawChar(ctx, nd.c, nd.x, 0); } ctx.restore(); break;
                                 case "5": if(animStep<=8) { if(od) drawZoomedChar(ctx, od.c, nd.x, (8-animStep)/8); } else { let sc = (animStep<=12)?((animStep-8)*1.5/4):(1.5-(animStep-12)*0.5/4); drawZoomedChar(ctx, nd.c, nd.x, sc); } break;
-                                case "6": drawSnowChar(ctx, nd.c, nd.x, snowProgress, snowSeed(animTransition, s, slot, nd.x)); break;
+                                case "6": drawSnowChar(ctx, nd.c, nd.x, animProgress, snowSeed(animTransition, s, slot, nd.x)); break;
+                                case "7": drawFlapChar(ctx, od ? od.c : "", nd.c, nd.x, animProgress); break;
                             }
                         }
                     });
@@ -581,7 +648,9 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
                         // 같은 글자는 첫 번째 반복문에서 이미 정적으로 그렸다
                         if (replaced && replaced.c === od.c) return;
                         // 기존 모드는 같은 자리를 새 글자가 넘겨받으면 옛 글자를 그냥 지운다.
-                        // 눈 조립만 새 글자와 함께 가라앉힌다 (펌웨어 renderSnowFrame와 동일)
+                        // 눈 조립만 새 글자와 함께 가라앉힌다 (펌웨어 renderSnowFrame와 동일).
+                        // 분할 플랩은 같은 열의 접힘을 첫 번째 반복문의 drawFlapChar가 이미
+                        // 함께 그렸으므로 여기서도 지운다 (펌웨어 renderFlapFrame와 동일)
                         if (replaced && mode !== "6") return;
                         switch(mode) {
                             case "1": drawChar(ctx, od.c, od.x, -off); break;
@@ -589,7 +658,8 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
                             case "3": if(animStep<=8) drawScaledChar(ctx, od.c, od.x, ((8-animStep)/8)*64); break;
                             case "4": if(animStep<=8) { ctx.save(); ctx.globalAlpha=(8-animStep)/8; drawChar(ctx, od.c, od.x, 0); ctx.restore(); } break;
                             case "5": if(animStep<=8) drawZoomedChar(ctx, od.c, od.x, (8-animStep)/8); break;
-                            case "6": drawDispersingSnowChar(ctx, od.c, od.x, snowProgress, snowSeed(animTransition, s, slot + 8, od.x)); break;
+                            case "6": drawDispersingSnowChar(ctx, od.c, od.x, animProgress, snowSeed(animTransition, s, slot + 8, od.x)); break;
+                            case "7": drawFlapChar(ctx, od.c, "", od.x, animProgress); break;
                         }
                     });
                 }

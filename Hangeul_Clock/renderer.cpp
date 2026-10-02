@@ -409,6 +409,124 @@ void Renderer::drawDispersingChar(int screenIdx, const String& charStr, int x, u
     }
 }
 
+// ── 분할 플랩 접힘 기하 ────────────────────────────────────────────────
+// 공항 출발 안내판처럼 글자를 상하 2등분해 순서대로 접는다. 위쪽 절반이 먼저
+// 가운데선을 축으로 접혀 수평으로 눕고, 그 자리에 새 글자의 위쪽 절반이 펼쳐진다.
+// 이어 아래쪽 절반이 같은 방식으로 접힌다. 부동소수점을 쓰지 않고 정수 나눗셈만으로
+// 같은 접힘을 재현한다.
+
+/**
+ * @brief 접힘 대상 글자 하나의 비트맵과 화면 x 좌표
+ * @note data가 nullptr이면 그 글자는 이 프레임에 존재하지 않는다(새로 생기거나 사라짐).
+ *       전부 0인 비트맵과 동등하므로, drawTopFold/drawBottomFold는 해당 밴드를 아예
+ *       그리지 않는다 — 별도 예외 처리 없이 접힘만으로 표현된다.
+ */
+struct FlapSource {
+    const uint8_t* data; /**< 비트맵 시작 포인터 (64행, 행당 bitWidth바이트) */
+    int bitWidth;        /**< 행당 바이트 수 (32px 글자=4, 64px 글자=8) */
+    int x;               /**< 화면 x 좌표 (64px 글자는 셀 왼쪽으로 16px 벗어난다) */
+};
+
+/**
+ * @brief 접히는 위쪽 절반에서 목표 행 y가 실제로는 어느 원본 행을 보여줘야 하는지
+ * @details 축은 y = 31(가운데선). 축에서 거리 d인 행이 축에 d*cosθ만큼 가까운 곳에
+ *          투영된다. 목표 높이를 h = 32*cosθ로 두면 d = (31 - y) * 32 / h 이므로,
+ *          원본 행은 축에서 먼 순서로 31, 31-(32/h), ..., 0 이 된다.
+ *          h == 32일 때 src == y 가 되어 접히지 않은 상태와 정확히 일치한다.
+ * @param h 목표 높이 (1 ~ ANIM_FLAP_HALF_H). 0이 아니어야 한다.
+ */
+static int flapTopSrcRow(int y, int h) {
+    return (ANIM_FLAP_HALF_H - 1) - (((ANIM_FLAP_HALF_H - 1) - y) * ANIM_FLAP_HALF_H) / h;
+}
+
+/**
+ * @brief 접히는 아래쪽 절반에서 목표 행 y의 원본 행
+ * @details 축은 y = 32. 위쪽 절반과 같은 원리로 축에서 거리 d = (y - 32) * 32 / h 다.
+ * @param h 목표 높이 (1 ~ ANIM_FLAP_HALF_H). 0이 아니어야 한다.
+ */
+static int flapBottomSrcRow(int y, int h) {
+    return ANIM_FLAP_HALF_H + ((y - ANIM_FLAP_HALF_H) * ANIM_FLAP_HALF_H) / h;
+}
+
+/**
+ * @brief 위쪽 절반 접힘 구간을 그린다
+ * @details 아래쪽 절반은 아직 접히지 않았으므로 옛 글자를 그대로 둔다.
+ *          새 글자의 위쪽 절반은 [0, 32-h), 접히는 옛 글자는 [32-h, 32)에 놓인다.
+ *          두 밴드의 y 구간이 겹치지 않는 것은 의도적이다. 화면이 setBitmapMode(1)
+ *          (XOR)이라 drawBitmap은 겹친 픽셀을 지우므로, 겹치지 않게 해야 상쇄가 없다.
+ */
+static void drawTopFold(U8G2* u8g2, const FlapSource& oldF, const FlapSource& newF, int h) {
+    if (oldF.data) {
+        u8g2->drawBitmap(oldF.x, ANIM_FLAP_HALF_H, oldF.bitWidth, ANIM_FLAP_HALF_H,
+                         oldF.data + ANIM_FLAP_HALF_H * oldF.bitWidth);
+    }
+    if (newF.data) {
+        for (int y = 0; y < ANIM_FLAP_HALF_H - h; y++)
+            u8g2->drawBitmap(newF.x, y, newF.bitWidth, 1, newF.data + y * newF.bitWidth);
+    }
+    if (oldF.data && h > 0) {
+        for (int y = ANIM_FLAP_HALF_H - h; y < ANIM_FLAP_HALF_H; y++) {
+            u8g2->drawBitmap(oldF.x, y, oldF.bitWidth, 1,
+                             oldF.data + flapTopSrcRow(y, h) * oldF.bitWidth);
+        }
+    }
+}
+
+/**
+ * @brief 아래쪽 절반 접힘 구간을 그린다
+ * @details 위쪽 절반은 접힘이 끝났으므로 새 글자를 그대로 둔다.
+ *          접히는 옛 글자는 [32, 32+h), 펼쳐지는 새 글자는 [32+h, 64)에 놓인다.
+ */
+static void drawBottomFold(U8G2* u8g2, const FlapSource& oldF, const FlapSource& newF, int h) {
+    if (newF.data) {
+        u8g2->drawBitmap(newF.x, 0, newF.bitWidth, ANIM_FLAP_HALF_H, newF.data);
+    }
+    if (oldF.data && h > 0) {
+        for (int y = ANIM_FLAP_HALF_H; y < ANIM_FLAP_HALF_H + h; y++) {
+            u8g2->drawBitmap(oldF.x, y, oldF.bitWidth, 1,
+                             oldF.data + flapBottomSrcRow(y, h) * oldF.bitWidth);
+        }
+    }
+    if (newF.data) {
+        for (int y = ANIM_FLAP_HALF_H + h; y < SCREEN_HEIGHT; y++)
+            u8g2->drawBitmap(newF.x, y, newF.bitWidth, 1, newF.data + y * newF.bitWidth);
+    }
+}
+
+void Renderer::drawFlapChar(int screenIdx, const String& oldStr, const String& newStr, int x, uint8_t progress) {
+    if (!_screens || screenIdx >= NUM_SCREENS) return;
+    U8G2* u8g2 = _screens[screenIdx];
+
+    const CachedChar* oldCC = oldStr.isEmpty() ? nullptr : findChar(oldStr);
+    const CachedChar* newCC = newStr.isEmpty() ? nullptr : findChar(newStr);
+
+    // 빈 문자열은 "비트맵이 없다"가 아니라 "이 열에 글자가 없다"는 뜻이다. 글자가 없는 열은
+    // 전부 0인 비트맵과 같으므로 접힘 기하에 그대로 넘긴다 — drawTopFold/drawBottomFold가
+    // data가 nullptr인 쪽을 건너뛰면서 자연스럽게 접힌다(고아 열은 접혀 닫히거나 펼쳐진다).
+    // 글자 수가 달라 x가 어긋나 생기는 고아 열("이십구초" → "삼십초")이 이 경로다.
+    // 글자는 있지만 커스텀 비트맵이 없는 경우만 행 단위 접힘이 불가능하다.
+    if ((!oldStr.isEmpty() && !oldCC) || (!newStr.isEmpty() && !newCC)) {
+        if (progress < ANIM_FLAP_PHASE_SPLIT) { if (oldCC) drawSingleChar(screenIdx, oldStr, x, 0); }
+        else if (newCC) drawSingleChar(screenIdx, newStr, x, 0);
+        return;
+    }
+
+    // 글자가 없으면 bitWidth는 쓰이지 않는다(그 밴드는 data가 nullptr이라 아예 그리지 않는다).
+    int oldBw = oldCC ? charBitWidth(oldCC) : 0;
+    int newBw = newCC ? charBitWidth(newCC) : 0;
+    FlapSource oldF = { getCharDataPtr(oldCC), oldBw, (oldBw == 8) ? x - 16 : x };
+    FlapSource newF = { getCharDataPtr(newCC), newBw, (newBw == 8) ? x - 16 : x };
+
+    if (progress < ANIM_FLAP_PHASE_SPLIT) {
+        drawTopFold(u8g2, oldF, newF,
+                    ANIM_FLAP_HALF_H - (progress * ANIM_FLAP_HALF_H) / ANIM_FLAP_PHASE_SPLIT);
+    } else {
+        drawBottomFold(u8g2, oldF, newF,
+                       ANIM_FLAP_HALF_H - ((progress - ANIM_FLAP_PHASE_SPLIT) * ANIM_FLAP_HALF_H)
+                                          / (ANIM_PROGRESS_FULL - ANIM_FLAP_PHASE_SPLIT));
+    }
+}
+
 void Renderer::getCharData(const String& text, CharData outChars[8], int& count, bool centered) {
     count = 0;
     if (text == "") return;

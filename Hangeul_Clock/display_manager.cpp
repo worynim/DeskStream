@@ -391,11 +391,12 @@ void DisplayManager::updateTick() {
 }
 
 void DisplayManager::renderAnimFrame(int i, int step) {
-    // 눈 조립은 픽셀 단위 연산이라 기존 글자 단위 전환 경로와 분리한다.
-    if (configManager.get().anim_mode == ANIMATION_TYPE_SNOW_ASSEMBLE) {
-        renderSnowFrame(i, step);
-        return;
-    }
+    uint8_t mode = configManager.get().anim_mode;
+
+    // 눈 조립(픽셀 단위)과 분할 플랩(한 열 안에서 옛·새 글자가 함께 접힘)은
+    // 기존 글자 단위 전환 경로로는 표현할 수 없어 각각 분리한다.
+    if (mode == ANIMATION_TYPE_SNOW_ASSEMBLE) { renderSnowFrame(i, step); return; }
+    if (mode == ANIMATION_TYPE_SPLIT_FLAP)   { renderFlapFrame(i, step);   return; }
 
     ScreenAnimData& sd = _animState.screens[i];
     screens[i]->clearBuffer();
@@ -408,7 +409,7 @@ void DisplayManager::renderAnimFrame(int i, int step) {
         if (oc == nc) {
             renderer.drawSingleChar(i, nc, nx, 0);
         } else {
-            switch (configManager.get().anim_mode) {
+            switch (mode) {
                 case ANIMATION_TYPE_SCROLL_UP:
                     if (step < 16 && oc != "") renderer.drawSingleChar(i, oc, nx, -(step * 4));
                     renderer.drawSingleChar(i, nc, nx, 64 - (step * 4));
@@ -440,7 +441,7 @@ void DisplayManager::renderAnimFrame(int i, int step) {
         int ox = sd.oldChars[k].x; String oc = sd.oldChars[k].c;
         if (findNewIndexAtX(sd, ox) >= 0) continue;
 
-        switch (configManager.get().anim_mode) {
+        switch (mode) {
             case ANIMATION_TYPE_SCROLL_UP:   if (step < 16) renderer.drawSingleChar(i, oc, ox, -(step * 4)); break;
             case ANIMATION_TYPE_SCROLL_DOWN: if (step < 16) renderer.drawSingleChar(i, oc, ox, (step * 4)); break;
             case ANIMATION_TYPE_VERTICAL_FLIP: if (step <= 8) renderer.drawScaledChar(i, oc, ox, ((8 - step) * 64) / 8); break;
@@ -477,6 +478,33 @@ void DisplayManager::renderSnowFrame(int i, int step) {
         if (ni >= 0 && sd.newChars[ni].c == sd.oldChars[k].c) continue; // 같은 글자는 이미 정적으로 그렸다
         uint16_t seed = snowSeed(_animState.transitionId, i, k + SNOW_DISPERSE_SLOT_OFFSET, ox);
         renderer.drawDispersingChar(i, sd.oldChars[k].c, ox, progress, seed);
+    }
+
+    drawChimeIcon(i);
+}
+
+void DisplayManager::renderFlapFrame(int i, int step) {
+    ScreenAnimData& sd = _animState.screens[i];
+    uint8_t progress = (uint8_t)((int)step * ANIM_PROGRESS_FULL / (int)_animState.maxStep);
+    screens[i]->clearBuffer();
+
+    // 새 글자가 놓인 열: 옛 글자와 새 글자의 접힘을 한 번의 호출로 함께 그린다.
+    for (int j = 0; j < sd.newCount; j++) {
+        int nx = sd.newChars[j].x;
+        int oi = findOldIndexAtX(sd, nx);
+        String oc = (oi >= 0) ? sd.oldChars[oi].c : "";
+        if (oc == sd.newChars[j].c) {
+            renderer.drawSingleChar(i, sd.newChars[j].c, nx, 0); // 그대로인 글자는 움직이지 않는다
+            continue;
+        }
+        renderer.drawFlapChar(i, oc, sd.newChars[j].c, nx, progress);
+    }
+
+    // 새 글자가 없는 열은 사라지는 글자이므로 접어 닫는다.
+    for (int k = 0; k < sd.oldCount; k++) {
+        int ox = sd.oldChars[k].x;
+        if (findNewIndexAtX(sd, ox) >= 0) continue; // 새 글자가 있는 열은 위에서 함께 접었다
+        renderer.drawFlapChar(i, sd.oldChars[k].c, "", ox, progress);
     }
 
     drawChimeIcon(i);
