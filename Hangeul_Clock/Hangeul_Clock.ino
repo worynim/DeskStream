@@ -79,7 +79,7 @@ void btn3_short() {
 
 void btn3_long() {
     display.beep(150, 2000);
-    uint8_t nextSlot = (configManager.get().font_slot + 1) % 5;
+    uint8_t nextSlot = (configManager.get().font_slot + 1) % FONT_SLOT_COUNT;
     display.setFontSlot(nextSlot);
 
     // 도움말 페이지에서는 페이지 갱신으로 현재 슬롯 표시, 그 외에는 상태 메시지 출력
@@ -244,11 +244,14 @@ void handleClockUpdate(bool force = false) {
     texts[2] = isHangul ? HangeulTimeConverter::getMinute(m) : HangeulTimeConverter::getNumericMinute(m);
     texts[3] = isHangul ? HangeulTimeConverter::getSecond(s) : HangeulTimeConverter::getNumericSecond(s);
 
-    // [Step 5.3] '정각' 표현 최적화: 
-    // 정시(0분 0초)일 때는 '오전 한시 정각' (Screen 3에 정각)
-    // 그 외 0초일 때는 '오전 한시 오분 정각' (Screen 4에 정각) 이 나오도록 명시적으로 보장
+    // [Step 5.3] '정각' 중복 표시 방지
+    //   getMinute(0)과 getSecond(0)이 **둘 다** "정각"을 반환한다. 0분0초에 그대로 두면
+    //   화면2와 화면3에 "정각"이 동시에 뜨므로, 화면3을 비워 화면2가 담당하게 한다.
+    //   → getMinute()의 "정각" 분기가 바뀌면 이 조건도 같이 바꿔야 한다. (두 곳이 짝)
+    //   참고: 화면3은 0분0초 여부와 무관하게 매초 애니메이션을 돌린다(UPDATE_INTERVAL_MS).
+    //   따라서 빈 문자열로 바꾸어도 전환 횟수는 늘지 않는다 — 깜빡임이 생기는 것은 아니다.
     if (isHangul && m == 0 && s == 0) {
-        texts[3] = ""; // Screen 4 비우기 (Screen 3가 정각을 담당)
+        texts[3] = "";
     }
 
     display.updateAll(texts, force);

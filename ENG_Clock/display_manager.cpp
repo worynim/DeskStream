@@ -7,6 +7,7 @@
  *       변경하고, 애니메이션 문자 정체성을 x → (line, x)로 확장
  */
 #include "display_manager.h"
+#include "config.h"          // FONT_SLOT_COUNT
 #include "LittleFS.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/timers.h>
@@ -17,6 +18,54 @@ DisplayManager display;
 static const uint8_t bell_icon[] = { 0x18, 0x3C, 0x3C, 0x3C, 0xFF, 0xDB, 0x18, 0x00 };
 
 // 하위 레벨 I2C 콜백 및 설정은 i2c_platform.cpp로 이관됨
+
+// === 화면 판정 규칙 (단일 진실원) ===
+// [리뷰 §1.1/§2.2] 아래 두 식이 display_manager.cpp 안에서 7번 복제돼 있었고,
+// 그 복제 때문에 refreshNow()가 정적 경로와 **반대**인 값을 넘겨
+// 숫자 모드에서 BTN3 롱프레스 직후 "02 H"가 2줄로 잠깐 깨졌다.
+// 정적 경로(updateAll)·애니메이션 경로·refreshNow가 **반드시 같은 함수**를 써야
+// 글자 위치가 어긋나지 않는다. 새 경로를 만들 때 이 두 함수를 우회하지 않는다.
+
+/** @brief 이 화면이 제목(날짜+요일 / AM·PM) 화면인가 */
+static bool isTitleScreenOf(int idx) {
+    return configManager.get().is_flipped ? (idx == 3) : (idx == 0);
+}
+
+/**
+ * @brief 이 화면의 텍스트를 한 줄로 배치하는가
+ * @details 숫자 모드("02 H")이고 제목 화면이 아닐 때만 한 줄이다.
+ *          제목 화면은 날짜+요일이라 2줄 어절 레이아웃을 유지한다.
+ */
+static bool isSingleLineLayout(int idx) {
+    // [리뷰 §2.4] ENG_Clock.ino의 isWord와 같은 식 — 여기 한 곳으로 모았다.
+    const bool isWord = (configManager.get().display_mode == CLOCK_MODE_WORD) && renderer.isCacheLoaded();
+    return !isWord && !isTitleScreenOf(idx);
+}
+
+/**
+ * @brief 애니메이션 한 전환의 총 스텝 수
+ * @details drawAnimPair()/drawAnimExit()의 이동량 나눗셈(`LINE_HEIGHT / 16`)과
+ *          종료 판정(`currentStep > 16`), 스크롤의 퇴장 시점(`step < 16`)이
+ *          전부 이 값에 의존한다. 마직에 이름 없이 16으로 흩어져 있었다 (리뷰 §2.3).
+ * @note 웹 미리보드의 animStep 범위와 1:1 대응한다.
+ */
+static const int ANIM_STEPS = 16;
+
+/**
+ * @brief 글자를 그릴 밴드 (세로 자르기 범위)
+ * @details [여백 수정 v5] 48×64 래스터가 이웃 줄 밴드로 새는 것을 막는다.
+ *          1줄 레이아웃(baseY = 세로 중앙)은 화면 전체를 쓴다 — 큰 폰트(잉크 64px)도
+ *          위가 잘리지 않는다. 2줄 레이아웃(baseY 0/32)은 자기 줄 밴드로 제한한다.
+ * @note drawAnimPair()와 drawAnimExit()가 **같은 규칙**을 써야 등장/퇴장 밴드가 어긋나지 않는다.
+ */
+struct Band {
+    int top;
+    int h;
+};
+static Band bandFor(int baseY) {
+    const bool oneLine = (baseY == (SCREEN_HEIGHT - LINE_HEIGHT) / 2);
+    return { oneLine ? 0 : baseY, oneLine ? SCREEN_HEIGHT : LINE_HEIGHT };
+}
 
 static void buzzerTimerCallback(TimerHandle_t xTimer) {
     noTone(BUZZER_PIN);
@@ -31,8 +80,6 @@ DisplayManager::DisplayManager() :
 }
 
 void DisplayManager::begin() {
-    applyFlip();
-    main_task_handle = xTaskGetCurrentTaskHandle();
     for (int i = 0; i < NUM_SCREENS; i++) screens[i]->getU8g2()->tile_buf_ptr = u8g2_buffers[i];
     
     // 1. I2C 플랫폼 초기화
@@ -64,7 +111,7 @@ void DisplayManager::begin() {
     buzzerTimer = xTimerCreate("BuzzerTimer", pdMS_TO_TICKS(50), pdFALSE, (void*)0, buzzerTimerCallback);
 
     // 슬롯 이름 초기 캐싱
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < FONT_SLOT_COUNT; i++) {
         String p = "/f" + String(i) + "/name.txt";
         if (LittleFS.exists(p)) {
             File f = LittleFS.open(p, "r");
@@ -85,10 +132,6 @@ void DisplayManager::setFlipDisplay(bool flip) {
         screens[i]->setFlipMode(flip);
     }
     setForceUpdate(true);
-}
-
-void DisplayManager::applyFlip() {
-    screens[0] = &u8g2_1; screens[1] = &u8g2_2; screens[2] = &u8g2_3; screens[3] = &u8g2_4;
 }
 
 void DisplayManager::setChime(bool enable) {
@@ -147,11 +190,21 @@ void DisplayManager::applyTimezone() {
 }
 
 String DisplayManager::getSlotName(uint8_t slot) {
-    if (slot >= 5) return "";
+    if (slot >= FONT_SLOT_COUNT) return "";
     return _slotNames[slot];
 }
 
 void DisplayManager::setFontName(const String& name) {
+    // [리뷰 §1.3] 이 값은 (1) 이스케이프 없이 JSON 응답에 붙고 (2) "/fN/name.txt" 파일명으로도
+    // 쓰인다. 출구 이스케이프만으로는 경로 조작이 남으므로 **입력에서** 막는다.
+    //   - '"' '\\'  : JSON 문자열을 깨뜨림 (출구 이스케이프로도 막지만 이중 방어)
+    //   - '/' '\\' ': 경로 구분자 — 슬롯 폴더 밖으로 나가거나 name.txt를 가리킴
+    //   - 제어문자 : NUL은 파일명을 조용히 절단시키고 JSON도 깨뜨림
+    if (name.length() == 0 || name.length() >= 32) return;
+    for (size_t i = 0; i < name.length(); i++) {
+        const char c = name[i];
+        if (c == '"' || c == '\\' || c == '/' || c < 0x20) return;
+    }
     if (configManager.get().font_name == name) return;
     
     configManager.get().font_name = name;
@@ -168,7 +221,7 @@ void DisplayManager::setFontName(const String& name) {
 }
 
 void DisplayManager::setFontSlot(uint8_t slot) {
-    if (slot >= 5) slot = 0;
+    if (slot >= FONT_SLOT_COUNT) slot = 0;
     
     // 이미 해당 슬롯이면 중복 로딩 방지
     if (configManager.get().font_slot == slot && renderer.isCacheLoaded()) {
@@ -208,8 +261,8 @@ void DisplayManager::setFontSlot(uint8_t slot) {
 
 void DisplayManager::refreshNow() {
     for (int i = 0; i < 4; i++) {
-        bool isTitleScreen = configManager.get().is_flipped ? (i == 3) : (i == 0);
-        drawCenterText(i, lastTexts[i], isTitleScreen);
+        // [리뷰 §1.1] 이전엔 isTitleScreen를 그대로 넘겨 updateAll()과 반대 규칙을 썼다.
+        drawCenterText(i, lastTexts[i], isSingleLineLayout(i));
     }
     pushParallel();
 }
@@ -296,8 +349,7 @@ void DisplayManager::drawCenterText(int idx, const String& text, bool singleLine
             renderer.drawSingleChar(idx, chars[i].c, chars[i].x, chars[i].y);
         }
     }
-    bool isTitleScreen = configManager.get().is_flipped ? (idx == 3) : (idx == 0);
-    if (isTitleScreen && configManager.get().chime_enabled) u8g2->drawXBM(0, 0, 8, 8, bell_icon);
+    if (isTitleScreenOf(idx) && configManager.get().chime_enabled) u8g2->drawXBM(0, 0, 8, 8, bell_icon);
 }
 
 extern int uiStage;
@@ -306,10 +358,6 @@ void DisplayManager::updateAll(String inTexts[4], bool force) {
     String texts[4];
     bool changed[4] = {false, false, false, false};
     bool anyChanged = false;
-
-    // [수정할 사항 1] 숫자 모드 여부. ENG_Clock.ino handleClockUpdate()의 isWord와
-    // 같은 식이다 — 숫자 모드("02 H")에서만 H/M/S 화면을 한 줄로 배치하기 위함.
-    bool isWord = (configManager.get().display_mode == CLOCK_MODE_WORD) && renderer.isCacheLoaded();
 
     for (int i = 0; i < 4; i++) {
         texts[i] = configManager.get().is_flipped ? inTexts[3 - i] : inTexts[i];
@@ -320,8 +368,7 @@ void DisplayManager::updateAll(String inTexts[4], bool force) {
     if (configManager.get().anim_mode == ANIMATION_TYPE_NONE) {
         for (int i = 0; i < 4; i++) {
             if (changed[i]) {
-                bool isTitleScreen = configManager.get().is_flipped ? (i == 3) : (i == 0);
-                drawCenterText(i, texts[i], !isWord && !isTitleScreen);
+                drawCenterText(i, texts[i], isSingleLineLayout(i));
                 lastTexts[i] = texts[i];
             }
         }
@@ -330,6 +377,20 @@ void DisplayManager::updateAll(String inTexts[4], bool force) {
     }
 
     // [Step 3.1] 비차단 애니메이션 상태 초기화
+
+    // 이전 전환이 끝나기 전에 새 전환이 시작될 수 있다(매초 호출되기 때문).
+    // 이번에 변경되지 않은 화면이 이전 전환에서 애니메이션 중이었다면, 아래 루프에서
+    // changed가 false로 덮어써져 렌더링이 완전히 멈추고 중간 프레임이 화면에 남는다
+    // (ghost column). 그 잔상을 먼저 정착된 최종 상태로 지운다.
+    // [한글판 이식] Hangeul_Clock/display_manager.cpp:331-340. 한글판의 눈 조립 모드에
+    //   필요한 transitionId/maxStep는 이쪽에 없으므로 이식하지 않았다.
+    for (int i = 0; i < 4; i++) {
+        if (_animState.screens[i].changed && !changed[i]) {
+            // 정적 경로·애니메이션 경로와 **같은 배치 규칙**을 써야 글자 위치가 어긋나지 않는다.
+            drawCenterText(i, lastTexts[i], isSingleLineLayout(i));
+        }
+    }
+
     _animState.active = true;
     _animState.currentStep = 0;
     _animState.lastUpdateMs = 0; // 즉시 첫 틱 실행
@@ -340,8 +401,7 @@ void DisplayManager::updateAll(String inTexts[4], bool force) {
             // [수정할 사항 1] 타이틀 화면(날짜+요일 / AM·PM)은 2줄 규칙을 유지하고,
             // 나머지 세 화면은 숫자 모드일 때 한 줄로 배치한다. 애니메이션 경로와
             // 정적 경로가 같은 규칙을 써야 글자 위치가 어긋나지 않는다.
-            bool isTitleScreen = configManager.get().is_flipped ? (i == 3) : (i == 0);
-            bool singleLine = !isWord && !isTitleScreen;
+            const bool singleLine = isSingleLineLayout(i);
             renderer.getCharData(lastTexts[i], _animState.screens[i].oldChars,
                                  _animState.screens[i].oldCount, singleLine);
             renderer.getCharData(texts[i], _animState.screens[i].newChars,
@@ -370,7 +430,7 @@ void DisplayManager::updateTick() {
     _animState.lastUpdateMs = now;
     _animState.currentStep++;
 
-    if (_animState.currentStep > 16) {
+    if (_animState.currentStep > ANIM_STEPS) {
         _animState.active = false;
         return;
     }
@@ -403,21 +463,16 @@ static void drawAnimPair(int i, uint8_t mode, int step,
                          const String& nc, int nx, int baseY, const String& oc) {
     // 스크롤은 한 줄 높이(LINE_HEIGHT) 전체를 이동시키는 것으로 본다.
     // 이전 글자가 위로 -LINE_HEIGHT, 새 글자가 아래에서 +LINE_HEIGHT → 0으로 이동한다.
-    const int off = step * (LINE_HEIGHT / 16);
-    // [여백 수정 v5] 1줄 레이아웃(baseY = 세로 중앙 16)은 화면 전체를 밴드로 쓴다 —
-    // 큰 폰트도 잘리지 않고, 스크롤 글자가 화면 가장자리에서 자연스럽게 드나든다.
-    // 2줄 레이아웃(baseY 0/32)은 자기 줄 밴드로 제한한다 (이웃 줄 침범 금지).
-    const bool oneLine = (baseY == (SCREEN_HEIGHT - LINE_HEIGHT) / 2);
-    const int bandTop = oneLine ? 0 : baseY;
-    const int bandH   = oneLine ? SCREEN_HEIGHT : LINE_HEIGHT;
+    const int off = step * (LINE_HEIGHT / ANIM_STEPS);
+    const Band band = bandFor(baseY);
     switch (mode) {
         case ANIMATION_TYPE_SCROLL_UP:
-            if (step < 16 && oc != "") renderer.drawSingleCharClipped(i, oc, nx, baseY - off, bandTop, bandH);
-            renderer.drawSingleCharClipped(i, nc, nx, baseY + LINE_HEIGHT - off, bandTop, bandH);
+            if (step < ANIM_STEPS && oc != "") renderer.drawSingleCharClipped(i, oc, nx, baseY - off, band.top, band.h);
+            renderer.drawSingleCharClipped(i, nc, nx, baseY + LINE_HEIGHT - off, band.top, band.h);
             break;
         case ANIMATION_TYPE_SCROLL_DOWN:
-            if (step < 16 && oc != "") renderer.drawSingleCharClipped(i, oc, nx, baseY + off, bandTop, bandH);
-            renderer.drawSingleCharClipped(i, nc, nx, baseY - LINE_HEIGHT + off, bandTop, bandH);
+            if (step < ANIM_STEPS && oc != "") renderer.drawSingleCharClipped(i, oc, nx, baseY + off, band.top, band.h);
+            renderer.drawSingleCharClipped(i, nc, nx, baseY - LINE_HEIGHT + off, band.top, band.h);
             break;
         case ANIMATION_TYPE_VERTICAL_FLIP:
             // 한 줄 높이를 기준으로 0 ↔ LINE_HEIGHT로 스케일한다.
@@ -426,14 +481,14 @@ static void drawAnimPair(int i, uint8_t mode, int step,
             else { renderer.drawScaledChar(i, nc, nx, ((step - 8) * LINE_HEIGHT) / 8, baseY); }
             break;
         case ANIMATION_TYPE_DITHERED_FADE:
-            if (step <= 8) { if (oc != "") renderer.drawDitheredChar(i, oc, nx, 16 - (step * 2), baseY, bandTop, bandH); }
-            else { renderer.drawDitheredChar(i, nc, nx, (step - 8) * 2, baseY, bandTop, bandH); }
+            if (step <= 8) { if (oc != "") renderer.drawDitheredChar(i, oc, nx, 16 - (step * 2), baseY, band.top, band.h); }
+            else { renderer.drawDitheredChar(i, nc, nx, (step - 8) * 2, baseY, band.top, band.h); }
             break;
         case ANIMATION_TYPE_ZOOM:
-            if (step <= 8) { if (oc != "") renderer.drawZoomedChar(i, oc, nx, ((8 - step) * 100) / 8, baseY, bandTop, bandH); }
+            if (step <= 8) { if (oc != "") renderer.drawZoomedChar(i, oc, nx, ((8 - step) * 100) / 8, baseY, band.top, band.h); }
             else {
                 int sc = (step <= 12) ? ((step - 8) * 150 / 4) : (150 - (step - 12) * 50 / 4);
-                renderer.drawZoomedChar(i, nc, nx, sc, baseY, bandTop, bandH);
+                renderer.drawZoomedChar(i, nc, nx, sc, baseY, band.top, band.h);
             }
             break;
         default: break;
@@ -443,17 +498,15 @@ static void drawAnimPair(int i, uint8_t mode, int step,
 /** @brief 새 텍스트에 동일 위치가 없어 사라진 이전 글자를 퇴장시킨다. */
 static void drawAnimExit(int i, uint8_t mode, int step,
                          const String& oc, int ox, int baseY) {
-    const int off = step * (LINE_HEIGHT / 16);
-    // [여백 수정 v5] drawAnimPair와 같은 밴드 규칙 (1줄 = 화면 전체, 2줄 = 자기 줄)
-    const bool oneLine = (baseY == (SCREEN_HEIGHT - LINE_HEIGHT) / 2);
-    const int bandTop = oneLine ? 0 : baseY;
-    const int bandH   = oneLine ? SCREEN_HEIGHT : LINE_HEIGHT;
+    const int off = step * (LINE_HEIGHT / ANIM_STEPS);
+    // drawAnimPair와 같은 밴드 규칙 (bandFor 단일 진실원)
+    const Band band = bandFor(baseY);
     switch (mode) {
-        case ANIMATION_TYPE_SCROLL_UP:   if (step < 16) renderer.drawSingleCharClipped(i, oc, ox, baseY - off, bandTop, bandH); break;
-        case ANIMATION_TYPE_SCROLL_DOWN: if (step < 16) renderer.drawSingleCharClipped(i, oc, ox, baseY + off, bandTop, bandH); break;
+        case ANIMATION_TYPE_SCROLL_UP:   if (step < ANIM_STEPS) renderer.drawSingleCharClipped(i, oc, ox, baseY - off, band.top, band.h); break;
+        case ANIMATION_TYPE_SCROLL_DOWN: if (step < ANIM_STEPS) renderer.drawSingleCharClipped(i, oc, ox, baseY + off, band.top, band.h); break;
         case ANIMATION_TYPE_VERTICAL_FLIP: if (step <= 8) renderer.drawScaledChar(i, oc, ox, ((8 - step) * LINE_HEIGHT) / 8, baseY); break;
-        case ANIMATION_TYPE_DITHERED_FADE: if (step <= 8) renderer.drawDitheredChar(i, oc, ox, 16 - (step * 2), baseY, bandTop, bandH); break;
-        case ANIMATION_TYPE_ZOOM:          if (step <= 8) renderer.drawZoomedChar(i, oc, ox, ((8 - step) * 100) / 8, baseY, bandTop, bandH); break;
+        case ANIMATION_TYPE_DITHERED_FADE: if (step <= 8) renderer.drawDitheredChar(i, oc, ox, 16 - (step * 2), baseY, band.top, band.h); break;
+        case ANIMATION_TYPE_ZOOM:          if (step <= 8) renderer.drawZoomedChar(i, oc, ox, ((8 - step) * 100) / 8, baseY, band.top, band.h); break;
         default: break;
     }
 }
@@ -493,81 +546,71 @@ void DisplayManager::renderAnimFrame(int i, int step) {
         drawAnimExit(i, mode, step, sd.oldChars[k].c, ox, sd.oldChars[k].y);
     }
 
-    bool isIconScreen = configManager.get().is_flipped ? (i == 3) : (i == 0);
-    if (isIconScreen && configManager.get().chime_enabled) screens[i]->drawXBM(0, 0, 8, 8, bell_icon);
+    if (isTitleScreenOf(i) && configManager.get().chime_enabled) screens[i]->drawXBM(0, 0, 8, 8, bell_icon);
+}
+
+/**
+ * @brief 한 화면의 U8g2 버퍼를 셰도 버퍼와 비교해, 바뀐 페이지 구간만 콜백에 넘긴다
+ * @details [리뷰 §2.1] 이 함수는 HW 버스(0·1)와 SW 버스(2·3)가 **똑같이** 도는 부분이다.
+ *          이전엔 15줄짜리 블록이 두 번 복제돼 있어서, 한쪽만 고치면
+ *          화면 0·1과 화면 2·3의 전송 범위가 어긋나는 형태였다.
+ *          diff는 순수 계산이고 전송은 버스마다 다르므로, 여기서는 diff만 하고
+ *          실제 전송은 onPageDirty에 위임한다 (side effect를 경계에 격리).
+ * @param onPageDirty (screen, screenIdx, page, firstTile, tileCount) — 해당 페이지가 더러울 때 한 번 호출
+ * @note 셰도 버퍼는 **비교 직후** 갱신한다. 전송은 HW 태스크가 나중에 하므로,
+ *      여기서 갱신하지 않으면 같은 프레임이 두 번 전송된다.
+ * @note screen를 넘기는 이유: 이 함수들은 파일 스코프 정적 함수라 DisplayManager의
+ *      private 멤버 `screens`에 접근할 수 없다. 대상 포인터를 넘겨야 SW 콜백이
+ *      updateDisplayArea()를 부를 수 있다.
+ */
+static void diffAndForEachPage(int screenIdx, U8G2* screen,
+                               void (*onPageDirty)(U8G2* screen, int screenIdx, int page, int firstTile, int tileCount)) {
+    uint8_t* buf = screen->getBufferPtr();
+    for (int p = 0; p < PAGES_PER_SCREEN; p++) {
+        bool page_dirty = false;
+        int first_tile = -1, last_tile = -1;
+        for (int t = 0; t < TILES_PER_PAGE; t++) {
+            bool tile_dirty = false;
+            for (int tx = 0; tx < 8; tx++) {
+                int idx = p * SCREEN_WIDTH + t * 8 + tx;
+                if (buf[idx] != i2cPlatform.getShadowData(screenIdx, idx)) {
+                    tile_dirty = true;
+                    i2cPlatform.setShadowData(screenIdx, idx, buf[idx]);
+                }
+            }
+            if (tile_dirty) { if (first_tile == -1) first_tile = t; last_tile = t; page_dirty = true; }
+        }
+        if (page_dirty) onPageDirty(screen, screenIdx, p, first_tile, last_tile - first_tile + 1);
+    }
+}
+
+static bool g_any_hw_dirty = false;   // HW 전송 알림 여부 — onHwPageDirty()가 갱신한다
+
+static void onHwPageDirty(U8G2* screen, int screenIdx, int page, int firstTile, int tileCount) {
+    (void)screen;   // HW는 I2C 태스크로 미룬다 — U8G2 포인터가 필요 없다
+    i2cPlatform.preparePageUpdate(screenIdx, page, firstTile, tileCount);
+    g_any_hw_dirty = true;
+}
+
+static void onSwPageDirty(U8G2* screen, int screenIdx, int page, int firstTile, int tileCount) {
+    (void)screenIdx;
+    screen->updateDisplayArea(firstTile, page, tileCount, 1);
 }
 
 void DisplayManager::pushParallel() {
     i2cPlatform.waitForSync(I2C_SYNC_TIMEOUT_MS);
 
-    bool any_hw_dirty = false;
-    for (int s = 0; s < 2; s++) {
-        uint8_t* buf = screens[s]->getBufferPtr();
-        for (int p = 0; p < PAGES_PER_SCREEN; p++) {
-            bool page_dirty = false; int first_tile = -1, last_tile = -1;
-            for (int t = 0; t < TILES_PER_PAGE; t++) {
-                bool tile_dirty = false;
-                for (int tx = 0; tx < 8; tx++) {
-                    int idx = p * SCREEN_WIDTH + t * 8 + tx;
-                    if (buf[idx] != i2cPlatform.getShadowData(s, idx)) { 
-                        tile_dirty = true; 
-                        i2cPlatform.setShadowData(s, idx, buf[idx]); 
-                    }
-                }
-                if (tile_dirty) { if (first_tile == -1) first_tile = t; last_tile = t; page_dirty = true; }
-            }
-            if (page_dirty) { 
-                i2cPlatform.preparePageUpdate(s, p, first_tile, last_tile - first_tile + 1);
-                any_hw_dirty = true; 
-            }
-        }
-    }
-    if (any_hw_dirty) { i2cPlatform.notifyTransmission(); }
-    
-    for (int s = 2; s < 4; s++) {
-        uint8_t* buf = screens[s]->getBufferPtr();
-        for (int p = 0; p < PAGES_PER_SCREEN; p++) {
-            int first_tile = -1, last_tile = -1; bool page_dirty = false;
-            for (int t = 0; t < TILES_PER_PAGE; t++) {
-                bool tile_dirty = false;
-                for (int tx = 0; tx < 8; tx++) {
-                    int idx = p * SCREEN_WIDTH + t * 8 + tx;
-                    if (buf[idx] != i2cPlatform.getShadowData(s, idx)) { 
-                        tile_dirty = true; 
-                        i2cPlatform.setShadowData(s, idx, buf[idx]); 
-                    }
-                }
-                if (tile_dirty) { if (first_tile == -1) first_tile = t; last_tile = t; page_dirty = true; }
-            }
-            if (page_dirty) screens[s]->updateDisplayArea(first_tile, p, last_tile - first_tile + 1, 1);
-        }
-    }
+    g_any_hw_dirty = false;
+    for (int s = 0; s < 2; s++) diffAndForEachPage(s, screens[s], onHwPageDirty);
+    // 새 diff뿐 아니라 **이전 회차에 전송에 실패해 남은 페이지**가 있어도 알린다.
+    //   실패한 페이지는 셰도 버퍼가 이미 갱신된 상태라 위 diff가 잡지 못하므로,
+    //   이 조건이 없으면 남은 dirty 비트가 다음 글자 변경 때까지 방치된다.
+    if (g_any_hw_dirty || i2cPlatform.hasPendingHwUpdate()) { i2cPlatform.notifyTransmission(); }
+
+    for (int s = 2; s < 4; s++) diffAndForEachPage(s, screens[s], onSwPageDirty);
 }
 
 // i2c_hw_task 구현은 i2c_platform.cpp로 이관됨
-
-void DisplayManager::recoverI2CBus() {
-    Serial.println("[I2C] Recovering HW Bus and Screens...");
-    // 하위 레벨 소프트 초기화 루틴 호출 (필요 시 i2cPlatform.recoverBus() 등)
-    
-    // OLED 기기 재설정 및 재시작 (주소 및 콜백 필수 재할당)
-    u8g2_1.getU8x8()->byte_cb = u8x8_byte_esp32_idf_0; 
-    u8g2_1.begin();
-
-    u8g2_2.getU8x8()->byte_cb = u8x8_byte_esp32_idf_1; 
-    u8g2_2.setI2CAddress(I2C_ADDR_HW_1 * 2); 
-    u8g2_2.begin();
-
-    u8g2_3.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast; 
-    u8g2_3.begin();
-
-    u8g2_4.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast; 
-    u8g2_4.setI2CAddress(I2C_ADDR_HW_1 * 2); 
-    u8g2_4.begin();
-    
-    // 강제 업데이트 예약
-    setForceUpdate(true);
-}
 
 void DisplayManager::playStartupMelody() {
     int melody[] = {2093, 2637, 3136, 4186}; // Do-Mi-Sol-Do
@@ -625,8 +668,7 @@ void DisplayManager::showLargeIP(IPAddress ip) {
             renderer.drawSingleChar(i, segment.substring(j, j + 1), startX + (j * pitch), digitY);
         }
         if (hasDot) screens[i]->drawBox(dotX, dotY, IP_DOT_SIZE, IP_DOT_SIZE);
-        bool isTitleScreen = configManager.get().is_flipped ? (i == 3) : (i == 0);
-        if (isTitleScreen) {
+        if (isTitleScreenOf(i)) {
             screens[i]->setFont(u8g2_font_4x6_tf);
             screens[i]->drawStr(0, 7, "SETTING ADDR");
         }

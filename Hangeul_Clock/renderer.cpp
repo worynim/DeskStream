@@ -5,9 +5,12 @@
  * @details LittleFS 비트맵 데이터 로딩, 캐싱 및 픽셀 스케일링/디더링 연산 로직 구현
  */
 #include "renderer.h"
+#include "renderer_layout.h"   // layoutCharX() — 좌표 계산 단위 테스트 대상
 #include "LittleFS.h"
 #include "display_manager.h"
 #include "logger.h"
+#include "utf8_len.h"   // ENG_Clock와 한글판이 공유하는 UTF-8 리딩 바이트 판정
+#include "config_manager.h"
 
 Renderer renderer;
 
@@ -35,34 +38,35 @@ const uint8_t* Renderer::getCharDataPtr(const CachedChar* cc) const {
     return flatBuffer + cc->offset;
 }
 
+/**
+ * @brief 구 버전이 루트에 남겨 둔 폰트 파일을 /f0 슬롯으로 옮긴다 (1회성)
+ * @details [리뷰 §5] 슬롯 개념이 생기기 전 형식을 위한 호환 코드다. 로드 본문과 무관하므로
+ *          분리해 두면 "슬롯 로드" 흐름만 볼 때 마이그레이션이 끼어 있지 않게 된다.
+ * @note 조건: 루트에 c_30.bin이 있고 /f0에 아직 없을 때만 돈다 (매 boot마다 반복 방지).
+ */
+static void migrateLegacyFontsToSlot0() {
+    if (!LittleFS.exists("/c_30.bin") || LittleFS.exists("/f0/c_30.bin")) return;
+
+    logger.addLog("Migrating fonts to /f0...");
+    LittleFS.mkdir("/f0");
+    File r = LittleFS.open("/");
+    File f = r.openNextFile();
+    while (f) {
+        String n = f.name();
+        f.close();   // rename() 전에 반드시 닫는다 — 닫지 않으면 이동이 실패할 수 있다
+        if (n.startsWith("c_") && n.endsWith(".bin")) LittleFS.rename("/" + n, "/f0/" + n);
+        f = r.openNextFile();
+    }
+    logger.updateLastLog("Migration Done.");
+}
+
 void Renderer::loadBitmapCache(int slot) {
     // 슬롯이 -1이면 설정에서 가져옴
-    #include "config_manager.h"
     if (slot == -1) slot = configManager.get().font_slot;
 
     logger.addLog("Bitmap Pre-scanning (Slot " + String(slot) + ")");
 
-    // --- 마이그레이션 로직: 루트의 파일을 /f0으로 이동 ---
-    if (LittleFS.exists("/c_30.bin") && !LittleFS.exists("/f0/c_30.bin")) {
-        logger.addLog("Migrating fonts to /f0...");
-        LittleFS.mkdir("/f0");
-        File r = LittleFS.open("/");
-        File f = r.openNextFile();
-        while (f) {
-            String n = f.name();
-            if (n.startsWith("c_") && n.endsWith(".bin")) {
-                String oldP = "/" + n;
-                String newP = "/f0/" + n;
-                f.close(); // 닫아야 이동 가능할 수도 있음
-                LittleFS.rename(oldP, newP);
-                f = r.openNextFile();
-            } else {
-                f.close();
-                f = r.openNextFile();
-            }
-        }
-        logger.updateLastLog("Migration Done.");
-    }
+    migrateLegacyFontsToSlot0();
 
     String path = "/f" + String(slot);
     if (!LittleFS.exists(path)) {
@@ -89,13 +93,28 @@ void Renderer::loadBitmapCache(int slot) {
         
         if (name.startsWith("c_") && name.endsWith(".bin")) {
             if (fileSize > 0 && fileSize <= MAX_BITMAP_SIZE) {
+                // [리뷰 §1.1] 상한 검사만으로는 모른다(257~511바이트가 통과한다).
+                //   크기 → (bytesPerRow × glyphH)는 배타적이어야 기하를 확정할 수 있고,
+                //   확정되지 않은 크기는 **아예 로드하지 않는다.** 이러면 그려질 때
+                //   8×64 = 512바이트를 읽다가 malloc된 크기(실제 파일 크기)를
+                //   넘어가는 초과 읽음이 원천 차단된다.
+                const CellGeometry* g = geometryForSize((uint32_t)fileSize);
+                if (!g) {
+                    if (DEBUG_MODE) Serial.printf("[FS] Skipped (unknown size): %s (%d bytes)\n",
+                                                 name.c_str(), (int)fileSize);
+                    file.close();
+                    file = root.openNextFile();
+                    continue;
+                }
                 CachedChar cc;
                 cc.hex = name.substring(2, name.length() - 4);
                 cc.size = fileSize;
+                cc.geom = g;
                 cc.offset = totalBufferSize;
                 totalBufferSize += fileSize;
                 tempIndexList.push_back(cc);
-                if (DEBUG_MODE) Serial.printf("[FS] Found: %s (%d bytes)\n", name.c_str(), (int)fileSize);
+                if (DEBUG_MODE) Serial.printf("[FS] Found: %s (%d bytes, %dx%d)\n",
+                                             name.c_str(), (int)fileSize, g->glyphW, g->glyphH);
             }
         }
         file.close();
@@ -161,20 +180,16 @@ const CachedChar* Renderer::findChar(const String& s) {
     return nullptr;
 }
 
-int Renderer::charBitWidth(const CachedChar* cc) const {
-    // 256바이트 이하는 32px(4바이트/행), 그 위는 64px(8바이트/행) 글자다.
-    return (cc->size <= 256) ? 4 : 8;
-}
-
 void Renderer::drawSingleChar(int screenIdx, const String& charStr, int x, int y_offset) {
     if (!_screens || screenIdx >= NUM_SCREENS) return;
     const CachedChar* cc_ptr = findChar(charStr);
     U8G2* u8g2 = _screens[screenIdx];
-    
+
     if (cc_ptr) {
+        // [리뷰 §1.1] 행당 바이트 수를 size에서 추측하지 않고 로드 시 확정한 기하를 쓴다.
         const uint8_t* data = getCharDataPtr(cc_ptr);
-        if (cc_ptr->size <= 256) u8g2->drawBitmap(x, y_offset, 4, 64, data);
-        else u8g2->drawBitmap(x - 16, y_offset, 8, 64, data);
+        u8g2->drawBitmap(x + cc_ptr->geom->xOffset, y_offset,
+                         cc_ptr->geom->bytesPerRow, cc_ptr->geom->glyphH, data);
     } else {
         u8g2->setFont(HANGEUL_FONT);
         u8g2->drawUTF8(x + (32 - u8g2->getUTF8Width(charStr.c_str())) / 2, TEXT_Y_POS + y_offset, charStr.c_str());
@@ -189,8 +204,10 @@ void Renderer::drawDitheredChar(int screenIdx, const String& charStr, int x, int
     
     const uint8_t* data = getCharDataPtr(cc_ptr);
     U8G2* u8g2 = _screens[screenIdx];
-    int bw = charBitWidth(cc_ptr);
-    int bx = (bw == 4) ? x : x - 16;
+    // [리뷰 §1.1] 로드 시 확정한 기하를 쓴다 — size에서 추측하지 않는다.
+    const CellGeometry* g = cc_ptr->geom;
+    const int bw = g->bytesPerRow;
+    const int bx = x + g->xOffset;
     for (int r = 0; r < 64; r++) {
         uint8_t row_mask = 0;
         for (int px = 0; px < 8; px++) {
@@ -213,13 +230,14 @@ void Renderer::drawZoomedChar(int screenIdx, const String& charStr, int x, int s
 
     const uint8_t* data = getCharDataPtr(cc_ptr);
     U8G2* u8g2 = _screens[screenIdx];
-    int bw = charBitWidth(cc_ptr);
+    const CellGeometry* g = cc_ptr->geom;
+    const int bw = g->bytesPerRow;
     int orig_w = bw * 8;
     int target_w = (orig_w * scale_percent) / 100;
     int target_h = (64 * scale_percent) / 100;
     if (target_w <= 0 || target_h <= 0) return;
 
-    int bx = (bw == 4) ? x : x - 16;
+    int bx = x + g->xOffset;
     int start_x = bx + (orig_w - target_w) / 2;
     int start_y = (64 - target_h) / 2;
 
@@ -244,8 +262,9 @@ void Renderer::drawScaledChar(int screenIdx, const String& charStr, int x, int h
     U8G2* u8g2 = _screens[screenIdx];
     if (cc_ptr) {
         const uint8_t* data = getCharDataPtr(cc_ptr);
-        int bw = charBitWidth(cc_ptr);
-        int bx = (bw == 4) ? x : x - 16;
+        const CellGeometry* g = cc_ptr->geom;
+        const int bw = g->bytesPerRow;
+        const int bx = x + g->xOffset;
         int start_y = (64 - h) / 2;
         for (int i = 0; i < h; i++) {
             int src_y = (i * 64) / h;
@@ -374,8 +393,10 @@ void Renderer::drawAssemblingChar(int screenIdx, const String& charStr, int x, u
 
     const uint8_t* data = getCharDataPtr(cc_ptr);
     U8G2* u8g2 = _screens[screenIdx];
-    int bw = charBitWidth(cc_ptr);
-    int bx = (bw == 4) ? x : x - 16;
+    // [리뷰 §1.1] 로드 시 확정한 기하를 쓴다 — size에서 추측하지 않는다.
+    const CellGeometry* g = cc_ptr->geom;
+    const int bw = g->bytesPerRow;
+    const int bx = x + g->xOffset;
 
     for (int r = 0; r < 64; r++) {
         for (int c = 0; c < bw * 8; c++) {
@@ -397,8 +418,10 @@ void Renderer::drawDispersingChar(int screenIdx, const String& charStr, int x, u
 
     const uint8_t* data = getCharDataPtr(cc_ptr);
     U8G2* u8g2 = _screens[screenIdx];
-    int bw = charBitWidth(cc_ptr);
-    int bx = (bw == 4) ? x : x - 16;
+    // [리뷰 §1.1] 로드 시 확정한 기하를 쓴다 — size에서 추측하지 않는다.
+    const CellGeometry* g = cc_ptr->geom;
+    const int bw = g->bytesPerRow;
+    const int bx = x + g->xOffset;
 
     for (int r = 0; r < 64; r++) {
         for (int c = 0; c < bw * 8; c++) {
@@ -423,7 +446,7 @@ void Renderer::drawDispersingChar(int screenIdx, const String& charStr, int x, u
  */
 struct FlapSource {
     const uint8_t* data; /**< 비트맵 시작 포인터 (64행, 행당 bitWidth바이트) */
-    int bitWidth;        /**< 행당 바이트 수 (32px 글자=4, 64px 글자=8) */
+    int bitWidth;        /**< 행당 바이트 수 — CachedChar::geom->bytesPerRow */
     int x;               /**< 화면 x 좌표 (64px 글자는 셀 왼쪽으로 16px 벗어난다) */
 };
 
@@ -511,11 +534,12 @@ void Renderer::drawFlapChar(int screenIdx, const String& oldStr, const String& n
         return;
     }
 
-    // 글자가 없으면 bitWidth는 쓰이지 않는다(그 밴드는 data가 nullptr이라 아예 그리지 않는다).
-    int oldBw = oldCC ? charBitWidth(oldCC) : 0;
-    int newBw = newCC ? charBitWidth(newCC) : 0;
-    FlapSource oldF = { getCharDataPtr(oldCC), oldBw, (oldBw == 8) ? x - 16 : x };
-    FlapSource newF = { getCharDataPtr(newCC), newBw, (newBw == 8) ? x - 16 : x };
+    // 글자가 없으면 bytesPerRow는 쓰이지 않는다(그 밴드는 data가 nullptr이라 아예 그리지 않는다).
+    // [리뷰 §1.1] xOffset을 기하에서 읽는다 — "64px 글자면 -16"을 여기서 다시 추측하지 않는다.
+    FlapSource oldF = { getCharDataPtr(oldCC), oldCC ? oldCC->geom->bytesPerRow : 0,
+                        oldCC ? x + oldCC->geom->xOffset : x };
+    FlapSource newF = { getCharDataPtr(newCC), newCC ? newCC->geom->bytesPerRow : 0,
+                        newCC ? x + newCC->geom->xOffset : x };
 
     if (progress < ANIM_FLAP_PHASE_SPLIT) {
         drawTopFold(u8g2, oldF, newF,
@@ -527,25 +551,15 @@ void Renderer::drawFlapChar(int screenIdx, const String& oldStr, const String& n
     }
 }
 
-void Renderer::getCharData(const String& text, CharData outChars[8], int& count, bool centered) {
+void Renderer::getCharData(const String& text, CharData outChars[LAYOUT_MAX_CHARS], int& count, bool centered) {
     count = 0;
     if (text == "") return;
     int i = 0;
-    while (i < text.length() && count < 8) {
-        int len = 1; unsigned char c = (unsigned char)text[i];
-        if (c < 0x80) len = 1; else if ((c & 0xE0) == 0xC0) len = 2; else if ((c & 0xE0) == 0xE0) len = 3; else if ((c & 0xF8) == 0xF0) len = 4;
+    while (i < text.length() && count < LAYOUT_MAX_CHARS) {
+        int len = utf8CharLen(text.c_str() + i, text.length() - i);
         outChars[count].c = text.substring(i, i + len);
         i += len; count++;
     }
-    
-    if (centered) {
-        int startX = (128 - count * 32) / 2;
-        for (int j = 0; j < count; j++) outChars[j].x = startX + j * 32;
-    } else {
-        int startX = (96 - (count - 1) * 32) / 2;
-        for (int j = 0; j < count; j++) {
-            if (j == count - 1) outChars[j].x = 96;
-            else outChars[j].x = startX + j * 32;
-        }
-    }
+
+    for (int j = 0; j < count; j++) outChars[j].x = layoutCharX(count, j, centered);
 }

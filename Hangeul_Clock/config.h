@@ -8,6 +8,7 @@
 #define CONFIG_H
 
 #include <Arduino.h>
+#include "renderer_layout.h"   // 배치 상수의 정의처 (GLYPH_CELL_W·RIGHT_COL_X·LAYOUT_MAX_CHARS 유래)
 
 // === [1] 하드웨어 핀 정의 (ESP32-C3 기반) ===
 #define BTN1_PIN 1
@@ -40,10 +41,11 @@
 #define TILES_PER_PAGE 16
 
 // === [4] I2C 성능 설정 ===
-#define I2C_SPEED_HZ 800000 // 1MHz 고속 전송
+#define I2C_SPEED_HZ 800000 // 800kHz (주석은 "1MHz"로 잘못 적혀 있었음)
 #define I2C_TX_TIMEOUT_MS 50
 #define I2C_CMD_TIMEOUT_MS 10
 #define I2C_SYNC_TIMEOUT_MS 100
+#define I2C_ERROR_THRESHOLD 50   // 누적 오류 횟수 — 초과 시 recoverBus()로 버스 자가 복구
 #define HW_I2C_BUF_SIZE 256
 
 // === [5] RTOS 태스크 설정 ===
@@ -59,6 +61,10 @@
 #define HANGEUL_FONT u8g2_font_unifont_t_korean1  // 경량 한글 폰트 (메모리 절약)
 #define STATUS_FONT u8g2_font_6x10_tf           // 상태 메시지용 폰트
 #define TEXT_Y_POS 42                            // 한글 텍스트 출력 높이 (0~63)
+// [SYNC] 배치 상수의 정의처는 renderer_layout.h다. 이쪽은 그 값을 그대로 노출할 뿐이다.
+//   두 곳에 따로 적으면 값이 어긋난 채로 컴파일되어 버린다.
+#define GLYPH_CELL_W LAYOUT_CELL_W       // 한 글자의 가로 칸 (한글 32px 래스터 폭)
+#define RIGHT_COL_X  LAYOUT_RIGHT_COL_X  // 우측 고정 열의 시작 x
 
 // === [8] 애니메이션 설정 ===
 #define ANIMATION_TYPE_NONE 0
@@ -91,12 +97,12 @@
 // === [10] 기타 하드코딩 상수 통합 ===
 #define I2C_ADDR_HW_0 0x3C
 #define I2C_ADDR_HW_1 0x3D
-#define CHAR_WIDTH 32
 #define MAX_BITMAP_SIZE 512
 #define WEB_PORT 80
 
 // === [11] UI 및 버튼 동작 상수 ===
 #define UI_STAGE_COUNT 3
+#define FONT_SLOT_COUNT 5         // 폰트 슬롯 수 (경로 "/f0"~"/f4", 버튼 순환·웹 입력 검증 상한)
 #define LONG_PRESS_TIME_MS 1000
 #define DEBOUNCE_TIME_MS 50
 #define WIFI_CONFIG_TIMEOUT 120

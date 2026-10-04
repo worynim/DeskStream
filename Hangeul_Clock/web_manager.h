@@ -24,7 +24,8 @@ private:
     void handleRoot();
     
     // 파일 업로드 핸들러
-    void handleFileUpload();
+    // [리뷰 §3.5] 선언만 있고 정의·호출이 없던 handleFileUpload()를 지웠다 —
+    //   업로드를 받지 않는다는 사실이 헤더만 보고는 알 수 없었다.
     void handleUploadData();
     
     // API 핸들러

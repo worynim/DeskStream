@@ -6,6 +6,7 @@
  * @note [SYNC] ENG_Clock/web_manager.cpp — timezone JSON 입출력 및 검증 추가
  */
 #include "web_manager.h"
+#include "config.h"          // FONT_SLOT_COUNT
 #include "web_pages.h"
 #include "tz_util.h"
 #include <string.h>   // strlen — JSON 키 파싱 오프셋 계산용
@@ -15,6 +16,26 @@ WebServer server(WEB_PORT);
 WebManager webManager;
 
 WebManager::WebManager() {}
+
+/**
+ * @brief JSON 문자열 값 안에 들어갈 수 있도록 이스케이프한다
+ * @details [리뷰 §3.3] font_name과 슬롯명은 (1) 이스케이프 없이 JSON 응답에 붙고
+ *          (2) "/fN/name.txt" 파일명으로도 쓰인다. 이스케이프는 출력 구멍만 막으므로
+ *          setFontName() 쪽에서 **입력**을 먼저 검증한다 (둘 다 있어야 한다).
+ * @note UTF-8 연속 바이트(0x80~0xFF)는 그대로 통과시킨다 — 한글 폰트명이 깨지지 않게.
+ */
+static String jsonEscape(const String& s) {
+    String out;
+    out.reserve(s.length() + 8);
+    for (size_t i = 0; i < s.length(); i++) {
+        const char c = s[i];
+        if (c == '"')       out += "\\\"";
+        else if (c == '\\') out += "\\\\";
+        else if (c < 0x20) { char u[7]; snprintf(u, sizeof(u), "\\u%04x", (unsigned char)c); out += u; }
+        else out += c;
+    }
+    return out;
+}
 
 void WebManager::begin() {
     server.on("/", HTTP_GET, [this]() { handleRoot(); });
@@ -37,31 +58,70 @@ void WebManager::handleRoot() {
 
 void WebManager::handleUploadData() {
     HTTPUpload& upload = server.upload();
+    // ESP32 WebServer는 업로드 콜백에 상태를 넘겨주지 않으므로 파일 핸들을 static으로 유지한다.
+    //   단 그 상태를 그대로 신뢰하면 안 된다 — 다음 세 경우를 모두 막아야 한다:
+    //     1) 경로 검증 실패로 START가 return하거나, START 없이 WRITE가 먼저 오는 경우
+    //        → 이전 업로드의 열린 파일에 이번 내용이 계속 쓰인다
+    //     2) 클라이언트 연결 중단(UPLOAD_FILE_ABORTED) → 파일이 열린 채 남는다
+    //     3) LittleFS.open 실패 → falsy 핸들이 WRITE마다 검사돼야 한다
+    //   uploadActive는 "열린 핸들이 이번 업로드 소유"라는 불변식을 나타낸다.
     static File fsUploadFile;
-    if (upload.status == UPLOAD_FILE_START) {
-        String filename = upload.filename;
-        if (!filename.startsWith("/")) filename = "/" + filename;
-        
-        // 슬롯 파라미터 확인 (예: /upload?slot=1)
-        int slot = 0;
-        if (server.hasArg("slot")) {
-            slot = server.arg("slot").toInt();
-            if (slot < 0 || slot >= 5) slot = 0;
+    static bool uploadActive = false;
+
+    switch (upload.status) {
+        case UPLOAD_FILE_START: {
+            // 이전 업로드가 미완료로 방치된 경우(경로 거부·연결 중단) 핸들을 정리한다.
+            if (uploadActive && fsUploadFile) fsUploadFile.close();
+            uploadActive = false;
+
+            String filename = upload.filename;
+            if (!filename.startsWith("/")) filename = "/" + filename;
+
+            // 슬롯 파라미터 확인 (예: /upload?slot=1)
+            int slot = 0;
+            if (server.hasArg("slot")) {
+                slot = server.arg("slot").toInt();
+                if (slot < 0 || slot >= FONT_SLOT_COUNT) slot = 0;
+            }
+
+            String path = "/f" + String(slot);
+            if (!LittleFS.exists(path)) LittleFS.mkdir(path);
+
+            String fullPath = path + filename;
+            if (fullPath.indexOf("..") != -1) {
+                Serial.println("[WEB] Invalid path detected: " + fullPath);
+                return;   // uploadActive는 이미 false — 이후 WRITE는 아무 데도 쓰지 않는다
+            }
+            fsUploadFile = LittleFS.open(fullPath, "w");
+            if (!fsUploadFile) {
+                Serial.println("[WEB] Failed to open for write: " + fullPath);
+                return;   // 열지 못했으므로 uploadActive를 세우지 않는다
+            }
+            uploadActive = true;
+            break;
         }
-        
-        String path = "/f" + String(slot);
-        if (!LittleFS.exists(path)) LittleFS.mkdir(path);
-        
-        String fullPath = path + filename;
-        if (fullPath.indexOf("..") != -1) {
-            Serial.println("[WEB] Invalid path detected: " + fullPath);
-            return; 
-        }
-        fsUploadFile = LittleFS.open(fullPath, "w");
-    } else if (upload.status == UPLOAD_FILE_WRITE) {
-        if (fsUploadFile) fsUploadFile.write(upload.buf, upload.currentSize);
-    } else if (upload.status == UPLOAD_FILE_END) {
-        if (fsUploadFile) fsUploadFile.close();
+
+        case UPLOAD_FILE_WRITE:
+            // uploadActive가 false면 이번 업로드에 유효한 파일이 없다 (경로 거부·open 실패).
+            //   이전 업로드의 핸들이 남아 있어도 **쓰지 않는다.**
+            if (uploadActive && fsUploadFile) {
+                fsUploadFile.write(upload.buf, upload.currentSize);
+            }
+            break;
+
+        case UPLOAD_FILE_END:
+            if (uploadActive && fsUploadFile) fsUploadFile.close();
+            uploadActive = false;
+            break;
+
+        case UPLOAD_FILE_ABORTED:
+            // 클라이언트가 전송 도중 끊음 — END 없이 여기서 끝나면 핸들이 새어 나간다.
+            if (uploadActive && fsUploadFile) {
+                fsUploadFile.close();
+                Serial.println("[WEB] Upload aborted by client, handle closed");
+            }
+            uploadActive = false;
+            break;
     }
 }
 
@@ -74,8 +134,8 @@ void WebManager::handleRefreshCache() {
 void WebManager::handleGetConfig() {
     SystemSettings& s = configManager.get();
     String slotNames = "[";
-    for(int i=0; i<5; i++) {
-        slotNames += "\"" + display.getSlotName(i) + "\"" + (i < 4 ? "," : "");
+    for (int i = 0; i < FONT_SLOT_COUNT; i++) {
+        slotNames += "\"" + jsonEscape(display.getSlotName(i)) + "\"" + (i < FONT_SLOT_COUNT - 1 ? "," : "");
     }
     slotNames += "]";
 
@@ -83,7 +143,7 @@ void WebManager::handleGetConfig() {
                  ",\"display_mode\":" + String((int)s.display_mode) + 
                  ",\"hour_format\":" + String((int)s.hour_format) + 
                  ",\"chime_enabled\":" + String(s.chime_enabled ? "true":"false") + 
-                 ",\"font_name\":\"" + s.font_name + 
+                 ",\"font_name\":\"" + jsonEscape(s.font_name) + 
                  "\",\"font_slot\":" + String((int)s.font_slot) +
                  ",\"slot_names\":" + slotNames +
                  ",\"is_inverted\":" + String(s.is_inverted ? "true":"false") +
@@ -158,10 +218,8 @@ void WebManager::handleSetConfig() {
             int fnE = body.indexOf("\"", fnS);
             if (fnE != -1) {
                 String fontName = body.substring(fnS, fnE);
-                // 파일명 검증: 간단한 길이 및 문자 제한
-                if (fontName.length() > 0 && fontName.length() < 32) {
-                    display.setFontName(fontName);
-                }
+                // 길이·문자 검증은 setFontName()이 한다 (검증 규칙을 한 곳에 둔다).
+                display.setFontName(fontName);
             }
         }
         

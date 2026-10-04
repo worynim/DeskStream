@@ -26,6 +26,15 @@ public:
     bool isTransmitting() const { return _is_transmitting; }
     void waitForSync(uint32_t timeout_ms);
 
+    /**
+     * @brief 아직 HW 버스로 전송되지 않은 페이지가 남아 있는가
+     * @details I2C 전송에 실패한 페이지는 dirty 비트를 지우지 않고 남겨 둔다.
+     *          그런데 셰도 버퍼는 이미 새 값으로 갱신되었으므로 다음 diff는 그 페이지를
+     *          잡지 못한다. → 호출부(pushParallel)가 "새 diff"뿐 아니라 **이 잔여분까지**
+     *          보고에 알림을 보내야 재시도가 일어난다.
+     */
+    bool hasPendingHwUpdate() const { return _hw_dirty_mask[0] || _hw_dirty_mask[1]; }
+
     // 디스플레이 전송 인터페이스 (상위 레벨)
     void preparePageUpdate(uint8_t screenIdx, uint8_t page, uint8_t firstTile, uint8_t tileCount);
     void setShadowData(uint8_t screenIdx, int offset, uint8_t data);
@@ -37,7 +46,6 @@ public:
     esp_err_t sendData(uint8_t screenIdx, const uint8_t* data, size_t len);
 
     // 자가 복구 로직
-    void checkAndRecover();
     void recoverBus();
 
     // 외부용 패킷 버퍼 접근 (U8g2 콜백용)

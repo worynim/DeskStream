@@ -6,25 +6,14 @@
  *       원본은 글자 단위 단순 배치였다. 영어 단어(최대 9자)를 위해 어절 단위로 바꾼다.
  */
 #include "layout_engine.h"
-
-/** UTF-8 리딩 바이트로부터 해당 문자의 바이트 길이를 구한다. */
-static uint8_t utf8CharLen(const char* p, int remaining) {
-    if (remaining <= 0) return 0;
-    unsigned char c = (unsigned char)*p;
-    uint8_t len = 1;
-    if ((c & 0xE0) == 0xC0) len = 2;
-    else if ((c & 0xF0) == 0xE0) len = 3;
-    else if ((c & 0xF8) == 0xF0) len = 4;
-    if (len > (uint8_t)remaining) len = (uint8_t)remaining;   // 잘린 멀티바이트 방지
-    return len;
-}
+#include "utf8_len.h"   // ENG_Clock와 한글판이 공유하는 UTF-8 리딩 바이트 판정
 
 /**
  * 음수에서도 내림으로 나눈다.
  * @details C++의 정수 나눗셈은 0 쪽으로 버리지만 웹 미러(JS Math.floor)는 내림이라,
  *         잉크 블록이 화면보다 넓어 `screenWidth - inkSpan`이 음수가 되면
  *         두 구현이 1px 어긋난다. 교차 검증(layout_crosscheck)이 정수를 그대로
- *         비교하므로 여기서语义를 맞춘다.
+ *         비교하므로 여기서 의미를 맞춘다.
  */
 static int floorDiv(int a, int b) {
     int q = a / b;
@@ -108,14 +97,14 @@ int linePitch(int charCount, const CellGeometry& geom, int screenWidth,
 
     // 1) 겹침 방지 — 하단은 '넘지 않을 값'이 아니라 **최소 필요한 값**이라 올린다.
     //    잉크를 모르면 하단을 만들지 않는다. 여기서 폰트 최댓값을 하한으로 쓰면
-    //    "W가 넓은 폰트" 한 장Presence에 모든 짧은 줄이 43px까지 밀린다.
+    //    "W가 넓은 폰트" 한 장 presence 때문에 모든 짧은 줄이 43px까지 밀린다.
     const int floor = (lineFloor > cellW) ? lineFloor
                      : ((lineInk > cellW) ? lineInk : 0);
     if (floor > spread) spread = floor;
 
     // 2) 화면 밖 잘림 방지 — 잉크 블록 (n−1)·pitch + inkCap 가 화면을 넘으면 줄인다.
     //    잘림은 글자를 지우므로 겹침보다 나쁘다.
-    const int fit = (screenWidth - inkCap) / (charCount - 1);
+    const int fit = floorDiv(screenWidth - inkCap, charCount - 1);
     if (spread > fit) spread = fit;
 
     if (spread < cellW) spread = cellW;       // 어떤 경우에도 셀 폭 아래로 내리지 않는다
@@ -132,7 +121,7 @@ int lineStartX(int charCount, int pitch, const CellGeometry& geom,
     // 놓이므로(래스터 xOffset = -(drawW-cellW)/2), 셀 폭으로 중앙 정렬하면
     // (pitch - cellW)/2 만큼 왼쪽으로 쏠린다.
     const int inkSpan = (charCount - 1) * pitch + lineInk;
-    return floorDiv(screenWidth - inkSpan, 2) + (lineInk - cellW) / 2;
+    return floorDiv(screenWidth - inkSpan, 2) + floorDiv(lineInk - cellW, 2);
 }
 
 bool layoutWrap(const char* text, int textLen,

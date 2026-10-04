@@ -2,30 +2,20 @@
 /**
  * @file input_manager.cpp
  * @brief 사용자 입력 핸들링 및 버튼 서비스 클래스 구현
- * @details 버튼 ISR(Interrupt Service Routine), 디바운싱 및 상태 머신을 이용한 입력 판별 구현
+ * @details 폴링 기반 디바운싱 및 상태 머신을 이용한 입력 판별 구현 (GPIO 인터럽트 미사용)
  * @note [SYNC] 원본: Hangeul_Clock/input_manager.cpp — 현재 바이트 단위로 동일. 한글판 수정 시 함께 반영할 것.
  */
 #include "input_manager.h"
 
 InputManager inputManager;
 
-// 인터럽트 발생 여부를 기록하는 실제 변수 정의
-volatile bool btnInterruptFlags[4] = {false, false, false, false};
-
-// 인터럽트 서비스 루틴 (ISR) - 최소한의 작업만 수행
-void IRAM_ATTR handleBtn1() { btnInterruptFlags[0] = true; }
-void IRAM_ATTR handleBtn2() { btnInterruptFlags[1] = true; }
-void IRAM_ATTR handleBtn3() { btnInterruptFlags[2] = true; }
-void IRAM_ATTR handleBtn4() { btnInterruptFlags[3] = true; }
-
 // --- Button 클래스 구현 ---
 
 Button::Button(int i, int p) : id(i), pin(p), lastState(HIGH), fallTime(0), isPressed(false), isLongPressFired(false), onShortPress(nullptr), onLongPress(nullptr) {
+    // [제거] attachInterrupt를 쓰지 않는다 — 플래그를 읽는 코드가 없어 ISR이 아무 정보도
+    //       전달하지 못했다. update()가 매 루프 digitalRead로 상태 머신을 그대로 돌기 때문에
+    //       인터럽트는 GPIO 부하만 늘린다. (블로킹 없이 눌림을 놓치지 않으려면 폴링이 이득)
     pinMode(pin, INPUT_PULLUP);
-    if (id == 0) attachInterrupt(digitalPinToInterrupt(pin), handleBtn1, CHANGE);
-    else if (id == 1) attachInterrupt(digitalPinToInterrupt(pin), handleBtn2, CHANGE);
-    else if (id == 2) attachInterrupt(digitalPinToInterrupt(pin), handleBtn3, CHANGE);
-    else if (id == 3) attachInterrupt(digitalPinToInterrupt(pin), handleBtn4, CHANGE);
 }
 
 void Button::setCallbacks(void (*sp)(), void (*lp)()) {
@@ -56,7 +46,6 @@ void Button::update() {
     }
     
     lastState = currentState;
-    btnInterruptFlags[id] = false;
 }
 
 // --- InputManager 클래스 구현 ---

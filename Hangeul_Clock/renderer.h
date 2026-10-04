@@ -11,11 +11,13 @@
 #include <vector>
 #include <map>
 #include "config.h"
+#include "renderer_geometry.h"
 
 struct CachedChar {
     String hex;
     uint32_t offset;
     uint32_t size;
+    const CellGeometry* geom;   // 로드 시 확정. nullptr인 글자는 캐시에 들어오지 않는다
 };
 
 struct CharData {
@@ -66,7 +68,7 @@ public:
     void drawFlapChar(int screenIdx, const String& oldStr, const String& newStr, int x, uint8_t progress);
 
     // 텍스트 레이아웃 헬퍼
-    void getCharData(const String& text, CharData outChars[8], int& count, bool centered);
+    void getCharData(const String& text, CharData outChars[LAYOUT_MAX_CHARS], int& count, bool centered);
 
     // 캐시 접근
     size_t getCacheSize() const { return bitmapCache.size(); }
@@ -74,9 +76,6 @@ public:
     void clearCache();
 
 private:
-    /** 글자 비트맵의 바이트 폭 (32px 글자=4, 64px 글자=8) */
-    int charBitWidth(const CachedChar* cc) const;
-
     U8G2** _screens = nullptr;
     std::vector<CachedChar> bitmapCache;
     uint8_t* flatBuffer = nullptr;

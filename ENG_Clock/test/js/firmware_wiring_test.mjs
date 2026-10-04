@@ -66,9 +66,16 @@ chk('이전 값(4px/스텝)은 화면 높이를 이동해 위줄 밴드를 훑�
     STEP * 4 === SCREEN_HEIGHT && SCREEN_HEIGHT > LINE_HEIGHT);
 
 // 소스가 실제로 LINE_HEIGHT 기준으로 쓰는지
-chk('drawAnimPair가 한 줄 높이를 스텝당 LINE_HEIGHT/16 으로 나눈다',
-    /const int off = step \* \(LINE_HEIGHT \/ 16\);/.test(pairFn)
-    && /const int off = step \* \(LINE_HEIGHT \/ 16\);/.test(exitFn));
+// [리뷰 §2.3] 매직넘버 16을 ANIM_STEPS로 이름 붙였다. 값은 여전히 16이어야 한다
+//   (linePitch/lineStartX의 사다리 규칙과 무관하지만 웹 미리보기와 1:1 대응한다).
+chk('ANIM_STEPS = 16으로 정의된다', /static const int ANIM_STEPS = 16;/.test(dm));
+chk('drawAnimPair가 한 줄 높이를 스텝당 LINE_HEIGHT/ANIM_STEPS 으로 나눈다',
+    /const int off = step \* \(LINE_HEIGHT \/ ANIM_STEPS\);/.test(pairFn)
+    && /const int off = step \* \(LINE_HEIGHT \/ ANIM_STEPS\);/.test(exitFn));
+chk('애니메이션 종료 판정도 ANIM_STEPS를 쓴다',
+    /_animState\.currentStep > ANIM_STEPS/.test(dm));
+chk('스크롤 퇴장 시점이 ANIM_STEPS를 쓴다 (하드코딩 16 남아있으면 안 됨)',
+    !/step [<>]=? ?16/.test(pairFn) && !/step [<>]=? ?16/.test(exitFn));
 // 이전 코드: baseY + SCREEN_HEIGHT - (step*4) → 아래줄 글자가 y<32(위줄 밴드)로 들어간다.
 // [v5] SCREEN_HEIGHT는 밴드 정책(oneLine 판별·bandH)에서 쓸 수 있다 — **이동량**에서는 안 된다.
 const movement = (fn) => fn.split('\n')
@@ -77,11 +84,11 @@ chk('drawAnimPair가 화면 높이만큼 이동하지 않는다 (밴드 정책 �
     !/SCREEN_HEIGHT/.test(movement(pairFn)) && !/SCREEN_HEIGHT/.test(movement(exitFn)));
 chk('스크롤업 진입점이 한 줄 높이를 쓴다', /baseY \+ LINE_HEIGHT - off/.test(pairFn));
 chk('스크롤다운 진입점이 한 줄 높이를 쓴다', /baseY - LINE_HEIGHT \+ off/.test(pairFn));
-chk('스크롤 드로잉이 자기 줄 밴드(baseY→bandTop, bandH)를 넘긴다',
-    pairFn.includes('baseY - off, bandTop, bandH)')
-    && pairFn.includes('baseY + LINE_HEIGHT - off, bandTop, bandH)')
-    && exitFn.includes('baseY - off, bandTop, bandH)')
-    && exitFn.includes('baseY + off, bandTop, bandH)'));
+chk('스크롤 드로잉이 자기 줄 밴드(baseY→band.top, band.h)를 넘긴다',
+    pairFn.includes('baseY - off, band.top, band.h)')
+    && pairFn.includes('baseY + LINE_HEIGHT - off, band.top, band.h)')
+    && exitFn.includes('baseY - off, band.top, band.h)')
+    && exitFn.includes('baseY + off, band.top, band.h)'));
 
 // 줄 밴드 클립 — 슬라이드뿐 아니라 스케일/디더/줌도 같은 문제를 가진다.
 // 다만 후자들은 설계상 이미 [baseY, baseY+GLYPH_H) 안에만 그리므로 스크롤만 잘라도 된다.
@@ -217,12 +224,29 @@ chk(`"13 H" 가 한 줄에 들어간다 (글자 3자 × ${GLYPH_W}px + 공백 �
 // (플래그가 없으면 "02"와 "H"가 위아래로 찢어진다)
 const updateAllFn = body(dm, /void DisplayManager::updateAll\([\s\S]*?\n\}/);
 chk('updateAll 정의 존재', updateAllFn.length > 0);
-chk('updateAll이 숫자 모드 여부(isWord)를 판단한다',
-    /bool isWord = \(configManager\.get\(\)\.display_mode == CLOCK_MODE_WORD\) && renderer\.isCacheLoaded\(\);/.test(updateAllFn));
+// [리뷰 §1.1/§2.2/§2.4] 판정식이 7곳에 복제돼 refreshNow()가 정적 경로와 **반대**인
+//   값을 넘기는 버그가 났다. 이제 isSingleLineLayout() 한 곳에 있고, 모든 경로가 이걸 쓴다.
+//   아래 검사는 "규칙이 정의돼 있고" + "모든 경로가 그 함수를 부른다"를 확인한다.
+const titleRuleFn = body(dm, /static bool isTitleScreenOf\([\s\S]*?\n\}/);
+const singleLineRuleFn = body(dm, /static bool isSingleLineLayout\([\s\S]*?\n\}/);
+chk('isTitleScreenOf이 제목 화면 규칙을 정의한다 (is_flipped → 3번/0번)',
+    /configManager\.get\(\)\.is_flipped \? \(idx == 3\) : \(idx == 0\)/.test(titleRuleFn));
+chk('isSingleLineLayout이 숫자 모드(isWord)를 판단한다',
+    /configManager\.get\(\)\.display_mode == CLOCK_MODE_WORD\) && renderer\.isCacheLoaded\(\)/.test(singleLineRuleFn)
+    && /return !isWord && !isTitleScreenOf\(idx\);/.test(singleLineRuleFn));
+// 회귀의 핵심: refreshNow()가 정적 경로와 **같은 규칙**을 써야 한다.
+const refreshNowFn = body(dm, /void DisplayManager::refreshNow\([\s\S]*?\n\}/);
+chk('refreshNow도 isSingleLineLayout을 쓴다 (버그 회귀 — 정반대 값 금지)',
+    /drawCenterText\(i, lastTexts\[i\], isSingleLineLayout\(i\)\)/.test(refreshNowFn)
+    && !/isTitleScreen\)/.test(refreshNowFn));
+chk('제목 판정을 인라인으로 복제한 곳이 남아 있지 않다',
+    !/is_flipped\) \(i == 3\)/.test(dm) && !/is_flipped\) \(idx == 3\)/.test(dm));
 chk('정적 경로(drawCenterText)에 singleLine 을 넘긴다',
-    /drawCenterText\(i, texts\[i\], !isWord && !isTitleScreen\)/.test(updateAllFn));
+    /drawCenterText\(i, texts\[i\], isSingleLineLayout\(i\)\)/.test(updateAllFn));
+chk('잔상 정리 경로도 같은 규칙을 쓴다',
+    /drawCenterText\(i, lastTexts\[i\], isSingleLineLayout\(i\)\)/.test(updateAllFn));
 chk('애니메이션 경로(getCharData)에 singleLine 을 넘긴다',
-    /bool singleLine = !isWord && !isTitleScreen;/.test(updateAllFn)
+    /const bool singleLine = isSingleLineLayout\(i\);/.test(updateAllFn)
     && /getCharData\(texts\[i\], _animState\.screens\[i\]\.newChars,\s*\n\s*_animState\.screens\[i\]\.newCount, singleLine\)/.test(updateAllFn));
 const leSrc = read('layout_engine.cpp');
 chk('layoutWrap이 singleLine 이면 2줄 강제 규칙을 건너뛴다',
@@ -283,9 +307,15 @@ chk('웹 잉크를 캔버스 아닌 업로드 바이트에서 잰다 (웹-기기
     /const bm = packGlyph\(canvas\);/.test(web)
     && /inkWidthOf\(getCharDataPtr\(&cc\)/.test(rc));
 // 화면 적합 상한(잘림 방지)이 양쪽에 같아야 한다
-chk('화면 적합 상한이 양쪽에 같다',
-    /const int fit = \(screenWidth - inkCap\) \/ \(charCount - 1\);/.test(leSrc)
+// [리뷰 §6.1] C++가 floorDiv()로, JS가 Math.floor로 나눗셈을 감싼다 —
+//   음수 나눗셈은 두 언어가 다른 값을 내기 때문이다(JS는 내림, C++는 0쪽 절삭).
+chk('화면 적합 상한이 양쪽에 같다 (양쪽 모두 floor 나눗셈)',
+    /const int fit = floorDiv\(screenWidth - inkCap, charCount - 1\);/.test(leSrc)
     && /const fit = Math\.floor\(\(SCREEN_W - inkCap\) \/ \(charCount - 1\)\);/.test(web));
+// lineStartX의 두 나눗셈도 같은 이유로 감싸야 한다 (펌웨어만 floor를 쓰고 JS는 안 쓰는 역전이 없어야 한다).
+chk('lineStartX의 두 나눗셈 모두 floor로 감싸져 있다 (JS와 의미 일치)',
+    /floorDiv\(screenWidth - inkSpan, 2\) \+ floorDiv\(lineInk - cellW, 2\)/.test(leSrc)
+    && /Math\.floor\(\(SCREEN_W - inkSpan\) \/ 2\) \+ Math\.floor\(\(lineInk - GLYPH_W\) \/ 2\)/.test(web));
 // 9자는 총폭 126 = 9 × glyphW 라서 **어떤 잉크에서도** 14여야 한다 (사용자 요구사항).
 //   문자열 일치 대신 산식을 직접 돌려 확인한다 — 식이 바뀌면 이게 먼저 깨진다.
 chk('펌웨어 linePitch: 9자 → 14 (= glyphW, 잉크와 무관하게)',
@@ -457,15 +487,20 @@ chk('구 형식(32px)에서는 창이 래스터 전체다 (기존 동작 불변)
     Math.floor((32 - LINE_HEIGHT) / 2) === 0);
 
 // display_manager: 1줄 = 화면 전체 밴드 / 2줄 = 자기 줄 밴드
-const oneLineRule = /const bool oneLine = \(baseY == \(SCREEN_HEIGHT - LINE_HEIGHT\) \/ 2\);/;
-chk('애니메이션이 1줄 레이아웃을 판별한다 (쌍/퇴장 모두)',
-    oneLineRule.test(pairFn) && oneLineRule.test(exitFn));
+// [리뷰 §2.3] 판정식이 drawAnimPair/drawAnimExit 두 곳에 복제돼 있었다.
+//   이제 bandFor() 한 곳이고 두 함수가 그것을 부른다.
+const bandForFn = body(dm, /static Band bandFor\([\s\S]*?\n\}/);
+chk('bandFor가 1줄 레이아웃을 판별한다 (쌍/퇴장 모두)',
+    /const bool oneLine = \(baseY == \(SCREEN_HEIGHT - LINE_HEIGHT\) \/ 2\);/.test(bandForFn)
+    && /const Band band = bandFor\(baseY\);/.test(pairFn)
+    && /const Band band = bandFor\(baseY\);/.test(exitFn));
 chk('1줄은 화면 전체 밴드, 2줄은 자기 줄 밴드다',
-    /const int bandTop = oneLine \? 0 : baseY;/.test(pairFn)
-    && /const int bandH\s+= oneLine \? SCREEN_HEIGHT : LINE_HEIGHT;/.test(pairFn));
+    /return \{ oneLine \? 0 : baseY, oneLine \? SCREEN_HEIGHT : LINE_HEIGHT \};/.test(bandForFn));
+chk('밴드 판정을 인라인으로 복제한 곳이 남아 있지 않다',
+    !/bandTop/.test(pairFn) && !/bandTop/.test(exitFn));
 chk('디더·줌에도 밴드 인자가 전달된다 (쌍 8곳, 퇴장 4곳)',
-    (pairFn.match(/, bandTop, bandH\)/g) || []).length === 8
-    && (exitFn.match(/, bandTop, bandH\)/g) || []).length === 4);
+    (pairFn.match(/, band\.top, band\.h\)/g) || []).length === 8
+    && (exitFn.match(/, band\.top, band\.h\)/g) || []).length === 4);
 
 // 정적 경로(drawCenterText): 2줄은 줄 밴드로 잘라 그리고, 1줄은 클립 없이 그린다
 const centerFn = body(dm, /void DisplayManager::drawCenterText\([\s\S]*?\n\}/);

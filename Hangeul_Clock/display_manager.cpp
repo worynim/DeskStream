@@ -6,6 +6,7 @@
  * @note [SYNC] ENG_Clock/display_manager.cpp — applyTimezone() 추가
  */
 #include "display_manager.h"
+#include "config.h"          // FONT_SLOT_COUNT
 #include "LittleFS.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/timers.h>
@@ -42,8 +43,6 @@ DisplayManager::DisplayManager() :
 }
 
 void DisplayManager::begin() {
-    applyFlip();
-    main_task_handle = xTaskGetCurrentTaskHandle();
     for (int i = 0; i < NUM_SCREENS; i++) screens[i]->getU8g2()->tile_buf_ptr = u8g2_buffers[i];
     
     // 1. I2C 플랫폼 초기화
@@ -75,7 +74,7 @@ void DisplayManager::begin() {
     buzzerTimer = xTimerCreate("BuzzerTimer", pdMS_TO_TICKS(50), pdFALSE, (void*)0, buzzerTimerCallback);
 
     // 슬롯 이름 초기 캐싱
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < FONT_SLOT_COUNT; i++) {
         String p = "/f" + String(i) + "/name.txt";
         if (LittleFS.exists(p)) {
             File f = LittleFS.open(p, "r");
@@ -96,10 +95,6 @@ void DisplayManager::setFlipDisplay(bool flip) {
         screens[i]->setFlipMode(flip);
     }
     setForceUpdate(true);
-}
-
-void DisplayManager::applyFlip() {
-    screens[0] = &u8g2_1; screens[1] = &u8g2_2; screens[2] = &u8g2_3; screens[3] = &u8g2_4;
 }
 
 void DisplayManager::setChime(bool enable) {
@@ -149,11 +144,18 @@ void DisplayManager::applyTimezone() {
 }
 
 String DisplayManager::getSlotName(uint8_t slot) {
-    if (slot >= 5) return "";
+    if (slot >= FONT_SLOT_COUNT) return "";
     return _slotNames[slot];
 }
 
 void DisplayManager::setFontName(const String& name) {
+    // [리뷰 §3.3] 이 값은 (1) JSON 응답에 붙고 (2) name.txt 파일명으로도 쓰인다.
+    //   출구 이스케이프만으로는 경로 조작이 남으므로 **입력에서** 막는다.
+    if (name.length() == 0 || name.length() >= 32) return;
+    for (size_t i = 0; i < name.length(); i++) {
+        const char c = name[i];
+        if (c == '"' || c == '\\' || c == '/' || c < 0x20) return;
+    }
     if (configManager.get().font_name == name) return;
     
     configManager.get().font_name = name;
@@ -170,7 +172,7 @@ void DisplayManager::setFontName(const String& name) {
 }
 
 void DisplayManager::setFontSlot(uint8_t slot) {
-    if (slot >= 5) slot = 0;
+    if (slot >= FONT_SLOT_COUNT) slot = 0;
     
     // 이미 해당 슬롯이면 중복 로딩 방지
     if (configManager.get().font_slot == slot && renderer.isCacheLoaded()) {
@@ -209,10 +211,7 @@ void DisplayManager::setFontSlot(uint8_t slot) {
 }
 
 void DisplayManager::refreshNow() {
-    for (int i = 0; i < 4; i++) {
-        bool isTitleScreen = configManager.get().is_flipped ? (i == 3) : (i == 0);
-        drawCenterText(i, lastTexts[i], isTitleScreen);
-    }
+    for (int i = 0; i < 4; i++) drawCenterText(i, lastTexts[i]);
     pushParallel();
 }
 
@@ -267,10 +266,17 @@ void DisplayManager::setYieldCallback(void (*cb)()) {
     on_yield_callback = cb;
 }
 
+// === 화면 판정 규칙 (단일 진실원) ===
+// [리뷰 §2.2] 아래 식이 display_manager.cpp 안에 3번 복제돼 있었다.
+
+/** @brief 이 화면이 제목(자릿수) 화면인가 — 뒤집기면 3번 화면이 자릿수다 */
+static bool isTitleScreenOf(int idx) {
+    return configManager.get().is_flipped ? (idx == 3) : (idx == 0);
+}
+
 // drawDitheredChar, drawZoomedChar, drawSingleChar, drawScaledChar, getCharData 로직 Renderer로 이관됨
 void DisplayManager::drawChimeIcon(int idx) {
-    bool isTitleScreen = configManager.get().is_flipped ? (idx == 3) : (idx == 0);
-    if (isTitleScreen && configManager.get().chime_enabled) screens[idx]->drawXBM(0, 0, 8, 8, bell_icon);
+    if (isTitleScreenOf(idx) && configManager.get().chime_enabled) screens[idx]->drawXBM(0, 0, 8, 8, bell_icon);
 }
 
 int DisplayManager::findOldIndexAtX(const ScreenAnimData& sd, int x) const {
@@ -288,11 +294,29 @@ int DisplayManager::findNewIndexAtX(const ScreenAnimData& sd, int x) const {
 }
 
 
-void DisplayManager::drawCenterText(int idx, const String& text, bool centered) {
+/**
+ * @brief 이 화면의 텍스트를 가운데 정렬하는가 (단일 진실원)
+ * @details [리뷰 §2.2] 제목 화면 판정과 '정각' 강제 정렬이 4곳에 복제돼 있었다.
+ *          drawCenterText() 안에 `|| (text == "정각")`가 있고, updateAll()의
+ *          세 호출부는 drawCenterText()를 거치지 않고 getCharData()를 직접 불러
+ *          같은 규칙을 각자 다시 구현했다. 한 곳이 바뀌면 나머지가 어긋난다.
+ * @param idx 화면 번호 (is_flipped면 3번이 제목)
+ * @param text 이 화면에 그릴 문자열
+ */
+static bool isCenteredText(int idx, const String& text) {
+    return isTitleScreenOf(idx) || (text == "정각");
+}
+
+/**
+ * @brief 한 화면을 문자열로 즉시 그린다 (애니메이션 없는 최종 상태)
+ * @details 가운데 정렬 여부는 isCenteredText()가 정한다. 호출부가 그 값을
+ *          따로 만들어 넘기면 규칙이 두 곳으로 갈라지므로, 여기서는 받지 않는다.
+ */
+void DisplayManager::drawCenterText(int idx, const String& text) {
     U8G2* u8g2 = screens[idx];
     u8g2->clearBuffer();
-    CharData chars[8]; int count;
-    renderer.getCharData(text, chars, count, centered || (text == "정각"));
+    CharData chars[LAYOUT_MAX_CHARS]; int count;
+    renderer.getCharData(text, chars, count, isCenteredText(idx, text));
     for (int i = 0; i < count; i++) {
         renderer.drawSingleChar(idx, chars[i].c, chars[i].x, 0);
     }
@@ -314,10 +338,9 @@ void DisplayManager::updateAll(String inTexts[4], bool force) {
 
     if (configManager.get().anim_mode == ANIMATION_TYPE_NONE) {
         for (int i = 0; i < 4; i++) {
-            if (changed[i]) { 
-                bool isTitleScreen = configManager.get().is_flipped ? (i == 3) : (i == 0);
-                drawCenterText(i, texts[i], isTitleScreen); 
-                lastTexts[i] = texts[i]; 
+            if (changed[i]) {
+                drawCenterText(i, texts[i]);
+                lastTexts[i] = texts[i];
             }
         }
         pushParallel();
@@ -332,10 +355,7 @@ void DisplayManager::updateAll(String inTexts[4], bool force) {
     // changed가 false로 덮어써져 렌더링이 완전히 멈추고 중간 프레임이 화면에 남는다.
     // 그 잔상을 먼저 정착된 최종 상태로 지운다.
     for (int i = 0; i < 4; i++) {
-        if (_animState.screens[i].changed && !changed[i]) {
-            bool isTitleScreen = configManager.get().is_flipped ? (i == 3) : (i == 0);
-            drawCenterText(i, lastTexts[i], isTitleScreen);
-        }
+        if (_animState.screens[i].changed && !changed[i]) drawCenterText(i, lastTexts[i]);
     }
 
     _animState.active = true;
@@ -347,10 +367,11 @@ void DisplayManager::updateAll(String inTexts[4], bool force) {
     for (int i = 0; i < 4; i++) {
         _animState.screens[i].changed = changed[i];
         if (changed[i]) {
-            bool isCentered = configManager.get().is_flipped ? (i == 3) : (i == 0);
-            bool forceCenter = (texts[i] == "정각");
-            renderer.getCharData(lastTexts[i], _animState.screens[i].oldChars, _animState.screens[i].oldCount, isCentered || (lastTexts[i] == "정각"));
-            renderer.getCharData(texts[i], _animState.screens[i].newChars, _animState.screens[i].newCount, isCentered || forceCenter);
+            // 정적 경로·drawCenterText()와 **같은 규칙**을 쓴다 (isCenteredText 단일 진실원).
+            renderer.getCharData(lastTexts[i], _animState.screens[i].oldChars,
+                                 _animState.screens[i].oldCount, isCenteredText(i, lastTexts[i]));
+            renderer.getCharData(texts[i], _animState.screens[i].newChars,
+                                 _animState.screens[i].newCount, isCenteredText(i, texts[i]));
             lastTexts[i] = texts[i]; // 타겟 텍스트 선점
         }
     }
@@ -510,77 +531,67 @@ void DisplayManager::renderFlapFrame(int i, int step) {
     drawChimeIcon(i);
 }
 
+/**
+ * @brief 한 화면의 U8g2 버퍼를 셰도 버퍼와 비교해, 바뀐 페이지 구간만 콜백에 넘긴다
+ * @details [리뷰 §2.1] 이 함수는 HW 버스(0·1)와 SW 버스(2·3)가 **똑같이** 도는 부분이다.
+ *          이전엔 15줄짜리 블록이 두 번 복제돼 있어서, 한쪽만 고치면
+ *          화면 0·1과 화면 2·3의 전송 범위가 어긋나는 형태였다.
+ *          diff는 순수 계산이고 전송은 버스마다 다르므로, 여기서는 diff만 하고
+ *          실제 전송은 onPageDirty에 위임한다 (side effect를 경계에 격리).
+ * @param onPageDirty (screen, screenIdx, page, firstTile, tileCount) — 해당 페이지가 더러울 때 한 번 호출
+ * @note 셰도 버퍼는 **비교 직후** 갱신한다. 전송은 HW 태스크가 나중에 하므로,
+ *      여기서 갱신하지 않으면 같은 프레임이 두 번 전송된다.
+ * @note screen를 넘기는 이유: 이 함수들은 파일 스코프 정적 함수라 DisplayManager의
+ *      private 멤버 `screens`에 접근할 수 없다. 대상 포인터를 넘겨야 SW 콜백이
+ *      updateDisplayArea()를 부를 수 있다.
+ */
+static void diffAndForEachPage(int screenIdx, U8G2* screen,
+                               void (*onPageDirty)(U8G2* screen, int screenIdx, int page, int firstTile, int tileCount)) {
+    uint8_t* buf = screen->getBufferPtr();
+    for (int p = 0; p < PAGES_PER_SCREEN; p++) {
+        bool page_dirty = false;
+        int first_tile = -1, last_tile = -1;
+        for (int t = 0; t < TILES_PER_PAGE; t++) {
+            bool tile_dirty = false;
+            for (int tx = 0; tx < 8; tx++) {
+                int idx = p * SCREEN_WIDTH + t * 8 + tx;
+                if (buf[idx] != i2cPlatform.getShadowData(screenIdx, idx)) {
+                    tile_dirty = true;
+                    i2cPlatform.setShadowData(screenIdx, idx, buf[idx]);
+                }
+            }
+            if (tile_dirty) { if (first_tile == -1) first_tile = t; last_tile = t; page_dirty = true; }
+        }
+        if (page_dirty) onPageDirty(screen, screenIdx, p, first_tile, last_tile - first_tile + 1);
+    }
+}
+
+static bool g_any_hw_dirty = false;   // HW 전송 알림 여부 — onHwPageDirty()가 갱신한다
+
+static void onHwPageDirty(U8G2* screen, int screenIdx, int page, int firstTile, int tileCount) {
+    (void)screen;   // HW는 I2C 태스크로 미룬다 — U8G2 포인터가 필요 없다
+    i2cPlatform.preparePageUpdate(screenIdx, page, firstTile, tileCount);
+    g_any_hw_dirty = true;
+}
+
+static void onSwPageDirty(U8G2* screen, int screenIdx, int page, int firstTile, int tileCount) {
+    (void)screenIdx;
+    screen->updateDisplayArea(firstTile, page, tileCount, 1);
+}
+
 void DisplayManager::pushParallel() {
     i2cPlatform.waitForSync(I2C_SYNC_TIMEOUT_MS);
 
-    bool any_hw_dirty = false;
-    for (int s = 0; s < 2; s++) {
-        uint8_t* buf = screens[s]->getBufferPtr();
-        for (int p = 0; p < PAGES_PER_SCREEN; p++) {
-            bool page_dirty = false; int first_tile = -1, last_tile = -1;
-            for (int t = 0; t < TILES_PER_PAGE; t++) {
-                bool tile_dirty = false;
-                for (int tx = 0; tx < 8; tx++) {
-                    int idx = p * SCREEN_WIDTH + t * 8 + tx;
-                    if (buf[idx] != i2cPlatform.getShadowData(s, idx)) { 
-                        tile_dirty = true; 
-                        i2cPlatform.setShadowData(s, idx, buf[idx]); 
-                    }
-                }
-                if (tile_dirty) { if (first_tile == -1) first_tile = t; last_tile = t; page_dirty = true; }
-            }
-            if (page_dirty) { 
-                i2cPlatform.preparePageUpdate(s, p, first_tile, last_tile - first_tile + 1);
-                any_hw_dirty = true; 
-            }
-        }
-    }
-    if (any_hw_dirty) { i2cPlatform.notifyTransmission(); }
-    
-    for (int s = 2; s < 4; s++) {
-        uint8_t* buf = screens[s]->getBufferPtr();
-        for (int p = 0; p < PAGES_PER_SCREEN; p++) {
-            int first_tile = -1, last_tile = -1; bool page_dirty = false;
-            for (int t = 0; t < TILES_PER_PAGE; t++) {
-                bool tile_dirty = false;
-                for (int tx = 0; tx < 8; tx++) {
-                    int idx = p * SCREEN_WIDTH + t * 8 + tx;
-                    if (buf[idx] != i2cPlatform.getShadowData(s, idx)) { 
-                        tile_dirty = true; 
-                        i2cPlatform.setShadowData(s, idx, buf[idx]); 
-                    }
-                }
-                if (tile_dirty) { if (first_tile == -1) first_tile = t; last_tile = t; page_dirty = true; }
-            }
-            if (page_dirty) screens[s]->updateDisplayArea(first_tile, p, last_tile - first_tile + 1, 1);
-        }
-    }
+    for (int s = 0; s < 2; s++) diffAndForEachPage(s, screens[s], onHwPageDirty);
+    // 새 diff뿐 아니라 **이전 회차에 전송에 실패해 남은 페이지**가 있어도 알린다.
+    //   실패한 페이지는 셰도 버퍼가 이미 갱신된 상태라 위 diff가 잡지 못하므로,
+    //   이 조건이 없으면 남은 dirty 비트가 다음 글자 변경 때까지 방치된다.
+    if (g_any_hw_dirty || i2cPlatform.hasPendingHwUpdate()) { i2cPlatform.notifyTransmission(); }
+
+    for (int s = 2; s < 4; s++) diffAndForEachPage(s, screens[s], onSwPageDirty);
 }
 
 // i2c_hw_task 구현은 i2c_platform.cpp로 이관됨
-
-void DisplayManager::recoverI2CBus() {
-    Serial.println("[I2C] Recovering HW Bus and Screens...");
-    // 하위 레벨 소프트 초기화 루틴 호출 (필요 시 i2cPlatform.recoverBus() 등)
-    
-    // OLED 기기 재설정 및 재시작 (주소 및 콜백 필수 재할당)
-    u8g2_1.getU8x8()->byte_cb = u8x8_byte_esp32_idf_0; 
-    u8g2_1.begin();
-
-    u8g2_2.getU8x8()->byte_cb = u8x8_byte_esp32_idf_1; 
-    u8g2_2.setI2CAddress(I2C_ADDR_HW_1 * 2); 
-    u8g2_2.begin();
-
-    u8g2_3.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast; 
-    u8g2_3.begin();
-
-    u8g2_4.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast; 
-    u8g2_4.setI2CAddress(I2C_ADDR_HW_1 * 2); 
-    u8g2_4.begin();
-    
-    // 강제 업데이트 예약
-    setForceUpdate(true);
-}
 
 void DisplayManager::playStartupMelody() {
     int melody[] = {2093, 2637, 3136, 4186}; // Do-Mi-Sol-Do
@@ -603,24 +614,31 @@ void DisplayManager::playChimeMelody() {
 }
 
 
+// IP 자릿수 표시 상수 — 원본에 128/120/56/4/4가 매직넘버로 박혀 있었다.
+// [리뷰 §2.3] 자리 폭은 이미 GLYPH_CELL_W(32)로 정의돼 있으니 재사용한다.
+//   점은 화면 오른쪽 아래에서 4px 안쪽에 4×4로 찍고, 세 화면(1~3번)에만 찍는다.
+static const int IP_DOT_MARGIN  = 4;   // 화면 가장자리와 점 사이 여백
+static const int IP_DOT_SIZE    = 4;   // 점 한 변의 픽셀 수
+static const int IP_TITLE_BASELINE_Y = 10;   // 6x10 폰트의 baseline (y=7이면 윗부분이 잘린다)
+
 void DisplayManager::showLargeIP(IPAddress ip) {
+    const int dotX = SCREEN_WIDTH  - IP_DOT_MARGIN - IP_DOT_SIZE;  // 120
+    const int dotY = SCREEN_HEIGHT - IP_DOT_MARGIN - IP_DOT_SIZE;  // 56
     for (int i = 0; i < 4; i++) {
         screens[i]->clearBuffer();
         int ip_idx = configManager.get().is_flipped ? (3 - i) : i;
         String segment = String(ip[ip_idx]);
         int charCount = segment.length();
-        int totalW = charCount * 32;
-        int startX = (128 - totalW) / 2;
+        int startX = (SCREEN_WIDTH - charCount * GLYPH_CELL_W) / 2;
         for (int j = 0; j < charCount; j++) {
-            renderer.drawSingleChar(i, segment.substring(j, j + 1), startX + (j * 32), 0);
+            renderer.drawSingleChar(i, segment.substring(j, j + 1), startX + j * GLYPH_CELL_W, 0);
         }
-        if (i < 3) screens[i]->drawBox(120, 56, 4, 4);
-        bool isTitleScreen = configManager.get().is_flipped ? (i == 3) : (i == 0);
-        if (isTitleScreen) {
+        if (i < 3) screens[i]->drawBox(dotX, dotY, IP_DOT_SIZE, IP_DOT_SIZE);
+        if (isTitleScreenOf(i)) {
             // 폰트를 6x10으로 통일했다. 글자 높이가 6px→10px로 커지므로 baseline을
             //   y=7에서 y=10으로 내린다 (y=7이면 윗부분이 화면 밖으로 잘린다).
             screens[i]->setFont(STATUS_FONT);
-            screens[i]->drawStr(0, 10, "SETTING ADDR");
+            screens[i]->drawStr(0, IP_TITLE_BASELINE_Y, "SETTING ADDR");
         }
     }
     pushParallel();

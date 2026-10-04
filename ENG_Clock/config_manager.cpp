@@ -60,14 +60,25 @@ void ConfigManager::load() {
 void ConfigManager::setDirty() {
     _isDirty = true;
     if (_saveTimer != NULL) {
-        // 타이머를 재시작/리셋 (이미 실행 중이면 3초 대기 시간이 초기화됨)
+        // 타이머를 재시작/리셋 (이미 실행 중이면 5초 대기 시간이 초기화됨 — xTimerCreate의 5000ms와 일치)
         xTimerReset(_saveTimer, 0);
-        Serial.println("[CONFIG] Save requested (Lazy save in 3s...)");
+        Serial.println("[CONFIG] Save requested (Lazy save in 5s...)");
     }
 }
 
 void ConfigManager::saveNow() {
     if (!_isDirty) return;
+
+    // [리뷰 §1.4] 검증은 **한 개라도 실패하면 전체를 건너뛴다.**
+    //   이전엔 tz만 조건부로 쓰고 나머지 10개 필드는 무조건 써서,
+    //   검증 실패 시 NVS에 "일부만 새 값"인 상태가 남았다(사용자는 다른 설정은 반영됐는데
+    //   시간대만 옛 값인 상황을 만남). 지금은 조용히 넘어갔다.
+    //   전체를 건너뛰고 _isDirty를 유지하므로 다음 setDirty()에서 재시도된다.
+    //   (일회성 타이머는 이미 소진됐으므로 여기서 재시도 루프가 돌지 않는다)
+    if (!isValidTimezone(_settings.timezone)) {
+        Serial.println("[CONFIG] Refusing to persist: invalid timezone. Settings left unchanged.");
+        return;
+    }
 
     if (!_prefs.begin("clock", false)) { // Read-write mode
         Serial.println("[CONFIG] Error: Could not open Preferences for writing!");
@@ -84,12 +95,7 @@ void ConfigManager::saveNow() {
     _prefs.putUChar("slot", _settings.font_slot);
     _prefs.putUChar("bright", _settings.brightness);
     _prefs.putUChar("dord", _settings.date_order);
-    // setenv()로 나가는 값이므로 검증 통과한 문자열만 저장한다.
-    if (isValidTimezone(_settings.timezone)) {
-        _prefs.putString("tz", _settings.timezone);
-    } else {
-        Serial.println("[CONFIG] Refusing to persist invalid timezone.");
-    }
+    _prefs.putString("tz", _settings.timezone);
 
     _prefs.end();
     _isDirty = false;

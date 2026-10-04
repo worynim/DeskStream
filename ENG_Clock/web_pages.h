@@ -16,7 +16,7 @@
  *   numberToWords() 등          english_time_core.cpp engtime::*
  *   dateString()                english_time_core.cpp engtime::dateString
  *   getEnglishTimeStrings()     ENG_Clock.ino         handleClockUpdate()
- *   MAX_CELLS[0]                renderer_geometry.h  maxPerLine / maxCharsPerLine
+ *   MAX_PER_LINE               renderer_geometry.h  maxPerLine
  */
 #ifndef WEB_PAGES_H
 #define WEB_PAGES_H
@@ -209,7 +209,6 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
         const RASTER_W = 48;  // 래스터 폭 — 잉크가 여기 중앙에 놓인다 (GEOM_384B drawW)
         const BYTES_PER_ROW = 6;   // 48px → 6B/행 × 64행 = 384B/글자 (GEOM_384B bytesPerRow)
         const MAX_PER_LINE = 9;
-        const MAX_CELLS = 18;
         const LINE_HEIGHT = 32;
         const SCREEN_W = 128;
         const SCREEN_H = 64;

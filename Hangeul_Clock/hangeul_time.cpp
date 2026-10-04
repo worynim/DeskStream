@@ -22,9 +22,13 @@ String HangeulTimeConverter::getHour(int hour, bool is24h) {
 
     // 1~12시 구간은 고유어 수사 사용
     const char* h_ones[] = {"", "한", "두", "세", "네", "다섯", "여섯", "일곱", "여덟", "아홉", "열", "열한", "열두"};
-    if (h <= 12) return String(h_ones[h]) + "시";
-    
-    // 24시간제가 아닐 경우 13시 이상은 발생하지 않음 (이미 %12 처리)
+
+    // [리뷰 §3.1] 여기까지 오는 정상 입력은 두 가지뿐이다 — 12시간제는 이미 %12로 0~11이므로
+    //   h==0이면 12로 바뀌었고, 24시간제는 위에서 0과 13+가 처리됐다. 즉 h는 1~12다.
+    if (h >= 1 && h <= 12) return String(h_ones[h]) + "시";
+
+    // hour가 0~23을 벗어난 경우의 최후 방어선. h_ones[h]로 인덱싱하면 배열을 넘어가므로
+    //   배열 대신 숫자 문자열로 내려보낸다.
     return String(h) + "시";
 }
 
@@ -48,17 +52,24 @@ String HangeulTimeConverter::convertToHangeul(int num, const String& unit) {
     return result;
 }
 
-String HangeulTimeConverter::getMinute(int minute) { 
+/**
+ * @brief 분 단위 변환: 0분일 때 '정각' 반환
+ * @note getSecond()도 0초에 "정각"을 반환한다. 0분0초에 두 화면이 동시에 "정각"이 되지
+ *       않도록 Hangeul_Clock.ino가 화면3을 빈 문자열로 덮어쓴다. **이 분기를 제거하면
+ *       그쪽 조건도 함께 수정해야 한다** (두 곳이 서로를 전제).
+ */
+String HangeulTimeConverter::getMinute(int minute) {
     if (minute == 0) return "정각";
-    return convertToHangeul(minute, "분"); 
+    return convertToHangeul(minute, "분");
 }
 
 /**
  * @brief 초 단위 변환: 0초일 때 '정각' 반환
+ * @note getMinute()의 "정각" 분기와 짝을 이룬다 — Hangeul_Clock.ino 참조.
  */
-String HangeulTimeConverter::getSecond(int second) { 
+String HangeulTimeConverter::getSecond(int second) {
     if (second == 0) return "정각";
-    return convertToHangeul(second, "초"); 
+    return convertToHangeul(second, "초");
 }
 String HangeulTimeConverter::getDay(int day) { return convertToHangeul(day, "일"); }
 

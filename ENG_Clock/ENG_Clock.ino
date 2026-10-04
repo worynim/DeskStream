@@ -72,14 +72,14 @@ void btn2_long() {
 
 void btn3_short() {
     display.beep(50, 3000);
-    uint8_t nextAnim = (configManager.get().anim_mode + 1) % 6;
+    uint8_t nextAnim = (configManager.get().anim_mode + 1) % ANIMATION_TYPE_COUNT;
     display.setAnimMode(nextAnim);
     if (uiStage == 2) display.showButtonHelp();
 }
 
 void btn3_long() {
     display.beep(150, 2000);
-    uint8_t nextSlot = (configManager.get().font_slot + 1) % 5;
+    uint8_t nextSlot = (configManager.get().font_slot + 1) % FONT_SLOT_COUNT;
     display.setFontSlot(nextSlot);
 
     // 도움말 페이지에서는 페이지 갱신으로 현재 슬롯 표시, 그 외에는 상태 메시지 출력

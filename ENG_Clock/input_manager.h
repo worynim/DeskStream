@@ -2,7 +2,8 @@
 /**
  * @file input_manager.h
  * @brief 사용자 입력 핸들링 및 버튼 서비스 클래스 정의
- * @details 버튼 디바운싱, 짧은/긴 누름 판별 및 인터럽트 안전 콜백 인터페이스 관리
+ * @details 버튼 디바운싱, 짧은/긴 누름 판별 및 콜백 인터페이스 관리
+ *          펄링 방식이므로 GPIO 인터럽트는 쓰지 않는다 (Button::update가 상태 머신을 전부 처리)
  * @note [SYNC] 원본: Hangeul_Clock/input_manager.h — 현재 바이트 단위로 동일. 한글판 수정 시 함께 반영할 것.
  */
 #ifndef INPUT_MANAGER_H
@@ -10,9 +11,6 @@
 
 #include <Arduino.h>
 #include "config.h"
-
-// 인터럽트 발생 여부를 기록하는 전역 플래그
-extern volatile bool btnInterruptFlags[4];
 
 /**
  * @brief 인터럽트 기반 고전능 버튼 클래스

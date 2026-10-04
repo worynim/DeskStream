@@ -42,10 +42,11 @@
 #define TILES_PER_PAGE 16
 
 // === [4] I2C 성능 설정 ===
-#define I2C_SPEED_HZ 800000 // 1MHz 고속 전송
+#define I2C_SPEED_HZ 800000 // 800kHz (주석은 "1MHz"로 잘못 적혀 있었음)
 #define I2C_TX_TIMEOUT_MS 50
 #define I2C_CMD_TIMEOUT_MS 10
 #define I2C_SYNC_TIMEOUT_MS 100
+#define I2C_ERROR_THRESHOLD 50   // 누적 오류 횟수 — 초과 시 recoverBus()로 버스 자가 복구
 #define HW_I2C_BUF_SIZE 256
 
 // === [5] RTOS 태스크 설정 ===
@@ -66,15 +67,22 @@
 // 2줄 레이아웃 상수 (PLAN §3.1). 전수 검증으로 확정: 최장 단어 SEVENTEEN(9자).
 #define GLYPH_W        14                        // 픽셀 폭 (피치 — 레이아웃 전용)
 #define GLYPH_H        32                        // 픽셀 높이
-// [레거시·미사용] 래스터 폭은 크기별 기하 테이블(renderer_geometry.cpp)이 결정한다.
-//   새 업로드는 6 bytes/row(48px) — GEOM_192B, PLAN §6.13. 남겨두는 이유는 없지만
-//   제거가 Hangeul_Clock 동기화 노트와 어긋나므로 주석만 갱신한다.
+// [레거시] 래스터 폭은 크기별 기하 테이블(renderer_geometry.cpp)이 결정한다.
+//   새 업로드는 6 bytes/row(48px) — GEOM_192B, PLAN §6.13.
+//
+// [미사용 — 펌웨어도 JS도 읽지 않음] 펌웨어 C++/JS 어디에서도 참조되지 않는다. 삭제 가능.
 #define GLYPH_BYTES_PER_ROW 2                    // (구 형식 64B 폰트의 바이트 정렬)
 #define GLYPH_SIZE     (GLYPH_BYTES_PER_ROW * GLYPH_H)  // (구 형식) 64 bytes
-#define MAX_CHARS_PER_LINE 9                     // 9 × 14 = 126px ≤ 128px
-#define MAX_LAYOUT_CHARS   18                    // 2줄 × 9자
-#define LINE_HEIGHT    32                        // 2 × 32 = 64px
 #define LINE_COUNT     2
+//
+// [미사용이나 삭제 금지 — test/js/firmware_wiring_test.mjs의 define()가 config.h를 파싱해
+//  이 값들을 검증 기준값으로 쓴다(없으면 테스트가 예외를 던진다)]
+#define MAX_CHARS_PER_LINE 9                     // 9 × 14 = 126px ≤ 128px — JS 교차검증의 기준값
+#define MAX_LAYOUT_CHARS   18                    // 2줄 × 9자 — JS 교차검증의 기준값
+//
+// GLYPH_W / GLYPH_H는 위와 달리 **실제로도** JS에 미러가 있다(web_pages.h의 동일 상수).
+//   펌웨어 C++는 layout_engine.h의 셀 기하를 대신 쓰므로 직접 참조하지 않는다.
+#define LINE_HEIGHT    32                        // 2 × 32 = 64px
 
 // IP 주소 화면(PLAN §6.12): 도트는 마지막 숫자 옆("192.")에 숫자 하단에 맞춰 찍는다.
 // IP_DOT_SIZE = 도트 한 변(픽셀), IP_DOT_GAP = 마지막 숫자와 도트 사이의 가로 간격.
@@ -91,6 +99,9 @@
 #define ANIMATION_TYPE_VERTICAL_FLIP 3
 #define ANIMATION_TYPE_DITHERED_FADE 4
 #define ANIMATION_TYPE_ZOOM 5
+// 애니메이션 타입 개수 — BTN3 순환(.ino)과 웹 입력 검증(web_manager)이 **반드시 이 값을 쓴다.
+// 애니메이션을 추가할 때 여기를 늘리지 않으면 버튼으로 못 고르는 모드가 조용히 생긴다 (리뷰 §1.2).
+#define ANIMATION_TYPE_COUNT 6
 #define ANIMATION_STEP_DELAY_MS 10 // 고속 프레임
 
 // === [9] 표시 형식 설정 ===
@@ -113,6 +124,7 @@
 
 // === [11] UI 및 버튼 동작 상수 ===
 #define UI_STAGE_COUNT 3
+#define FONT_SLOT_COUNT 5         // 폰트 슬롯 수 (경로 "/f0"~"/f4", 버튼 순환·웹 입력 검증 상한)
 #define LONG_PRESS_TIME_MS 1000
 #define DEBOUNCE_TIME_MS 50
 #define WIFI_CONFIG_TIMEOUT 120

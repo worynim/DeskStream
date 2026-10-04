@@ -23,8 +23,8 @@
  * @brief 개별 화면의 애니메이션 연산을 위한 데이터 스냅샷
  */
 struct ScreenAnimData {
-    CharData oldChars[8];
-    CharData newChars[8];
+    CharData oldChars[LAYOUT_MAX_CHARS];
+    CharData newChars[LAYOUT_MAX_CHARS];
     int oldCount = 0;
     int newCount = 0;
     bool changed = false;
@@ -52,14 +52,12 @@ public:
     U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_1, u8g2_2, u8g2_3, u8g2_4;
     U8G2* screens[NUM_SCREENS];
     uint8_t u8g2_buffers[NUM_SCREENS][SCREEN_WIDTH * PAGES_PER_SCREEN]; 
-    TaskHandle_t main_task_handle = nullptr;
     String lastTexts[4];
 
     DisplayManager();
 
     void begin();
     void setFlipDisplay(bool flip);
-    void applyFlip();
     void setChime(bool enable);
     void setForceUpdate(bool force);
     void setFontSlot(uint8_t slot);
@@ -98,20 +96,17 @@ public:
     void showLargeIP(IPAddress ip);
     void showButtonHelp();
     void showStatus(const String& msg);
-    void recoverI2CBus(); // I2C 버스 및 디스플레이 복구 로직
     void playStartupMelody(); // 시작 멜로디 재생
     void playChimeMelody(); // 시보 멜로디 재생
 
 private:
-    uint32_t hw_i2c_error_count = 0;
-    const uint32_t I2C_ERROR_THRESHOLD = 50; 
     bool _needsForceUpdate = false;
     String _slotNames[5];
     void (*on_yield_callback)() = nullptr;
     TimerHandle_t buzzerTimer = NULL;
     AnimationState _animState;
     
-    void drawCenterText(int idx, const String& text, bool centered);
+    void drawCenterText(int idx, const String& text);
     void renderAnimFrame(int screenIdx, int step); // 단일 프레임 렌더링 내부 함수
 
     /**

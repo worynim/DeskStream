@@ -57,14 +57,23 @@ void ConfigManager::load() {
 void ConfigManager::setDirty() {
     _isDirty = true;
     if (_saveTimer != NULL) {
-        // 타이머를 재시작/리셋 (이미 실행 중이면 3초 대기 시간이 초기화됨)
+        // 타이머를 재시작/리셋 (이미 실행 중이면 5초 대기 시간이 초기화됨 — xTimerCreate의 5000ms와 일치)
         xTimerReset(_saveTimer, 0);
-        Serial.println("[CONFIG] Save requested (Lazy save in 3s...)");
+        Serial.println("[CONFIG] Save requested (Lazy save in 5s...)");
     }
 }
 
 void ConfigManager::saveNow() {
     if (!_isDirty) return;
+
+    // [리뷰 §3.4] 검증은 **한 개라도 실패하면 전체를 건너뛴다.**
+    //   이전엔 나머지 9개 필드를 먼저 써 두고 timezone만 건너뛰었는데, 그러면
+    //   사용자는 "설정이 저장됐다"는 로그만 보고 재부팅하면 바뀐 값이 사라지는
+    //   상태가 된다. 부분 저장은 조용한 데이터 손실로 이어진다.
+    if (!isValidTimezone(_settings.timezone)) {
+        Serial.println("[CONFIG] Refusing to persist: invalid timezone. Settings left unchanged.");
+        return;
+    }
 
     if (!_prefs.begin("clock", false)) { // Read-write mode
         Serial.println("[CONFIG] Error: Could not open Preferences for writing!");
@@ -80,12 +89,7 @@ void ConfigManager::saveNow() {
     _prefs.putString("font_name", _settings.font_name);
     _prefs.putUChar("slot", _settings.font_slot);
     _prefs.putUChar("bright", _settings.brightness);
-    // setenv()로 나가는 값이므로 검증 통과한 문자열만 저장한다.
-    if (isValidTimezone(_settings.timezone)) {
-        _prefs.putString("tz", _settings.timezone);
-    } else {
-        Serial.println("[CONFIG] Refusing to persist invalid timezone.");
-    }
+    _prefs.putString("tz", _settings.timezone);
 
     _prefs.end();
     _isDirty = false;

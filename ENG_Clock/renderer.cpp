@@ -73,6 +73,33 @@ const uint8_t* Renderer::getCharDataPtr(const CachedChar* cc) const {
     return flatBuffer + cc->offset;
 }
 
+/**
+ * @brief 구버전 구조(루트에 c_XX.bin)에서 슬롯 구조(/fN/)로 한 번만 마이그레이션
+ * @details [리뷰 §5] 루트에 c_30.bin이 있고 /f0에 없을 때만 돈다.
+ *          이후 세 Stage(스캔/할당/로드)와 무관 — 한 번만 실행되는
+ *          파일 이동이므로 loadBitmapCache() 본체에서 분리했다.
+ */
+static void migrateLegacyFontsToSlot0() {
+    if (!LittleFS.exists("/c_30.bin") || LittleFS.exists("/f0/c_30.bin")) return;
+
+    logger.addLog("Migrating fonts to /f0...");
+    LittleFS.mkdir("/f0");
+    File r = LittleFS.open("/");
+    File f = r.openNextFile();
+    while (f) {
+        String n = f.name();
+        if (n.startsWith("c_") && n.endsWith(".bin")) {
+            f.close();   // 닫아야 rename이 될 수 있다
+            LittleFS.rename("/" + n, "/f0/" + n);
+        } else {
+            f.close();
+        }
+        f = r.openNextFile();
+    }
+    r.close();
+    logger.updateLastLog("Migration Done.");
+}
+
 void Renderer::loadBitmapCache(int slot) {
     // [§6.16] 잉크 폭은 이번 로드의 결과다. 중간에 return하는 경로(디렉터리 아님,
     // malloc 실패)가 clearCache()를 거치지 않아 이전 값이 남을 수 있으므로
@@ -85,27 +112,7 @@ void Renderer::loadBitmapCache(int slot) {
 
     logger.addLog("Bitmap Pre-scanning (Slot " + String(slot) + ")");
 
-    // --- 마이그레이션 로직: 루트의 파일을 /f0으로 이동 ---
-    if (LittleFS.exists("/c_30.bin") && !LittleFS.exists("/f0/c_30.bin")) {
-        logger.addLog("Migrating fonts to /f0...");
-        LittleFS.mkdir("/f0");
-        File r = LittleFS.open("/");
-        File f = r.openNextFile();
-        while (f) {
-            String n = f.name();
-            if (n.startsWith("c_") && n.endsWith(".bin")) {
-                String oldP = "/" + n;
-                String newP = "/f0/" + n;
-                f.close(); // 닫아야 이동 가능할 수도 있음
-                LittleFS.rename(oldP, newP);
-                f = r.openNextFile();
-            } else {
-                f.close();
-                f = r.openNextFile();
-            }
-        }
-        logger.updateLastLog("Migration Done.");
-    }
+    migrateLegacyFontsToSlot0();
 
     String path = "/f" + String(slot);
     if (!LittleFS.exists(path)) {
