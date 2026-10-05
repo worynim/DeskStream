@@ -1,0 +1,4 @@
+# test/run_all.sh가 만드는 네이티브 C++ 테스트 산출물
+#   - 테스트 바이너리 (test_tz_util, test_layout …)
+#   - 컴파일 로그 (*.log) — 컴파일 실패 때 에러가 담긴다
+.build/
