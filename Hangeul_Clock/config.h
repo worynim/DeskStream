@@ -103,6 +103,23 @@
 // === [11] UI 및 버튼 동작 상수 ===
 #define UI_STAGE_COUNT 3
 #define FONT_SLOT_COUNT 5         // 폰트 슬롯 수 (경로 "/f0"~"/f4", 버튼 순환·웹 입력 검증 상한)
+/**
+ * 슬롯 이름표(폰트 파일 이름)의 최대 길이 — 바이트 단위, UTF-8. 이것을 **넘으면 거부**한다.
+ * @details [A-2④ 수정 — 2026-10-06, 중국어판 §12.14 승계] 예전엔 `name.length() >= 32`
+ *          (실질 31바이트)였다. 그 근거 주석은 "이름을 \"/fN/name.txt\" 파일명으로도 쓴다"였는데
+ *          **사실이 아니다** — 경로는 `"/f" + String(slot) + "/name.txt"` 라는 **리터럴**이고,
+ *          이름은 그 파일의 **내용**으로만 들어간다. 이름이 흘러가는 곳은 전부 길이 제한이 없다:
+ *            · `f.print(name)`  → name.txt 의 내용 (LittleFS)
+ *            · `jsonEscape()`   → /api/config JSON (web_manager 가 출구에서 이스케이프)
+ *            · `SystemSettings::font_name` = **String** (고정 버퍼 아님) → NVS putString
+ *          중국어판 실기에서 `MFXuanRen_Noncommercial-Regular.ttf`(35바이트)가 이 상한에 걸려
+ *          **조용히** 거부됐고 슬롯이 "Empty Slot"으로 보였다. 라이선스 접미사
+ *          (`-Noncommercial-Regular` = 24바이트)가 붙으면 ASCII 이름도 금방 31을 넘는다.
+ *          완전히 없애지는 않는다 — 이름은 JSON 응답과 드롭다운에 실리므로 무한정 받을
+ *          이유가 없다. **늘리려면 이 한 곳만** 고치면 된다.
+ */
+#define FONT_NAME_MAX_LEN 64
+
 #define LONG_PRESS_TIME_MS 1000
 #define DEBOUNCE_TIME_MS 50
 #define WIFI_CONFIG_TIMEOUT 120

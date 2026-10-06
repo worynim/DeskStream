@@ -83,7 +83,7 @@ void DisplayManager::begin() {
                 f.close();
             }
         } else {
-            _slotNames[i] = "Empty";
+            _slotNames[i] = "Empty Slot";   // [A-4 수정] setFontSlot()의 빈 슬롯 표기와 같은 문자열
         }
     }
 }
@@ -148,27 +148,50 @@ String DisplayManager::getSlotName(uint8_t slot) {
     return _slotNames[slot];
 }
 
-void DisplayManager::setFontName(const String& name) {
-    // [리뷰 §3.3] 이 값은 (1) JSON 응답에 붙고 (2) name.txt 파일명으로도 쓰인다.
-    //   출구 이스케이프만으로는 경로 조작이 남으므로 **입력에서** 막는다.
-    if (name.length() == 0 || name.length() >= 32) return;
+/**
+ * @brief 이름표를 **지정한 슬롯**에 쓴다 — 파일·캐시·(현재 슬롯이면) config까지
+ * @details [A-2③④ 수정 — 2026-10-06, 중국어판 §12.13/§12.14 승계] 검증과 파일 쓰기를
+ *          이 한 곳에 모은다. 검증을 두 곳에 두면 한쪽만 고쳐졌을 때 어느 쪽이 진짜
+ *          규칙인지 알 수 없다.
+ */
+bool DisplayManager::setSlotName(uint8_t slot, const String& name) {
+    if (slot >= FONT_SLOT_COUNT) return false;
+
+    // [리뷰 §3.3 승계 / A-2④ 수정] 이 값은 (1) JSON 응답에 붙고 (2) "/fN/name.txt" 의
+    //   **내용**으로 쓰인다. 경로는 리터럴이라 이름이 경로 조작을 일으키지 않으므로
+    //   (config.h FONT_NAME_MAX_LEN 주석 참조) 상한은 **길이 폭주 방지** 목적이다.
+    //   ⚠ 예전의 `>= 32`(실질 31바이트)는 "이름을 파일명으로도 쓴다"는 잘못된 전제에서
+    //     나온 값이었고, 실제 폰트 이름을 **조용히** 거부해 슬롯이 "Empty Slot"으로 보이게 했다.
+    //   `"` `\` `/` 제어문자 금지는 그대로 둔다 — 이름은 사람이 읽는 값이고 여기 들어올
+    //   이유가 없다 (경로 조작 방어가 아니라 **출력 위생** 목적이다).
+    if (name.length() == 0 || name.length() > FONT_NAME_MAX_LEN) return false;
     for (size_t i = 0; i < name.length(); i++) {
         const char c = name[i];
-        if (c == '"' || c == '\\' || c == '/' || c < 0x20) return;
+        if (c == '"' || c == '\\' || c == '/' || c < 0x20) return false;
     }
-    if (configManager.get().font_name == name) return;
-    
-    configManager.get().font_name = name;
-    _slotNames[configManager.get().font_slot] = name; // 캐시 업데이트
-    configManager.setDirty();
-    
-    // 현재 슬롯 폴더에 name.txt 저장
-    String path = "/f" + String(configManager.get().font_slot) + "/name.txt";
+
+    // 이미 그 슬롯의 이름이면 파일을 다시 쓰지 않는다 — 글리프 업로드가 40회 부른다.
+    if (_slotNames[slot] == name) return true;
+
+    const String path = "/f" + String(slot) + "/name.txt";
     File f = LittleFS.open(path, "w");
-    if (f) {
-        f.print(name);
-        f.close();
+    if (!f) return false;      // 슬롯 폴더가 없거나 열 수 없다 — 캐시를 갱신하지 않고 알린다
+    f.print(name);
+    f.close();
+
+    _slotNames[slot] = name;   // 드롭다운이 읽는 곳
+
+    // 현재 슬롯의 이름표를 바꾼 경우에만 config까지 — 다른 슬롯을 고치는 것이
+    //   지금 화면의 "현재 적용 폰트" 표시를 흔들면 안 된다.
+    if (configManager.get().font_slot == slot && configManager.get().font_name != name) {
+        configManager.get().font_name = name;
+        configManager.setDirty();
     }
+    return true;
+}
+
+void DisplayManager::setFontName(const String& name) {
+    setSlotName(configManager.get().font_slot, name);
 }
 
 void DisplayManager::setFontSlot(uint8_t slot) {
@@ -181,17 +204,24 @@ void DisplayManager::setFontSlot(uint8_t slot) {
     
     configManager.get().font_slot = slot;
     
-    // 새 슬롯의 이름 로드
+    // 새 슬롯의 이름 로드 — config(현재 이름)와 _slotNames(슬롯 목록용)를 **같이** 갱신한다.
+    //   [A-3 수정] 예전엔 configManager.font_name만 갱신했으므로, 슬롯을 옮겨도
+    //   /api/config가 내보내는 slotNames는 **부팅 시점에 읽은 값**으로 남아 있었다.
     String path = "/f" + String(slot) + "/name.txt";
+    String name;
     if (LittleFS.exists(path)) {
         File f = LittleFS.open(path, "r");
         if (f) {
-            configManager.get().font_name = f.readString();
+            name = f.readString();
             f.close();
         }
-    } else {
-        configManager.get().font_name = "Empty Slot";
     }
+    // 파일이 없거나(빈 슬롯) 열지 못했거나(내용 없음) — 셋을 같은 문자열로 좁힌다.
+    //   [A-4 수정] 부팅 캐시의 빈 슬롯 표기와 **같은 문자열**이어야 한다.
+    //   다른 이름이 섞이면 같은 상태가 두 이름으로 보인다.
+    if (name.length() == 0) name = "Empty Slot";
+    configManager.get().font_name = name;
+    _slotNames[slot] = name;
     
     configManager.setDirty();
     

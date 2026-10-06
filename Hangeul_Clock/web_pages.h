@@ -214,6 +214,19 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
             document.getElementById('inv').appendChild(d);
         });
 
+        /**
+         * 배지의 "업로드됨" 표시를 **전부** 지운다
+         * @note [B-1 수정 — 2026-10-06, 중국어판 §12.9 승계] 배지 상태는 **슬롯마다 다르다**.
+         *       그런데 지금 슬롯에 어떤 글자가 들어 있는지 펌웨어에 물어볼 수 없다(그런 API가
+         *       없다). 그래서 슬롯을 바꾸면 이전 슬롯의 표시를 물려받은 **거짓 표시**를 지우는
+         *       것이 정직하다 — "모른다"를 "있다"로 표시하지 않는다.
+         * @note 업로드(processAll)는 슬롯을 바꾸지 않고 끝까지 진행되므로, 이 초기화가
+         *       실제로 일어나는 순간은 슬롯을 **고르는** 때뿐이다.
+         */
+        function clearInventoryState() {
+            document.querySelectorAll('#inv .badge').forEach(b => b.classList.remove('active'));
+        }
+
         /** Custom 모드 여부에 따라 TZ 입력칸을 편집 가능/읽기전용으로 전환한다 */
         function setTzEditable(editable, value) {
             els.tzCustom.readOnly = !editable;
@@ -297,7 +310,17 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
             }
         }
 
-        [els.anim, els.disp, els.hour, els.chime, els.flip, els.invert, els.slot].forEach(el => el.onchange = saveConfig);
+        // [B-1 수정 — 2026-10-06] `els.slot`은 여기서 바인딩하지 않는다 — 아래 전용 핸들러가
+        //   더 한다. 여기서도 바인딩하면 그 핸들러가 **덮어써** 어느 쪽이 이기는지 알 수 없다
+        //   (중국어판이 §12.7 결함 A로 정확히 이 함정을 밟았다).
+        [els.anim, els.disp, els.hour, els.chime, els.flip, els.invert].forEach(el => el.onchange = saveConfig);
+        // 슬롯 변경 = 저장 + **배지 상태 초기화**.
+        //   [B-1] 슬롯만 바꿨는데 slot0에서 올린 글자가 여전히 "업로드됨"으로 표시돼,
+        //   slot1에 없는 글자가 있는 것처럼 보였다 — 배지 DOM은 하나뿐이기 때문이다.
+        els.slot.onchange = () => {
+            saveConfig();
+            clearInventoryState();
+        };
         els.brIn.oninput = () => { els.brVal.innerText = els.brIn.value; };
         els.brIn.onchange = saveConfig;
         // 시간대 선택: 옵션의 value가 곧 POSIX TZ 문자열이므로 별도 매핑 테이블이 없다.
@@ -671,8 +694,27 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
 
         async function processAll() {
             els.apply.disabled = true; els.pWrap.style.display = "block";
+            // [A-2① 수정 — 2026-10-06, 중국어판 §12.13 승계] 업로드 대상 슬롯을 **한 번만
+            //   읽어서 고정**한다. 아래 40회의 fetch 사이에 사용자가 슬롯을 바꾸거나
+            //   저장 POST가 늦으면 els.slot.value가 흔들린다. 글리프는 그때그때의 값으로
+            //   보내면 도착점이 달라지고, 이름표는 펌웨어가 가진 font_slot(=첫 시점 값)에
+            //   기록되어 **글리프는 /f1에, 이름표는 /f0에** 남는다 → "업로드한 이름이 안 보인다".
+            const targetSlot = els.slot.value;
+
+            // [A-2①] 폰트 이름도 **같은 이유로 한 번만 읽어 고정**하고, 글리프를 보내는
+            //   **같은 요청**에 실어 보낸다(?font=). 예전엔 업로드가 끝난 뒤 별도의
+            //   /api/config POST로만 이름을 보냈고 그마저 font 파일이 선택된 경우에만 나갔다.
+            //   그 요청이 빠지면 슬롯에는 글리프만 남고 이름표(/fN/name.txt)가 없어
+            //   드롭다운이 "Empty Slot"으로 보였다 (사용자 보고: 폰트를 넣었는데 비어 보인다).
+            const fontName = els.fIn.files[0] ? els.fIn.files[0].name : '';
+            if (!fontName) {
+                // 이름 없이 올리면 이 결함이 그대로 재발한다 — 조용히 진행하지 않는다.
+                els.status.innerText = "⚠ 1. 폰트를 먼저 선택하세요 — 슬롯 이름표가 그 파일명으로 저장됩니다.";
+                els.apply.disabled = false; els.pWrap.style.display = "none";
+                return;
+            }
             // 업로드 시작 전 모든 배지 초기화 (어둡게)
-            UNIQ_CHARS.forEach(c => document.getElementById('b_'+c).classList.remove('active'));
+            clearInventoryState();
             
             const tC = document.createElement('canvas'); tC.width = 64; tC.height = 64;
             const tX = tC.getContext('2d');
@@ -691,11 +733,25 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
                 // 해당 글자 배지 강조 (업로드 시도 시점)
                 document.getElementById('b_'+char).classList.add('active');
                 
-                await fetch(`/upload?slot=${els.slot.value}`, { method: 'POST', body: fd });
+                // ⚠ name 은 **encodeURIComponent** — 한글 파일명은 UTF-8 다바이트라
+                //   그대로 넣으면 쿼리 문자열이 깨진다. 펌웨어 server.arg()가 디코드한다.
+                await fetch(`/upload?slot=${targetSlot}&font=${encodeURIComponent(fontName)}`,
+                            { method: 'POST', body: fd });
                 els.pFill.style.width = ((i+1)/UNIQ_CHARS.length * 100) + "%";
             }
             await fetch('/api/refresh_cache', { method: 'POST' });
-            if (els.fIn.files[0]) await fetch('/api/config', { method: 'POST', body: JSON.stringify({ font_name: els.fIn.files[0].name }) });
+            // [A-2①] 이름표는 위 업로드가 **이미 그 슬롯에** 썼다. 이 POST는 이제 이름을
+            //   위한 것이 아니라 **장치의 현재 슬롯을 업로드한 슬롯으로 옮기기** 위한
+            //   것이다(그래야 올린 폰트가 바로 화면에 뜬다). font_name도 함께 보내지만
+            //   업로드가 실패했더라도 살아남는 이중 안전장치일 뿐이다 — **여기에 기대면
+            //   예전처럼 "조용히 빈 슬롯"이 재발한다.**
+            //   ⚠ 슬롯을 명시하는 이유: 펌웨어 handleSetConfig가 font_slot을 font_name보다
+            //     먼저 적용하므로(configManager.font_slot에 쓰인다) 같은 슬롯에 기록된다.
+            //     그 **순서가 계약**이다 — 바꾸면 재도입된다.
+            await fetch('/api/config', {
+                method: 'POST',
+                body: JSON.stringify({ font_slot: parseInt(targetSlot), font_name: fontName })
+            });
             els.status.innerText = "전체 업로드 완료!"; els.apply.disabled = false;
         }
     </script>

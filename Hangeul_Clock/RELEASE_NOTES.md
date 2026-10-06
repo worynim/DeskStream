@@ -1,5 +1,64 @@
 # Release Notes - Hangeul Clock
 
+## [v2.9.2] ✅ 커밋완료 - 2026-10-06
+### 🔁 Chinese_Clock 실기에서 확인된 결함 6건 전파 (언어 중립)
+중국어판을 만들며 실기에서 드러난 결함 중 **한글판에도 그대로 있는 것**을 소스로 대조해 확인하고
+고쳤습니다(중국어판 `PLAN.md` §📌). 그중 A-2 는 **원인 4개가 한 세트**라 하나만 고치면 화면이
+그대로입니다 — 넷을 함께 고쳤습니다(중국어판은 세 번에 나눠 고쳤습니다).
+
+### 🐛 A-1 · 웹페이지가 **백지**로 뜬다
+- **증상**: 시리얼에는 `[WEB] WebManager started` 가 정상으로 찍히고 크래시도 없는데 브라우저에는 아무것도 안 뜹니다.
+- **원인**: `handleRoot()` 가 `server.send()` 로 PROGMEM 페이지를 보냈습니다. ESP32 WebServer 코어의 `send(int, const char*, const char*)` 는 첫 줄에서 `const String passStr = (String)content;` 로 **전체 페이지를 힙에 복사**합니다(코어도 "Use send_P for long arrays" 라고 경고합니다). 이 기기는 I2C 버퍼 4장을 상시 점유하므로 연속 40~70 KB 할당이 실패하기 쉽고, 그러면 서버는 정상인데 응답만 씻겨 나갑니다 — **크래시도 로그도 없어** 가장 진단이 어려운 부류입니다.
+- **수정**: `server.send_P(200, PSTR("text/html"), font_studio_html)` — `strlen_P()` 로 길이만 재고 스트림으로 내보내므로 복사가 없습니다.
+
+### 🐛 A-2 · 폰트를 올렸는데 드롭다운이 "Empty Slot" 이다 (원인 4개)
+- **① 이름이 업로드와 다른 요청으로, 그것도 조건부로 갔습니다.** 이름은 업로드가 끝난 뒤 별도 `/api/config` POST 로만 전달됐고 `if (els.fIn.files[0])` 조건부였습니다. 그 요청이 빠지거나(폰트 미선택) 늦으면 슬롯에는 글리프만 남습니다.
+  → 이름도 슬롯과 같은 이유로 **시작 시점에 한 번만 읽어 고정**하고, 글리프를 보내는 **같은 요청**(`POST /upload?slot=N&font=<파일명>`)에 실어 보냅니다. 폰트 미선택이면 업로드를 시작하지 않고 이유를 띄웁니다 — 조용히 빈 슬롯을 만들지 않습니다. 한글 파일명은 UTF-8 다바이트이므로 `encodeURIComponent` 로 싣습니다.
+- **② 슬롯을 업로드마다 다시 읽었습니다.** `?slot=${els.slot.value}` 를 40회 각각 읽어, 도중에 값이 흔들리면 도착점이 달라집니다. → `const targetSlot` 으로 고정.
+- **③ 이름표를 "업로드한 슬롯"이 아니라 "현재 슬롯"에 썼습니다.** `setFontName()` 은 `configManager.font_slot` 에 씁니다.
+  → **`setSlotName(slot, name)` 신설**(파일·캐시·현재 슬롯이면 config까지) 후 `setFontName()` 은 위임만 하게 했습니다. 업로드 경로는 `setSlotName()` 만 씁니다.
+- **④ 32바이트 상한이 실제 폰트 이름을 조용히 거부했습니다.** 옛 `name.length() >= 32`(실질 31바이트)의 근거 주석은 "이름을 `/fN/name.txt` 파일명으로도 쓴다" 였는데 **사실이 아닙니다** — 경로는 리터럴이고 이름은 그 파일의 **내용**으로만 들어갑니다. 라이선스 접미사가 붙으면 이름은 금방 31바이트를 넘습니다.
+  → `config.h` 의 **`FONT_NAME_MAX_LEN 64`** 한 곳으로 옮겼습니다(늘리려면 그 한 곳만).
+
+### 🐛 A-3 · 슬롯을 바꿔도 `/api/config` 의 `slot_names` 가 부팅 시점 값이다
+`setFontSlot()` 이 `configManager.font_name` 만 갱신하고 `_slotNames[slot]` 는 건드리지 않았습니다. → 두 값을 **같은 문자열에서 함께** 씁니다.
+
+### 🐛 A-4 · 빈 슬롯 표기가 두 갈래
+부팅 캐시는 `"Empty"`, `setFontSlot()` 은 `"Empty Slot"` 이었습니다. 같은 상태가 두 이름으로 보입니다. → **`"Empty Slot"` 로 통일**.
+
+### 🐛 A-5 · 본문 없는 POST 에 아무 응답도 없다
+`handleSetConfig()` 이 `hasArg("plain")` 가 거짓이면 **아무것도 보내지 않았습니다.** ESP32 WebServer 는 빈 응답을 돌려주고 웹의 `fetch()` 는 그것을 "응답 없음"으로 보고 저장 실패처럼 표시합니다. → **`400 Missing body`** 로 명시적 거절.
+
+### 🐛 B-1 · 슬롯을 바꿔도 "업로드됨" 배지가 이전 슬롯 것을 물려받는다
+배지 상태는 **슬롯마다 다른 사실**인데 배지 DOM 은 하나뿐입니다. → `clearInventoryState()` 를 두고 `els.slot` 에 **전용 핸들러**(저장 + 배지 초기화)를 붙였습니다. 이 판은 `CONFIG_FIELDS` 없이 `[els.anim, …]` 배열로 일괄 바인딩하므로, **그 배열에서 `els.slot` 을 빼야** 전용 핸들러가 덮어써지지 않습니다(중국어판이 이 함정을 §12.7 결함 A 로 밟았습니다).
+
+### 🔧 C · 실패가 침묵하지 않게 (진단)
+- 업로드 START 에서 `[WEB] upload start slot=%d fontArg=%d font='%s'` 를 **무조건** 찍습니다. `fontArg=0` 이면 서버가 못 본 것, `1` 인데 이름표가 안 붙으면 그 뒤 단계의 문제입니다.
+- 이름표 거부 시 `[WEB] Slot name rejected: slot=… name='…' (len=NN; 1..64 bytes, …)` 로 **실제 길이와 상한**을 함께 남깁니다.
+
+### 📁 신규 — `test/js/` 하네스 (이 판에는 **없었습니다**)
+중국어판 `PLAN.md` §📌 C 가 지적한 그대로, 이 판에는 JS 하네스가 없어 **DOM 배선 결함과
+`<script>` 블록이 통째로 죽는 부류**를 잡을 방법이 없었습니다(브라우저에서 처음 알 수밖에 없었습니다).
+
+| 파일 | 내용 |
+|:--|:--|
+| `test/js/extract_from_web_page.mjs` | `web_pages.h` 의 `<script>` 에서 심볼 추출 + 전문(`_full_script.mjs`) 생성 |
+| `test/js/web_fixes_test.mjs` | A-1·A-2·A-3·A-4·A-5·B-1 회귀 **45건** — 배선은 핸들러를 떼어 **실제로 돌려** 확인 |
+| `test/js/run_all.sh` | 추출 → `<script>` **문법 검사**(`node --check`) → 회귀 |
+
+> 눈 조립·분할 플랩의 픽셀 운동학은 아직 `renderer.cpp` 안에 있어(Arduino/U8g2 의존) 순수 모듈이
+> 아니므로 **교차 대조 대상이 아닙니다.** 분리한 뒤 `NAMES` 에 추가하는 것이 남은 과제입니다
+> (`test/README.md` 에 기록).
+
+### ✅ 검증
+- **네이티브 C++ 5종 통과** — `test_tz_util` 43, `test_utf8_len` 20, `test_layout` 14, `test_geometry` 8, `test_i2c_retry_policy` 7.
+- **신설 `test/js/run_all.sh` 통과** — 회귀 **45 passed / 0 failed**.
+- 새 단언 13종을 각각 **되돌려 실패함을 확인**(변이 테스트) — 고치기 전 코드에서 실제로 잡히는지 확인했습니다.
+- **ESP32-C3 실빌드 성공**: `1,287,389 B (98%)`.
+- ⚠️ **남은 확인(실기)**: 슬롯 하나를 다시 업로드해 시리얼에 `[WEB] Slot N name = …` 가 찍히고 5초 뒤 드롭다운이 `Slot N (파일명)` 으로 바뀌는지 봐야 합니다.
+
+---
+
 ## [v2.9.1] ✅ 커밋완료 - 2026-10-04
 ### 🔍 제로베이스 코드 리뷰 반영
 코드만 읽고(기존 문서·메모리 제외) 처음부터 리뷰한 결과를 조치했습니다. 사용자-visible 동작이 바뀌는 수정은 별도로 표시합니다.

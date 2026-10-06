@@ -41,7 +41,7 @@ g++ -std=c++11 -I.. test_utf8_len.cpp -o /tmp/test_utf8_len && /tmp/test_utf8_le
 | `time_crosscheck.mjs` | 영어 시간 표현 대조 |
 | `packGlyph_test.mjs` | 래스터라이저 (TTF → 비트맵) |
 | `preview_cache_test.mjs` | 미리보기 캐시 (버그 회귀) |
-| `web_fixes_test.mjs` | 웹 수정 회귀 (버그 1·2·3) |
+| `web_fixes_test.mjs` | 웹 수정 회귀 (버그 1·2·3) + 중국어판 §📌 전파분 A-1·A-2·A-3·A-4·A-5·B-1 |
 | `firmware_wiring_test.mjs` | 펌웨어 배선 회귀 (수정 1·2·3) |
 | `extract_from_web_page.mjs` | `web_pages.h` → `_extracted.mjs` 추출 (배포본 그대로 검증) |
 | `make_baseline_check.mjs` | 세로 중앙 정렬 수동 검증 페이지 → `/tmp/eng_bias_check.html` |

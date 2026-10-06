@@ -82,7 +82,22 @@ public:
      */
     void applyTimezone();
 
+    /**
+     * @brief 현재 슬롯의 이름표를 바꾼다 (웹 /api/config 의 font_name)
+     * @note 실제 쓰기는 setSlotName()이 한다. **업로드 경로는 이 함수를 쓰면 안 된다** —
+     *       업로드 슬롯과 현재 슬롯이 다르면 이름표가 엉뚱한 폴더로 간다.
+     */
     void setFontName(const String& name);
+
+    /**
+     * @brief 이름표를 **지정한 슬롯**에 쓴다 — 파일·캐시·(현재 슬롯이면) config까지
+     * @details [A-2③ 수정 — 2026-10-06, 중국어판 §12.13 승계] 검증과 파일 쓰기가 여기
+     *          한 곳에 모여 있다. 웹 업로드 경로(`?slot=N&font=…`)는 반드시 이 함수를 쓴다 —
+     *          setFontName()은 장치의 **현재** 슬롯(font_slot)에 쓰므로, 업로드 슬롯과
+     *          다르면 글리프는 /f1에, 이름표는 /f0에 남아 드롭다운이 "Empty Slot"이 된다.
+     * @return false면 거부(빈 이름·길이 초과·금지문자·파일 열기 실패) — 호출자가 로그를 남긴다
+     */
+    bool setSlotName(uint8_t slot, const String& name);
     void loadBitmapCache();
     void clearAll();
     void beep(int duration = 50, int freq = 3000);
