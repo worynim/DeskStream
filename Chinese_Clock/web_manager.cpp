@@ -372,5 +372,11 @@ int WebManager::parseVal(const String& body, const String& key) {
 }
 
 bool WebManager::parseBool(const String& body, const String& key) {
-    return body.indexOf("\"" + key + "\":true") != -1;
+    int pos = body.indexOf("\"" + key + "\"");
+    if (pos == -1) return false;
+    int colon = body.indexOf(':', pos + key.length() + 2);
+    if (colon == -1) return false;
+    int start = colon + 1;
+    while (start < body.length() && (body[start] == ' ' || body[start] == '\t')) start++;
+    return body.startsWith("true", start);
 }

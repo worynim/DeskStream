@@ -1,5 +1,12 @@
 # Release Notes - Hangeul Clock
 
+## [v2.9.3] - 2026-10-07
+### 🐛 버그 수정 및 안정성 개선
+- **HW I2C Dirty 플래그 미초기화 수정**: `DisplayManager::pushParallel()` 시작 시 `g_any_hw_dirty`를 `false`로 리셋하도록 수정. 변경 사항이 없는 프레임에서 불필요한 I2C 백그라운드 태스크 통지가 발생하던 문제 차단.
+- **웹 미리보기 1자 정렬 동기화**: `web_pages.h`의 `getCharPositions()`에 `count === 1` 중앙 정렬 처리를 반영하여 펌웨어 `layoutCharX()`와 일치시킴.
+- **JSON 불리언 파서 공백 지원**: `WebManager::parseBool()`에서 콜론 뒤 공백/탭을 건너뛰도록 처리하여 표준 서식 JSON(`"key": true`) 파싱 지원.
+- **문자열 버퍼 안전성 강화**: `DisplayManager::showButtonHelp()` 내 `sprintf`를 `snprintf`로 전면 교체.
+
 ## [v2.9.2] ✅ 커밋완료 - 2026-10-06
 ### 🔁 Chinese_Clock 실기에서 확인된 결함 6건 전파 (언어 중립)
 중국어판을 만들며 실기에서 드러난 결함 중 **한글판에도 그대로 있는 것**을 소스로 대조해 확인하고

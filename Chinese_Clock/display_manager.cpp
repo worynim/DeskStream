@@ -752,17 +752,17 @@ void DisplayManager::showButtonHelp() {
     //   → 라틴 약어(SIM/TRAD/NUM)으로 두고, 한자 표기는 Step 10 이후 재검토한다.
     //   BTN2 short가 3단계(简体/繁體/數字)를 순환하므로 약어도 3개여야 한다.
     char chimeStr[20], animStr[32], modeStr[16], fmtStr[16], fontStr[20];
-    sprintf(chimeStr, "S:CHIME(%s)", configManager.get().chime_enabled ? "ON" : "OFF");
-    sprintf(animStr, "S:ANIMATION MODE %d", configManager.get().anim_mode);
+    snprintf(chimeStr, sizeof(chimeStr), "S:CHIME(%s)", configManager.get().chime_enabled ? "ON" : "OFF");
+    snprintf(animStr, sizeof(animStr), "S:ANIMATION MODE %d", configManager.get().anim_mode);
     const char* presTag = (presentation() == PRESENTATION_TRADITIONAL) ? "TRAD"
                           : (presentation() == PRESENTATION_NUMERIC)  ? "NUM"
                                                                       : "SIM";
-    sprintf(modeStr, "S:CHAR(%s)", presTag);
-    sprintf(fmtStr, "L:12/24 (%s)", configManager.get().hour_format == HOUR_FORMAT_24H ? "24H" : "12H");
+    snprintf(modeStr, sizeof(modeStr), "S:CHAR(%s)", presTag);
+    snprintf(fmtStr, sizeof(fmtStr), "L:12/24 (%s)", configManager.get().hour_format == HOUR_FORMAT_24H ? "24H" : "12H");
     const char* shorts[4] = {chimeStr, modeStr, animStr, "S:NEXT PAGE"};
     char flipStr[16];
-    sprintf(flipStr, "L:FLIP (%s)", configManager.get().is_flipped ? "ON" : "OFF");
-    sprintf(fontStr, "L:FONT CHANGE(%d)", configManager.get().font_slot);
+    snprintf(flipStr, sizeof(flipStr), "L:FLIP (%s)", configManager.get().is_flipped ? "ON" : "OFF");
+    snprintf(fontStr, sizeof(fontStr), "L:FONT CHANGE(%d)", configManager.get().font_slot);
     const char* longs[4]  = {flipStr,  fmtStr, fontStr,  "L:INVERT"};
     for (int i = 0; i < 4; i++) {
         screens[i]->clearBuffer();

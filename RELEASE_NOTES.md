@@ -1,3 +1,10 @@
+## [v4.13.0] - 2026-10-07
+### 🐛 Bug Fixes & Stability (Hangeul_Clock, Chinese_Clock, ENG_Clock)
+- **JSON 파서 공백 호환성 개선 (공통)**: `WebManager::parseBool()`에서 콜론 뒤 공백/탭을 허용하도록 처리하여 서식화된 JSON 입력 처리 안정화.
+- **문자열 버퍼 안전성 강화 (공통)**: `DisplayManager::showButtonHelp()` 내 `sprintf`를 `snprintf`로 전면 교체하여 버퍼 오버플로우 방지.
+- **HW I2C Dirty 플래그 미초기화 수정 (Hangeul_Clock)**: `pushParallel()` 시작 시 `g_any_hw_dirty` 초기화 추가로 불필요한 RTOS 태스크 통지 차단.
+- **웹 미리보기 1자 정렬 동기화 (Hangeul_Clock)**: `web_pages.h`의 `getCharPositions()`에 단일 글자 중앙 정렬 로직 동기화.
+
 ## [v4.12.0] ✅ 커밋완료 - 2026-10-02 19:10
 ### Major Update (ENG_Clock: English Language Clock 신규 프로젝트)
 - **신규 서브 프로젝트 ENG_Clock v1.0.0**: `Hangeul_Clock` v2.6.0의 기능·품질을 100% 유지하면서 텍스트만 영어로 교체한 영어 단어 시계. 

@@ -458,8 +458,12 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
         function getCharPositions(text, isCentered) {
             const chars = Array.from(text), count = chars.length;
             if (count === 0) return [];
-            let startX = (isCentered) ? (128 - count * 32) / 2 : (96 - (count - 1) * 32) / 2;
-            return chars.map((c, i) => ({ c, x: (isCentered || i < count - 1) ? (startX + i * 32) : 96 }));
+            if (isCentered || count === 1) {
+                const startX = (128 - count * 32) / 2;
+                return chars.map((c, i) => ({ c, x: startX + i * 32 }));
+            }
+            const startX = (96 - (count - 1) * 32) / 2;
+            return chars.map((c, i) => ({ c, x: (i === count - 1) ? 96 : startX + i * 32 }));
         }
 
         function drawChimeIcon(ctx) {

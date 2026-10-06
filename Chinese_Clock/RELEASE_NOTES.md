@@ -1,5 +1,10 @@
 # Release Notes - Chinese Clock (중국어 단어 시계)
 
+## [v1.0.1] - 2026-10-07
+### 🐛 버그 수정 및 안정성 개선
+- **JSON 불리언 파서 공백 지원**: `WebManager::parseBool()`에서 콜론 뒤 공백/탭을 건너뛰도록 처리하여 표준 서식 JSON(`"key": true`) 파싱 지원.
+- **문자열 버퍼 안전성 강화**: `DisplayManager::showButtonHelp()` 내 `sprintf`를 `snprintf`로 전면 교체.
+
 ## [v1.0.0] — 2026-10-05
 
 `Hangeul_Clock` v2.9.1 / `ENG_Clock` v1.0.1의 하드웨어·UI·애니메이션·웹 파이프라인을 승계하고,

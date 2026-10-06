@@ -708,14 +708,14 @@ void DisplayManager::showButtonHelp() {
     const char* titles[4] = {"BTN 1", "BTN 2", "BTN 3", "BTN 4"};
     // modeStr은 "S:MODE(WORD)"(12자) + NUL = 13바이트가 필요하다. (원본 "HAN"은 11바이트)
     char chimeStr[20], animStr[32], modeStr[16], fmtStr[16], fontStr[20];
-    sprintf(chimeStr, "S:CHIME(%s)", configManager.get().chime_enabled ? "ON" : "OFF");
-    sprintf(animStr, "S:ANIMATION MODE %d", configManager.get().anim_mode);
-    sprintf(modeStr, "S:MODE(%s)", configManager.get().display_mode == CLOCK_MODE_WORD ? "WORD" : "NUM");
-    sprintf(fmtStr, "L:12/24 (%s)", configManager.get().hour_format == HOUR_FORMAT_24H ? "24H" : "12H");
+    snprintf(chimeStr, sizeof(chimeStr), "S:CHIME(%s)", configManager.get().chime_enabled ? "ON" : "OFF");
+    snprintf(animStr, sizeof(animStr), "S:ANIMATION MODE %d", configManager.get().anim_mode);
+    snprintf(modeStr, sizeof(modeStr), "S:MODE(%s)", configManager.get().display_mode == CLOCK_MODE_WORD ? "WORD" : "NUM");
+    snprintf(fmtStr, sizeof(fmtStr), "L:12/24 (%s)", configManager.get().hour_format == HOUR_FORMAT_24H ? "24H" : "12H");
     const char* shorts[4] = {chimeStr, modeStr, animStr, "S:NEXT PAGE"};
     char flipStr[16];
-    sprintf(flipStr, "L:FLIP (%s)", configManager.get().is_flipped ? "ON" : "OFF");
-    sprintf(fontStr, "L:FONT CHANGE(%d)", configManager.get().font_slot);
+    snprintf(flipStr, sizeof(flipStr), "L:FLIP (%s)", configManager.get().is_flipped ? "ON" : "OFF");
+    snprintf(fontStr, sizeof(fontStr), "L:FONT CHANGE(%d)", configManager.get().font_slot);
     const char* longs[4]  = {flipStr,  fmtStr, fontStr,  "L:INVERT"};
     for (int i = 0; i < 4; i++) {
         screens[i]->clearBuffer();
