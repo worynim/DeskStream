@@ -1,0 +1,157 @@
+// worynim@gmail.com
+/**
+ * @file display_manager.h
+ * @brief 고수준 디스플레이 및 UI 스테이지 관리 클래스 정의
+ * @details 4개 OLED에 대한 통합 렌더링, 시계/IP/도움말 화면 전환 및 애니메이션 트리거 관리
+ * @note [SYNC] ENG_Clock/display_manager.h — applyTimezone() 추가
+ */
+#ifndef DISPLAY_MANAGER_H
+#define DISPLAY_MANAGER_H
+
+#include <U8g2lib.h>
+#include "config.h"
+#include "oled_panel.h"   // OLED_DRIVER 선택에 따라 OledPanel 타입이 정해진다
+#include <pgmspace.h>
+#include <vector>
+#include <map>
+#include <utility>
+#include "i2c_platform.h"
+#include "config_manager.h"
+#include "renderer.h"
+
+/**
+ * @brief 개별 화면의 애니메이션 연산을 위한 데이터 스냅샷
+ */
+struct ScreenAnimData {
+    CharData oldChars[LAYOUT_MAX_CHARS];
+    CharData newChars[LAYOUT_MAX_CHARS];
+    int oldCount = 0;
+    int newCount = 0;
+    bool changed = false;
+};
+
+/**
+ * @brief 전체 디스크레이 애니메이션 상태 제어 구조체
+ */
+struct AnimationState {
+    bool active = false;
+    uint8_t currentStep = 0;
+    uint8_t maxStep = ANIMATION_STEPS_DEFAULT; // 모드별 총 프레임 수
+    uint8_t transitionId = 0;                 // 전환마다 증가 → 눈의 시드가 달라진다
+    unsigned long lastUpdateMs = 0;
+    ScreenAnimData screens[4];
+};
+
+class DisplayManager;
+extern DisplayManager display;
+
+// 외부 인터페이스 함수 포인터 선언 (i2c_platform.h로 이관됨)
+
+class DisplayManager {
+public:
+    /**
+     * @note [BB v1.0.1] 컨트롤러는 `config.h`의 `OLED_DRIVER`로 고른다.
+     *       1.3" 128×64 I2C 모듈은 **겉모습과 주소(0x3C)가 같고 컨트롤러만 다르다**
+     *       (SH1106 / SSD1315 / SSD1306). I2C에 읽기 경로가 없어 소프트웨어로는
+     *       구별할 수 없으므로, 진단 스윕(`BB_DIAG_MODE 1`)으로 눈으로 고른 뒤
+     *       `OLED_DRIVER`를 바꾼다.
+     * @note SH1106은 132열 RAM이라 열 오프셋(+2)이 필요하다 — `OLED_COL_OFFSET`.
+     *       초기화는 U8g2가 처리하고, **프레임 전송의 열 보정은 우리가** 해야 한다
+     *       (프레임 구간의 열 보정은 U8g2가 하고, 전송 구간 정렬만 i2c_platform이 한다).
+     * @note 핀 번호는 U8X8_PIN_NONE(255) — 실제 전송은 i2c_platform.cpp의
+     *       byte_cb(u8x8_byte_bb_N)가 4버스 동시 BitBang으로 처리한다.
+     */
+    OledPanel u8g2_1, u8g2_2, u8g2_3, u8g2_4;
+    U8G2* screens[NUM_SCREENS];
+    uint8_t u8g2_buffers[NUM_SCREENS][SCREEN_WIDTH * PAGES_PER_SCREEN]; 
+    String lastTexts[4];
+
+    DisplayManager();
+
+    void begin();
+    void setFlipDisplay(bool flip);
+    void setChime(bool enable);
+    void setForceUpdate(bool force);
+    void setFontSlot(uint8_t slot);
+    void setInversion(bool invert);
+    void setBrightness(uint8_t brightness);
+    void refreshNow();
+    String getSlotName(uint8_t slot);
+    bool checkForceUpdate();
+    void setDisplayMode(uint8_t mode);
+    void setHourFormat(uint8_t format);
+    void setAnimMode(uint8_t mode);
+
+    /**
+     * @brief 설정된 POSIX TZ를 환경변수에 적용하고 NTP를 재동기화한다
+     * @details lwIP는 UTC를 내부 보관하고 localtime() 호출 시점에 TZ를 적용한다.
+     *          configTzTime()이 setenv("TZ", tz) + tzset()까지 해 준다.
+     *          configTime(오프셋, ...)은 절대 쓰지 않는다 — 코어가 오프셋을
+     *          POSIX TZ로 강제 변환해 설정값을 덮어써서 항상 UTC가 된다.
+     *
+     * @note 입력 검증은 config_manager(로드)와 web_manager(입력)가 이미 수행한다
+     *       (둘 다 tz_util::isValidTimezone). 여기서는 검증된 값만 사용한다.
+     */
+    void applyTimezone();
+
+    /**
+     * @brief 현재 슬롯의 이름표를 바꾼다 (웹 /api/config 의 font_name)
+     * @note 실제 쓰기는 setSlotName()이 한다. **업로드 경로는 이 함수를 쓰면 안 된다** —
+     *       업로드 슬롯과 현재 슬롯이 다르면 이름표가 엉뚱한 폴더로 간다.
+     */
+    void setFontName(const String& name);
+
+    /**
+     * @brief 이름표를 **지정한 슬롯**에 쓴다 — 파일·캐시·(현재 슬롯이면) config까지
+     * @details [A-2③ 수정 — 2026-10-06, 중국어판 §12.13 승계] 검증과 파일 쓰기가 여기
+     *          한 곳에 모여 있다. 웹 업로드 경로(`?slot=N&font=…`)는 반드시 이 함수를 쓴다 —
+     *          setFontName()은 장치의 **현재** 슬롯(font_slot)에 쓰므로, 업로드 슬롯과
+     *          다르면 글리프는 /f1에, 이름표는 /f0에 남아 드롭다운이 "Empty Slot"이 된다.
+     * @return false면 거부(빈 이름·길이 초과·금지문자·파일 열기 실패) — 호출자가 로그를 남긴다
+     */
+    bool setSlotName(uint8_t slot, const String& name);
+    void loadBitmapCache();
+    void clearAll();
+    void beep(int duration = 50, int freq = 3000);
+    void setYieldCallback(void (*cb)());
+    void updateAll(String inTexts[4], bool force = false);
+    void updateTick(); // 비차단 애니메이션 진행을 위한 티커
+    bool isAnimating() const { return _animState.active; }
+
+    // 헬퍼 및 유틸리티
+    void pushParallel();
+    void showLargeIP(IPAddress ip);
+    void showButtonHelp();
+    void showStatus(const String& msg);
+    void playStartupMelody(); // 시작 멜로디 재생
+    void playChimeMelody(); // 시보 멜로디 재생
+
+private:
+    bool _needsForceUpdate = false;
+    String _slotNames[5];
+    void (*on_yield_callback)() = nullptr;
+    TimerHandle_t buzzerTimer = NULL;
+    AnimationState _animState;
+    
+    void drawCenterText(int idx, const String& text);
+    void renderAnimFrame(int screenIdx, int step); // 단일 프레임 렌더링 내부 함수
+
+    /**
+     * @brief 눈 조립 모드의 단일 프레임을 그린다
+     * @details 새 글자 픽셀은 위에서 떨어져 쌓이고, 사라지는 옛 글자 픽셀은 아래로 가라앉는다.
+     */
+    void renderSnowFrame(int screenIdx, int step);
+
+    /**
+     * @brief 분할 플랩 모드의 단일 프레임을 그린다
+     * @details 한 열의 접힘 전체(옛 글자가 접히고 새 글자가 펼쳐짐)를 한 번의
+     *          drawFlapChar 호출로 그린다. 새 글자가 없는 열은 사라지는 글자로 접어 닫는다.
+     */
+    void renderFlapFrame(int screenIdx, int step);
+
+    void drawChimeIcon(int idx);
+    int findOldIndexAtX(const ScreenAnimData& sd, int x) const; // 해당 x에 놓인 옛 글자의 인덱스(-1이면 없음)
+    int findNewIndexAtX(const ScreenAnimData& sd, int x) const; // 해당 x에 놓인 새 글자의 인덱스(-1이면 없음)
+};
+
+#endif

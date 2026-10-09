@@ -1,0 +1,766 @@
+// worynim@gmail.com
+/**
+ * @file web_pages.h
+ * @brief 웹 설정 대시보드 및 폰트 스튜디오 리소스
+ * @details HTML, CSS, JavaScript 등으로 구성된 임베디드 웹 페이지 리소스 관리 (PROGMEM 활용)
+ * @note [SYNC] ENG_Clock/web_pages.h — 시간대 셀렉트 + POSIX TZ 입력칸 추가.
+ *       옵션 value가 곧 POSIX TZ 문자열이라 펌웨어와 매핑 테이블이 없다.
+ *       tzSel/tzCustom/tzPending 는 ENG판과 동일 계약이다.
+ */
+#ifndef WEB_PAGES_H
+#define WEB_PAGES_H
+
+#include <pgmspace.h>
+
+// === 고전/현대 조화 Font Studio HTML ===
+const char font_studio_html[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Font Studio v2</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600&family=Noto+Sans+KR:wght@500;700&display=swap');
+        :root { --primary: #00f2fe; --secondary: #4facfe; --bg: #0b0e14; --card: rgba(255, 255, 255, 0.05); }
+        body { background: var(--bg); color: #fff; font-family: 'Outfit', 'Noto Sans KR', sans-serif; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .glass { background: var(--card); backdrop-filter: blur(15px); border: 1px solid rgba(255,255,255,0.1); border-radius: 24px; padding: 30px; width: 100%; max-width: 800px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+        h1 { font-weight: 600; font-size: 2.2rem; background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; margin-top:0; }
+        .desc { text-align: center; color: #888; font-size: 0.9rem; margin-bottom: 30px; }
+        .setup-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px; }
+        .field { display: flex; flex-direction: column; gap: 8px; }
+        label { font-size: 0.85rem; color: #aaa; font-weight: 500; }
+        input[type="file"], input[type="range"] { background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 10px; color: #fff; }
+        
+        button { padding: 15px; border-radius: 12px; border: none; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        .btn-apply { background: var(--primary); color: #000; margin-top: 15px; width: 100%; }
+        .btn-apply:hover { box-shadow: 0 0 15px var(--primary); transform: translateY(-2px); }
+        .btn-apply:disabled { opacity: 0.3; cursor: not-allowed; }
+        
+        .status-msg { text-align: center; font-size: 0.85rem; color: var(--primary); margin: 15px 0; min-height: 1.2rem; }
+        .progress-wrap { width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; display: none; overflow: hidden; margin-top: 5px; }
+        .progress-fill { height: 100%; width: 0%; background: var(--primary); transition: width 0.2s; }
+
+        select { background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 12px; color: #fff; width: 100%; cursor: pointer; outline: none; appearance: none; }
+        select:focus { border-color: var(--primary); background: rgba(0,0,0,0.5); }
+        option { background: #1a1e26; color: #fff; }
+
+        .preview-list { display: flex; flex-wrap: wrap; gap: 10px; margin: 15px 0; justify-content: center; }
+        .preview-item { display: flex; flex-direction: column; align-items: center; gap: 8px; background: rgba(0,0,0,0.4); padding: 12px 8px; border-radius: 12px; border: 1px solid #333; width: 145px; }
+        .preview-label { width: 100%; font-size: 0.7rem; color: #888; text-align: center; }
+        canvas { background: #000; border-radius: 4px; image-rendering: pixelated; }
+
+        .inventory { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 25px; justify-content: center; }
+        .badge { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; background: rgba(255,255,255,0.03); border-radius: 4px; color: #444; border: 1px solid transparent; }
+        .badge.active { color: var(--primary); border-color: rgba(0,242,254,0.3); background: rgba(0,242,254,0.1); }
+        .footer { margin-top: 30px; text-align: center; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 20px; }
+        .footer a { color: #555; text-decoration: none; font-size: 0.75rem; letter-spacing: 0.05em; transition: all 0.3s ease; }
+        .footer a:hover { color: var(--primary); text-shadow: 0 0 8px rgba(0,242,254,0.5); }
+    </style>
+</head>
+<body>
+    <div class="glass">
+        <h1>한글 시계 Font Studio</h1>
+        <p class="desc">DeskStream Project | 현재 적용 폰트: <span id="curFont" style="color:var(--primary)">-</span></p>
+        
+        <div class="setup-grid">
+            <div class="field">
+                <label>1. 폰트 선택 (.ttf, .otf)</label>
+                <input type="file" id="fIn" accept=".ttf,.otf">
+            </div>
+            <div class="field">
+                <label>2. 폰트 크기: <span id="sVal">48</span>px</label>
+                <input type="range" id="sIn" min="20" max="60" value="48">
+            </div>
+            <div class="field">
+                <label>3. 저장 슬롯 (0~4)</label>
+                <select id="fontSlot">
+                    <option value="0">Slot 0 (기존 폰트)</option>
+                    <option value="1">Slot 1</option>
+                    <option value="2">Slot 2</option>
+                    <option value="3">Slot 3</option>
+                    <option value="4">Slot 4</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="setup-grid">
+            <div class="field">
+                <label>4. 애니메이션 (BTN3 Short)</label>
+                <select id="animMode">
+                    <option value="0">0. OFF</option>
+                    <option value="1">1. Scroll Up</option>
+                    <option value="2">2. Scroll Down</option>
+                    <option value="3">3. Vertical Flip</option>
+                    <option value="4">4. Dithered Fade</option>
+                    <option value="5">5. Zoom In/Out</option>
+                    <option value="6">6. Snow Assemble</option>
+                    <option value="7">7. Split Flap</option>
+                </select>
+            </div>
+            <div class="field">
+                <label>4. 표시 유형 (BTN2 Short)</label>
+                <select id="displayMode">
+                    <option value="0">한글 (열두시 삼십분 사십오초)</option>
+                    <option value="1">숫자 (12시 30분 45초)</option>
+                </select>
+            </div>
+            <div class="field">
+                <label>5. 시간 형식 (BTN2 Long)</label>
+                <select id="hourFormat">
+                    <option value="0">12시간제 (오전/오후)</option>
+                    <option value="1">24시간제 (0시~23시)</option>
+                </select>
+            </div>
+            <div class="field">
+                <label>6. 정시 시보 (BTN1 Short)</label>
+                <select id="chime">
+                    <option value="0">OFF</option>
+                    <option value="1">ON</option>
+                </select>
+            </div>
+            <div class="field">
+                <label>7. 화면 반전 (BTN1 Long)</label>
+                <select id="flipMode">
+                    <option value="0">NORMAL</option>
+                    <option value="1">FLIP</option>
+                </select>
+            </div>
+            <div class="field">
+                <label>8. 색상 반전 (BTN4 Long)</label>
+                <select id="invertMode">
+                    <option value="0">NORMAL (Black BG)</option>
+                    <option value="1">INVERT (White BG)</option>
+                </select>
+            </div>
+            <div class="field">
+                <label>9. OLED 밝기: <span id="brVal">1</span></label>
+                <input type="range" id="brIn" min="1" max="255" value="1">
+            </div>
+        </div>
+
+        <div class="setup-grid">
+            <div class="field">
+                <label>10. 시간대 (DST 자동 적용)</label>
+                <select id="tzSel">
+                    <option value="KST-9">Asia/Seoul (UTC+9)</option>
+                    <option value="JST-9">Asia/Tokyo (UTC+9)</option>
+                    <option value="CST-8">Asia/Shanghai (UTC+8)</option>
+                    <option value="IST-5:30">Asia/Kolkata (UTC+5:30)</option>
+                    <option value="GMT0BST,M3.5.0/1,M10.5.0">Europe/London (UTC+0/+1)</option>
+                    <option value="CET-1CEST,M3.5.0,M10.5.0/3">Europe/Berlin (UTC+1/+2)</option>
+                    <option value="AEST-10AEDT,M10.1.0,M4.1.0/3">Australia/Sydney (UTC+10/+11)</option>
+                    <option value="EST5EDT,M3.2.0,M11.1.0">America/New_York (UTC-5/-4)</option>
+                    <option value="CST6CDT,M3.2.0,M11.1.0">America/Chicago (UTC-6/-5)</option>
+                    <option value="MST7MDT,M3.2.0,M11.1.0">America/Denver (UTC-7/-6)</option>
+                    <option value="PST8PDT,M3.2.0,M11.1.0">America/Los_Angeles (UTC-8/-7)</option>
+                    <option value="UTC0">UTC (no offset)</option>
+                    <option value="CUSTOM">직접 입력&hellip; (아래 POSIX TZ)</option>
+                </select>
+            </div>
+            <div class="field">
+                <label>POSIX TZ 문자열 <span id="tzHint" style="color:#666">(읽기 전용)</span></label>
+                <input type="text" id="tzCustom" maxlength="47" spellcheck="false" readonly
+                       style="background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:12px;color:#fff;font-family:ui-monospace,monospace;width:100%;">
+            </div>
+        </div>
+
+        <div class="preview-list">
+            <div class="preview-item"><div class="preview-label">SCREEN 1</div><canvas id="p0" width="128" height="64"></canvas></div>
+            <div class="preview-item"><div class="preview-label">SCREEN 2</div><canvas id="p1" width="128" height="64"></canvas></div>
+            <div class="preview-item"><div class="preview-label">SCREEN 3</div><canvas id="p2" width="128" height="64"></canvas></div>
+            <div class="preview-item"><div class="preview-label">SCREEN 4</div><canvas id="p3" width="128" height="64"></canvas></div>
+        </div>
+
+        <div class="progress-wrap" id="pWrap"><div class="progress-fill" id="pFill"></div></div>
+        <div id="status" class="status-msg">설정을 로드하는 중...</div>
+
+        <button class="btn-apply" id="apply" onclick="processAll()" disabled>폰트 세트 일괄 업로드</button>
+
+        <div class="inventory" id="inv"></div>
+        <div class="footer">
+            <a href="https://gongu.copyright.or.kr/gongu/bbs/B0000018/list.do?menuNo=200195" target="_blank">무료폰트 다운로드</a>
+        </div>
+    </div>
+
+    <script>
+        const UNIQ_CHARS = "오전후한시두세네다섯여일곱덟아홉열영이삼사육칠팔구십분초정각0123456789".split("");
+        const bitmapCache = {};
+        const els = {
+            anim: document.getElementById('animMode'),
+            disp: document.getElementById('displayMode'),
+            hour: document.getElementById('hourFormat'),
+            chime: document.getElementById('chime'),
+            flip: document.getElementById('flipMode'),
+            invert: document.getElementById('invertMode'),
+            status: document.getElementById('status'),
+            curFont: document.getElementById('curFont'),
+            slot: document.getElementById('fontSlot'),
+            apply: document.getElementById('apply'),
+            pFill: document.getElementById('pFill'),
+            pWrap: document.getElementById('pWrap'),
+            sIn: document.getElementById('sIn'),
+            fIn: document.getElementById('fIn'),
+            brIn: document.getElementById('brIn'),
+            brVal: document.getElementById('brVal'),
+            tzSel: document.getElementById('tzSel'),
+            tzCustom: document.getElementById('tzCustom'),
+            tzHint: document.getElementById('tzHint')
+        };
+
+        UNIQ_CHARS.forEach(c => {
+            const d = document.createElement('div');
+            d.className = 'badge'; d.id = 'b_' + c; d.innerText = c;
+            document.getElementById('inv').appendChild(d);
+        });
+
+        /**
+         * 배지의 "업로드됨" 표시를 **전부** 지운다
+         * @note [B-1 수정 — 2026-10-06, 중국어판 §12.9 승계] 배지 상태는 **슬롯마다 다르다**.
+         *       그런데 지금 슬롯에 어떤 글자가 들어 있는지 펌웨어에 물어볼 수 없다(그런 API가
+         *       없다). 그래서 슬롯을 바꾸면 이전 슬롯의 표시를 물려받은 **거짓 표시**를 지우는
+         *       것이 정직하다 — "모른다"를 "있다"로 표시하지 않는다.
+         * @note 업로드(processAll)는 슬롯을 바꾸지 않고 끝까지 진행되므로, 이 초기화가
+         *       실제로 일어나는 순간은 슬롯을 **고르는** 때뿐이다.
+         */
+        function clearInventoryState() {
+            document.querySelectorAll('#inv .badge').forEach(b => b.classList.remove('active'));
+        }
+
+        /** Custom 모드 여부에 따라 TZ 입력칸을 편집 가능/읽기전용으로 전환한다 */
+        function setTzEditable(editable, value) {
+            els.tzCustom.readOnly = !editable;
+            els.tzHint.innerText = editable ? "(입력 가능 — 전송 시 적용)" : "(읽기 전용)";
+            if (value !== undefined) els.tzCustom.value = value;
+        }
+
+        /**
+         * 서버 반영을 아직 확인하지 못한 시간대 값 — 5초 폴링이 이를 옛 값으로 되돌린다.
+         * 사용자가 시간대를 바꾸고 POST가 오기 전에 폴링 응답이 도착하면 선택이 튀었다가
+         * 되감기는 문제다. 저장이 확인되면 해제하고, 실패하면 그대로 둔다(재시도 가능).
+         */
+        let tzPending = false;
+
+        async function fetchConfig() {
+            try {
+                const res = await fetch('/api/config');
+                const data = await res.json();
+                els.anim.value = (data.anim_mode ?? 1).toString();
+                els.disp.value = (data.display_mode ?? 0).toString();
+                els.hour.value = (data.hour_format ?? 0).toString();
+                els.chime.value = data.chime_enabled ? "1" : "0";
+                els.flip.value = data.is_flipped ? "1" : "0";
+                els.invert.value = data.is_inverted ? "1" : "0";
+                els.slot.value = (data.font_slot ?? 0).toString();
+                els.brIn.value = (data.brightness ?? 1).toString();
+                els.brVal.innerText = els.brIn.value;
+
+                // 시간대: 저장된 POSIX 문자열과 일치하는 옵션을 선택하고,
+                // 목록에 없는 문자열이면 Custom 모드로 입력칸을 연다.
+                if (typeof data.timezone === 'string' && data.timezone.length
+                    && !tzPending && els.tzSel !== document.activeElement) {
+                    let matched = false;
+                    for (const opt of els.tzSel.options) {
+                        if (opt.value !== 'CUSTOM' && opt.value === data.timezone) {
+                            els.tzSel.value = opt.value; matched = true; break;
+                        }
+                    }
+                    if (!matched) els.tzSel.value = 'CUSTOM';
+                    setTzEditable(els.tzSel.value === 'CUSTOM', data.timezone);
+                }
+
+                // 슬롯 이름 업데이트
+                if (data.slot_names) {
+                    for(let i=0; i<5; i++) {
+                        const opt = els.slot.options[i];
+                        if (opt) opt.innerText = `Slot ${i} (${data.slot_names[i]})`;
+                    }
+                }
+
+                els.curFont.innerText = `Slot ${data.font_slot}: ${data.font_name || 'System Default'}`;
+                els.status.innerText = "설정 동기화 완료";
+            } catch(e) { els.status.innerText = "설정 로드 실패"; }
+        }
+
+        async function saveConfig() {
+            els.status.innerText = "저장 중...";
+            const body = {
+                anim_mode: parseInt(els.anim.value),
+                display_mode: parseInt(els.disp.value),
+                hour_format: parseInt(els.hour.value),
+                chime_enabled: els.chime.value === "1",
+                is_flipped: els.flip.value === "1",
+                is_inverted: els.invert.value === "1",
+                font_slot: parseInt(els.slot.value),
+                brightness: parseInt(els.brIn.value),
+                timezone: els.tzCustom.value
+            };
+            tzPending = true;
+            try {
+                const res = await fetch('/api/config', { method: 'POST', body: JSON.stringify(body) });
+                // 응답을 확인하지 않으면 거절된 시간대도 "설정 저장됨"으로 보인다.
+                // fetch는 네트워크 단절에서만 reject 된다.
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                tzPending = false;
+                els.status.innerText = "설정 저장됨";
+            } catch(e) {
+                // 실패하면 tzPending을 지우지 않는다. 그래야 다음 폴링이 사용자 값을
+                // 지워버리지 않고, 사용자가 재시도할 수 있다.
+                els.status.innerText = `저장 실패 (${e.message}) — 값을 확인하고 다시 시도하세요`;
+            }
+        }
+
+        // [B-1 수정 — 2026-10-06] `els.slot`은 여기서 바인딩하지 않는다 — 아래 전용 핸들러가
+        //   더 한다. 여기서도 바인딩하면 그 핸들러가 **덮어써** 어느 쪽이 이기는지 알 수 없다
+        //   (중국어판이 §12.7 결함 A로 정확히 이 함정을 밟았다).
+        [els.anim, els.disp, els.hour, els.chime, els.flip, els.invert].forEach(el => el.onchange = saveConfig);
+        // 슬롯 변경 = 저장 + **배지 상태 초기화**.
+        //   [B-1] 슬롯만 바꿨는데 slot0에서 올린 글자가 여전히 "업로드됨"으로 표시돼,
+        //   slot1에 없는 글자가 있는 것처럼 보였다 — 배지 DOM은 하나뿐이기 때문이다.
+        els.slot.onchange = () => {
+            saveConfig();
+            clearInventoryState();
+        };
+        els.brIn.oninput = () => { els.brVal.innerText = els.brIn.value; };
+        els.brIn.onchange = saveConfig;
+        // 시간대 선택: 옵션의 value가 곧 POSIX TZ 문자열이므로 별도 매핑 테이블이 없다.
+        els.tzSel.onchange = () => {
+            if (els.tzSel.value === 'CUSTOM') setTzEditable(true);   // 값은 사용자가 입력
+            else { setTzEditable(false, els.tzSel.value); saveConfig(); }
+        };
+        els.tzCustom.onchange = saveConfig;
+        fetchConfig();
+        setInterval(fetchConfig, 5000);
+
+        const pCtx = [0,1,2,3].map(i => document.getElementById(`p${i}`).getContext('2d'));
+        let fontLoaded = false;
+
+        els.fIn.onchange = async (e) => {
+            const file = e.target.files[0]; if(!file) return;
+            const buffer = await file.arrayBuffer();
+            const font = new FontFace("ClockFont", buffer);
+            await font.load(); document.fonts.add(font);
+            fontLoaded = true; els.apply.disabled = false;
+            els.status.innerText = "폰트 준비됨. 미리보기를 확인하세요.";
+        };
+        els.sIn.oninput = () => { document.getElementById('sVal').innerText = els.sIn.value; };
+
+        function drawChar(ctx, char, x, yOffset) {
+            const charData = bitmapCache[char];
+            const isInverted = els.invert.value === "1";
+            if (charData) {
+                if (isInverted) {
+                    // 비트맵 반전 처리 (임시 캔버스 활용)
+                    const tempCanvas = document.createElement('canvas'); tempCanvas.width=64; tempCanvas.height=64;
+                    const tCtx = tempCanvas.getContext('2d');
+                    tCtx.fillStyle = "#fff"; tCtx.fillRect(0,0,64,64);
+                    tCtx.globalCompositeOperation = 'destination-out';
+                    tCtx.drawImage(charData.canvas, 0, 0);
+                    ctx.drawImage(tempCanvas, x, yOffset);
+                } else {
+                    ctx.drawImage(charData.canvas, x, yOffset);
+                }
+            }
+            else {
+                ctx.fillStyle = isInverted ? "#000" : "#fff";
+                ctx.font = `${els.sIn.value}px ClockFont, sans-serif`;
+                ctx.textAlign = "center"; ctx.textBaseline = "middle";
+                ctx.fillText(char, x + 16, 32 + yOffset);
+            }
+        }
+
+        function drawScaledChar(ctx, charStr, x, h) {
+            if (h <= 0) return;
+            const charData = bitmapCache[charStr];
+            const isInverted = els.invert.value === "1";
+            if (charData) {
+                if (isInverted) {
+                    const tempCanvas = document.createElement('canvas'); tempCanvas.width=64; tempCanvas.height=64;
+                    const tCtx = tempCanvas.getContext('2d');
+                    tCtx.fillStyle = "#fff"; tCtx.fillRect(0,0,64,64);
+                    tCtx.globalCompositeOperation = 'destination-out';
+                    tCtx.drawImage(charData.canvas, 0, 0);
+                    ctx.drawImage(tempCanvas, x, (64 - h) / 2, 64, h);
+                } else {
+                    ctx.drawImage(charData.canvas, x, (64 - h) / 2, 64, h);
+                }
+            }
+            else {
+                ctx.save(); ctx.translate(x + 16, 32); ctx.scale(1, h / 64);
+                ctx.fillStyle = isInverted ? "#000" : "#fff";
+                ctx.font = `${els.sIn.value}px ClockFont, sans-serif`;
+                ctx.textAlign = "center"; ctx.textBaseline = "middle";
+                ctx.fillText(charStr, 0, 0); ctx.restore();
+            }
+        }
+
+        function drawZoomedChar(ctx, charStr, x, scale) {
+            if (scale <= 0) return;
+            const charData = bitmapCache[charStr];
+            const isInverted = els.invert.value === "1";
+            if (charData) {
+                const w = charData.size <= 256 ? 32 : 64;
+                const bx = charData.size <= 256 ? x : x - 16;
+                const tw = w * scale, th = 64 * scale;
+                if (isInverted) {
+                    const tempCanvas = document.createElement('canvas'); tempCanvas.width=64; tempCanvas.height=64;
+                    const tCtx = tempCanvas.getContext('2d');
+                    tCtx.fillStyle = "#fff"; tCtx.fillRect(0,0,64,64);
+                    tCtx.globalCompositeOperation = 'destination-out';
+                    tCtx.drawImage(charData.canvas, 0, 0);
+                    ctx.drawImage(tempCanvas, bx + (w - tw) / 2, (64 - th) / 2, tw, th);
+                } else {
+                    ctx.drawImage(charData.canvas, bx + (w - tw) / 2, (64 - th) / 2, tw, th);
+                }
+            } else {
+                ctx.save(); ctx.translate(x + 16, 32); ctx.scale(scale, scale);
+                ctx.fillStyle = isInverted ? "#000" : "#fff";
+                ctx.font = `${els.sIn.value}px ClockFont, sans-serif`;
+                ctx.textAlign = "center"; ctx.textBaseline = "middle";
+                ctx.fillText(charStr, 0, 0); ctx.restore();
+            }
+        }
+
+        function getHangeulTimeStrings() {
+            const now = new Date();
+            let h = now.getHours(), m = now.getMinutes(), s = now.getSeconds(), d = now.getDate();
+            const isHangul = els.disp.value === "0", is24H = els.hour.value === "1";
+            
+            const toHangulNum = (num, unit) => {
+                if (num === 0 && (unit === "분" || unit === "초")) return "정각";
+                const tList = ["", "십", "이십", "삼십", "사십", "오십"], nList = ["", "일", "이", "삼", "사", "오", "육", "칠", "팔", "구"];
+                if (num === 0) return "영" + unit;
+                return tList[Math.floor(num / 10)] + nList[num % 10] + unit;
+            };
+            
+            const toNumericNum = (num, unit) => num.toString().padStart(2, '0') + unit;
+            
+            const getHangulHour = (h, is24h) => {
+                let hr = is24h ? h : (h % 12 || 12);
+                if (is24h && hr === 0) return "영시";
+                if (is24h && hr >= 13) return toHangulNum(hr, "시");
+                const h_ones = ["", "한", "두", "세", "네", "다섯", "여섯", "일곱", "여덟", "아홉", "열", "열한", "열두"];
+                if (hr <= 12) return h_ones[hr] + "시";
+                return hr + "시";
+            };
+
+            let s0 = is24H ? (isHangul ? toHangulNum(d, "일") : d + "일") : (h < 12 ? "오전" : "오후");
+            let s1 = isHangul ? getHangulHour(h, is24H) : toNumericNum(is24H ? h : (h % 12 || 12), "시");
+            let s2 = isHangul ? toHangulNum(m, "분") : toNumericNum(m, "분");
+            let s3 = isHangul ? toHangulNum(s, "초") : toNumericNum(s, "초");
+
+            if (isHangul && m === 0 && s === 0) s3 = "";
+
+            return [s0, s1, s2, s3];
+        }
+
+        let lastTimeStrings = ["", "", "", ""], targetTimeStrings = ["", "", "", ""], animStep = 16, animTransition = 0;
+        function getCharPositions(text, isCentered) {
+            const chars = Array.from(text), count = chars.length;
+            if (count === 0) return [];
+            if (isCentered || count === 1) {
+                const startX = (128 - count * 32) / 2;
+                return chars.map((c, i) => ({ c, x: startX + i * 32 }));
+            }
+            const startX = (96 - (count - 1) * 32) / 2;
+            return chars.map((c, i) => ({ c, x: (i === count - 1) ? 96 : startX + i * 32 }));
+        }
+
+        function drawChimeIcon(ctx) {
+            if (els.chime.value !== "1") return;
+            const bell = [0x18, 0x3C, 0x3C, 0x3C, 0xFF, 0xDB, 0x18, 0x00];
+            ctx.fillStyle = els.invert.value === "1" ? "#000" : "#fff";
+            for(let y=0; y<8; y++) for(let x=0; x<8; x++) if(bell[y] & (1 << (7-x))) ctx.fillRect(x, y, 1, 1);
+        }
+
+        // ── 눈 조립 모드 (펌웨어 renderer.cpp / display_manager.cpp 미러) ──
+        // 모드별 총 프레임 수. 눈 조립만 48프레임(나머지는 16)이다. config.h와 맞춰야 한다.
+        const ANIM_MAX_STEP = {1:16, 2:16, 3:16, 4:16, 5:16, 6:48, 7:16};
+        const SNOW_W = 128, SNOW_H = 64, SNOW_SPAWN_Y = -2, SNOW_PROGRESS_FULL = 255, SNOW_ARRIVAL_MAX = 240;
+        // 분할 플랩 접힘 기하 (펌웨어 config.h의 ANIM_FLAP_* / SNOW_H와 맞춰야 한다)
+        const FLAP_H = SNOW_H / 2, FLAP_PHASE_SPLIT = 128;
+
+        /** C++ 정수 나눗셈(0 방향 절삭)을 그대로 흉내낸다 */
+        const idiv = (a, b) => Math.trunc(a / b);
+
+        /** 좌표 기반 결정적 해시 — 매 프레임 같은 눈이 나오도록 위치가 깜빡이지 않는다 */
+        function animHash(seed, x, y) {
+            let h = Math.imul(seed, 2654435761) >>> 0;
+            h = (h ^ ((Math.imul(x, 40503) & 0xFFFF) + 0x9E3779B9)) >>> 0;
+            h = (h ^ ((Math.imul(y, 42137) & 0xFFFF) + 0x85EBCA6B)) >>> 0;
+            h = (h ^ (h >>> 15)) >>> 0;
+            h = Math.imul(h, 2246822519) >>> 0;
+            h = (h ^ (h >>> 13)) >>> 0;
+            return (h >>> 8) & 0xFFFF;
+        }
+
+        /** 아래쪽 픽셀일수록 늦게 도착하고, 같은 높이는 해시로 흩뿌린다 */
+        function animArrival(seed, px, py) {
+            const base = idiv(py * 200, SNOW_H);
+            const jitter = (animHash(seed, px, py) % 81) - 40;
+            return Math.max(0, Math.min(SNOW_ARRIVAL_MAX, base + jitter));
+        }
+
+        /** 위에서 떨어져 e = t² 가속으로 조립되는 픽셀 위치 */
+        function animAssembling(seed, px, py, progress) {
+            const arrive = animArrival(seed, px, py);
+            if (progress >= arrive) return {x: px, y: py, on: 1};
+            const den = arrive, eNum = progress * progress, eDen = den * den;
+            const spawn = animHash((seed ^ 0x5A5A) & 0xFFFF, px, py) % SNOW_W;
+            const sway = (animHash((seed ^ 0xA5A5) & 0xFFFF, px, py) % 9) - 4;
+            const x = spawn + idiv((px - spawn) * progress, den) + idiv(sway * progress * (den - progress), den * 48);
+            const y = SNOW_SPAWN_Y + idiv((py - SNOW_SPAWN_Y) * eNum, eDen);
+            return {x: x, y: y, on: (y >= 0 && y < SNOW_H) ? 1 : 0};
+        }
+
+        /** 아래로 가라앉으며 흩어지는 픽셀 위치 */
+        function animDispersing(seed, px, py, progress) {
+            const h = animHash(seed, px, py);
+            const delay = h % 48;
+            if (progress <= delay) return {x: px, y: py, on: 1};
+            const num = progress - delay, den = SNOW_PROGRESS_FULL - delay;
+            const drift = ((h >>> 8) % 7) - 3;
+            const y = py + idiv((SNOW_H - py) * num * num, den * den);
+            const x = px + idiv(drift * num, 128);
+            return {x: x, y: y, on: (y < SNOW_H) ? 1 : 0};
+        }
+
+        function snowSeed(transitionId, screenIdx, slot, x) {
+            return (transitionId * 7919 + screenIdx * 131 + slot * 17 + x * 3) & 0xFFFF;
+        }
+
+        /**
+         * 글자의 켜진 픽셀 목록 [x0,y0,x1,y1,...]을 캐시한다.
+         * 오프스크린 캔버스에 글자를 렌더링한 뒤 getImageData로 뽑는다. 폰트·크기·반전 여부가
+         * 바뀌면 캐시 키도 바뀌어 자동으로 무효화된다.
+         */
+        const snowPixelCache = {};
+        function getSnowPixels(charStr, x) {
+            const key = `${charStr}|${x}|${els.sIn.value}|${els.invert.value}|${fontLoaded}`;
+            if (snowPixelCache[key]) return snowPixelCache[key];
+            const off = document.createElement('canvas'); off.width = 32; off.height = SNOW_H;
+            const octx = off.getContext('2d', {willReadFrequently: true});
+            octx.fillStyle = "#fff";
+            octx.font = `${els.sIn.value}px ClockFont, sans-serif`;
+            octx.textAlign = "center"; octx.textBaseline = "middle";
+            octx.fillText(charStr, 16, SNOW_H / 2);
+            const img = octx.getImageData(0, 0, 32, SNOW_H).data;
+            const pts = [];
+            for (let y = 0; y < SNOW_H; y++)
+                for (let px = 0; px < 32; px++)
+                    if (img[(y * 32 + px) * 4 + 3] > 128) pts.push(px, y);
+            snowPixelCache[key] = pts;
+            return pts;
+        }
+
+        function drawSnowChar(ctx, charStr, x, progress, seed) {
+            const pts = getSnowPixels(charStr, x);
+            ctx.fillStyle = els.invert.value === "1" ? "#000" : "#fff";
+            for (let i = 0; i < pts.length; i += 2) {
+                const p = animAssembling(seed, x + pts[i], pts[i + 1], progress);
+                if (p.on) ctx.fillRect(p.x, p.y, 1, 1);
+            }
+        }
+
+        function drawDispersingSnowChar(ctx, charStr, x, progress, seed) {
+            const pts = getSnowPixels(charStr, x);
+            ctx.fillStyle = els.invert.value === "1" ? "#000" : "#fff";
+            for (let i = 0; i < pts.length; i += 2) {
+                const p = animDispersing(seed, x + pts[i], pts[i + 1], progress);
+                if (p.on) ctx.fillRect(p.x, p.y, 1, 1);
+            }
+        }
+
+        // ── 분할 플랩 모드 (펌웨어 renderer.cpp 미러) ──
+        // 글자를 상하 2등분해 순서대로 접는다. 위쪽 절반이 먼저 가운데선을 축으로 접혀
+        // 수평으로 눕고, 그 자리에 새 글자의 위쪽 절반이 펼쳐진다. 이어 아래쪽 절반이
+        // 같은 방식으로 접힌다. 펌웨어와 같은 정수 나눗셈(idiv)을 쓴다.
+
+        /**
+         * 글자의 켜진 픽셀을 원본 행별로 묶어 캐시한다 (rows[원본행] = [x, x, ...]).
+         * getSnowPixels 결과를 행 기준으로 재배열한 것이다. 접힘은 목표 행 → 원본 행을
+         * 찾는 방식이라 픽셀 나열이 아닌 행 인덱스로 접근해야 한다. 반환 좌표는 셀 기준
+         *이라 x와 무관하므로 0을 넣어 snowPixelCache에 중복 항목을 만들지 않는다.
+         */
+        const flapRowCache = {};
+        function getFlapRows(charStr) {
+            const key = `${charStr}|${els.sIn.value}|${els.invert.value}|${fontLoaded}`;
+            if (flapRowCache[key]) return flapRowCache[key];
+            const pts = getSnowPixels(charStr, 0);
+            const rows = [];
+            for (let i = 0; i < SNOW_H; i++) rows.push([]);
+            for (let i = 0; i < pts.length; i += 2) rows[pts[i + 1]].push(pts[i]);
+            flapRowCache[key] = rows;
+            return rows;
+        }
+
+        /** 접히는 위쪽 절반에서 목표 행 y가 보여줘야 하는 원본 행 (축 y = FLAP_H - 1) */
+        function flapTopSrcRow(y, h) {
+            return (FLAP_H - 1) - idiv(((FLAP_H - 1) - y) * FLAP_H, h);
+        }
+
+        /** 접히는 아래쪽 절반에서 목표 행 y의 원본 행 (축 y = FLAP_H) */
+        function flapBottomSrcRow(y, h) {
+            return FLAP_H + idiv((y - FLAP_H) * FLAP_H, h);
+        }
+
+        function drawFlapRow(ctx, rows, srcY, x, dstY) {
+            const row = rows[srcY];
+            if (!row) return; // 방어: 범위를 벗어난 원본 행이면 rAF 루프를 죽이지 않는다
+            for (let i = 0; i < row.length; i++) ctx.fillRect(x + row[i], dstY, 1, 1);
+        }
+
+        /**
+         * 한 열의 접힘 전체를 그린다. oldStr/newStr 중 빈 문자열이면 그 글자는 존재하지 않는다.
+         * 펌웨어 renderer.cpp의 drawFlapChar와 1:1로 대응한다.
+         */
+        function drawFlapChar(ctx, oldStr, newStr, x, progress) {
+            const oldRows = oldStr ? getFlapRows(oldStr) : null;
+            const newRows = newStr ? getFlapRows(newStr) : null;
+            if (!oldRows && !newRows) return;
+            ctx.fillStyle = els.invert.value === "1" ? "#000" : "#fff";
+
+            if (progress < FLAP_PHASE_SPLIT) {
+                const h = FLAP_H - idiv(progress * FLAP_H, FLAP_PHASE_SPLIT);
+                if (oldRows) for (let y = FLAP_H; y < SNOW_H; y++) drawFlapRow(ctx, oldRows, y, x, y);
+                if (newRows) for (let y = 0; y < FLAP_H - h; y++) drawFlapRow(ctx, newRows, y, x, y);
+                if (oldRows && h > 0) for (let y = FLAP_H - h; y < FLAP_H; y++) drawFlapRow(ctx, oldRows, flapTopSrcRow(y, h), x, y);
+            } else {
+                const h = FLAP_H - idiv((progress - FLAP_PHASE_SPLIT) * FLAP_H, SNOW_PROGRESS_FULL - FLAP_PHASE_SPLIT);
+                if (newRows) for (let y = 0; y < FLAP_H; y++) drawFlapRow(ctx, newRows, y, x, y);
+                if (oldRows && h > 0) for (let y = FLAP_H; y < FLAP_H + h; y++) drawFlapRow(ctx, oldRows, flapBottomSrcRow(y, h), x, y);
+                if (newRows) for (let y = FLAP_H + h; y < SNOW_H; y++) drawFlapRow(ctx, newRows, y, x, y);
+            }
+        }
+
+        function render() {
+            const currentTimeStrings = getHangeulTimeStrings();
+            if (targetTimeStrings[0] === "") targetTimeStrings = [...currentTimeStrings];
+            const mode = els.anim.value, maxStep = ANIM_MAX_STEP[mode] ?? 16;
+            // 진행도는 눈 조립과 분할 플랩이 같은 0~255 매핑을 공유한다 (펌웨어 ANIM_PROGRESS_FULL)
+        const animProgress = Math.trunc(animStep * SNOW_PROGRESS_FULL / maxStep);
+            let changed = currentTimeStrings.some((s, i) => s !== targetTimeStrings[i]);
+            if (changed && animStep >= maxStep) {
+                lastTimeStrings = [...targetTimeStrings]; targetTimeStrings = [...currentTimeStrings];
+                animTransition++; // 펌웨어의 transitionId와 같은 역할: 전환마다 다른 눈
+                animStep = (mode !== "0") ? 0 : maxStep;
+            }
+            if (animStep < maxStep) animStep++;
+            for(let s=0; s<4; s++) {
+                const ctx = pCtx[s]; const isInverted = els.invert.value === "1";
+                ctx.fillStyle = isInverted ? "#fff" : "#000"; ctx.fillRect(0,0,128,64);
+                const isC = (s === 0) || (targetTimeStrings[s] === "정각");
+                const curD = getCharPositions(targetTimeStrings[s], isC);
+                if (animStep >= maxStep || mode === "0") curD.forEach(d => drawChar(ctx, d.c, d.x, 0));
+                else {
+                    const isOC = (s === 0) || (lastTimeStrings[s] === "정각");
+                    const off = animStep * 4, oldD = getCharPositions(lastTimeStrings[s], isOC);
+                    curD.forEach((nd, slot) => {
+                        let od = oldD.find(o => o.x === nd.x);
+                        if (od && od.c === nd.c) drawChar(ctx, nd.c, nd.x, 0);
+                        else {
+                            switch(mode) {
+                                case "1": if(od) drawChar(ctx, od.c, nd.x, -off); drawChar(ctx, nd.c, nd.x, 64-off); break;
+                                case "2": if(od) drawChar(ctx, od.c, nd.x, off); drawChar(ctx, nd.c, nd.x, -64+off); break;
+                                case "3": if(animStep<=8) { if(od) drawScaledChar(ctx, od.c, nd.x, ((8-animStep)/8)*64); } else drawScaledChar(ctx, nd.c, nd.x, ((animStep-8)/8)*64); break;
+                                case "4": ctx.save(); if(animStep<=8) { ctx.globalAlpha=(8-animStep)/8; if(od) drawChar(ctx, od.c, nd.x, 0); } else { ctx.globalAlpha=(animStep-8)/8; drawChar(ctx, nd.c, nd.x, 0); } ctx.restore(); break;
+                                case "5": if(animStep<=8) { if(od) drawZoomedChar(ctx, od.c, nd.x, (8-animStep)/8); } else { let sc = (animStep<=12)?((animStep-8)*1.5/4):(1.5-(animStep-12)*0.5/4); drawZoomedChar(ctx, nd.c, nd.x, sc); } break;
+                                case "6": drawSnowChar(ctx, nd.c, nd.x, animProgress, snowSeed(animTransition, s, slot, nd.x)); break;
+                                case "7": drawFlapChar(ctx, od ? od.c : "", nd.c, nd.x, animProgress); break;
+                            }
+                        }
+                    });
+                    oldD.forEach((od, slot) => {
+                        const replaced = curD.find(nd => nd.x === od.x);
+                        // 같은 글자는 첫 번째 반복문에서 이미 정적으로 그렸다
+                        if (replaced && replaced.c === od.c) return;
+                        // 기존 모드는 같은 자리를 새 글자가 넘겨받으면 옛 글자를 그냥 지운다.
+                        // 눈 조립만 새 글자와 함께 가라앉힌다 (펌웨어 renderSnowFrame와 동일).
+                        // 분할 플랩은 같은 열의 접힘을 첫 번째 반복문의 drawFlapChar가 이미
+                        // 함께 그렸으므로 여기서도 지운다 (펌웨어 renderFlapFrame와 동일)
+                        if (replaced && mode !== "6") return;
+                        switch(mode) {
+                            case "1": drawChar(ctx, od.c, od.x, -off); break;
+                            case "2": drawChar(ctx, od.c, od.x, off); break;
+                            case "3": if(animStep<=8) drawScaledChar(ctx, od.c, od.x, ((8-animStep)/8)*64); break;
+                            case "4": if(animStep<=8) { ctx.save(); ctx.globalAlpha=(8-animStep)/8; drawChar(ctx, od.c, od.x, 0); ctx.restore(); } break;
+                            case "5": if(animStep<=8) drawZoomedChar(ctx, od.c, od.x, (8-animStep)/8); break;
+                            case "6": drawDispersingSnowChar(ctx, od.c, od.x, animProgress, snowSeed(animTransition, s, slot + 8, od.x)); break;
+                            case "7": drawFlapChar(ctx, od.c, "", od.x, animProgress); break;
+                        }
+                    });
+                }
+                if (s === 0 && els.chime.value === "1") drawChimeIcon(ctx);
+            }
+            requestAnimationFrame(render);
+        }
+        render();
+
+        async function processAll() {
+            els.apply.disabled = true; els.pWrap.style.display = "block";
+            // [A-2① 수정 — 2026-10-06, 중국어판 §12.13 승계] 업로드 대상 슬롯을 **한 번만
+            //   읽어서 고정**한다. 아래 40회의 fetch 사이에 사용자가 슬롯을 바꾸거나
+            //   저장 POST가 늦으면 els.slot.value가 흔들린다. 글리프는 그때그때의 값으로
+            //   보내면 도착점이 달라지고, 이름표는 펌웨어가 가진 font_slot(=첫 시점 값)에
+            //   기록되어 **글리프는 /f1에, 이름표는 /f0에** 남는다 → "업로드한 이름이 안 보인다".
+            const targetSlot = els.slot.value;
+
+            // [A-2①] 폰트 이름도 **같은 이유로 한 번만 읽어 고정**하고, 글리프를 보내는
+            //   **같은 요청**에 실어 보낸다(?font=). 예전엔 업로드가 끝난 뒤 별도의
+            //   /api/config POST로만 이름을 보냈고 그마저 font 파일이 선택된 경우에만 나갔다.
+            //   그 요청이 빠지면 슬롯에는 글리프만 남고 이름표(/fN/name.txt)가 없어
+            //   드롭다운이 "Empty Slot"으로 보였다 (사용자 보고: 폰트를 넣었는데 비어 보인다).
+            const fontName = els.fIn.files[0] ? els.fIn.files[0].name : '';
+            if (!fontName) {
+                // 이름 없이 올리면 이 결함이 그대로 재발한다 — 조용히 진행하지 않는다.
+                els.status.innerText = "⚠ 1. 폰트를 먼저 선택하세요 — 슬롯 이름표가 그 파일명으로 저장됩니다.";
+                els.apply.disabled = false; els.pWrap.style.display = "none";
+                return;
+            }
+            // 업로드 시작 전 모든 배지 초기화 (어둡게)
+            clearInventoryState();
+            
+            const tC = document.createElement('canvas'); tC.width = 64; tC.height = 64;
+            const tX = tC.getContext('2d');
+            for(let i=0; i<UNIQ_CHARS.length; i++) {
+                const char = UNIQ_CHARS[i]; els.status.innerText = `업로드: ${char} (${i+1}/${UNIQ_CHARS.length})`;
+                tX.fillStyle = "#000"; tX.fillRect(0,0,64,64); tX.fillStyle = "#fff"; tX.font = `${els.sIn.value}px ClockFont`;
+                tX.textAlign = "center"; tX.textBaseline = "middle"; tX.fillText(char, 32, 32);
+                const data = tX.getImageData(0,0,64,64).data, bm = new Uint8Array(512);
+                for(let y=0; y<64; y++) for(let x=0; x<8; x++) {
+                    let b = 0; for(let bit=0; bit<8; bit++) if(data[(y*64+(x*8+bit))*4]>128) b|=(1<<(7-bit));
+                    bm[y*8+x]=b;
+                }
+                let hex = ""; new TextEncoder().encode(char).forEach(b => hex += b.toString(16).toUpperCase().padStart(2, '0'));
+                const fd = new FormData(); fd.append('file', new Blob([bm]), `c_${hex}.bin`);
+                
+                // 해당 글자 배지 강조 (업로드 시도 시점)
+                document.getElementById('b_'+char).classList.add('active');
+                
+                // ⚠ name 은 **encodeURIComponent** — 한글 파일명은 UTF-8 다바이트라
+                //   그대로 넣으면 쿼리 문자열이 깨진다. 펌웨어 server.arg()가 디코드한다.
+                await fetch(`/upload?slot=${targetSlot}&font=${encodeURIComponent(fontName)}`,
+                            { method: 'POST', body: fd });
+                els.pFill.style.width = ((i+1)/UNIQ_CHARS.length * 100) + "%";
+            }
+            await fetch('/api/refresh_cache', { method: 'POST' });
+            // [A-2①] 이름표는 위 업로드가 **이미 그 슬롯에** 썼다. 이 POST는 이제 이름을
+            //   위한 것이 아니라 **장치의 현재 슬롯을 업로드한 슬롯으로 옮기기** 위한
+            //   것이다(그래야 올린 폰트가 바로 화면에 뜬다). font_name도 함께 보내지만
+            //   업로드가 실패했더라도 살아남는 이중 안전장치일 뿐이다 — **여기에 기대면
+            //   예전처럼 "조용히 빈 슬롯"이 재발한다.**
+            //   ⚠ 슬롯을 명시하는 이유: 펌웨어 handleSetConfig가 font_slot을 font_name보다
+            //     먼저 적용하므로(configManager.font_slot에 쓰인다) 같은 슬롯에 기록된다.
+            //     그 **순서가 계약**이다 — 바꾸면 재도입된다.
+            await fetch('/api/config', {
+                method: 'POST',
+                body: JSON.stringify({ font_slot: parseInt(targetSlot), font_name: fontName })
+            });
+            els.status.innerText = "전체 업로드 완료!"; els.apply.disabled = false;
+        }
+    </script>
+</body>
+</html>
+)rawliteral";
+
+#endif
