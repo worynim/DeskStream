@@ -1,3 +1,19 @@
+## [v4.13.3] - 2026-10-21
+### 🐛 Bug Fix (Hangeul_Clock / Chinese_Clock / Hangeul_Clock BB)
+- **IP 화면 도트가 숫자 아래 줄처럼 보이던 문제 수정 (v2.9.5 / v1.0.2 / v1.0.11)**: BTN4 IP 화면에서 숫자는 세로 중앙인데 점(.)만 아래에 찍혀 "줄바꿈"처럼 보이던 문제를 한글·중국어 계열 세 프로젝트에 동일하게 수정했습니다. 원인은 각기 달랐지만 본질은 같습니다 — **도트를 래스터/화면 하단에 맞췄는데 래스터라이저는 잉크를 세로 중앙에 둔다**는 것.
+  - **Hangeul_Clock v2.9.5**: 도트가 화면 오른쪽 아래(`120,56`) 고정 — 숫자와 분리. 마지막 숫자 뒤 **인라인**으로 옮기고 캐시 글리프의 실제 잉크 하단(baseline)에 정렬(폴백은 `TEXT_Y_POS`).
+  - **Chinese_Clock v1.0.2**: 래스터 하단 정렬 — 32px 폰트 5px, 22px 폰트 10px 낮았음. `inkBottomY`로 잉크 하단 정렬.
+  - **Hangeul_Clock BB v1.0.11**: v2.9.5와 동일.
+  - 각 프로젝트에 `Renderer::inkBottomY()` 신설, `test/js/ip_dot_test.mjs` 회귀 13·12·13건 추가, ESP32-C3 컴파일 통과.
+- **웹 플래셔 배포본 갱신**: Hangeul_Clock v2.9.5 · Chinese_Clock v1.0.2 · ENG_Clock v1.0.4 바이너리와 `firmware/manifest.json`을 재생성했습니다(`node tools/collect-firmware.mjs --check` 통과). 한글 BB는 플래셔 대상에서 제외됩니다.
+
+## [v4.13.2] - 2026-10-21
+### 🐛 Bug Fix (ENG_Clock)
+- **IP 화면에서 백의 자리가 잘리는 문제 수정 (v1.0.4)**: 폰트가 로드된 상태에서 BTN4 IP 화면이 `192.168.10.59` 대신 `9 2 / 6 8 / 1 0 / 5 9` 로 보이던 문제. 원인은 슬롯에 남은 **영어판 기하가 아닌 폰트**(한글·중국어판의 512B = 64px 피치, 256B = 32px 피치)를 IP 화면이 그 기하로 배치해 3자리+도트가 128px를 넘긴 것입니다. 이제 영어판 기하(14px 피치)이고 화면에 들어갈 때만 캐시 글리프를 쓰고, 아니면 기본 폰트로 그립니다. `Renderer::drawFallbackGlyph()` 신설. 폰트 없는(폴백) 상태의 IP 렌더링은 불변.
+- **IP 도트가 숫자 아래 줄처럼 내려가던 문제 수정 (v1.0.4)**: 폰트를 넣으면 숫자는 중앙인데 점만 아래에 찍히던 문제. 도트를 래스터 하단에 맞췄지만 래스터라이저는 잉크를 세로 중앙에 두므로 384B(래스터 64px)에서 16px 낮았다. `Renderer::inkBottomY()`를 신설해 **숫자 잉크 하단(baseline)** 에 도트를 맞춘다(폴백은 기존 산식 유지). `firmware_wiring_test` 149 passed / 0 failed, ESP32-C3 컴파일 통과.
+  - 참고: 폰트를 지운 뒤 단어 모드가 아니라 숫자 모드 + `Font Required!`가 뜨는 것은 설계된 동작입니다(단어 모드는 캐시 필요). 384B 영문 폰트를 업로드하면 단어 모드·모든 애니메이션이 동작합니다. 상세 `ENG_Clock/PLAN.md` §6.15.
+  - ⚠️ 웹 플래셔 배포본(`firmware/ENG_Clock`, `firmware/manifest.json`)도 v1.0.4로 재생성했습니다.
+
 ## [v4.13.1] - 2026-10-21
 ### 🐛 Bug Fixes & Stability (Stats_Monitor)
 - **버튼 비프음 2초 지연·버튼 반응 지연 수정 (근본 원인)**: ESP32-C3 USB CDC(HWCDC) TX 링버퍼(256 B)가 포화되면 `Serial` 로그 한 줄이 호출당 최대 2초(`tx_timeout_ms` 100 ms × `max_consec_timeouts` 20회)를 블로킹하여, `loop()`의 `updateTone()`이 50 ms 비프음을 끄지 못해 2초 이상 계속 울리고 버튼 입력이 지연되던 문제를 수정했습니다. `Serial.setTxTimeoutMs(0)`으로 메인 루프가 절대 블로킹되지 않도록 변경했습니다. (시리얼 모니터 미연결 상태에서 버튼 5~6회 누르면 재현, 리셋 전까지 반복)

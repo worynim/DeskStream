@@ -645,26 +645,38 @@ void DisplayManager::playChimeMelody() {
 }
 
 
-// IP 자릿수 표시 상수 — 원본에 128/120/56/4/4가 매직넘버로 박혀 있었다.
-// [리뷰 §2.3] 자리 폭은 이미 GLYPH_CELL_W(32)로 정의돼 있으니 재사용한다.
-//   점은 화면 오른쪽 아래에서 4px 안쪽에 4×4로 찍고, 세 화면(1~3번)에만 찍는다.
-static const int IP_DOT_MARGIN  = 4;   // 화면 가장자리와 점 사이 여백
+// IP 화면 도트 상수 — 마지막 숫자 옆("192.")에, 숫자 **밑동(baseline)** 에 맞춰 찍는다.
+//   [2026-10-21 사용자 보고] 이전에는 도트를 화면 오른쪽 아래(120,56)에 고정해 찍었다.
+//   숫자는 화면 세로 중앙인데 점만 아래 모서리에 있어 "줄바꿈"처럼 보였다.
+//   도트를 숫자 뒤 인라인으로 옮기고, 세로는 실제 잉크 하단(=baseline)에 맞춘다.
 static const int IP_DOT_SIZE    = 4;   // 점 한 변의 픽셀 수
+static const int IP_DOT_GAP     = 8;   // 마지막 숫자 칸과 점 사이의 가로 간격
 static const int IP_TITLE_BASELINE_Y = 10;   // 6x10 폰트의 baseline (y=7이면 윗부분이 잘린다)
 
 void DisplayManager::showLargeIP(IPAddress ip) {
-    const int dotX = SCREEN_WIDTH  - IP_DOT_MARGIN - IP_DOT_SIZE;  // 120
-    const int dotY = SCREEN_HEIGHT - IP_DOT_MARGIN - IP_DOT_SIZE;  // 56
     for (int i = 0; i < 4; i++) {
         screens[i]->clearBuffer();
         int ip_idx = configManager.get().is_flipped ? (3 - i) : i;
         String segment = String(ip[ip_idx]);
         int charCount = segment.length();
-        int startX = (SCREEN_WIDTH - charCount * GLYPH_CELL_W) / 2;
+        bool hasDot = (i < 3);
+        int blockW = charCount * GLYPH_CELL_W + (hasDot ? IP_DOT_GAP + IP_DOT_SIZE : 0);
+        int startX = (SCREEN_WIDTH - blockW) / 2;   // 가로 중앙 (도트 포함)
+        int dotX   = startX + charCount * GLYPH_CELL_W + IP_DOT_GAP;
+        // 도트 세로: 캐시 글리프는 실제 잉크 하단, 폴백 폰트는 baseline(TEXT_Y_POS)이
+        // 숫자 잉크 하단이다. 래스터 하단에 맞추면 래스터가 클수록(64px) 점이 아래로
+        // 내려가므로 쓰지 않는다.
+        int dotY = TEXT_Y_POS - IP_DOT_SIZE + 1;                  // 폴백/측정 실패 기본값
+        if (hasDot) {
+            int inkBottom = renderer.inkBottomY(segment.substring(charCount - 1), 0);
+            if (inkBottom >= 0) dotY = inkBottom - IP_DOT_SIZE + 1;
+            if (dotY < 0) dotY = 0;
+            if (dotY > SCREEN_HEIGHT - IP_DOT_SIZE) dotY = SCREEN_HEIGHT - IP_DOT_SIZE;
+        }
         for (int j = 0; j < charCount; j++) {
             renderer.drawSingleChar(i, segment.substring(j, j + 1), startX + j * GLYPH_CELL_W, 0);
         }
-        if (i < 3) screens[i]->drawBox(dotX, dotY, IP_DOT_SIZE, IP_DOT_SIZE);
+        if (hasDot) screens[i]->drawBox(dotX, dotY, IP_DOT_SIZE, IP_DOT_SIZE);
         if (isTitleScreenOf(i)) {
             // 폰트를 6x10으로 통일했다. 글자 높이가 6px→10px로 커지므로 baseline을
             //   y=7에서 y=10으로 내린다 (y=7이면 윗부분이 화면 밖으로 잘린다).

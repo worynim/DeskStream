@@ -204,6 +204,22 @@ void Renderer::drawSingleChar(int screenIdx, const String& charStr, int x, int y
                                    getCharDataPtr(cc));
 }
 
+int Renderer::inkBottomY(const String& charStr, int y) {
+    const CachedChar* cc = findChar(charStr);
+    if (!cc || !cc->geom) return -1;
+    const uint8_t* data = getCharDataPtr(cc);
+    if (!data) return -1;
+    const CellGeometry& g = *cc->geom;
+    // y는 drawSingleChar()와 같은 "래스터 상단"이다 — 행 r의 화면 y = y + r.
+    for (int r = (int)g.glyphH - 1; r >= 0; r--) {
+        const uint8_t* row = data + (uint32_t)r * g.bytesPerRow;
+        for (int b = 0; b < (int)g.bytesPerRow; b++) {
+            if (row[b]) return y + r;
+        }
+    }
+    return -1;   // 빈 글리프(공백 등)
+}
+
 void Renderer::drawDitheredChar(int screenIdx, const String& charStr, int x, int y, int density) {
     if (!_screens || screenIdx >= NUM_SCREENS) return;
     if (density <= 0) return;                 // 완전 투명 — 아무것도 안 그린다

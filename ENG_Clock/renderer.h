@@ -48,6 +48,28 @@ public:
     // 그리기 상단 y = y_offset + (LINE_HEIGHT - glyphH)/2 (v5 — PLAN §6.14).
     // glyphH=32(구 형식)면 그대로 y_offset이므로 기존 슬롯 렌더링은 불변이다.
     void drawSingleChar(int screenIdx, const String& charStr, int x, int y_offset = 0);
+
+    /**
+     * @brief 캐시를 건너뛰고 **기본(폴백) 폰트**로 글자 하나를 그린다.
+     * @details [2026-10-21 사용자 보고] IP 화면 전용 탈출구다. 슬롯에 영어판 기하
+     *          (피치 14px — 64B/192B/384B)가 아닌 폰트가 남아 있으면(한글·중국어판에서
+     *          넘어온 256B/512B = 피치 32/64px) 숫자 3자리 + 도트가 128px을 넘어
+     *          백의 자리가 잘린다(실기: "192." → "9 2"). 그때 캐시 글리프 대신 이 함수로
+     *          그리면 IP가 항상 화면 안에 들어온다. 배치는 defaultGeometry()(14px 피치)를 쓴다.
+     */
+    void drawFallbackGlyph(int screenIdx, const String& charStr, int x, int y_offset = 0);
+
+    /**
+     * @brief 캐시 글리프 잉크의 **하단 y**(화면 좌표)를 돌려준다. 캐시에 없으면 -1.
+     * @details [2026-10-21 사용자 보고] IP 화면의 도트를 숫자 밑동에 붙이기 위한 것이다.
+     *          래스터는 업로드 시 잉크를 **세로 중앙**에 두므로(§6.7 v5) 래스터 하단은
+     *          잉크 하단이 아니다. 384B(래스터 64px)에 잉크가 26px면 19px 차이가 나서
+     *          도트만 다음 줄처럼 내려간다. 숫자 글리프는 디센더가 없으므로 잉크 하단 =
+     *          baseline 이고, 도트 하단을 여기에 맞추면 "192." 처럼 붙는다.
+     * @param y_offset drawSingleChar()에 넘기는 **밴드 상단** y (IP 화면은 LINE_HEIGHT/2)
+     */
+    int inkBottomY(const String& charStr, int y_offset);
+
     /**
      * @brief 디더 페이드 글자. bandTop/bandH로 그릴 세로 구간을 제한한다.
      * @details [v5] 래스터가 밴드보다 높아질 수 있어(48×64) 2줄에서는 이웃 줄 밴드로

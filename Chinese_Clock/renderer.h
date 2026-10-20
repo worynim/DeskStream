@@ -94,6 +94,15 @@ public:
     void drawSingleChar(int screenIdx, const String& charStr, int x, int y);
 
     /**
+     * @brief 캐시 글리프 잉크의 **하단 y**(화면 좌표)를 돌려준다. 캐시에 없으면 -1.
+     * @details [2026-10-21] IP 화면 도트를 숫자 밑동(baseline)에 붙이기 위한 것이다.
+     *          래스터라이저는 잉크를 래스터 세로 중앙에 두므로 래스터 하단 ≠ 잉크 하단 —
+     *          기본 32px 잉크면 도트가 5px 아래로 내려가 "줄바꿈"처럼 보인다.
+     * @param y drawSingleChar()에 넘기는 **래스터 상단** y (IP 화면은 LINE_TOP_Y)
+     */
+    int inkBottomY(const String& charStr, int y);
+
+    /**
      * @brief 디더 페이드 — density 0(투명)~16(불투명)으로 글자를 드러낸다
      * @details 4×4 Bayer 행렬로 픽셀을 골라 칠한다. density ≥ 16은 원래 그리기.
      */

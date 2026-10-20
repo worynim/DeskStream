@@ -714,12 +714,10 @@ void DisplayManager::showLargeIP(IPAddress ip) {
     const CellGeometry& g = dg ? *dg : defaultGeometry();
     const int pitch = g.glyphW;
 
-    // 도트는 마지막 숫자 옆("192."처럼)에, **래스터 하단**에 맞춰 찍는다.
-    // 묶음 폭 = 숫자들 + 간격 + 도트 → 이 묶음을 가로 중앙에 놓는다.
-    // (ENG의 dotY = (SCREEN_HEIGHT + glyphH)/2 는 1줄에서 LINE_TOP_Y + glyphH와 같다 —
-    //  도트를 래스터 아래쪽에, 숫자 위가 아니라 아래에 맞춘다는 의도가 값에 그대로 남아 있다.)
-    const int dotY = LINE_TOP_Y + g.glyphH - IP_DOT_SIZE;
-
+    // [2026-10-21 사용자 보고] 도트는 마지막 숫자 옆("192."처럼)에, 숫자 **밑동(baseline)** 에
+    // 맞춰 찍는다. 래스터라이저는 잉크를 래스터 세로 중앙에 두므로 "래스터 하단"에 맞추면
+    // 작은 폰트에서 도트만 아래로 내려가 줄바꿈처럼 보인다. 캐시 글리프는 실제 잉크 하단을
+    // 재고(inkBottomY), 폴백 폰트는 baseline(=숫자 잉크 하단)을 쓴다.
     for (int i = 0; i < 4; i++) {
         screens[i]->clearBuffer();
         int ip_idx = configManager.get().is_flipped ? (3 - i) : i;
@@ -729,6 +727,13 @@ void DisplayManager::showLargeIP(IPAddress ip) {
         int blockW = charCount * pitch + (hasDot ? IP_DOT_GAP + IP_DOT_SIZE : 0);
         int startX = (SCREEN_WIDTH - blockW) / 2;   // 가로 중앙 (도트 포함)
         int dotX   = startX + charCount * pitch + IP_DOT_GAP;
+        int dotY = LINE_TOP_Y + FALLBACK_BASELINE - IP_DOT_SIZE + 1;   // 폴백 기본값
+        if (dg) {
+            int inkBottom = renderer.inkBottomY(segment.substring(charCount - 1), LINE_TOP_Y);
+            if (inkBottom >= 0) dotY = inkBottom - IP_DOT_SIZE + 1;
+        }
+        if (dotY < 0) dotY = 0;
+        if (dotY > SCREEN_HEIGHT - IP_DOT_SIZE) dotY = SCREEN_HEIGHT - IP_DOT_SIZE;
         for (int j = 0; j < charCount; j++) {
             renderer.drawSingleChar(i, segment.substring(j, j + 1), startX + (j * pitch), LINE_TOP_Y);
         }

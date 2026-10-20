@@ -115,7 +115,7 @@
     {
       "id": "Hangeul_Clock",
       "name": "한글 시계",
-      "version": "2.9.4",
+      "version": "2.9.5",
       "icon": "🕒",
       "order": 9,
       "sourcePath": "Hangeul_Clock",
@@ -128,7 +128,7 @@
     {
       "id": "ENG_Clock",
       "name": "영어 시계",
-      "version": "1.0.3",
+      "version": "1.0.4",
       "icon": "🔤",
       "order": 10,
       "sourcePath": "ENG_Clock",
@@ -141,7 +141,7 @@
     {
       "id": "Chinese_Clock",
       "name": "중국어 시계",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "icon": "🀄",
       "order": 11,
       "sourcePath": "Chinese_Clock",

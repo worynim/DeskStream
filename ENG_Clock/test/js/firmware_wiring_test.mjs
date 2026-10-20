@@ -151,7 +151,7 @@ const GLYPH_W_IP = define('GLYPH_W');
 const digitY = Math.floor(LINE_HEIGHT / 2);
 const digitTop = digitY + Math.floor((LINE_HEIGHT - GLYPH_H) / 2);
 const digitBottom = digitTop + GLYPH_H;                                   // 래스터 하단
-const dotY = Math.floor((SCREEN_HEIGHT + GLYPH_H) / 2) - IP_DOT_SIZE;    // 래스터 하단 정렬
+const dotY = Math.floor((SCREEN_HEIGHT + GLYPH_H) / 2) - IP_DOT_SIZE;    // 래스터 하단 정렬(폴백 기본값)
 const segmentLen = 3;                                   // "192" / "168" 등 최빈 형태
 const blockW = segmentLen * GLYPH_W_IP + IP_DOT_GAP + IP_DOT_SIZE;
 const startX = Math.floor((SCREEN_WIDTH - blockW) / 2);
@@ -164,9 +164,6 @@ chk(`도트가 가로로 화면 안에 있다 (끝=${dotX + IP_DOT_SIZE} ≤ ${S
     dotX + IP_DOT_SIZE <= SCREEN_WIDTH);
 chk(`숫자 래스터가 화면 세로 중앙이다 (중앙 y=${(digitTop + digitBottom) / 2})`,
     (digitTop + digitBottom) / 2 === SCREEN_HEIGHT / 2);
-chk(`신형 384B(래스터 64px)에서도 도트가 화면 안에 있다`,
-    (() => { const b = Math.floor((SCREEN_HEIGHT + 64) / 2);
-             return b === SCREEN_HEIGHT && b - IP_DOT_SIZE >= 0; })());
 chk(`도트가 숫자 영역 아래에서 시작한다 (도트 위=${dotY} ≥ 숫자 위=${digitTop})`, dotY >= digitTop);
 // 묶음(숫자+간격+도트)이 가로 중앙이다: 왼쪽 여백과 오른쪽 여백이 같다.
 chk(`묶음의 좌우 여백이 같다 (좌 ${startX} / 우 ${SCREEN_WIDTH - (dotX + IP_DOT_SIZE)})`,
@@ -176,13 +173,37 @@ chk('도트가 숫자 오른쪽에 있다 (간격 이후)',
 chk(`숫자 래스터(=잉크)는 세로 중앙에 있다 (y=${digitY})`,
     digitY === Math.floor(LINE_HEIGHT / 2) && digitY >= 0);
 
+// -------------------------------------------------------------------
+// [2026-10-21 사용자 보고 2] 폰트가 로드되면 숫자는 화면 중앙인데 도트만 아래로
+// 내려가 "줄바꿈"처럼 보인다. 원인: 래스터는 잉크를 **세로 중앙**에 두는데(§6.7 v5)
+// 도트를 "래스터 하단"에 맞췄다. 384B(래스터 64px)에 잉크 26px면 16px나 낮다.
+// → 캐시 글리프는 실제 잉크 하단(=baseline)에 도트 하단을 맞춘다.
+// -------------------------------------------------------------------
+const RASTER_384 = 64;                       // 384B 래스터 높이
+const INK_384 = 26;                          // 예: 26px 폰트의 잉크 높이
+const inkTop384 = Math.floor((RASTER_384 - INK_384) / 2);   // 19
+const inkBottom384 = inkTop384 + INK_384 - 1;               // 44 = baseline
+const rasterBottomDotY = Math.floor((SCREEN_HEIGHT + RASTER_384) / 2) - IP_DOT_SIZE; // 60
+chk(`래스터 하단 정렬은 잉크 하단보다 낮다 (도트 위 ${rasterBottomDotY} > 잉크 하단 ${inkBottom384}) — 버그 조건`,
+    rasterBottomDotY > inkBottom384);
+chk(`잉크 하단 정렬이면 도트 하단이 baseline 에 붙는다 (${inkBottom384 - IP_DOT_SIZE + 1}..${inkBottom384})`,
+    inkBottom384 - IP_DOT_SIZE + 1 + IP_DOT_SIZE - 1 === inkBottom384);
+chk('캐시 글리프는 실제 잉크 하단(inkBottomY)으로 도트를 옮긴다',
+    /int inkBottom = renderer\.inkBottomY\(segment\.substring\(charCount - 1\), digitY\)/.test(ipFn)
+    && /dotY = inkBottom - IP_DOT_SIZE \+ 1/.test(ipFn));
+chk('도트가 화면 밖으로 나가지 않도록 클램프한다',
+    /dotY = SCREEN_HEIGHT - IP_DOT_SIZE/.test(ipFn) && /dotY < 0\) dotY = 0/.test(ipFn));
+chk('inkBottomY가 renderer.h에 선언·renderer.cpp에 정의되어 있다',
+    /int inkBottomY\(const String& charStr, int y_offset\);/.test(read('renderer.h'))
+    && /int Renderer::inkBottomY\(const String& charStr, int y_offset\)/.test(rc));
+
 // 소스가 위 산식을 그대로 쓰는지 — 이전 "숫자 아래 도트" 산식이 남으면 잡는다.
 chk('숫자를 1줄 밴드 상단 y 에 넘긴다 (v5: y_offset = 밴드 상단)',
     /digitY\s*=\s*LINE_HEIGHT \/ 2/.test(ipFn));
-chk('도트를 래스터 하단에 맞춘다 (구 산식 digitY + glyphH − SIZE는 구 형식 한정)',
+chk('도트 기본값은 래스터 하단 산식이다 (폴백 폰트 경로 유지)',
     /dotY\s*=\s*\(SCREEN_HEIGHT \+ g\.glyphH\) \/ 2 - IP_DOT_SIZE/.test(ipFn) && !/blockH/.test(ipFn));
 chk('도트 앵커가 실제 숫자 기하를 따른다 (geometryOf 조회, 폴백 = defaultGeometry)',
-    /renderer\.geometryOf\(/.test(ipFn) && /dg \? \*dg : defaultGeometry\(\)/.test(ipFn));
+    /renderer\.geometryOf\(/.test(ipFn) && /useCache \? \*dg : defaultGeometry\(\)/.test(ipFn));
 chk('drawSingleChar 에 세로 중앙 y 를 넘긴다 (하드코딩 0 이 아님)',
     /drawSingleChar\(i, segment\.substring\(j, j \+ 1\), startX \+ \(j \* pitch\), digitY\)/.test(ipFn));
 chk('도트를 묶음 좌표에 둔다 (하드코딩 120, 56 이 아님)',
@@ -190,6 +211,34 @@ chk('도트를 묶음 좌표에 둔다 (하드코딩 120, 56 이 아님)',
     && !/drawBox\(120, 56/.test(ipFn));
 chk('가로 중앙은 도트 포함 묶음 기준이다',
     /\(SCREEN_WIDTH - blockW\) \/ 2/.test(ipFn) && /hasDot \? IP_DOT_GAP \+ IP_DOT_SIZE : 0/.test(ipFn));
+
+// -------------------------------------------------------------------
+// [2026-10-21 사용자 보고] 한글·중국어판에서 남은 256B/512B 폰트가 슬롯에 있으면
+// 그 피치(32/64px)로는 숫자 3자리 + 도트가 128px을 넘어 백의 자리가 잘린다.
+//   실기 증상: "192." → "9 2"(1이 화면 왼쪽 밖), "10." → "1 0".
+// IP 화면은 **영어판 기하(14px 피치)** 일 때만 캐시 글리프를 쓰고, 아니면 기본 폰트로
+// 그려야 한다. 시계가 그 폰트의 영문 글리프를 못 써 기본 폰트로 보이는 상태와 일치한다.
+// -------------------------------------------------------------------
+const DEFAULT_PITCH = define('GLYPH_W');   // 영어판 피치 14 (GEOM_64B/192B/384B)
+const dotArea = IP_DOT_GAP + IP_DOT_SIZE;
+const ipUsesCacheFor = (pitch) =>
+    pitch === DEFAULT_PITCH && 3 * pitch + dotArea <= SCREEN_WIDTH;
+chk('512B(64px) 폰트는 영어판 기하가 아니다 → IP는 기본 폰트로 그린다', !ipUsesCacheFor(64));
+chk('256B(32px) 폰트도 영어판 기하가 아니다 → IP는 기본 폰트로 그린다', !ipUsesCacheFor(32));
+chk('영어판 64/192/384B(14px)는 캐시 글리프를 그대로 쓴다', ipUsesCacheFor(DEFAULT_PITCH));
+chk('512B 피치는 3자리+도트가 화면을 넘는다 (버그 성립 조건)',
+    3 * 64 + dotArea > SCREEN_WIDTH);
+chk('기본 폰트 폴백 배치는 3자리+도트가 화면 안에 들어온다',
+    3 * DEFAULT_PITCH + dotArea <= SCREEN_WIDTH);
+chk('소스가 영어판 기하이고 화면에 들어갈 때만 캐시를 쓴다 (회귀 방지)',
+    /dg->glyphW == defaultGeometry\(\)\.glyphW/.test(ipFn)
+    && /3 \* dg->glyphW \+ IP_DOT_GAP \+ IP_DOT_SIZE <= SCREEN_WIDTH/.test(ipFn));
+chk('폴백일 때 캐시를 건너뛰는 drawFallbackGlyph로 그린다',
+    /renderer\.drawFallbackGlyph\(i, segment\.substring\(j, j \+ 1\), startX \+ \(j \* pitch\), digitY\)/.test(ipFn));
+chk('drawFallbackGlyph가 renderer.h에 선언·renderer.cpp에 정의되어 있다',
+    /void drawFallbackGlyph\(int screenIdx, const String& charStr, int x, int y_offset = 0\);/.test(read('renderer.h'))
+    && /void Renderer::drawFallbackGlyph\(int screenIdx, const String& charStr, int x, int y_offset\)/.test(rc));
+
 
 // 웹 미리보기와 기하가 어긋나지 않아야 한다
 // [v5] 웹의 GLYPH_H는 **래스터 높이**(64)다 — 펌웨어 config.h의 GLYPH_H(32)는 구 형식

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-20T18:43:53.745Z",
+  "generatedAt": "2026-10-20T19:38:47.429Z",
   "chip": "ESP32-C3",
   "board": "DeskStream (ESP32-C3 SuperMini · 4× OLED)",
   "flashDefaults": {
@@ -29,7 +29,7 @@
       },
       "exportedAt": "2026-10-20T18:43:06.825Z",
       "sourcePath": "Smart_Info_Station",
-      "sourceCommit": "8cbfefa6d01d4ab0b5c3c70908226c8631e23e0f",
+      "sourceCommit": "4e40b7f5017c4bdccb433b7bfedf69a78b912810",
       "images": [
         {
           "offset": "0x0",
@@ -77,7 +77,7 @@
       },
       "exportedAt": "2026-10-20T18:42:24.934Z",
       "sourcePath": "GPS_DASH",
-      "sourceCommit": "8cbfefa6d01d4ab0b5c3c70908226c8631e23e0f",
+      "sourceCommit": "4e40b7f5017c4bdccb433b7bfedf69a78b912810",
       "images": [
         {
           "offset": "0x0",
@@ -125,7 +125,7 @@
       },
       "exportedAt": "2026-10-20T18:42:24.025Z",
       "sourcePath": "Sound_Visualizer_4_OLEDs",
-      "sourceCommit": "8cbfefa6d01d4ab0b5c3c70908226c8631e23e0f",
+      "sourceCommit": "4e40b7f5017c4bdccb433b7bfedf69a78b912810",
       "images": [
         {
           "offset": "0x0",
@@ -173,7 +173,7 @@
       },
       "exportedAt": "2026-10-20T18:42:24.383Z",
       "sourcePath": "OLED_Wide_test",
-      "sourceCommit": "8cbfefa6d01d4ab0b5c3c70908226c8631e23e0f",
+      "sourceCommit": "4e40b7f5017c4bdccb433b7bfedf69a78b912810",
       "images": [
         {
           "offset": "0x0",
@@ -221,7 +221,7 @@
       },
       "exportedAt": "2026-10-20T18:32:18.243Z",
       "sourcePath": "Stats_Monitor",
-      "sourceCommit": "8cbfefa6d01d4ab0b5c3c70908226c8631e23e0f",
+      "sourceCommit": "4e40b7f5017c4bdccb433b7bfedf69a78b912810",
       "images": [
         {
           "offset": "0x0",
@@ -269,7 +269,7 @@
       },
       "exportedAt": "2026-10-20T18:43:13.194Z",
       "sourcePath": "DS_DECK",
-      "sourceCommit": "8cbfefa6d01d4ab0b5c3c70908226c8631e23e0f",
+      "sourceCommit": "4e40b7f5017c4bdccb433b7bfedf69a78b912810",
       "images": [
         {
           "offset": "0x0",
@@ -317,7 +317,7 @@
       },
       "exportedAt": "2026-10-20T18:43:14.610Z",
       "sourcePath": "Screen_To_OLEDs/Screen_To_OLEDs",
-      "sourceCommit": "8cbfefa6d01d4ab0b5c3c70908226c8631e23e0f",
+      "sourceCommit": "4e40b7f5017c4bdccb433b7bfedf69a78b912810",
       "images": [
         {
           "offset": "0x0",
@@ -365,7 +365,7 @@
       },
       "exportedAt": "2026-10-20T18:40:34.303Z",
       "sourcePath": "Game_Of_Life",
-      "sourceCommit": "8cbfefa6d01d4ab0b5c3c70908226c8631e23e0f",
+      "sourceCommit": "4e40b7f5017c4bdccb433b7bfedf69a78b912810",
       "images": [
         {
           "offset": "0x0",
@@ -396,7 +396,7 @@
     {
       "id": "Hangeul_Clock",
       "name": "한글 시계",
-      "version": "2.9.4",
+      "version": "2.9.5",
       "icon": "🕒",
       "order": 9,
       "description": "NTP 동기화 기반 고화질 한글 단어 시계. 웹 대시보드·폰트 스튜디오 지원",
@@ -411,9 +411,9 @@
         "freq": "80m",
         "size": "4MB"
       },
-      "exportedAt": "2026-10-20T18:42:39.088Z",
+      "exportedAt": "2026-10-20T19:38:14.096Z",
       "sourcePath": "Hangeul_Clock",
-      "sourceCommit": "8cbfefa6d01d4ab0b5c3c70908226c8631e23e0f",
+      "sourceCommit": "4e40b7f5017c4bdccb433b7bfedf69a78b912810",
       "images": [
         {
           "offset": "0x0",
@@ -436,15 +436,15 @@
         {
           "offset": "0x10000",
           "path": "firmware/Hangeul_Clock/Hangeul_Clock.ino.bin",
-          "size": 1291024,
-          "sha256": "7b2f47b1c9febce7193011cd2dd0fba9d624cab1b6d164486164e369e9c6a5c8"
+          "size": 1291344,
+          "sha256": "b243175b66c0e2ac3c67240ad2a1997074fe6e82f3a38b0a118695415ca2860e"
         }
       ]
     },
     {
       "id": "ENG_Clock",
       "name": "영어 시계",
-      "version": "1.0.3",
+      "version": "1.0.4",
       "icon": "🔤",
       "order": 10,
       "description": "NTP 기반 영어 단어 시계. 2줄 레이아웃·POS 시간대·폰트 스튜디오 지원",
@@ -459,9 +459,9 @@
         "freq": "80m",
         "size": "4MB"
       },
-      "exportedAt": "2026-10-20T17:05:45.436Z",
+      "exportedAt": "2026-10-20T19:34:43.036Z",
       "sourcePath": "ENG_Clock",
-      "sourceCommit": "8cbfefa6d01d4ab0b5c3c70908226c8631e23e0f",
+      "sourceCommit": "4e40b7f5017c4bdccb433b7bfedf69a78b912810",
       "images": [
         {
           "offset": "0x0",
@@ -484,15 +484,15 @@
         {
           "offset": "0x10000",
           "path": "firmware/ENG_Clock/ENG_Clock.ino.bin",
-          "size": 1308560,
-          "sha256": "b5b1ce3793db40d9360d3d292a47fa67e3a5eccf7027bf55a2ef06ef4f666aeb"
+          "size": 1308976,
+          "sha256": "113e0c9e0c1a7f66c2965a5569b343c0020d0a07d102e10570b7a5a8c76ed356"
         }
       ]
     },
     {
       "id": "Chinese_Clock",
       "name": "중국어 시계",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "icon": "🀄",
       "order": 11,
       "description": "NTP 기반 중국어 한자 시계. 한글·영어판과 동일한 4화면 32×32 셀 레이아웃",
@@ -507,9 +507,9 @@
         "freq": "80m",
         "size": "4MB"
       },
-      "exportedAt": "2026-10-20T17:02:26.839Z",
+      "exportedAt": "2026-10-20T19:37:12.116Z",
       "sourcePath": "Chinese_Clock",
-      "sourceCommit": "8cbfefa6d01d4ab0b5c3c70908226c8631e23e0f",
+      "sourceCommit": "4e40b7f5017c4bdccb433b7bfedf69a78b912810",
       "images": [
         {
           "offset": "0x0",
@@ -532,8 +532,8 @@
         {
           "offset": "0x10000",
           "path": "firmware/Chinese_Clock/Chinese_Clock.ino.bin",
-          "size": 1305920,
-          "sha256": "d0e7233d6f843200c25e70e89471989b48278e750bb3b7c64e2e2c8acb1419d0"
+          "size": 1306176,
+          "sha256": "47183e5e120338eb3a1784568a9c8e1e58f55a9cdb5ae13c0729f328ea67d35e"
         }
       ]
     }

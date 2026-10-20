@@ -239,6 +239,11 @@ static void drawFallbackChar(U8G2* u8g2, const String& charStr, int x, int y_off
                    FALLBACK_BASELINE + y_offset, charStr.c_str());
 }
 
+void Renderer::drawFallbackGlyph(int screenIdx, const String& charStr, int x, int y_offset) {
+    if (!_screens || screenIdx >= NUM_SCREENS) return;
+    drawFallbackChar(_screens[screenIdx], charStr, x, y_offset);
+}
+
 /**
  * [여백 수정 v5 — PLAN §6.14] 래스터를 줄 밴드 중앙에 놓는 그리기 상단 y.
  * y_offset은 layoutWrap()이 준 밴드 위쪽 y(0/16/32)다.
@@ -249,6 +254,23 @@ static void drawFallbackChar(U8G2* u8g2, const String& charStr, int x, int y_off
  */
 static inline int rasterTopY(int y_offset, const CellGeometry& g) {
     return y_offset + (LINE_HEIGHT - (int)g.glyphH) / 2;
+}
+
+int Renderer::inkBottomY(const String& charStr, int y_offset) {
+    const CachedChar* cc = findChar(charStr);
+    if (!cc || !cc->geom) return -1;
+    const uint8_t* data = getCharDataPtr(cc);
+    if (!data) return -1;
+    const CellGeometry& g = *cc->geom;
+    // 아래 행부터 훑어 잉크가 있는 마지막 행. drawSingleChar()가 그리는 위치와 같은
+    // rasterTopY()를 써야 화면 좌표가 맞는다 (호출자가 y_offset을 똑같이 넘긴다).
+    for (int r = (int)g.glyphH - 1; r >= 0; r--) {
+        const uint8_t* row = data + (uint32_t)r * g.bytesPerRow;
+        for (int b = 0; b < (int)g.bytesPerRow; b++) {
+            if (row[b]) return rasterTopY(y_offset, g) + r;
+        }
+    }
+    return -1;   // 빈 글리프(공백 등)
 }
 
 void Renderer::drawSingleChar(int screenIdx, const String& charStr, int x, int y_offset) {

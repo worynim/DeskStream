@@ -670,18 +670,25 @@ void DisplayManager::showLargeIP(IPAddress ip) {
         String seg = String(ip[configManager.get().is_flipped ? (3 - i) : i]);
         for (int j = 0; j < seg.length() && !dg; j++) dg = renderer.geometryOf(seg.substring(j, j + 1));
     }
-    const CellGeometry& g = dg ? *dg : defaultGeometry();
+    // [IP 화면 폰트 폴백 — 2026-10-21 사용자 보고] IP 화면은 숫자 3자리 + 도트가 128px
+    // 안에 들어와야 한다. 슬롯에 영어판 기하(피치 14px — 64B/192B/384B)가 아닌 폰트가
+    // 남아 있으면(한글·중국어판에서 넘어온 256B/512B = 피치 32/64px) 그 피치로는 3자리가
+    // 화면을 넘어 백의 자리가 잘린다(실기: "192." → "9 2", "10." → "1 0").
+    // 그래서 영어판 기하가 아니거나 3자리가 안 들어가는 기하면 캐시 글리프를 버리고
+    // 기본(폴백) 폰트로 그린다 — 시계가 그 폰트의 영문 글리프를 못 써 폴백으로 보이는
+    // 상태와도 일치한다. (실제 증상: 다른 프로젝트 512B 폰트가 /fN에 남아 있을 때)
+    const bool useCache = dg && dg->glyphW == defaultGeometry().glyphW &&
+                          3 * dg->glyphW + IP_DOT_GAP + IP_DOT_SIZE <= SCREEN_WIDTH;
+    const CellGeometry& g = useCache ? *dg : defaultGeometry();
     const int pitch = g.glyphW;
 
-    // [bug fix] 도트는 마지막 숫자 옆("192."처럼)에, 숫자 하단에 맞춰 찍는다.
+    // [bug fix] 도트는 마지막 숫자 옆("192."처럼)에, 숫자 **밑동**에 맞춰 찍는다.
     // 이전에는 도트를 화면 가로 중앙 아래에 내려 숫자와 분리돼 보였다.
     // 묶음 폭 = 숫자들 + 간격 + 도트 → 이 묶음을 가로 중앙에 놓는다.
     // [여백 수정 v5 — PLAN §6.14] drawSingleChar의 y_offset은 **밴드 상단**이다(래스터를
     //   밴드 중앙에 놓는다). 1줄 밴드 상단(=LINE_HEIGHT/2)을 넘기면 어떤 기하든 래스터가
     //   화면 세로 중앙에 온다 — 구 형식(glyphH=32)은 y=16, 신형 384B(glyphH=64)는 y=0.
-    //   도트는 래스터 하단에 맞춘다: 구 형식 = digitY + glyphH − IP_DOT_SIZE와 같은 값(44).
     const int digitY = LINE_HEIGHT / 2;                                   // 1줄 밴드 상단
-    const int dotY   = (SCREEN_HEIGHT + g.glyphH) / 2 - IP_DOT_SIZE;      // 래스터 하단 정렬
 
     for (int i = 0; i < 4; i++) {
         screens[i]->clearBuffer();
@@ -692,8 +699,25 @@ void DisplayManager::showLargeIP(IPAddress ip) {
         int blockW = charCount * pitch + (hasDot ? IP_DOT_GAP + IP_DOT_SIZE : 0);
         int startX = (SCREEN_WIDTH - blockW) / 2;   // 가로 중앙 (도트 포함)
         int dotX   = startX + charCount * pitch + IP_DOT_GAP;
+        // [IP 도트 정렬 — 2026-10-21 사용자 보고] 래스터는 업로드 시 잉크를 **세로 중앙**에
+        //   두므로 래스터 하단은 잉크 하단이 아니다. 래스터 하단에 도트를 맞추면 384B
+        //   (래스터 64px)에서 숫자보다 한 줄 아래로 내려가 "줄바꿈"처럼 보인다.
+        //   캐시 글리프는 **실제 잉크 하단(=baseline)** 에 도트 하단을 맞춘다.
+        //   폴백 폰트는 잴 비트맵이 없어 기존 "래스터 하단" 산식을 그대로 쓴다
+        //   (빈 슬롯 상태에서 정상 표시됨을 실기 확인).
+        int dotY = (SCREEN_HEIGHT + g.glyphH) / 2 - IP_DOT_SIZE;          // 폴백/측정 실패 기본값
+        if (useCache) {
+            int inkBottom = renderer.inkBottomY(segment.substring(charCount - 1), digitY);
+            if (inkBottom >= 0) dotY = inkBottom - IP_DOT_SIZE + 1;
+        }
+        if (dotY < 0) dotY = 0;
+        if (dotY > SCREEN_HEIGHT - IP_DOT_SIZE) dotY = SCREEN_HEIGHT - IP_DOT_SIZE;
         for (int j = 0; j < charCount; j++) {
-            renderer.drawSingleChar(i, segment.substring(j, j + 1), startX + (j * pitch), digitY);
+            if (useCache) {
+                renderer.drawSingleChar(i, segment.substring(j, j + 1), startX + (j * pitch), digitY);
+            } else {
+                renderer.drawFallbackGlyph(i, segment.substring(j, j + 1), startX + (j * pitch), digitY);
+            }
         }
         if (hasDot) screens[i]->drawBox(dotX, dotY, IP_DOT_SIZE, IP_DOT_SIZE);
         if (isTitleScreenOf(i)) {

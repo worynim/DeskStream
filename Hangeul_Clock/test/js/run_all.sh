@@ -33,6 +33,10 @@ fi
 note "폰트 업로드·슬롯 결함 회귀"
 if node "$HERE/web_fixes_test.mjs"; then :; else mark_fail "web_fixes_test 실패"; fi
 
+# --- 4. IP 화면 도트 정렬 (2026-10-21) ---
+note "IP 도트: 숫자 옆·밑동 정렬"
+if node "$HERE/ip_dot_test.mjs"; then :; else mark_fail "ip_dot_test 실패"; fi
+
 note "결과"
 if [ "$rc" -eq 0 ]; then
     printf '\033[32m한글판 JS 검증 전체 통과\033[0m\n'

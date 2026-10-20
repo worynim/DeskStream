@@ -1,5 +1,19 @@
 # Release Notes - Chinese Clock (중국어 단어 시계)
 
+## [v1.0.2] - 2026-10-21
+### 🐛 IP 화면 도트가 숫자 아래 줄처럼 내려가던 문제 수정 (BTN4)
+
+- **증상**: IP 화면에서 숫자는 세로 중앙인데 점(.)만 숫자 밑동보다 아래에 찍혀
+  "줄바꿈"처럼 보였습니다. 폰트가 작을수록 더 벌어졌습니다.
+- **원인**: 도트를 **래스터 하단**(`LINE_TOP_Y + glyphH − IP_DOT_SIZE`)에 맞췄습니다.
+  래스터라이저는 잉크를 래스터(48×48) **세로 중앙**에 두므로 래스터 하단 ≠ 잉크 하단 —
+  32px 폰트에서 5px, 22px 폰트에서 10px 낮았습니다.
+- **수정**: `Renderer::inkBottomY()`를 신설해 캐시 글리프의 **실제 잉크 하단(baseline)** 에
+  도트 하단을 맞춥니다. 폰트가 없으면 폴백 폰트 baseline(`LINE_TOP_Y + FALLBACK_BASELINE`)을
+  씁니다. 화면 밖 클램프 포함.
+- **검증**: `test/js/ip_dot_test.mjs` 12건 신설(JS 검증 통과). ESP32-C3
+  (`esp32:esp32:makergo_c3_supermini`) 컴파일 통과.
+
 ## [v1.0.1] - 2026-10-07
 ### 🐛 버그 수정 및 안정성 개선
 - **JSON 불리언 파서 공백 지원**: `WebManager::parseBool()`에서 콜론 뒤 공백/탭을 건너뛰도록 처리하여 표준 서식 JSON(`"key": true`) 파싱 지원.

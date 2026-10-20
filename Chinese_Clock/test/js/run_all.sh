@@ -58,6 +58,16 @@ else
   fail=1
 fi
 
+# IP 화면 도트 정렬 — 래스터 하단이 아니라 숫자 잉크 하단(baseline)에 붙는지.
+if out=$(node "$HERE/ip_dot_test.mjs" 2>&1); then
+  echo "$out" | grep -E 'passed' | sed 's/^/  /'
+  echo "✅ ip_dot"
+else
+  echo "❌ ip_dot"
+  printf '%s\n' "$out" | tail -30
+  fail=1
+fi
+
 echo "---"
 [ "$fail" -eq 0 ] && echo "JS 검증 통과" || echo "JS 검증 실패"
 exit "$fail"

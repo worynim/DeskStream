@@ -1,5 +1,19 @@
 # Release Notes - Hangeul Clock
 
+## [v2.9.5] - 2026-10-21
+### 🐛 IP 화면 도트가 숫자 아래 줄처럼 보이던 문제 수정 (BTN4)
+
+- **증상**: BTN4 IP 화면에서 숫자는 화면 세로 중앙에 있는데 점(.)만 화면 오른쪽 아래
+  (`120,56`)에 고정되어 "줄바꿈"한 것처럼 보였습니다. 폰트 슬롯이 비어 있으면 더 심했습니다.
+- **원인**: 도트를 "화면 모서리 고정"으로 찍었습니다. 숫자는 래스터(64×64) 세로 중앙에
+  그려지므로 도트 위치가 숫자 잉크 하단(baseline)과 9~14px 어긋났습니다. 빈 슬롯(폴백
+  폰트 baseline = `TEXT_Y_POS` 42)에서는 14px 아래였습니다.
+- **수정**: 도트를 마지막 숫자 **뒤 인라인**(`IP_DOT_GAP` 8px)으로 옮기고, 세로는
+  `Renderer::inkBottomY()`로 캐시 글리프의 **실제 잉크 하단**에 맞췄습니다. 폰트가 없으면
+  폴백 폰트 baseline(`TEXT_Y_POS`)을 씁니다. 화면 밖 클램프 포함.
+- **검증**: `test/js/ip_dot_test.mjs` 13건 신설(전체 JS 58 passed / 0 failed).
+  ESP32-C3(`esp32:esp32:makergo_c3_supermini`) 컴파일 통과.
+
 ## [v2.9.4] - 2026-10-21
 ### 🐛 버그 수정 및 안정성 개선
 - **USB CDC 로그 블로킹 방지 (ESP32-C3)**: `Serial.begin()` 직후 `Serial.setTxTimeoutMs(0)`을 적용했습니다. USB CDC(HWCDC) TX 링버퍼(256B)가 가득 찬 상태에서 로그를 출력하면 `HWCDC::write()`가 호출당 최대 2초(`tx_timeout_ms` 100 ms × `max_consec_timeouts` 20회)를 블로킹해 메인 루프(렌더링·버튼·시보)가 멈추는 잠재 위험을 제거했습니다. `ARDUINO_USB_CDC_ON_BOOT` 가드로 CDC 부팅 보드에서만 적용됩니다.

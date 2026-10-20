@@ -39,6 +39,17 @@ public:
 
     // 그리기 프리미티브
     void drawSingleChar(int screenIdx, const String& charStr, int x, int y_offset = 0);
+
+    /**
+     * @brief 캐시 글리프 잉크의 **하단 y**(화면 좌표)를 돌려준다. 캐시에 없으면 -1.
+     * @details [2026-10-21] IP 화면 도트를 숫자 밑동(baseline)에 붙이기 위한 것이다.
+     *          래스터는 잉크를 래스터 세로 중앙에 두므로 래스터 하단 ≠ 잉크 하단이다.
+     *          숫자 글리프는 디센더가 없어 잉크 하단 = baseline 이므로, 도트 하단을
+     *          여기에 맞추면 "192." 처럼 숫자에 붙는다.
+     * @param y_offset drawSingleChar()에 넘기는 **래스터 상단** y (IP 화면은 0)
+     */
+    int inkBottomY(const String& charStr, int y_offset);
+
     void drawDitheredChar(int screenIdx, const String& charStr, int x, int density);
     void drawZoomedChar(int screenIdx, const String& charStr, int x, int scale_percent);
     void drawScaledChar(int screenIdx, const String& charStr, int x, int h);
