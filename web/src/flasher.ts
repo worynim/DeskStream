@@ -7,6 +7,7 @@ import {
   type IEspLoaderTerminal,
 } from "esptool-js";
 import SparkMD5 from "spark-md5";
+import type { FlashStrings } from "./i18n";
 import { fetchImage, projectSize } from "./manifest";
 import { resetIntoApp } from "./reset";
 import type { ManifestProject } from "./types";
@@ -15,9 +16,12 @@ export type FlashStage = "port" | "connect" | "download" | "write" | "reset";
 
 export interface FlashRequest {
   project: ManifestProject;
+  /** 현재 언어로 표시할 프로젝트 이름 */
+  displayName: string;
   eraseAll: boolean;
   verifyMd5: boolean;
   baudrate: number;
+  messages: FlashStrings;
   onLog: (line: string) => void;
   onStage: (stage: FlashStage, detail?: string) => void;
   onProgress: (ratio: number, label: string) => void;
@@ -36,10 +40,10 @@ export function isSerialSupported(): boolean {
  * - NVS(0x9000~0xDFFF)는 건드리지 않으므로 기본 설정이 보존된다.
  */
 export async function flashProject(request: FlashRequest): Promise<void> {
-  const { project, eraseAll, verifyMd5, baudrate } = request;
+  const { project, displayName, eraseAll, verifyMd5, baudrate, messages } = request;
 
   request.onStage("port");
-  request.onLog("포트 선택 창에서 ESP32-C3 보드를 선택하세요.");
+  request.onLog(messages.portPrompt);
   const port = await navigator.serial.requestPort();
 
   const transport = new Transport(port, true);
@@ -59,13 +63,13 @@ export async function flashProject(request: FlashRequest): Promise<void> {
 
   try {
     request.onStage("connect");
-    request.onLog("칩과 통신을 설정하는 중…");
+    request.onLog(messages.connecting);
     const chip = await loader.main();
     request.onChip(chip);
-    request.onLog(`감지된 칩: ${chip}`);
+    request.onLog(messages.chipDetected(chip));
 
     if (!/ESP32-C3/i.test(chip)) {
-      throw new Error(`ESP32-C3 보드가 아닙니다 (감지: ${chip}). DeskStream 보드를 연결해 주세요.`);
+      throw new Error(messages.chipUnsupported(chip));
     }
 
     request.onStage("download");
@@ -76,21 +80,20 @@ export async function flashProject(request: FlashRequest): Promise<void> {
     const files: { data: Uint8Array; address: number }[] = [];
 
     for (const image of project.images) {
+      const fileName = image.path.split("/").pop() ?? image.path;
       const data = await fetchImage(image);
       downloaded += data.length;
       files.push({ data, address: Number.parseInt(image.offset, 16) });
       request.onProgress(
         totalBytes > 0 ? downloaded / totalBytes : 1,
-        `펌웨어 준비 중… (${image.path.split("/").pop()})`,
+        messages.preparing(fileName),
       );
-      request.onLog(`이미지 준비: ${image.offset} ${image.path.split("/").pop()} (${data.length.toLocaleString()} bytes)`);
+      request.onLog(messages.imageReady(image.offset, fileName, data.length));
     }
 
     request.onStage("write");
     const projectBytes = projectSize(project);
-    request.onLog(
-      `플래시 시작: ${project.name} v${project.version} / ${files.length}개 이미지 / ${eraseAll ? "전체 지우기" : "설정 보존"}`,
-    );
+    request.onLog(messages.flashStart(displayName, project.version, files.length, eraseAll));
 
     await loader.writeFlash({
       fileArray: files,
@@ -102,6 +105,7 @@ export async function flashProject(request: FlashRequest): Promise<void> {
       reportProgress: (fileIndex, written, total) => {
         const image = project.images[fileIndex];
         if (!image) return;
+        const fileName = image.path.split("/").pop() ?? image.path;
         const previous = project.images
           .slice(0, fileIndex)
           .reduce((sum, item) => sum + item.size, 0);
@@ -110,7 +114,7 @@ export async function flashProject(request: FlashRequest): Promise<void> {
           : 0;
         request.onProgress(
           Math.min(1, ratio),
-          `기록 중… (${fileIndex + 1}/${files.length} · ${image.path.split("/").pop()})`,
+          messages.writing(fileIndex + 1, files.length, fileName),
         );
       },
       calculateMD5Hash: verifyMd5
@@ -118,17 +122,17 @@ export async function flashProject(request: FlashRequest): Promise<void> {
         : undefined,
     });
 
-    request.onProgress(1, "재부팅 중…");
+    request.onProgress(1, messages.rebooting);
     request.onStage("reset");
-    request.onLog("플래시 완료. 보드를 재부팅합니다…");
+    request.onLog(messages.flashDone);
     try {
       // esptool-js의 after("hard_reset")은 USB-Serial/JTAG에서 리셋되지 않으므로
       // RTC WDT 리셋(C3/C2/S2/S3) 또는 USB-JTAG/클래식 리셋을 사용한다.
       const resetMethod = await resetIntoApp(loader, transport, port);
-      request.onLog(`재부팅 신호를 보냈습니다 (reset: ${resetMethod}).`);
+      request.onLog(messages.resetSent(resetMethod));
     } catch (error) {
       request.onLog(
-        `[warn] 자동 재부팅 신호를 보내지 못했습니다. USB를 다시 연결하거나 RESET 버튼을 눌러 주세요. (${error instanceof Error ? error.message : String(error)})`,
+        messages.resetFailed(error instanceof Error ? error.message : String(error)),
       );
     }
   } finally {

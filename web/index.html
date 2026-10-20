@@ -7,6 +7,7 @@
     <meta
       name="description"
       content="DeskStream ESP32-C3 보드에 원하는 프로젝트 펌웨어를 브라우저에서 바로 플래시하세요. Chrome/Edge 데스크톱 지원."
+      id="meta-description"
     />
     <link
       rel="icon"
@@ -17,25 +18,31 @@
   <body>
     <div class="page">
       <header class="hero">
-        <div class="hero__brand">
-          <span class="hero__logo" aria-hidden="true">🖥️</span>
-          <span>DeskStream</span>
+        <div class="hero__top">
+          <div class="hero__brand">
+            <span class="hero__logo" aria-hidden="true">🖥️</span>
+            <span>DeskStream</span>
+          </div>
+          <div class="lang-switch" id="lang-switch" role="group" aria-label="Language / 언어">
+            <button type="button" data-locale="ko" aria-pressed="true">한국어</button>
+            <button type="button" data-locale="en" aria-pressed="false">English</button>
+          </div>
         </div>
-        <h1>웹 플래셔</h1>
-        <p class="hero__lead">
+        <h1 data-i18n="heroTitle">웹 플래셔</h1>
+        <p class="hero__lead" data-i18n="heroLead">
           USB 케이블로 ESP32-C3 보드를 연결하고, 원하는 프로젝트를 선택해 브라우저에서 바로
           플래시하세요. 별도 프로그램 설치가 필요 없습니다.
         </p>
         <div class="hero__chips">
-          <span class="chip" id="chip-projects">프로젝트 불러오는 중…</span>
+          <span class="chip" id="chip-projects" data-i18n="chipLoading">프로젝트 불러오는 중…</span>
           <span class="chip">ESP32-C3 · 4MB Flash</span>
-          <span class="chip">Chrome / Edge 데스크톱</span>
+          <span class="chip" data-i18n="chipBrowser">Chrome / Edge 데스크톱</span>
         </div>
       </header>
 
       <div id="browser-warning" class="banner banner--warn" hidden>
-        <strong>이 브라우저에서는 플래시할 수 없습니다.</strong>
-        <span>
+        <strong data-i18n="warningTitle">이 브라우저에서는 플래시할 수 없습니다.</strong>
+        <span data-i18n-html="warningBody">
           Web Serial API를 지원하는 <b>Chrome 또는 Edge 데스크톱</b>에서
           <b>HTTPS</b>(또는 localhost)로 접속해 주세요. Firefox·Safari·모바일 브라우저는
           지원하지 않습니다.
@@ -47,23 +54,35 @@
       <main class="layout">
         <section class="panel" aria-labelledby="projects-title">
           <div class="panel__head">
-            <h2 id="projects-title"><span class="step">1</span> 프로젝트 선택</h2>
+            <h2 id="projects-title">
+              <span class="step">1</span>
+              <span data-i18n="projectsTitle">프로젝트 선택</span>
+            </h2>
             <span class="panel__hint" id="project-count"></span>
           </div>
           <div
             id="project-grid"
             class="grid"
             role="listbox"
+            data-i18n-aria-label="projectsAriaLabel"
             aria-label="플래시할 프로젝트 선택"
           ></div>
         </section>
 
         <section class="panel panel--flash" aria-labelledby="flash-title">
           <div class="panel__head">
-            <h2 id="flash-title"><span class="step">2</span> 연결 및 플래시</h2>
+            <h2 id="flash-title">
+              <span class="step">2</span>
+              <span data-i18n="flashTitle">연결 및 플래시</span>
+            </h2>
           </div>
 
-          <div id="selection" class="selection selection--empty" aria-live="polite">
+          <div
+            id="selection"
+            class="selection selection--empty"
+            aria-live="polite"
+            data-i18n="selectionEmpty"
+          >
             위에서 프로젝트를 선택하세요.
           </div>
 
@@ -71,24 +90,26 @@
             <li>
               <label class="check">
                 <input type="checkbox" id="opt-verify" checked />
-                <span>쓰기 검증(MD5) <small>플래시 후 데이터를 다시 읽어 검증합니다</small></span>
+                <span data-i18n-html="verifyLabel"
+                  >쓰기 검증(MD5) <small>플래시 후 데이터를 다시 읽어 검증합니다</small></span
+                >
               </label>
             </li>
             <li>
               <label class="check">
                 <input type="checkbox" id="opt-erase" />
-                <span
+                <span data-i18n-html="eraseLabel"
                   >전체 지우기 <small>NVS의 WiFi·표시 설정까지 삭제됩니다</small></span
                 >
               </label>
             </li>
             <li>
               <label class="select">
-                <span>통신 속도</span>
+                <span data-i18n="baudLabel">통신 속도</span>
                 <select id="opt-baud">
-                  <option value="115200">115200 (안정)</option>
-                  <option value="460800" selected>460800 (권장)</option>
-                  <option value="921600">921600 (빠름)</option>
+                  <option value="115200" data-i18n="baudStable">115200 (안정)</option>
+                  <option value="460800" selected data-i18n="baudRecommended">460800 (권장)</option>
+                  <option value="921600" data-i18n="baudFast">921600 (빠름)</option>
                 </select>
               </label>
             </li>
@@ -102,7 +123,7 @@
           <div id="progress" class="progress" hidden>
             <div class="progress__bar"><span id="progress-fill"></span></div>
             <div class="progress__meta">
-              <span id="progress-label">준비 중…</span>
+              <span id="progress-label" data-i18n="progressPreparing">준비 중…</span>
               <span id="progress-percent">0%</span>
             </div>
           </div>
@@ -110,32 +131,35 @@
           <p id="status" class="status" role="status" aria-live="polite"></p>
 
           <details class="log">
-            <summary>로그 보기</summary>
+            <summary data-i18n="logSummary">로그 보기</summary>
             <pre id="log" aria-live="off"></pre>
           </details>
         </section>
 
         <section class="panel panel--guide" aria-labelledby="guide-title">
           <div class="panel__head">
-            <h2 id="guide-title"><span class="step">?</span> 사용 안내</h2>
+            <h2 id="guide-title">
+              <span class="step">?</span>
+              <span data-i18n="guideHeading">사용 안내</span>
+            </h2>
           </div>
           <ol class="guide">
-            <li>
+            <li data-i18n-html="guide1">
               <b>Chrome/Edge 데스크톱</b>에서 이 페이지를 엽니다. (모바일·Firefox·Safari 불가)
             </li>
-            <li>USB <b>데이터 케이블</b>로 ESP32-C3 보드를 연결합니다.</li>
-            <li>
+            <li data-i18n-html="guide2">USB <b>데이터 케이블</b>로 ESP32-C3 보드를 연결합니다.</li>
+            <li data-i18n-html="guide3">
               프로젝트를 선택하고 <b>플래시 시작</b>을 누른 뒤, 포트 선택 창에서 보드를
               고릅니다.
             </li>
-            <li>
+            <li data-i18n-html="guide4">
               연결이 되지 않으면 <b>BOOT 버튼을 누른 채 RESET</b>을 눌렀다 놓은 뒤 다시
               시도하세요.
             </li>
-            <li>
+            <li data-i18n-html="guide5">
               Arduino IDE의 시리얼 모니터 등 <b>포트를 점유한 프로그램은 종료</b>해야 합니다.
             </li>
-            <li>
+            <li data-i18n-html="guide6">
               기본 플래시는 NVS(WiFi·설정)를 보존합니다. 초기화가 필요하면
               <b>전체 지우기</b>를 체크하세요.
             </li>
@@ -144,12 +168,12 @@
       </main>
 
       <footer class="footer">
-        <span>DeskStream · ESP32-C3 4-OLED 데스크 가젯</span>
+        <span data-i18n="footerTagline">DeskStream · ESP32-C3 4-OLED 데스크 가젯</span>
         <span id="manifest-meta"></span>
       </footer>
     </div>
 
-    <noscript>이 페이지를 사용하려면 JavaScript가 필요합니다.</noscript>
+    <noscript>이 페이지를 사용하려면 JavaScript가 필요합니다. / This page requires JavaScript.</noscript>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

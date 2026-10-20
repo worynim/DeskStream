@@ -1,5 +1,16 @@
 import "./styles.css";
 import { flashProject, isSerialSupported, type FlashStage } from "./flasher";
+import {
+  dateLocale,
+  detectLocale,
+  getStrings,
+  projectDescription,
+  projectName,
+  projectNote,
+  storeLocale,
+  type Locale,
+  type UiStrings,
+} from "./i18n";
 import { loadManifest, projectSize } from "./manifest";
 import type { Manifest, ManifestProject } from "./types";
 
@@ -23,6 +34,8 @@ function el<K extends keyof HTMLElementTagNameMap>(
 const dom = {
   browserWarning: $("#browser-warning"),
   loadError: $("#load-error"),
+  langSwitch: $("#lang-switch"),
+  metaDescription: document.querySelector<HTMLMetaElement>('meta[name="description"]'),
   projectGrid: $("#project-grid"),
   projectCount: $("#project-count"),
   chipProjects: $("#chip-projects"),
@@ -42,24 +55,25 @@ const dom = {
 };
 
 const state: {
+  locale: Locale;
   manifest: Manifest | null;
   selected: ManifestProject | null;
   busy: boolean;
+  loadErrorMessage: string | null;
 } = {
+  locale: detectLocale(),
   manifest: null,
   selected: null,
   busy: false,
+  loadErrorMessage: null,
 };
 
 const supported = isSerialSupported();
+const langButtons = [...document.querySelectorAll<HTMLButtonElement>("[data-locale]")];
 
-const STAGE_LABEL: Record<FlashStage, string> = {
-  port: "USB 포트를 선택하세요…",
-  connect: "보드와 통신을 준비하는 중…",
-  download: "펌웨어를 내려받는 중…",
-  write: "플래시하는 중…",
-  reset: "보드를 재부팅하는 중…",
-};
+function ui(): UiStrings {
+  return getStrings(state.locale).ui;
+}
 
 function formatBytes(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
@@ -70,7 +84,11 @@ function formatBytes(bytes: number): string {
 function formatDate(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "-";
-  return date.toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" });
+  return date.toLocaleDateString(dateLocale(state.locale), {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function setStatus(text: string): void {
@@ -89,7 +107,7 @@ function resetProgress(): void {
   dom.progress.hidden = true;
   dom.progressFill.style.width = "0%";
   dom.progressPercent.textContent = "0%";
-  dom.progressLabel.textContent = "준비 중…";
+  dom.progressLabel.textContent = ui().progressPreparing;
 }
 
 const MAX_LOG_LINES = 500;
@@ -108,15 +126,58 @@ function clearLog(): void {
   dom.log.textContent = "";
 }
 
+/** 정적 마크업의 data-i18n 계열 속성을 현재 언어로 채운다. */
+function applyStaticTranslations(): void {
+  const strings = ui();
+  document.documentElement.lang = state.locale;
+  document.title = strings.documentTitle;
+  dom.metaDescription?.setAttribute("content", strings.metaDescription);
+
+  for (const node of document.querySelectorAll<HTMLElement>("[data-i18n]")) {
+    const key = node.dataset.i18n;
+    if (!key) continue;
+    const value = (strings as unknown as Record<string, unknown>)[key];
+    if (typeof value === "string") node.textContent = value;
+  }
+
+  for (const node of document.querySelectorAll<HTMLElement>("[data-i18n-html]")) {
+    const key = node.dataset.i18nHtml;
+    if (!key) continue;
+    const value = resolveHtml(strings, key);
+    if (value !== null) node.innerHTML = value;
+  }
+
+  for (const node of document.querySelectorAll<HTMLElement>("[data-i18n-aria-label]")) {
+    const key = node.dataset.i18nAriaLabel;
+    if (!key) continue;
+    const value = (strings as unknown as Record<string, unknown>)[key];
+    if (typeof value === "string") node.setAttribute("aria-label", value);
+  }
+
+  for (const button of langButtons) {
+    button.setAttribute("aria-pressed", String(button.dataset.locale === state.locale));
+  }
+  dom.langSwitch.setAttribute("aria-label", strings.langAria);
+}
+
+function resolveHtml(strings: UiStrings, key: string): string | null {
+  if (/^guide[1-6]$/.test(key)) {
+    return strings.guide[Number(key.slice(5)) - 1] ?? null;
+  }
+  const value = (strings as unknown as Record<string, unknown>)[key];
+  return typeof value === "string" ? value : null;
+}
+
 function renderProjects(projects: ManifestProject[]): void {
   dom.projectGrid.replaceChildren();
   for (const project of [...projects].sort((a, b) => a.order - b.order)) {
+    const name = projectName(project, state.locale);
     const card = el("button", "card");
     card.type = "button";
     card.dataset.projectId = project.id;
     card.setAttribute("role", "option");
     card.setAttribute("aria-selected", "false");
-    card.title = `${project.name} v${project.version}`;
+    card.title = `${name} v${project.version}`;
 
     const icon = el("span", "card__icon", project.icon || "📦");
     icon.setAttribute("aria-hidden", "true");
@@ -124,7 +185,7 @@ function renderProjects(projects: ManifestProject[]): void {
     const body = el("span", "card__body");
     const top = el("span", "card__top");
     top.append(
-      el("span", "card__name", project.name),
+      el("span", "card__name", name),
       el("span", "card__version", `v${project.version}`),
     );
 
@@ -134,7 +195,7 @@ function renderProjects(projects: ManifestProject[]): void {
       `${formatBytes(projectSize(project))} · ${project.partitionScheme ?? "default"} · ${formatDate(project.exportedAt)}`,
     );
 
-    body.append(top, el("span", "card__desc", project.description), meta);
+    body.append(top, el("span", "card__desc", projectDescription(project, state.locale)), meta);
     card.append(icon, body);
     card.addEventListener("click", () => selectProject(project));
     dom.projectGrid.append(card);
@@ -155,109 +216,195 @@ function selectProject(project: ManifestProject): void {
   updateControls();
 }
 
+function clearSelection(): void {
+  state.selected = null;
+  dom.selection.classList.add("selection--empty");
+  dom.selection.textContent = ui().selectionEmpty;
+}
+
 function renderSelection(project: ManifestProject): void {
+  const strings = ui();
   dom.selection.classList.remove("selection--empty");
   dom.selection.replaceChildren();
 
   const head = el("div", "selection__head");
   head.append(
     el("span", "selection__icon", project.icon || "📦"),
-    el("strong", "selection__name", project.name),
+    el("strong", "selection__name", projectName(project, state.locale)),
     el("span", "badge", `v${project.version}`),
   );
 
   const meta = el("div", "selection__meta");
   meta.append(
-    el("span", undefined, `${project.images.length}개 이미지 · ${formatBytes(projectSize(project))}`),
-    el("span", undefined, `${state.manifest?.chip ?? "ESP32-C3"} · ${project.partitionScheme ?? "default"} 파티션`),
-    el("span", undefined, `빌드 ${formatDate(project.exportedAt)}`),
+    el(
+      "span",
+      undefined,
+      strings.selectionImages(project.images.length, formatBytes(projectSize(project))),
+    ),
+    el(
+      "span",
+      undefined,
+      strings.selectionPartition(
+        state.manifest?.chip ?? "ESP32-C3",
+        project.partitionScheme ?? "default",
+      ),
+    ),
+    el("span", undefined, strings.selectionBuild(formatDate(project.exportedAt))),
   );
 
-  dom.selection.append(head, el("p", "selection__desc", project.description), meta);
-  if (project.note) {
-    dom.selection.append(el("p", "selection__note", `ⓘ ${project.note}`));
+  dom.selection.append(
+    head,
+    el("p", "selection__desc", projectDescription(project, state.locale)),
+    meta,
+  );
+
+  const note = projectNote(project, state.locale);
+  if (note) {
+    dom.selection.append(el("p", "selection__note", `ⓘ ${note}`));
+  }
+}
+
+function stageLabel(stage: FlashStage): string {
+  const strings = ui();
+  switch (stage) {
+    case "port":
+      return strings.stagePort;
+    case "connect":
+      return strings.stageConnect;
+    case "download":
+      return strings.stageDownload;
+    case "write":
+      return strings.stageWrite;
+    case "reset":
+      return strings.stageReset;
   }
 }
 
 function updateControls(): void {
+  const strings = ui();
   const canFlash = supported && Boolean(state.selected) && !state.busy;
   dom.flashButton.disabled = !canFlash;
 
   if (!supported) {
-    dom.flashButton.title = "Chrome 또는 Edge 데스크톱에서 사용할 수 있습니다.";
-    dom.flashLabel.textContent = "지원되지 않는 브라우저";
+    dom.flashButton.title = strings.titleUnsupported;
+    dom.flashLabel.textContent = strings.flashUnsupported;
   } else if (!state.selected) {
-    dom.flashButton.title = "프로젝트를 먼저 선택하세요.";
-    dom.flashLabel.textContent = "플래시 시작";
+    dom.flashButton.title = strings.titleSelectFirst;
+    dom.flashLabel.textContent = strings.flashStart;
   } else {
     dom.flashButton.title = "";
-    dom.flashLabel.textContent = state.busy ? "플래시 중…" : "플래시 시작";
+    dom.flashLabel.textContent = state.busy ? strings.flashBusy : strings.flashStart;
   }
 
   dom.verify.disabled = state.busy;
   dom.erase.disabled = state.busy;
   dom.baud.disabled = state.busy;
+  for (const button of langButtons) button.disabled = state.busy;
   document.body.classList.toggle("is-busy", state.busy);
+}
+
+/** 언어 변경 시 정적 텍스트·프로젝트 카드·선택 패널을 모두 다시 그린다. */
+function renderLocale(): void {
+  applyStaticTranslations();
+  const strings = ui();
+
+  if (state.manifest) {
+    const count = state.manifest.projects.length;
+    dom.chipProjects.textContent = strings.projectCount(count);
+    dom.projectCount.textContent = strings.projectCount(count);
+    dom.manifestMeta.textContent = strings.manifestMeta(formatDate(state.manifest.generatedAt));
+    renderProjects(state.manifest.projects);
+
+    if (state.selected) {
+      const selected =
+        state.manifest.projects.find((project) => project.id === state.selected?.id) ?? null;
+      if (selected) {
+        selectProject(selected);
+      } else {
+        state.selected = null;
+      }
+    }
+    if (!state.selected) clearSelection();
+  } else if (state.loadErrorMessage) {
+    dom.chipProjects.textContent = strings.chipError;
+    dom.loadError.hidden = false;
+    dom.loadError.textContent = strings.statusLoadError(state.loadErrorMessage);
+  } else {
+    dom.chipProjects.textContent = strings.chipLoading;
+  }
+
+  if (!state.busy) {
+    setStatus(
+      state.manifest
+        ? state.manifest.projects.length > 0
+          ? strings.statusIdle
+          : strings.statusNoFirmware
+        : strings.statusRetry,
+    );
+    resetProgress();
+  }
+  updateControls();
 }
 
 async function handleFlash(): Promise<void> {
   const project = state.selected;
   if (!project || state.busy || !supported) return;
 
+  const strings = ui();
+  const flashStrings = getStrings(state.locale).flash;
+  const name = projectName(project, state.locale);
   const eraseAll = dom.erase.checked;
-  if (
-    eraseAll &&
-    !window.confirm(
-      "전체 지우기를 실행하면 WiFi·표시 설정을 포함한 NVS 데이터가 모두 삭제됩니다.\n\n계속할까요?",
-    )
-  ) {
+
+  if (eraseAll && !window.confirm(strings.confirmErase)) {
     return;
   }
 
   state.busy = true;
   updateControls();
   clearLog();
-  setProgress(0, STAGE_LABEL.port);
-  setStatus("포트 선택 창에서 ESP32-C3 보드를 선택하세요.");
+  setProgress(0, strings.stagePort);
+  setStatus(strings.stagePort);
 
-  log(`DeskStream 웹 플래셔 · ${project.name} v${project.version}`);
+  log(strings.logHeader(name, project.version));
   log(
-    `flash ${project.flash.mode}/${project.flash.freq}/${project.flash.size} · ` +
-      `eraseAll=${eraseAll} · verifyMd5=${dom.verify.checked} · baud=${dom.baud.value}`,
+    strings.logOptions(
+      project.flash.mode,
+      project.flash.freq,
+      project.flash.size,
+      eraseAll,
+      dom.verify.checked,
+      dom.baud.value,
+    ),
   );
 
   try {
     await flashProject({
       project,
+      displayName: name,
       eraseAll,
       verifyMd5: dom.verify.checked,
       baudrate: Number(dom.baud.value),
+      messages: flashStrings,
       onLog: log,
-      onStage: (stage, detail) => setStatus(detail ?? STAGE_LABEL[stage]),
+      onStage: (stage, detail) => setStatus(detail ?? stageLabel(stage)),
       onProgress: (ratio, label) => setProgress(ratio, label),
-      onChip: (chip) => setStatus(`연결됨 · ${chip}`),
+      onChip: (chip) => setStatus(strings.statusConnected(chip)),
     });
 
-    setProgress(1, "완료");
-    setStatus(
-      `✅ ${project.name} 플래시 완료! 보드가 자동으로 재부팅됩니다. ` +
-        `잠시 기다려도 화면이 켜지지 않으면 RESET 버튼을 한 번 눌러 주세요.`,
-    );
+    setProgress(1, strings.progressDone);
+    setStatus(strings.successMessage(name));
     dom.progress.classList.add("progress--done");
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     log(`❌ ${message}`);
 
     if (/No port selected|cancel|취소/i.test(message)) {
-      setStatus("포트 선택이 취소되었습니다. 다시 시도하려면 플래시 시작을 누르세요.");
+      setStatus(strings.statusCancelled);
       resetProgress();
     } else if (/Failed to connect|Failed to communicate|timeout|Timed out/i.test(message)) {
-      setStatus(
-        "❌ 보드 연결에 실패했습니다. BOOT 버튼을 누른 채 RESET을 눌렀다 놓은 뒤 다시 시도해 주세요. " +
-          "Arduino IDE 시리얼 모니터 등 포트를 사용하는 프로그램도 종료하세요.",
-      );
+      setStatus(strings.statusConnectFailed);
     } else {
-      setStatus(`❌ 플래시 실패: ${message}`);
+      setStatus(strings.statusFlashFailed(message));
     }
   } finally {
     state.busy = false;
@@ -268,28 +415,31 @@ async function handleFlash(): Promise<void> {
 
 async function boot(): Promise<void> {
   if (!supported) dom.browserWarning.hidden = false;
+  applyStaticTranslations();
 
   try {
-    const manifest = await loadManifest();
-    state.manifest = manifest;
-    dom.chipProjects.textContent = `${manifest.projects.length}개 프로젝트`;
-    dom.projectCount.textContent = `${manifest.projects.length}개`;
-    dom.manifestMeta.textContent = `펌웨어 빌드 ${formatDate(manifest.generatedAt)} 기준`;
-    renderProjects(manifest.projects);
-    setStatus(
-      manifest.projects.length > 0
-        ? "프로젝트를 선택한 뒤 USB를 연결하고 플래시를 시작하세요."
-        : "사용 가능한 펌웨어가 없습니다.",
-    );
+    state.manifest = await loadManifest();
+    state.loadErrorMessage = null;
+    renderLocale();
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    dom.loadError.hidden = false;
-    dom.loadError.textContent = `펌웨어 목록을 불러오지 못했습니다: ${message}`;
-    dom.chipProjects.textContent = "목록 로드 실패";
-    setStatus("페이지를 새로고침하거나 잠시 후 다시 시도해 주세요.");
+    state.loadErrorMessage = error instanceof Error ? error.message : String(error);
+    state.manifest = null;
+    renderLocale();
   }
 
   updateControls();
+}
+
+for (const button of langButtons) {
+  button.addEventListener("click", () => {
+    if (state.busy) return;
+    const locale = button.dataset.locale;
+    if (locale !== "ko" && locale !== "en") return;
+    if (locale === state.locale) return;
+    state.locale = locale;
+    storeLocale(locale);
+    renderLocale();
+  });
 }
 
 dom.flashButton.addEventListener("click", () => {

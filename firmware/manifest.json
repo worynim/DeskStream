@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-20T17:57:17.304Z",
+  "generatedAt": "2026-10-20T18:03:35.640Z",
   "chip": "ESP32-C3",
   "board": "DeskStream (ESP32-C3 SuperMini · 4× OLED)",
   "flashDefaults": {
@@ -17,6 +17,9 @@
       "order": 1,
       "description": "시간·날씨·미세먼지·유튜브·증시·환율을 4개 OLED에 실시간으로 보여주는 정보 스테이션",
       "note": "WiFi 설정은 기기 NVS에 저장됩니다. 재플래시해도 유지됩니다.",
+      "nameEn": "Smart Info Station",
+      "descriptionEn": "Real-time clock, weather, air quality, YouTube subscribers, markets, and FX rates on four OLEDs",
+      "noteEn": "WiFi settings are stored in NVS and preserved across reflashes.",
       "fqbn": "esp32:esp32:makergo_c3_supermini:UploadSpeed=921600,CDCOnBoot=default,CPUFreq=160,FlashFreq=80,PartitionScheme=huge_app,DebugLevel=none,EraseFlash=none",
       "partitionScheme": "huge_app",
       "flash": {
@@ -26,7 +29,7 @@
       },
       "exportedAt": "2026-10-20T17:15:07.648Z",
       "sourcePath": "Smart_Info_Station",
-      "sourceCommit": "c01dc622d5ff01ab85d292dd918f54a94bcf570d",
+      "sourceCommit": "025c4c2e19e8c9f3704a6eaefd1dbd97778fa4e1",
       "images": [
         {
           "offset": "0x0",
@@ -62,6 +65,9 @@
       "order": 2,
       "description": "NEO-6M GPS 기반 속도·나침반·고도·위성 상태·주행 통계 대시보드",
       "note": "",
+      "nameEn": "GPS Dashboard",
+      "descriptionEn": "NEO-6M GPS dashboard: speed, compass, altitude, satellite status, and trip stats",
+      "noteEn": "",
       "fqbn": "esp32:esp32:makergo_c3_supermini:UploadSpeed=921600,CDCOnBoot=default,CPUFreq=160,FlashFreq=80,PartitionScheme=default,DebugLevel=none,EraseFlash=none",
       "partitionScheme": "default",
       "flash": {
@@ -71,7 +77,7 @@
       },
       "exportedAt": "2026-10-20T17:08:28.746Z",
       "sourcePath": "GPS_DASH",
-      "sourceCommit": "c01dc622d5ff01ab85d292dd918f54a94bcf570d",
+      "sourceCommit": "025c4c2e19e8c9f3704a6eaefd1dbd97778fa4e1",
       "images": [
         {
           "offset": "0x0",
@@ -107,6 +113,9 @@
       "order": 3,
       "description": "아날로그 마이크 입력을 정수형 FFT로 분석해 128밴드 스펙트럼으로 시각화",
       "note": "",
+      "nameEn": "Sound Visualizer",
+      "descriptionEn": "128-band real-time spectrum visualizer from analog mic input using integer FFT",
+      "noteEn": "",
       "fqbn": "esp32:esp32:makergo_c3_supermini:UploadSpeed=921600,CDCOnBoot=default,CPUFreq=160,FlashFreq=80,PartitionScheme=default,DebugLevel=none,EraseFlash=none",
       "partitionScheme": "default",
       "flash": {
@@ -116,7 +125,7 @@
       },
       "exportedAt": "2026-10-20T17:18:26.543Z",
       "sourcePath": "Sound_Visualizer_4_OLEDs",
-      "sourceCommit": "c01dc622d5ff01ab85d292dd918f54a94bcf570d",
+      "sourceCommit": "025c4c2e19e8c9f3704a6eaefd1dbd97778fa4e1",
       "images": [
         {
           "offset": "0x0",
@@ -152,6 +161,9 @@
       "order": 4,
       "description": "4개 OLED를 512×64 초광폭 캔버스로 구동하는 그래픽 테스트 펌웨어",
       "note": "",
+      "nameEn": "Ultra-wide OLED Test",
+      "descriptionEn": "Graphics test firmware driving four OLEDs as a single 512×64 ultra-wide canvas",
+      "noteEn": "",
       "fqbn": "esp32:esp32:makergo_c3_supermini:UploadSpeed=921600,CDCOnBoot=default,CPUFreq=160,FlashFreq=80,PartitionScheme=default,DebugLevel=none,EraseFlash=none",
       "partitionScheme": "default",
       "flash": {
@@ -161,7 +173,7 @@
       },
       "exportedAt": "2026-10-20T17:11:23.072Z",
       "sourcePath": "OLED_Wide_test",
-      "sourceCommit": "c01dc622d5ff01ab85d292dd918f54a94bcf570d",
+      "sourceCommit": "025c4c2e19e8c9f3704a6eaefd1dbd97778fa4e1",
       "images": [
         {
           "offset": "0x0",
@@ -197,6 +209,9 @@
       "order": 5,
       "description": "PC/Mac의 CPU·GPU·RAM·SSD 상태와 온도·네트워크 트래픽을 실시간 표시",
       "note": "PC에서 client_py/main.py(호스트 앱)와 함께 사용합니다. BLE로 연결되며, 화면 회전·밝기 설정은 NVS에 저장됩니다.",
+      "nameEn": "System Stats Monitor",
+      "descriptionEn": "Live CPU, GPU, RAM, SSD, temperature, and network stats from your PC or Mac",
+      "noteEn": "Use with the PC host app client_py/main.py. Connects over BLE; display rotation and brightness are stored in NVS.",
       "fqbn": "esp32:esp32:makergo_c3_supermini:UploadSpeed=921600,CDCOnBoot=default,CPUFreq=160,FlashFreq=80,PartitionScheme=default,DebugLevel=none,EraseFlash=none",
       "partitionScheme": "default",
       "flash": {
@@ -206,7 +221,7 @@
       },
       "exportedAt": "2026-10-20T17:43:10.165Z",
       "sourcePath": "Stats_Monitor",
-      "sourceCommit": "c01dc622d5ff01ab85d292dd918f54a94bcf570d",
+      "sourceCommit": "025c4c2e19e8c9f3704a6eaefd1dbd97778fa4e1",
       "images": [
         {
           "offset": "0x0",
@@ -242,6 +257,9 @@
       "order": 6,
       "description": "4버튼 블루투스 매크로 패드. 텍스트·단축키·미디어·브라우저 런처 지원",
       "note": "huge_app 파티션(OTA 없음)으로 빌드된 펌웨어입니다.",
+      "nameEn": "DS DECK Macro Pad",
+      "descriptionEn": "Four-button Bluetooth macro pad with text macros, shortcuts, media keys, and a browser launcher",
+      "noteEn": "Built with the huge_app partition (no OTA).",
       "fqbn": "esp32:esp32:makergo_c3_supermini:UploadSpeed=921600,CDCOnBoot=default,CPUFreq=160,FlashFreq=80,PartitionScheme=huge_app,DebugLevel=none,EraseFlash=none",
       "partitionScheme": "huge_app",
       "flash": {
@@ -251,7 +269,7 @@
       },
       "exportedAt": "2026-10-20T17:46:56.009Z",
       "sourcePath": "DS_DECK",
-      "sourceCommit": "c01dc622d5ff01ab85d292dd918f54a94bcf570d",
+      "sourceCommit": "025c4c2e19e8c9f3704a6eaefd1dbd97778fa4e1",
       "images": [
         {
           "offset": "0x0",
@@ -287,6 +305,9 @@
       "order": 7,
       "description": "PC 화면을 4-OLED 매트릭스(512×64)로 무선 스트리밍하는 수신 펌웨어",
       "note": "PC에서 screen_streamer.py(호스트 앱)와 함께 사용합니다. WiFi 설정은 NVS에 저장됩니다.",
+      "nameEn": "Screen Streamer (receiver firmware)",
+      "descriptionEn": "Receiver firmware that streams your PC screen to the 512×64 four-OLED matrix",
+      "noteEn": "Use with the host app screen_streamer.py on your PC. WiFi settings are stored in NVS.",
       "fqbn": "esp32:esp32:makergo_c3_supermini:UploadSpeed=921600,CDCOnBoot=default,CPUFreq=160,FlashFreq=80,PartitionScheme=default,DebugLevel=none,EraseFlash=none",
       "partitionScheme": "default",
       "flash": {
@@ -296,7 +317,7 @@
       },
       "exportedAt": "2026-10-20T17:13:19.894Z",
       "sourcePath": "Screen_To_OLEDs/Screen_To_OLEDs",
-      "sourceCommit": "c01dc622d5ff01ab85d292dd918f54a94bcf570d",
+      "sourceCommit": "025c4c2e19e8c9f3704a6eaefd1dbd97778fa4e1",
       "images": [
         {
           "offset": "0x0",
@@ -332,6 +353,9 @@
       "order": 8,
       "description": "512×64 대화면에서 무한 구동되는 Conway 생명 게임",
       "note": "버튼으로 재생/일시정지·단계 진행·속도를 제어합니다.",
+      "nameEn": "Game of Life",
+      "descriptionEn": "Conway's Game of Life running endlessly on the 512×64 canvas",
+      "noteEn": "Use the buttons to play/pause, step, and change speed.",
       "fqbn": "esp32:esp32:makergo_c3_supermini:UploadSpeed=921600,CDCOnBoot=default,CPUFreq=160,FlashFreq=80,PartitionScheme=default,DebugLevel=none,EraseFlash=none",
       "partitionScheme": "default",
       "flash": {
@@ -341,7 +365,7 @@
       },
       "exportedAt": "2026-10-20T17:07:17.332Z",
       "sourcePath": "Game_Of_Life",
-      "sourceCommit": "c01dc622d5ff01ab85d292dd918f54a94bcf570d",
+      "sourceCommit": "025c4c2e19e8c9f3704a6eaefd1dbd97778fa4e1",
       "images": [
         {
           "offset": "0x0",
@@ -377,6 +401,9 @@
       "order": 9,
       "description": "NTP 동기화 기반 고화질 한글 단어 시계. 웹 대시보드·폰트 스튜디오 지원",
       "note": "WiFi·표시 설정은 NVS에 저장됩니다. 재플래시해도 유지됩니다.",
+      "nameEn": "Hangeul Clock",
+      "descriptionEn": "High-quality Korean word clock synced over NTP, with a web dashboard and font studio",
+      "noteEn": "WiFi and display settings are stored in NVS and preserved across reflashes.",
       "fqbn": "esp32:esp32:makergo_c3_supermini:UploadSpeed=921600,CDCOnBoot=default,CPUFreq=160,FlashFreq=80,PartitionScheme=default,DebugLevel=none,EraseFlash=none",
       "partitionScheme": "default",
       "flash": {
@@ -386,7 +413,7 @@
       },
       "exportedAt": "2026-10-20T16:47:41.589Z",
       "sourcePath": "Hangeul_Clock",
-      "sourceCommit": "c01dc622d5ff01ab85d292dd918f54a94bcf570d",
+      "sourceCommit": "025c4c2e19e8c9f3704a6eaefd1dbd97778fa4e1",
       "images": [
         {
           "offset": "0x0",
@@ -422,6 +449,9 @@
       "order": 10,
       "description": "NTP 기반 영어 단어 시계. 2줄 레이아웃·POS 시간대·폰트 스튜디오 지원",
       "note": "WiFi·표시 설정은 NVS에 저장됩니다. 재플래시해도 유지됩니다.",
+      "nameEn": "English Clock",
+      "descriptionEn": "English word clock synced over NTP with a two-line layout, POS time zones, and font studio",
+      "noteEn": "WiFi and display settings are stored in NVS and preserved across reflashes.",
       "fqbn": "esp32:esp32:makergo_c3_supermini:UploadSpeed=921600,CDCOnBoot=default,CPUFreq=160,FlashFreq=80,PartitionScheme=default,DebugLevel=none,EraseFlash=none",
       "partitionScheme": "default",
       "flash": {
@@ -431,7 +461,7 @@
       },
       "exportedAt": "2026-10-20T17:05:45.436Z",
       "sourcePath": "ENG_Clock",
-      "sourceCommit": "c01dc622d5ff01ab85d292dd918f54a94bcf570d",
+      "sourceCommit": "025c4c2e19e8c9f3704a6eaefd1dbd97778fa4e1",
       "images": [
         {
           "offset": "0x0",
@@ -467,6 +497,9 @@
       "order": 11,
       "description": "NTP 기반 중국어 한자 시계. 한글·영어판과 동일한 4화면 32×32 셀 레이아웃",
       "note": "WiFi·표시 설정은 NVS에 저장됩니다. 재플래시해도 유지됩니다.",
+      "nameEn": "Chinese Clock",
+      "descriptionEn": "Chinese word clock synced over NTP with the same four-screen 32×32 cell layout",
+      "noteEn": "WiFi and display settings are stored in NVS and preserved across reflashes.",
       "fqbn": "esp32:esp32:makergo_c3_supermini:UploadSpeed=921600,CDCOnBoot=default,CPUFreq=160,FlashFreq=80,PartitionScheme=default,DebugLevel=none,EraseFlash=none",
       "partitionScheme": "default",
       "flash": {
@@ -476,7 +509,7 @@
       },
       "exportedAt": "2026-10-20T17:02:26.839Z",
       "sourcePath": "Chinese_Clock",
-      "sourceCommit": "c01dc622d5ff01ab85d292dd918f54a94bcf570d",
+      "sourceCommit": "025c4c2e19e8c9f3704a6eaefd1dbd97778fa4e1",
       "images": [
         {
           "offset": "0x0",

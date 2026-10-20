@@ -2,7 +2,11 @@
   "schemaVersion": 1,
   "chip": "ESP32-C3",
   "board": "DeskStream (ESP32-C3 SuperMini · 4× OLED)",
-  "flashDefaults": { "mode": "dio", "freq": "80m", "size": "4MB" },
+  "flashDefaults": {
+    "mode": "dio",
+    "freq": "80m",
+    "size": "4MB"
+  },
   "projects": [
     {
       "id": "Smart_Info_Station",
@@ -12,7 +16,10 @@
       "order": 1,
       "sourcePath": "Smart_Info_Station",
       "description": "시간·날씨·미세먼지·유튜브·증시·환율을 4개 OLED에 실시간으로 보여주는 정보 스테이션",
-      "note": "WiFi 설정은 기기 NVS에 저장됩니다. 재플래시해도 유지됩니다."
+      "note": "WiFi 설정은 기기 NVS에 저장됩니다. 재플래시해도 유지됩니다.",
+      "nameEn": "Smart Info Station",
+      "descriptionEn": "Real-time clock, weather, air quality, YouTube subscribers, markets, and FX rates on four OLEDs",
+      "noteEn": "WiFi settings are stored in NVS and preserved across reflashes."
     },
     {
       "id": "GPS_DASH",
@@ -22,7 +29,10 @@
       "order": 2,
       "sourcePath": "GPS_DASH",
       "description": "NEO-6M GPS 기반 속도·나침반·고도·위성 상태·주행 통계 대시보드",
-      "note": ""
+      "note": "",
+      "nameEn": "GPS Dashboard",
+      "descriptionEn": "NEO-6M GPS dashboard: speed, compass, altitude, satellite status, and trip stats",
+      "noteEn": ""
     },
     {
       "id": "Sound_Visualizer_4_OLEDs",
@@ -32,7 +42,10 @@
       "order": 3,
       "sourcePath": "Sound_Visualizer_4_OLEDs",
       "description": "아날로그 마이크 입력을 정수형 FFT로 분석해 128밴드 스펙트럼으로 시각화",
-      "note": ""
+      "note": "",
+      "nameEn": "Sound Visualizer",
+      "descriptionEn": "128-band real-time spectrum visualizer from analog mic input using integer FFT",
+      "noteEn": ""
     },
     {
       "id": "OLED_Wide_test",
@@ -42,7 +55,10 @@
       "order": 4,
       "sourcePath": "OLED_Wide_test",
       "description": "4개 OLED를 512×64 초광폭 캔버스로 구동하는 그래픽 테스트 펌웨어",
-      "note": ""
+      "note": "",
+      "nameEn": "Ultra-wide OLED Test",
+      "descriptionEn": "Graphics test firmware driving four OLEDs as a single 512×64 ultra-wide canvas",
+      "noteEn": ""
     },
     {
       "id": "Stats_Monitor",
@@ -52,7 +68,10 @@
       "order": 5,
       "sourcePath": "Stats_Monitor",
       "description": "PC/Mac의 CPU·GPU·RAM·SSD 상태와 온도·네트워크 트래픽을 실시간 표시",
-      "note": "PC에서 client_py/main.py(호스트 앱)와 함께 사용합니다. BLE로 연결되며, 화면 회전·밝기 설정은 NVS에 저장됩니다."
+      "note": "PC에서 client_py/main.py(호스트 앱)와 함께 사용합니다. BLE로 연결되며, 화면 회전·밝기 설정은 NVS에 저장됩니다.",
+      "nameEn": "System Stats Monitor",
+      "descriptionEn": "Live CPU, GPU, RAM, SSD, temperature, and network stats from your PC or Mac",
+      "noteEn": "Use with the PC host app client_py/main.py. Connects over BLE; display rotation and brightness are stored in NVS."
     },
     {
       "id": "DS_DECK",
@@ -62,7 +81,10 @@
       "order": 6,
       "sourcePath": "DS_DECK",
       "description": "4버튼 블루투스 매크로 패드. 텍스트·단축키·미디어·브라우저 런처 지원",
-      "note": "huge_app 파티션(OTA 없음)으로 빌드된 펌웨어입니다."
+      "note": "huge_app 파티션(OTA 없음)으로 빌드된 펌웨어입니다.",
+      "nameEn": "DS DECK Macro Pad",
+      "descriptionEn": "Four-button Bluetooth macro pad with text macros, shortcuts, media keys, and a browser launcher",
+      "noteEn": "Built with the huge_app partition (no OTA)."
     },
     {
       "id": "Screen_To_OLEDs",
@@ -72,7 +94,10 @@
       "order": 7,
       "sourcePath": "Screen_To_OLEDs/Screen_To_OLEDs",
       "description": "PC 화면을 4-OLED 매트릭스(512×64)로 무선 스트리밍하는 수신 펌웨어",
-      "note": "PC에서 screen_streamer.py(호스트 앱)와 함께 사용합니다. WiFi 설정은 NVS에 저장됩니다."
+      "note": "PC에서 screen_streamer.py(호스트 앱)와 함께 사용합니다. WiFi 설정은 NVS에 저장됩니다.",
+      "nameEn": "Screen Streamer (receiver firmware)",
+      "descriptionEn": "Receiver firmware that streams your PC screen to the 512×64 four-OLED matrix",
+      "noteEn": "Use with the host app screen_streamer.py on your PC. WiFi settings are stored in NVS."
     },
     {
       "id": "Game_Of_Life",
@@ -82,7 +107,10 @@
       "order": 8,
       "sourcePath": "Game_Of_Life",
       "description": "512×64 대화면에서 무한 구동되는 Conway 생명 게임",
-      "note": "버튼으로 재생/일시정지·단계 진행·속도를 제어합니다."
+      "note": "버튼으로 재생/일시정지·단계 진행·속도를 제어합니다.",
+      "nameEn": "Game of Life",
+      "descriptionEn": "Conway's Game of Life running endlessly on the 512×64 canvas",
+      "noteEn": "Use the buttons to play/pause, step, and change speed."
     },
     {
       "id": "Hangeul_Clock",
@@ -92,7 +120,10 @@
       "order": 9,
       "sourcePath": "Hangeul_Clock",
       "description": "NTP 동기화 기반 고화질 한글 단어 시계. 웹 대시보드·폰트 스튜디오 지원",
-      "note": "WiFi·표시 설정은 NVS에 저장됩니다. 재플래시해도 유지됩니다."
+      "note": "WiFi·표시 설정은 NVS에 저장됩니다. 재플래시해도 유지됩니다.",
+      "nameEn": "Hangeul Clock",
+      "descriptionEn": "High-quality Korean word clock synced over NTP, with a web dashboard and font studio",
+      "noteEn": "WiFi and display settings are stored in NVS and preserved across reflashes."
     },
     {
       "id": "ENG_Clock",
@@ -102,7 +133,10 @@
       "order": 10,
       "sourcePath": "ENG_Clock",
       "description": "NTP 기반 영어 단어 시계. 2줄 레이아웃·POS 시간대·폰트 스튜디오 지원",
-      "note": "WiFi·표시 설정은 NVS에 저장됩니다. 재플래시해도 유지됩니다."
+      "note": "WiFi·표시 설정은 NVS에 저장됩니다. 재플래시해도 유지됩니다.",
+      "nameEn": "English Clock",
+      "descriptionEn": "English word clock synced over NTP with a two-line layout, POS time zones, and font studio",
+      "noteEn": "WiFi and display settings are stored in NVS and preserved across reflashes."
     },
     {
       "id": "Chinese_Clock",
@@ -112,7 +146,10 @@
       "order": 11,
       "sourcePath": "Chinese_Clock",
       "description": "NTP 기반 중국어 한자 시계. 한글·영어판과 동일한 4화면 32×32 셀 레이아웃",
-      "note": "WiFi·표시 설정은 NVS에 저장됩니다. 재플래시해도 유지됩니다."
+      "note": "WiFi·표시 설정은 NVS에 저장됩니다. 재플래시해도 유지됩니다.",
+      "nameEn": "Chinese Clock",
+      "descriptionEn": "Chinese word clock synced over NTP with the same four-screen 32×32 cell layout",
+      "noteEn": "WiFi and display settings are stored in NVS and preserved across reflashes."
     }
   ]
 }

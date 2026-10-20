@@ -8,11 +8,14 @@ export interface ManifestImage {
 export interface ManifestProject {
   id: string;
   name: string;
+  nameEn?: string;
   version: string;
   icon: string;
   order: number;
   description: string;
+  descriptionEn?: string;
   note: string;
+  noteEn?: string;
   fqbn: string | null;
   partitionScheme: string | null;
   flash: { mode: string; freq: string; size: string };
