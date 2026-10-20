@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-20T17:21:53.695Z",
+  "generatedAt": "2026-10-20T17:42:32.257Z",
   "chip": "ESP32-C3",
   "board": "DeskStream (ESP32-C3 SuperMini · 4× OLED)",
   "flashDefaults": {
@@ -26,7 +26,7 @@
       },
       "exportedAt": "2026-10-20T17:15:07.648Z",
       "sourcePath": "Smart_Info_Station",
-      "sourceCommit": "8eb9e71620a4d98bbc440aa9cf3068bf62fe7356",
+      "sourceCommit": "25bd4ceeb957737807fba141867e837058d22e70",
       "images": [
         {
           "offset": "0x0",
@@ -71,7 +71,7 @@
       },
       "exportedAt": "2026-10-20T17:08:28.746Z",
       "sourcePath": "GPS_DASH",
-      "sourceCommit": "8eb9e71620a4d98bbc440aa9cf3068bf62fe7356",
+      "sourceCommit": "25bd4ceeb957737807fba141867e837058d22e70",
       "images": [
         {
           "offset": "0x0",
@@ -116,7 +116,7 @@
       },
       "exportedAt": "2026-10-20T17:18:26.543Z",
       "sourcePath": "Sound_Visualizer_4_OLEDs",
-      "sourceCommit": "8eb9e71620a4d98bbc440aa9cf3068bf62fe7356",
+      "sourceCommit": "25bd4ceeb957737807fba141867e837058d22e70",
       "images": [
         {
           "offset": "0x0",
@@ -161,7 +161,7 @@
       },
       "exportedAt": "2026-10-20T17:11:23.072Z",
       "sourcePath": "OLED_Wide_test",
-      "sourceCommit": "8eb9e71620a4d98bbc440aa9cf3068bf62fe7356",
+      "sourceCommit": "25bd4ceeb957737807fba141867e837058d22e70",
       "images": [
         {
           "offset": "0x0",
@@ -206,7 +206,7 @@
       },
       "exportedAt": "2026-10-20T17:19:23.711Z",
       "sourcePath": "Stats_Monitor",
-      "sourceCommit": "8eb9e71620a4d98bbc440aa9cf3068bf62fe7356",
+      "sourceCommit": "25bd4ceeb957737807fba141867e837058d22e70",
       "images": [
         {
           "offset": "0x0",
@@ -251,7 +251,7 @@
       },
       "exportedAt": "2026-10-20T17:04:33.993Z",
       "sourcePath": "DS_DECK",
-      "sourceCommit": "8eb9e71620a4d98bbc440aa9cf3068bf62fe7356",
+      "sourceCommit": "25bd4ceeb957737807fba141867e837058d22e70",
       "images": [
         {
           "offset": "0x0",
@@ -296,7 +296,7 @@
       },
       "exportedAt": "2026-10-20T17:13:19.894Z",
       "sourcePath": "Screen_To_OLEDs/Screen_To_OLEDs",
-      "sourceCommit": "8eb9e71620a4d98bbc440aa9cf3068bf62fe7356",
+      "sourceCommit": "25bd4ceeb957737807fba141867e837058d22e70",
       "images": [
         {
           "offset": "0x0",
@@ -341,7 +341,7 @@
       },
       "exportedAt": "2026-10-20T17:07:17.332Z",
       "sourcePath": "Game_Of_Life",
-      "sourceCommit": "8eb9e71620a4d98bbc440aa9cf3068bf62fe7356",
+      "sourceCommit": "25bd4ceeb957737807fba141867e837058d22e70",
       "images": [
         {
           "offset": "0x0",
@@ -386,7 +386,7 @@
       },
       "exportedAt": "2026-10-20T16:47:41.589Z",
       "sourcePath": "Hangeul_Clock",
-      "sourceCommit": "8eb9e71620a4d98bbc440aa9cf3068bf62fe7356",
+      "sourceCommit": "25bd4ceeb957737807fba141867e837058d22e70",
       "images": [
         {
           "offset": "0x0",
@@ -431,7 +431,7 @@
       },
       "exportedAt": "2026-10-20T17:05:45.436Z",
       "sourcePath": "ENG_Clock",
-      "sourceCommit": "8eb9e71620a4d98bbc440aa9cf3068bf62fe7356",
+      "sourceCommit": "25bd4ceeb957737807fba141867e837058d22e70",
       "images": [
         {
           "offset": "0x0",
@@ -476,7 +476,7 @@
       },
       "exportedAt": "2026-10-20T17:02:26.839Z",
       "sourcePath": "Chinese_Clock",
-      "sourceCommit": "8eb9e71620a4d98bbc440aa9cf3068bf62fe7356",
+      "sourceCommit": "25bd4ceeb957737807fba141867e837058d22e70",
       "images": [
         {
           "offset": "0x0",
@@ -521,7 +521,7 @@
       },
       "exportedAt": "2026-10-20T17:10:00.225Z",
       "sourcePath": "Hangeul_Clock_bitbang_i2c",
-      "sourceCommit": "8eb9e71620a4d98bbc440aa9cf3068bf62fe7356",
+      "sourceCommit": "25bd4ceeb957737807fba141867e837058d22e70",
       "images": [
         {
           "offset": "0x0",
