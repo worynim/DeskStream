@@ -66,6 +66,8 @@ export interface UiStrings {
   stageWrite: string;
   stageReset: string;
   langAria: string;
+  readmeTitle: string;
+  readmeAria: (name: string) => string;
 }
 
 export interface FlashStrings {
@@ -157,6 +159,8 @@ const ko: LocalePack = {
     stageWrite: "플래시하는 중…",
     stageReset: "보드를 재부팅하는 중…",
     langAria: "언어 선택",
+    readmeTitle: "프로젝트 README 열기 (새 탭)",
+    readmeAria: (name) => `${name} README 열기 (새 탭)`,
   },
   flash: {
     portPrompt: "포트 선택 창에서 ESP32-C3 보드를 선택하세요.",
@@ -247,6 +251,8 @@ const en: LocalePack = {
     stageWrite: "Flashing…",
     stageReset: "Rebooting the board…",
     langAria: "Language",
+    readmeTitle: "Open project README (new tab)",
+    readmeAria: (name) => `Open ${name} README (new tab)`,
   },
   flash: {
     portPrompt: "Select your ESP32-C3 board in the port picker.",

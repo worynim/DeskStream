@@ -1,4 +1,5 @@
 import "./styles.css";
+import { readmeUrl } from "./config";
 import { flashProject, isSerialSupported, type FlashStage } from "./flasher";
 import {
   dateLocale,
@@ -169,14 +170,17 @@ function resolveHtml(strings: UiStrings, key: string): string | null {
 }
 
 function renderProjects(projects: ManifestProject[]): void {
+  const strings = ui();
   dom.projectGrid.replaceChildren();
   for (const project of [...projects].sort((a, b) => a.order - b.order)) {
     const name = projectName(project, state.locale);
+
+    const item = el("div", "card-item");
+    item.dataset.projectId = project.id;
+
     const card = el("button", "card");
     card.type = "button";
-    card.dataset.projectId = project.id;
-    card.setAttribute("role", "option");
-    card.setAttribute("aria-selected", "false");
+    card.setAttribute("aria-pressed", "false");
     card.title = `${name} v${project.version}`;
 
     const icon = el("span", "card__icon", project.icon || "📦");
@@ -198,7 +202,17 @@ function renderProjects(projects: ManifestProject[]): void {
     body.append(top, el("span", "card__desc", projectDescription(project, state.locale)), meta);
     card.append(icon, body);
     card.addEventListener("click", () => selectProject(project));
-    dom.projectGrid.append(card);
+
+    const readme = el("a", "card__readme");
+    readme.href = readmeUrl(project.id);
+    readme.target = "_blank";
+    readme.rel = "noopener noreferrer";
+    readme.title = strings.readmeTitle;
+    readme.setAttribute("aria-label", strings.readmeAria(name));
+    readme.append(document.createTextNode("README"), el("span", "card__readme-arrow", "↗"));
+
+    item.append(card, readme);
+    dom.projectGrid.append(item);
   }
 }
 
@@ -206,10 +220,11 @@ function selectProject(project: ManifestProject): void {
   if (state.busy) return;
   state.selected = project;
 
-  for (const card of dom.projectGrid.querySelectorAll<HTMLButtonElement>(".card")) {
-    const active = card.dataset.projectId === project.id;
-    card.classList.toggle("card--selected", active);
-    card.setAttribute("aria-selected", active ? "true" : "false");
+  for (const item of dom.projectGrid.querySelectorAll<HTMLElement>(".card-item")) {
+    const active = item.dataset.projectId === project.id;
+    item.classList.toggle("card-item--selected", active);
+    const button = item.querySelector<HTMLButtonElement>(".card");
+    button?.setAttribute("aria-pressed", active ? "true" : "false");
   }
 
   renderSelection(project);
