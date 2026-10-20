@@ -80,15 +80,26 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
 ## 🌐 웹 플래셔 (Web Flasher)
 
-**https://worynim.github.io/DeskStream/** — Chrome/Edge 데스크톱에서 USB로 연결한 ESP32-C3 보드에 11개 프로젝트를 브라우저에서 바로 플래시할 수 있습니다. 별도 프로그램 설치가 필요 없습니다.
+**https://worynim.github.io/DeskStream/** — Chrome/Edge 데스크톱 또는 Android Chrome에서 USB로 연결한 ESP32-C3 보드에 11개 프로젝트를 브라우저에서 바로 플래시할 수 있습니다. 별도 프로그램 설치가 필요 없습니다.
 
-- **Web Serial + [esptool-js](https://github.com/espressif/esptool-js)** 기반, Chrome/Edge 데스크톱만 지원 (Firefox·Safari·모바일 불가)
+- **Web Serial + [esptool-js](https://github.com/espressif/esptool-js)** 기반. Chrome/Edge 데스크톱, **Android Chrome 148+ (USB OTG)** 지원. iPhone/iPad(Safari)·Firefox Android·인앱 브라우저는 불가
 - **한국어 / English UI** 지원 — 페이지 우측 상단에서 전환 (브라우저 언어 자동 감지, 선택값 저장)
 - 각 프로젝트 카드의 **README ↗** 링크에서 해당 프로젝트 문서를 새 탭으로 열 수 있습니다.
 - 기본 플래시는 **NVS(WiFi·표시 설정) 보존**, 필요 시 "전체 지우기" 옵션 제공
 - 펌웨어 **SHA-256**(다운로드) 및 **MD5**(쓰기 후) 무결성 검증, 플래시 후 자동 재부팅
 - 11개 프로젝트: 스마트 정보 스테이션, GPS 대시보드, 사운드 비주얼라이저, 초광폭 OLED 테스트, 시스템 상태 모니터, DS DECK, 화면 스트리머, 게임 오브 라이프, 한글/영어/중국어 시계
 - **한글 시계 BB(Hangeul_Clock_bitbang_i2c)는 1.3" SH1106 · 4-bus 회로 구성이 달라 웹 플래셔 대상에서 제외**됩니다.
+
+### 스마트폰에서 사용하기 (Android)
+
+Android Chrome 148 이상 + **USB OTG 어댑터**(USB 데이터 케이블)가 있으면 스마트폰에서도 플래시할 수 있습니다.
+
+1. Chrome을 최신 버전(148+)으로 업데이트합니다.
+2. USB-C OTG 어댑터에 USB 데이터 케이블을 연결하고 ESP32-C3 보드를 연결합니다.
+3. 카카오톡·네이버 등 **인앱 브라우저가 아닌 Chrome**에서 주소를 직접 입력해 엽니다.
+4. 프로젝트를 선택하고 **플래시 시작** → 포트 선택 창에서 보드를 고릅니다.
+
+> iPhone/iPad는 Safari(WebKit)가 Web Serial API를 지원하지 않아 브라우저 플래시가 불가능합니다. PC의 Chrome/Edge를 사용해 주세요.
 
 ### 관련 파일 및 링크
 

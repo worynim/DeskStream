@@ -30,7 +30,11 @@ export interface FlashRequest {
 
 /** Web Serial 지원 여부 (HTTPS + Chrome/Edge 데스크톱) */
 export function isSerialSupported(): boolean {
-  return typeof navigator !== "undefined" && "serial" in navigator && window.isSecureContext;
+  return (
+    typeof navigator !== "undefined" &&
+    window.isSecureContext &&
+    typeof navigator.serial?.requestPort === "function"
+  );
 }
 
 /**

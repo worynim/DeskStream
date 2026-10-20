@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#0b1020" />
     <meta
       name="description"
-      content="DeskStream ESP32-C3 보드에 원하는 프로젝트 펌웨어를 브라우저에서 바로 플래시하세요. Chrome/Edge 데스크톱 지원."
+      content="DeskStream ESP32-C3 보드에 원하는 프로젝트 펌웨어를 브라우저에서 바로 플래시하세요. Chrome/Edge 데스크톱 및 Android Chrome 148+ 지원."
       id="meta-description"
     />
     <link
@@ -36,7 +36,7 @@
         <div class="hero__chips">
           <span class="chip" id="chip-projects" data-i18n="chipLoading">프로젝트 불러오는 중…</span>
           <span class="chip">ESP32-C3 · 4MB Flash</span>
-          <span class="chip" data-i18n="chipBrowser">Chrome / Edge 데스크톱</span>
+          <span class="chip" data-i18n="chipBrowser">Chrome / Edge · Android Chrome</span>
         </div>
       </header>
 
@@ -144,9 +144,13 @@
           </div>
           <ol class="guide">
             <li data-i18n-html="guide1">
-              <b>Chrome/Edge 데스크톱</b>에서 이 페이지를 엽니다. (모바일·Firefox·Safari 불가)
+              <b>Chrome/Edge 데스크톱</b> 또는 <b>Android Chrome 148+</b>에서 이 페이지를 엽니다.
+              (iPhone/iPad·Safari·인앱 브라우저 불가)
             </li>
-            <li data-i18n-html="guide2">USB <b>데이터 케이블</b>로 ESP32-C3 보드를 연결합니다.</li>
+            <li data-i18n-html="guide2">
+              USB <b>데이터 케이블</b>로 ESP32-C3 보드를 연결합니다. (스마트폰은
+              <b>USB OTG 어댑터</b> 필요)
+            </li>
             <li data-i18n-html="guide3">
               프로젝트를 선택하고 <b>플래시 시작</b>을 누른 뒤, 포트 선택 창에서 보드를
               고릅니다.

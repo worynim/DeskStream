@@ -94,16 +94,16 @@ const ko: LocalePack = {
   ui: {
     documentTitle: "DeskStream 웹 플래셔",
     metaDescription:
-      "DeskStream ESP32-C3 보드에 원하는 프로젝트 펌웨어를 브라우저에서 바로 플래시하세요. Chrome/Edge 데스크톱 지원.",
+      "DeskStream ESP32-C3 보드에 원하는 프로젝트 펌웨어를 브라우저에서 바로 플래시하세요. Chrome/Edge 데스크톱 및 Android Chrome 148+ 지원.",
     heroTitle: "웹 플래셔",
     heroLead:
       "USB 케이블로 ESP32-C3 보드를 연결하고, 원하는 프로젝트를 선택해 브라우저에서 바로 플래시하세요. 별도 프로그램 설치가 필요 없습니다.",
     chipLoading: "프로젝트 불러오는 중…",
-    chipBrowser: "Chrome / Edge 데스크톱",
+    chipBrowser: "Chrome / Edge · Android Chrome",
     chipError: "목록 로드 실패",
     warningTitle: "이 브라우저에서는 플래시할 수 없습니다.",
     warningBody:
-      "Web Serial API를 지원하는 <b>Chrome 또는 Edge 데스크톱</b>에서 <b>HTTPS</b>(또는 localhost)로 접속해 주세요. Firefox·Safari·모바일 브라우저는 지원하지 않습니다.",
+      "Web Serial API를 지원하는 <b>Chrome/Edge 데스크톱</b> 또는 <b>Android Chrome 148+</b>에서 <b>HTTPS</b>로 접속해 주세요. iPhone/iPad(Safari)·Firefox Android·인앱 브라우저는 지원하지 않습니다.",
     projectsTitle: "프로젝트 선택",
     projectsAriaLabel: "플래시할 프로젝트 선택",
     projectCount: (count) => `${count}개 프로젝트`,
@@ -119,7 +119,7 @@ const ko: LocalePack = {
     flashBusy: "플래시 중…",
     flashUnsupported: "지원되지 않는 브라우저",
     titleSelectFirst: "프로젝트를 먼저 선택하세요.",
-    titleUnsupported: "Chrome 또는 Edge 데스크톱에서 사용할 수 있습니다.",
+    titleUnsupported: "Chrome/Edge 데스크톱 또는 Android Chrome 148+에서 사용할 수 있습니다.",
     progressPreparing: "준비 중…",
     progressDone: "완료",
     statusIdle: "프로젝트를 선택한 뒤 USB를 연결하고 플래시를 시작하세요.",
@@ -140,8 +140,8 @@ const ko: LocalePack = {
       `flash ${mode}/${freq}/${size} · eraseAll=${eraseAll} · verifyMd5=${verifyMd5} · baud=${baud}`,
     guideHeading: "사용 안내",
     guide: [
-      "<b>Chrome/Edge 데스크톱</b>에서 이 페이지를 엽니다. (모바일·Firefox·Safari 불가)",
-      "USB <b>데이터 케이블</b>로 ESP32-C3 보드를 연결합니다.",
+      "<b>Chrome/Edge 데스크톱</b> 또는 <b>Android Chrome 148+</b>에서 이 페이지를 엽니다. (iPhone/iPad·Safari·인앱 브라우저 불가)",
+      "USB <b>데이터 케이블</b>로 ESP32-C3 보드를 연결합니다. (스마트폰은 <b>USB OTG 어댑터</b> 필요)",
       "프로젝트를 선택하고 <b>플래시 시작</b>을 누른 뒤, 포트 선택 창에서 보드를 고릅니다.",
       "연결이 되지 않으면 <b>BOOT 버튼을 누른 채 RESET</b>을 눌렀다 놓은 뒤 다시 시도하세요.",
       "Arduino IDE의 시리얼 모니터 등 <b>포트를 점유한 프로그램은 종료</b>해야 합니다.",
@@ -186,16 +186,16 @@ const en: LocalePack = {
   ui: {
     documentTitle: "DeskStream Web Flasher",
     metaDescription:
-      "Flash DeskStream project firmware to your ESP32-C3 board directly from the browser. Works in Chrome/Edge on desktop.",
+      "Flash DeskStream project firmware to your ESP32-C3 board directly from the browser. Supports Chrome/Edge on desktop and Chrome 148+ on Android.",
     heroTitle: "Web Flasher",
     heroLead:
       "Connect your ESP32-C3 board over USB, pick a project, and flash it straight from your browser. No extra software to install.",
     chipLoading: "Loading projects…",
-    chipBrowser: "Chrome / Edge desktop",
+    chipBrowser: "Chrome / Edge · Android Chrome",
     chipError: "Failed to load projects",
     warningTitle: "This browser can't flash the board.",
     warningBody:
-      "Please use <b>Chrome or Edge on desktop</b> over <b>HTTPS</b> (or localhost). Firefox, Safari, and mobile browsers are not supported.",
+      "Please use <b>Chrome/Edge on desktop</b> or <b>Chrome 148+ on Android</b> over <b>HTTPS</b>. iPhone/iPad (Safari), Firefox Android, and in-app browsers are not supported.",
     projectsTitle: "Choose a project",
     projectsAriaLabel: "Select a project to flash",
     projectCount: (count) => `${count} projects`,
@@ -211,7 +211,7 @@ const en: LocalePack = {
     flashBusy: "Flashing…",
     flashUnsupported: "Browser not supported",
     titleSelectFirst: "Select a project first.",
-    titleUnsupported: "Available in Chrome or Edge on desktop.",
+    titleUnsupported: "Available in Chrome/Edge on desktop or Chrome 148+ on Android.",
     progressPreparing: "Preparing…",
     progressDone: "Done",
     statusIdle: "Pick a project, connect the board over USB, then start flashing.",
@@ -232,8 +232,8 @@ const en: LocalePack = {
       `flash ${mode}/${freq}/${size} · eraseAll=${eraseAll} · verifyMd5=${verifyMd5} · baud=${baud}`,
     guideHeading: "How to use",
     guide: [
-      "Open this page in <b>Chrome or Edge on desktop</b>. (Mobile, Firefox, and Safari are not supported.)",
-      "Connect the ESP32-C3 board with a USB <b>data cable</b>.",
+      "Open this page in <b>Chrome/Edge on desktop</b> or <b>Chrome 148+ on Android</b>. (iPhone/iPad, Safari, and in-app browsers are not supported.)",
+      "Connect the ESP32-C3 board with a USB <b>data cable</b>. (Android phones need a <b>USB OTG adapter</b>.)",
       "Select a project, press <b>Start flashing</b>, then choose the board in the port picker.",
       "If it won't connect, hold <b>BOOT</b>, press and release <b>RESET</b>, then try again.",
       "Close any program that is using the port, such as the Arduino IDE Serial Monitor.",
