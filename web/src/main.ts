@@ -239,7 +239,10 @@ async function handleFlash(): Promise<void> {
     });
 
     setProgress(1, "완료");
-    setStatus(`✅ ${project.name} 플래시 완료! 보드가 재부팅됩니다.`);
+    setStatus(
+      `✅ ${project.name} 플래시 완료! 보드가 자동으로 재부팅됩니다. ` +
+        `잠시 기다려도 화면이 켜지지 않으면 RESET 버튼을 한 번 눌러 주세요.`,
+    );
     dom.progress.classList.add("progress--done");
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

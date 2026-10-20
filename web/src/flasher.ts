@@ -8,6 +8,7 @@ import {
 } from "esptool-js";
 import SparkMD5 from "spark-md5";
 import { fetchImage, projectSize } from "./manifest";
+import { resetIntoApp } from "./reset";
 import type { ManifestProject } from "./types";
 
 export type FlashStage = "port" | "connect" | "download" | "write" | "reset";
@@ -121,7 +122,10 @@ export async function flashProject(request: FlashRequest): Promise<void> {
     request.onStage("reset");
     request.onLog("플래시 완료. 보드를 재부팅합니다…");
     try {
-      await loader.after("hard_reset");
+      // esptool-js의 after("hard_reset")은 USB-Serial/JTAG에서 리셋되지 않으므로
+      // RTC WDT 리셋(C3/C2/S2/S3) 또는 USB-JTAG/클래식 리셋을 사용한다.
+      const resetMethod = await resetIntoApp(loader, transport, port);
+      request.onLog(`재부팅 신호를 보냈습니다 (reset: ${resetMethod}).`);
     } catch (error) {
       request.onLog(
         `[warn] 자동 재부팅 신호를 보내지 못했습니다. USB를 다시 연결하거나 RESET 버튼을 눌러 주세요. (${error instanceof Error ? error.message : String(error)})`,
