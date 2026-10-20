@@ -18,7 +18,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 ## 📁 주요 프로젝트 (Sub-Projects)
 본 저장소는 DeskStream 보드용으로 개발된 10가지 주요 프로그램을 포함하고 있습니다.
 
-### 1. [Smart_Info_Station: 스마트 정보 스테이션 (v2.9.0)](./Smart_Info_Station/)
+### 1. [Smart_Info_Station: 스마트 정보 스테이션 (v2.9.1)](./Smart_Info_Station/)
 - **기능**: 시계, 날씨, 미세먼지, 유튜브 구독자 수, 증시 지수, 가상화폐 가격, 환율 실시간 모니터링.
 - **특징**: **전면 모듈화 아키텍처**, 웹 대시보드 실시간 설정, 비동기 데이터 갱신(FreeRTOS), 네이티브 HAL 기반 고속 SW I2C.
 - **버튼 동작**: 버튼 1을 사용하여 HUD 반전 모드 순환, 버튼 4를 사용하여 페이지를 전환합니다.
@@ -39,16 +39,16 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 - **기능**: PC/Mac의 CPU, GPU, RAM, SSD 상태 및 온도, 네트워크 트래픽 실시간 표시.
 - **특징**: 외부 클라이언트 연동, 하드웨어 통계 가젯 모드, 시스템 생체 정보 가시화.
 
-### 6. [DS_DECK: 프로그래머블 매크로 패드 (v1.5.0)](./DS_DECK/)
+### 6. [DS_DECK: 프로그래머블 매크로 패드 (v1.5.1)](./DS_DECK/)
 - **기능**: 4개의 버튼에 텍스트 매크로(한/영 지원), 단축키(Combo), 미디어 컨트롤, **웹 브라우저 런처(Browser)** 할당.
 - **특징**: **macOS 프리미엄 런처 지원**(Spotlight 자동화), 초고속 BLE HID 엔진, 웹 기반 실시간 매크로 설정, F1~F12 포함 모든 특수키 지원.
 
-### 7. [Screen_To_OLEDs: 실시간 화면 스트리머 (v1.6.0)](./Screen_To_OLEDs/)
+### 7. [Screen_To_OLEDs: 실시간 화면 스트리머 (v2.2.1)](./Screen_To_OLEDs/)
 - **기능**: Mac의 화면 일부를 실시간 캡처하여 DeskStream 4-OLED 매트릭스(512x64)에 무선 전송.
 - **특징**: 지능형 캡처 엔진(Full 대응), Numba JIT 가속, 6종 디더링 알고리즘, 실시간 설정 변경.
 - **버튼 동작**: 버튼 2를 눌러 밝기를 조절하고, 버튼 1을 롱프레스하여 화면을 180도 회전(플립)합니다.
 
-### 8. [Hangeul_Clock: 고화질 폰트 한글 시계 (v2.5.0)](./Hangeul_Clock/)
+### 8. [Hangeul_Clock: 고화질 폰트 한글 시계 (v2.9.4)](./Hangeul_Clock/)
 - **기능**: NTP 동기화 기반의 고화질 한글 시계 및 하이엔드 폰트 렌더링 시스템.
 - **특징**: 
     - **제로-스터터(Zero-Stutter) 웹 API**: 폰트 슬롯 이름 메모리 캐싱으로 웹 대시보드 호출 시 시스템 멈춤 현상 근본 해결.

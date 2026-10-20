@@ -1,5 +1,9 @@
 # Release Notes - Hangeul Clock
 
+## [v2.9.4] - 2026-10-21
+### 🐛 버그 수정 및 안정성 개선
+- **USB CDC 로그 블로킹 방지 (ESP32-C3)**: `Serial.begin()` 직후 `Serial.setTxTimeoutMs(0)`을 적용했습니다. USB CDC(HWCDC) TX 링버퍼(256B)가 가득 찬 상태에서 로그를 출력하면 `HWCDC::write()`가 호출당 최대 2초(`tx_timeout_ms` 100 ms × `max_consec_timeouts` 20회)를 블로킹해 메인 루프(렌더링·버튼·시보)가 멈추는 잠재 위험을 제거했습니다. `ARDUINO_USB_CDC_ON_BOOT` 가드로 CDC 부팅 보드에서만 적용됩니다.
+
 ## [v2.9.3] - 2026-10-07
 ### 🐛 버그 수정 및 안정성 개선
 - **HW I2C Dirty 플래그 미초기화 수정**: `DisplayManager::pushParallel()` 시작 시 `g_any_hw_dirty`를 `false`로 리셋하도록 수정. 변경 사항이 없는 프레임에서 불필요한 I2C 백그라운드 태스크 통지가 발생하던 문제 차단.

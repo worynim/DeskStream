@@ -1,5 +1,9 @@
 # 🚀 Release Notes - GPS OLED4 Dashboard
 
+## [v2.6.1] - 2026-10-21
+### 🛠️ Fixed
+- **USB CDC 로그 블로킹 방지 (ESP32-C3)**: `Serial.begin()` 직후 `Serial.setTxTimeoutMs(0)`을 적용했습니다. USB CDC(HWCDC) TX 링버퍼(256B)가 가득 찬 상태에서 로그를 출력하면 `HWCDC::write()`가 호출당 최대 2초(`tx_timeout_ms` 100 ms × `max_consec_timeouts` 20회)를 블로킹해 메인 루프(GPS 파싱·버튼·부저)가 멈추는 잠재 위험을 제거했습니다. `ARDUINO_USB_CDC_ON_BOOT` 가드로 CDC 부팅 보드에서만 적용됩니다.
+
 ## [v2.6.0] - 2026-04-13
 ### Changed
 - **전 소스 파일 헤더 표준화**: 모든 .ino, .h 파일 상단에 작성자 이메일(@worynim@gmail.com) 및 상세 기능 설명을 포함하는 표준 주석 블록을 도입했습니다.

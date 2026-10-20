@@ -17,8 +17,18 @@
 | v1.0.7 | **정상인데 느림** | 화면/버스 **마스크 공간 불일치** 수정 |
 | v1.0.8 | 원본보다 느림 | 비트 클럭 — `delayMicroseconds()` 오버헤드 제거 |
 | **v1.0.9** | 마무리 | `BB_HALF_BIT_NS 0` 확정 + **코드 정리** |
+| **v1.0.10** | 잠재 블로킹 | USB CDC Serial TX 링 포화 시 2초 블로킹 제거 (`setTxTimeoutMs(0)`) |
 
 ---
+
+## [v1.0.10] — 2026-10-21
+
+### ✅ USB CDC Serial 비차단화 — 잠재 블로킹 제거
+
+ESP32-C3 USB CDC(HWCDC)는 호스트가 포트를 읽지 않아 TX 링버퍼(256B)가 가득 차면
+`HWCDC::write()`가 호출당 최대 2초(`tx_timeout_ms` 100 ms × `max_consec_timeouts` 20회)를
+블로킹한다. 진단 로그 한 줄로 메인 루프(4버스 BitBang 전송·버튼)가 멈추지 않도록
+`Serial.begin()` 직후 `Serial.setTxTimeoutMs(0)`을 적용했다. (`ARDUINO_USB_CDC_ON_BOOT` 가드)
 
 ## [v1.0.9] — 2026-10-10
 

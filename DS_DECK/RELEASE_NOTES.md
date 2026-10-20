@@ -1,5 +1,9 @@
 # Release Notes - DS DECK
 
+## [v1.5.1] - 2026-10-21
+### 🛠️ Fixed
+- **USB CDC 로그 블로킹 방지 (ESP32-C3)**: `Serial.begin()` 직후 `Serial.setTxTimeoutMs(0)`을 적용했습니다. USB CDC(HWCDC) TX 링버퍼(256B)가 가득 찬 상태에서 로그를 출력하면 `HWCDC::write()`가 호출당 최대 2초(`tx_timeout_ms` 100 ms × `max_consec_timeouts` 20회)를 블로킹해 메인 루프(버튼·BLE·OLED)가 멈추는 잠재 위험을 제거했습니다. `ARDUINO_USB_CDC_ON_BOOT` 가드로 CDC 부팅 보드에서만 적용됩니다.
+
 ## [v1.5.0] - 2026-04-13
 ### Changed
 - **소스 코드 문서화 표준화**: 모든 .ino, .h 파일 상단에 작성자 이메일(@worynim@gmail.com) 및 Doxygen 스타일 헤더 주석을 추가하여 유지보수성을 향상시켰습니다.

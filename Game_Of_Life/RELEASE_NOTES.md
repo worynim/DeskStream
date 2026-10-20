@@ -1,5 +1,9 @@
 # Release Notes - DeskStream Game of Life
 
+## [v1.0.2] - 2026-10-21
+### 🛠️ Fixed
+- **USB CDC 로그 블로킹 방지 (ESP32-C3)**: `Serial.begin()` 직후 `Serial.setTxTimeoutMs(0)`을 적용했습니다. USB CDC(HWCDC) TX 링버퍼(256B)가 가득 찬 상태에서 로그를 출력하면 `HWCDC::write()`가 호출당 최대 2초(`tx_timeout_ms` 100 ms × `max_consec_timeouts` 20회)를 블로킹해 메인 루프(시뮬레이션·버튼)가 멈추는 잠재 위험을 제거했습니다. `ARDUINO_USB_CDC_ON_BOOT` 가드로 CDC 부팅 보드에서만 적용됩니다.
+
 ## [v1.0.1] ✅ 커밋완료 - 2026-04-30
 ### 🚀 Improved & Fixed
 - **FreeRTOS Button Polling Task**: 메인 루프의 렌더링 블로킹 시간(약 50ms) 동안 짧은 버튼 입력이 무시되는 현상을 완벽히 해결하기 위해, 5ms마다 독립적으로 버튼을 스캔하는 백그라운드 태스크 엔진 도입.

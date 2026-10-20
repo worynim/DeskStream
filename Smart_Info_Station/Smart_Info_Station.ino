@@ -452,6 +452,13 @@ void redraw_current_page() {
 void setup() {
   Serial.begin(115200);
 
+  // ESP32-C3 USB CDC(HWCDC): 호스트가 포트를 읽지 않아 TX 링(256B)이 차면
+  // HWCDC::write()가 호출당 최대 2초(100ms × 20회)를 블로킹해 loop()가 멈춘다.
+  // 버튼·부저 등 실시간 처리가 지연되지 않도록 TX 타임아웃을 0(비차단)으로.
+#if ARDUINO_USB_CDC_ON_BOOT
+  Serial.setTxTimeoutMs(0);
+#endif
+
   // 1. 버튼 및 부저 핀 초기화
   for (int i = 0; i < 4; i++) btns[i].init();
   pinMode(BUZZER_PIN, OUTPUT);

@@ -1,3 +1,13 @@
+## [v4.13.1] - 2026-10-21
+### 🐛 Bug Fixes & Stability (Stats_Monitor)
+- **버튼 비프음 2초 지연·버튼 반응 지연 수정 (근본 원인)**: ESP32-C3 USB CDC(HWCDC) TX 링버퍼(256 B)가 포화되면 `Serial` 로그 한 줄이 호출당 최대 2초(`tx_timeout_ms` 100 ms × `max_consec_timeouts` 20회)를 블로킹하여, `loop()`의 `updateTone()`이 50 ms 비프음을 끄지 못해 2초 이상 계속 울리고 버튼 입력이 지연되던 문제를 수정했습니다. `Serial.setTxTimeoutMs(0)`으로 메인 루프가 절대 블로킹되지 않도록 변경했습니다. (시리얼 모니터 미연결 상태에서 버튼 5~6회 누르면 재현, 리셋 전까지 반복)
+- **부팅 멜로디 첫 음 지속 수정**: `playBootMelody()`를 `setup()` 맨 마지막(`loop()` 직전)으로 이동하여, 첫 음(80 ms)이 `BLEDevice::init()` 동안 계속 울린 뒤 나머지 음이 재생되던 문제를 해결했습니다.
+- **웹 플래셔 배포본 갱신**: Stats_Monitor v1.5.1 및 아래 하드닝 대상 프로젝트의 펌웨어를 재export하고 `firmware/manifest.json`을 재생성했습니다. (`node tools/collect-firmware.mjs --check` 통과)
+### 🛡️ Hardening (Global: USB CDC Serial 비차단화)
+- **전 프로젝트 Serial 블로킹 방지**: ESP32-C3 USB CDC(HWCDC) TX 링버퍼(256B)가 포화된 상태에서 `Serial` 로그를 출력하면 `HWCDC::write()`가 호출당 최대 2초(`tx_timeout_ms` 100 ms × `max_consec_timeouts` 20회)를 블로킹해 메인 루프(버튼·부저·렌더링)가 멈추는 잠재 위험이 있었습니다. `Serial.begin()` 직후 `Serial.setTxTimeoutMs(0)`을 적용해 비차단(포화 시 로그 드롭)으로 전환했습니다. (`ARDUINO_USB_CDC_ON_BOOT` 가드로 CDC 부팅 보드에서만 동작)
+  - **적용 프로젝트**: GPS_DASH v2.6.1, Sound_Visualizer_4_OLEDs v3.4.1, Smart_Info_Station v2.9.1, DS_DECK v1.5.1, Screen_To_OLEDs V2.2.1, Game_Of_Life v1.0.2, OLED_Wide_test v1.2.1, Hangeul_Clock v2.9.4, Hangeul_Clock BB v1.0.10
+  - **웹 플래셔 반영**: 플래셔 대상 8개 프로젝트의 바이너리와 `firmware/projects.json` 버전, `firmware/manifest.json`을 재생성했습니다. (Hangeul_Clock BB는 플래셔 대상 제외)
+
 ## [v4.13.0] - 2026-10-07
 ### 🐛 Bug Fixes & Stability (Hangeul_Clock, Chinese_Clock, ENG_Clock)
 - **JSON 파서 공백 호환성 개선 (공통)**: `WebManager::parseBool()`에서 콜론 뒤 공백/탭을 허용하도록 처리하여 서식화된 JSON 입력 처리 안정화.

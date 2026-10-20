@@ -1,5 +1,13 @@
 # 📝 Release Notes - Stats_Monitor
 
+## [v1.5.1] - 2026-10-21
+### 🛠 Fixed
+- **버튼 비프음이 2초 이상 길게 울리고 버튼 반응이 지연되는 문제 수정**: 이 보드는 `CDCOnBoot=Enabled`라 `Serial`이 USB Serial/JTAG(HWCDC)에 매핑되는데, 호스트가 포트를 읽지 않아 TX 링버퍼(256 B)가 포화되면 `HWCDC::write()`가 호출당 최대 2초(`tx_timeout_ms` 100 ms × `max_consec_timeouts` 20회)를 블로킹했습니다. 버튼 핸들러의 `Serial.printf()`가 `loop()`를 멈추는 동안 `updateTone()`이 `noTone()`을 호출하지 못해 50 ms 비프음이 2초 이상 지속되고, 그 사이 버튼 입력도 폴링되지 않아 동작이 늦게 반응했습니다.
+  - 부팅 로그 + 버튼 로그(약 38 B/회) 5~6회로 256 B가 차면서 증상이 시작되었고, 링버퍼가 비워지지 않아 리셋 전까지 매번 반복되었습니다. 리셋 직후에는 링버퍼가 비어 있어 정상이었습니다.
+  - `setup()`에서 `Serial.setTxTimeoutMs(0)`을 호출해 TX를 비차단(포화 시 로그 드롭)으로 전환하여 해결했습니다. (시리얼 모니터를 열어두면 로그는 정상 출력됩니다)
+- **부팅 멜로디 첫 음이 BLE 초기화 동안 계속 울리던 문제 수정**: `playMelodyAsync()`는 duration=0 톤을 켜고 `loop()`의 `updateTone()`에서만 정지시키는데, `playBootMelody()`가 `setup()` 중간(`BLEDevice::init()` 이전)에 호출되어 첫 음(80 ms)이 BLE 초기화가 끝날 때까지 지속되었습니다. 호출 위치를 `setup()` 맨 마지막(`loop()` 직전)으로 이동하여 4음 멜로디(80/30/80/30/80/30/200 ms)가 설계대로 재생됩니다.
+- **웹 플래셔 배포본 갱신**: 수정된 펌웨어(v1.5.1)를 export하고 `firmware/Stats_Monitor/` 및 `firmware/manifest.json`을 재생성했습니다.
+
 ## [v1.5.0] - 2026-04-13
 ### Changed
 - **소스 코드 문서화 표준화**: BLE 펌웨어 및 Python 클라이언트(Metrics, BLE Client 등) 소스 파일 상단에 작성자 이메일(@worynim@gmail.com) 및 Doxygen 스타일 주석을 도입하여 프로젝트 무결성을 확보했습니다.

@@ -518,6 +518,23 @@ class MyCallbacks : public BLECharacteristicCallbacks {
 void setup() {
   Serial.begin(115200);
 
+  // 시리얼 모니터를 열지 않아도 loop()가 멈추지 않게 한다 (ESP32-C3 native USB).
+  //
+  // 원인: 이 보드는 CDCOnBoot=Enabled라 Serial이 USB Serial/JTAG(HWCDC)로 매핑된다.
+  //   HWCDC::write()는 호스트가 포트를 읽어주지 않으면(링버퍼 256B가 가득 찬 뒤)
+  //   xRingbufferSend(..., tx_timeout_ms=100ms)를 max_consec_timeouts(20)회까지
+  //   반복하며 "호출당 최대 2초"를 블로킹한다.
+  //   버튼 핸들러의 Serial.printf() 한 줄이 loop()를 2초 멈추면 updateTone()이
+  //   실행되지 못해 50ms 비프음이 2초 넘게 계속 울리고, 뒤따르는 버튼 동작도 늦어진다.
+  //   로그가 ~38B/줄이므로 부팅 로그 + 버튼 5~6회면 256B가 차서 증상이 시작되며,
+  //   호스트가 읽지 않는 한 계속 차 있으므로 리셋 전까지 매번 반복된다.
+  //
+  // 해결: 진단 로그가 메인 루프를 막지 않도록 TX 타임아웃을 0(비차단, 가득 차면 드롭)으로.
+  //   시리얼 모니터를 열어두면 링버퍼가 정상적으로 비워지므로 로그에는 영향이 없다.
+#if ARDUINO_USB_CDC_ON_BOOT
+  Serial.setTxTimeoutMs(0);
+#endif
+
   // I2C 초기화 및 속도 최적화
   Wire.begin(hw_sda_pin, hw_scl_pin);
   Wire.setClock(800000);  // 하드웨어 I2C 800kHz
@@ -545,9 +562,6 @@ void setup() {
   pinMode(BUZZER_PIN, OUTPUT);
   digitalWrite(BUZZER_PIN, LOW);
 
-  // 부팅 멜로디 재생
-  playBootMelody();
-
   // 설정 로드 (화면 회전 등)
   loadSettings();
 
@@ -561,6 +575,13 @@ void setup() {
   pSvc->start();
   pServer->getAdvertising()->start();
   Serial.println("[SYSTEM] Stats Monitor Ready.");
+
+  // 부팅 멜로디는 반드시 setup()의 맨 마지막에서 재생한다.
+  // [버그 수정] playMelodyAsync()는 duration=0 톤을 켜기만 하고, 실제 정지는
+  // loop()의 updateTone()에서만 수행된다. 이 호출을 setup() 중간에 두면
+  // (예: BLEDevice::init() 앞) 첫 음이 BLE 초기화가 끝날 때까지 계속 울린 뒤
+  // 나머지 3음이 재생되는 증상이 생긴다. loop() 직전에 시작해야 첫 음 80ms가 지켜진다.
+  playBootMelody();
 }
 
 void loop() {

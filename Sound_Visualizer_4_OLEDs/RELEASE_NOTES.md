@@ -1,5 +1,9 @@
 # Release Notes - Sound Visualizer
 
+## [v3.4.1] - 2026-10-21
+### 🛠️ Fixed
+- **USB CDC 로그 블로킹 방지 (ESP32-C3)**: `Serial.begin()` 직후 `Serial.setTxTimeoutMs(0)`을 적용했습니다. USB CDC(HWCDC) TX 링버퍼(256B)가 가득 찬 상태에서 로그를 출력하면 `HWCDC::write()`가 호출당 최대 2초(`tx_timeout_ms` 100 ms × `max_consec_timeouts` 20회)를 블로킹해 메인 루프(ADC DMA·FFT·렌더링)가 멈추는 잠재 위험을 제거했습니다. `ARDUINO_USB_CDC_ON_BOOT` 가드로 CDC 부팅 보드에서만 적용됩니다.
+
 ## [v3.4.0] - 2026-04-13
 ### Changed
 - **소스 코드 문서화 표준화**: FFT 가속 엔진 및 렌더링 프레임워크를 포함한 모든 소스 파일 상단에 작성자 이메일(@worynim@gmail.com) 및 기술 주석을 추가했습니다.
