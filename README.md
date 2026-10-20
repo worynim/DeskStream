@@ -99,6 +99,8 @@ Android Chrome 148 이상 + **USB OTG 어댑터**(USB 데이터 케이블)가 �
 3. 카카오톡·네이버 등 **인앱 브라우저가 아닌 Chrome**에서 주소를 직접 입력해 엽니다.
 4. 프로젝트를 선택하고 **플래시 시작** → 포트 선택 창에서 보드를 고릅니다.
 
+> USB 장치가 Web Serial 포트 목록에 보이지 않으면, 플래시 옵션의 **USB(WebUSB) 모드**를 체크하고 다시 시도해 보세요. WebUSB(CDC-ACM)로 직접 접근하는 실험적 우회 모드입니다.
+>
 > iPhone/iPad는 Safari(WebKit)가 Web Serial API를 지원하지 않아 브라우저 플래시가 불가능합니다. PC의 Chrome/Edge를 사용해 주세요.
 
 ### 관련 파일 및 링크

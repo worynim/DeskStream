@@ -7,6 +7,7 @@ import {
   type IEspLoaderTerminal,
 } from "esptool-js";
 import SparkMD5 from "spark-md5";
+import { serial as webUsbSerial } from "web-serial-polyfill";
 import type { FlashStrings } from "./i18n";
 import { fetchImage, projectSize } from "./manifest";
 import { resetIntoApp } from "./reset";
@@ -21,6 +22,8 @@ export interface FlashRequest {
   eraseAll: boolean;
   verifyMd5: boolean;
   baudrate: number;
+  /** Web Serial 대신 WebUSB(CDC-ACM)로 포트를 연다 (Android 우회 모드) */
+  useWebUsb?: boolean;
   messages: FlashStrings;
   onLog: (line: string) => void;
   onStage: (stage: FlashStage, detail?: string) => void;
@@ -28,12 +31,21 @@ export interface FlashRequest {
   onChip: (chip: string) => void;
 }
 
-/** Web Serial 지원 여부 (HTTPS + Chrome/Edge 데스크톱) */
+/** Web Serial 지원 여부 (HTTPS + Chrome/Edge 데스크톱, Android Chrome 148+) */
 export function isSerialSupported(): boolean {
   return (
     typeof navigator !== "undefined" &&
     window.isSecureContext &&
     typeof navigator.serial?.requestPort === "function"
+  );
+}
+
+/** WebUSB(CDC-ACM) 우회 모드 사용 가능 여부 */
+export function isWebUsbAvailable(): boolean {
+  return (
+    typeof navigator !== "undefined" &&
+    window.isSecureContext &&
+    typeof navigator.usb?.requestDevice === "function"
   );
 }
 
@@ -47,8 +59,10 @@ export async function flashProject(request: FlashRequest): Promise<void> {
   const { project, displayName, eraseAll, verifyMd5, baudrate, messages } = request;
 
   request.onStage("port");
-  request.onLog(messages.portPrompt);
-  const port = await navigator.serial.requestPort();
+  request.onLog(request.useWebUsb ? messages.webUsbMode : messages.portPrompt);
+  const port = request.useWebUsb
+    ? ((await webUsbSerial.requestPort()) as unknown as SerialPort)
+    : await navigator.serial.requestPort();
 
   const transport = new Transport(port, true);
   const terminal: IEspLoaderTerminal = {

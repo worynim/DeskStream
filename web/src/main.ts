@@ -1,6 +1,6 @@
 import "./styles.css";
 import { readmeUrl } from "./config";
-import { flashProject, isSerialSupported, type FlashStage } from "./flasher";
+import { flashProject, isSerialSupported, isWebUsbAvailable, type FlashStage } from "./flasher";
 import {
   dateLocale,
   detectLocale,
@@ -45,6 +45,8 @@ const dom = {
   flashLabel: $("#flash-btn-label"),
   verify: $<HTMLInputElement>("#opt-verify"),
   erase: $<HTMLInputElement>("#opt-erase"),
+  webUsbOption: $("#webusb-option"),
+  webUsb: $<HTMLInputElement>("#opt-webusb"),
   baud: $<HTMLSelectElement>("#opt-baud"),
   progress: $("#progress"),
   progressFill: $("#progress-fill"),
@@ -69,7 +71,9 @@ const state: {
   loadErrorMessage: null,
 };
 
-const supported = isSerialSupported();
+const serialSupported = isSerialSupported();
+const webUsbAvailable = isWebUsbAvailable();
+const supported = serialSupported || webUsbAvailable;
 const langButtons = [...document.querySelectorAll<HTMLButtonElement>("[data-locale]")];
 
 function ui(): UiStrings {
@@ -313,6 +317,7 @@ function updateControls(): void {
 
   dom.verify.disabled = state.busy;
   dom.erase.disabled = state.busy;
+  dom.webUsb.disabled = state.busy || !webUsbAvailable || !serialSupported;
   dom.baud.disabled = state.busy;
   for (const button of langButtons) button.disabled = state.busy;
   document.body.classList.toggle("is-busy", state.busy);
@@ -399,6 +404,7 @@ async function handleFlash(): Promise<void> {
       eraseAll,
       verifyMd5: dom.verify.checked,
       baudrate: Number(dom.baud.value),
+      useWebUsb: webUsbAvailable && dom.webUsb.checked,
       messages: flashStrings,
       onLog: log,
       onStage: (stage, detail) => setStatus(detail ?? stageLabel(stage)),
@@ -413,7 +419,7 @@ async function handleFlash(): Promise<void> {
     const message = error instanceof Error ? error.message : String(error);
     log(`❌ ${message}`);
 
-    if (/No port selected|cancel|취소/i.test(message)) {
+    if (/No port selected|No device selected|cancel|취소/i.test(message)) {
       setStatus(strings.statusCancelled);
       resetProgress();
     } else if (/Failed to connect|Failed to communicate|timeout|Timed out/i.test(message)) {
@@ -429,8 +435,17 @@ async function handleFlash(): Promise<void> {
 }
 
 async function boot(): Promise<void> {
-  if (!supported) dom.browserWarning.hidden = false;
   applyStaticTranslations();
+
+  // WebUSB 우회 모드: WebUSB가 있으면 노출하고, Web Serial이 아예 없으면 기본 활성화
+  dom.webUsbOption.hidden = !webUsbAvailable;
+  if (!webUsbAvailable) {
+    dom.webUsb.checked = false;
+  } else if (!serialSupported) {
+    dom.webUsb.checked = true;
+  }
+
+  if (!supported) dom.browserWarning.hidden = false;
 
   try {
     state.manifest = await loadManifest();

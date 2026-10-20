@@ -22,6 +22,7 @@ export interface UiStrings {
   selectionEmpty: string;
   verifyLabel: string;
   eraseLabel: string;
+  webUsbLabel: string;
   baudLabel: string;
   baudStable: string;
   baudRecommended: string;
@@ -72,6 +73,7 @@ export interface UiStrings {
 
 export interface FlashStrings {
   portPrompt: string;
+  webUsbMode: string;
   connecting: string;
   chipDetected: (chip: string) => string;
   chipUnsupported: (chip: string) => string;
@@ -111,6 +113,8 @@ const ko: LocalePack = {
     selectionEmpty: "위에서 프로젝트를 선택하세요.",
     verifyLabel: "쓰기 검증(MD5) <small>플래시 후 데이터를 다시 읽어 검증합니다</small>",
     eraseLabel: "전체 지우기 <small>NVS의 WiFi·표시 설정까지 삭제됩니다</small>",
+    webUsbLabel:
+      "USB(WebUSB) 모드 <small>포트 목록에 USB 장치가 안 보일 때 사용 (Android)</small>",
     baudLabel: "통신 속도",
     baudStable: "115200 (안정)",
     baudRecommended: "460800 (권장)",
@@ -142,7 +146,7 @@ const ko: LocalePack = {
     guide: [
       "<b>Chrome/Edge 데스크톱</b> 또는 <b>Android Chrome 148+</b>에서 이 페이지를 엽니다. (iPhone/iPad·Safari·인앱 브라우저 불가)",
       "USB <b>데이터 케이블</b>로 ESP32-C3 보드를 연결합니다. (스마트폰은 <b>USB OTG 어댑터</b> 필요)",
-      "프로젝트를 선택하고 <b>플래시 시작</b>을 누른 뒤, 포트 선택 창에서 보드를 고릅니다.",
+      "프로젝트를 선택하고 <b>플래시 시작</b>을 누른 뒤, 포트 선택 창에서 보드를 고릅니다. USB 장치가 안 보이면 <b>USB(WebUSB) 모드</b>를 켜고 다시 시도하세요.",
       "연결이 되지 않으면 <b>BOOT 버튼을 누른 채 RESET</b>을 눌렀다 놓은 뒤 다시 시도하세요.",
       "Arduino IDE의 시리얼 모니터 등 <b>포트를 점유한 프로그램은 종료</b>해야 합니다.",
       "기본 플래시는 NVS(WiFi·설정)를 보존합니다. 초기화가 필요하면 <b>전체 지우기</b>를 체크하세요.",
@@ -164,6 +168,7 @@ const ko: LocalePack = {
   },
   flash: {
     portPrompt: "포트 선택 창에서 ESP32-C3 보드를 선택하세요.",
+    webUsbMode: "WebUSB 모드로 USB 장치를 선택합니다.",
     connecting: "칩과 통신을 설정하는 중…",
     chipDetected: (chip) => `감지된 칩: ${chip}`,
     chipUnsupported: (chip) =>
@@ -203,6 +208,8 @@ const en: LocalePack = {
     selectionEmpty: "Select a project above.",
     verifyLabel: "Verify write (MD5) <small>Reads the data back after flashing to verify it</small>",
     eraseLabel: "Full erase <small>Also erases WiFi and display settings in NVS</small>",
+    webUsbLabel:
+      "USB (WebUSB) mode <small>Use if the USB device is missing from the port list (Android)</small>",
     baudLabel: "Baud rate",
     baudStable: "115200 (stable)",
     baudRecommended: "460800 (recommended)",
@@ -234,7 +241,7 @@ const en: LocalePack = {
     guide: [
       "Open this page in <b>Chrome/Edge on desktop</b> or <b>Chrome 148+ on Android</b>. (iPhone/iPad, Safari, and in-app browsers are not supported.)",
       "Connect the ESP32-C3 board with a USB <b>data cable</b>. (Android phones need a <b>USB OTG adapter</b>.)",
-      "Select a project, press <b>Start flashing</b>, then choose the board in the port picker.",
+      "Select a project, press <b>Start flashing</b>, then choose the board in the port picker. If the USB device is missing, enable <b>USB (WebUSB) mode</b> and try again.",
       "If it won't connect, hold <b>BOOT</b>, press and release <b>RESET</b>, then try again.",
       "Close any program that is using the port, such as the Arduino IDE Serial Monitor.",
       "Standard flashing preserves NVS (WiFi and settings). Enable <b>Full erase</b> only if you need a clean slate.",
@@ -256,6 +263,7 @@ const en: LocalePack = {
   },
   flash: {
     portPrompt: "Select your ESP32-C3 board in the port picker.",
+    webUsbMode: "Select the USB device using WebUSB mode.",
     connecting: "Setting up communication with the chip…",
     chipDetected: (chip) => `Detected chip: ${chip}`,
     chipUnsupported: (chip) =>

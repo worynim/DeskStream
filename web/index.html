@@ -102,6 +102,15 @@
                 >
               </label>
             </li>
+            <li id="webusb-option" hidden>
+              <label class="check">
+                <input type="checkbox" id="opt-webusb" />
+                <span data-i18n-html="webUsbLabel"
+                  >USB(WebUSB) 모드
+                  <small>포트 목록에 USB 장치가 안 보일 때 사용 (Android)</small></span
+                >
+              </label>
+            </li>
             <li>
               <label class="select">
                 <span data-i18n="baudLabel">통신 속도</span>
@@ -153,7 +162,8 @@
             </li>
             <li data-i18n-html="guide3">
               프로젝트를 선택하고 <b>플래시 시작</b>을 누른 뒤, 포트 선택 창에서 보드를
-              고릅니다.
+              고릅니다. USB 장치가 안 보이면 <b>USB(WebUSB) 모드</b>를 켜고 다시
+              시도하세요.
             </li>
             <li data-i18n-html="guide4">
               연결이 되지 않으면 <b>BOOT 버튼을 누른 채 RESET</b>을 눌렀다 놓은 뒤 다시
