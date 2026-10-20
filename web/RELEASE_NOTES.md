@@ -7,6 +7,19 @@ ESP32-C3 DeskStream 보드용 웹 플래셔 **https://worynim.github.io/DeskStre
 - 배포: `main` push 시 `.github/workflows/deploy-web.yml`이 자동 빌드·배포
 - 검증: `node tools/collect-firmware.mjs --check`
 
+## 릴리즈 절차
+
+1. 이 파일(`web/RELEASE_NOTES.md`)에 새 버전 섹션을 추가합니다.
+2. `web/package.json`의 `version`을 갱신합니다.
+
+   ```bash
+   cd web
+   npm version 1.7.0 --no-git-tag-version
+   ```
+
+3. `main`에 push하면 GitHub Actions가 자동 배포합니다.
+   - 푸터의 릴리즈 노트 링크에 표시되는 버전은 `web/package.json`에서 자동 주입됩니다.
+
 ---
 
 ## [v1.6.0] - 2026-10-21
