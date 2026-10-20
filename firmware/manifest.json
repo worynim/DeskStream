@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-20T17:42:32.257Z",
+  "generatedAt": "2026-10-20T17:50:38.490Z",
   "chip": "ESP32-C3",
   "board": "DeskStream (ESP32-C3 SuperMini · 4× OLED)",
   "flashDefaults": {
@@ -26,7 +26,7 @@
       },
       "exportedAt": "2026-10-20T17:15:07.648Z",
       "sourcePath": "Smart_Info_Station",
-      "sourceCommit": "25bd4ceeb957737807fba141867e837058d22e70",
+      "sourceCommit": "9b862f7f8a92b37c076dbf9d868c99fe0e21346d",
       "images": [
         {
           "offset": "0x0",
@@ -71,7 +71,7 @@
       },
       "exportedAt": "2026-10-20T17:08:28.746Z",
       "sourcePath": "GPS_DASH",
-      "sourceCommit": "25bd4ceeb957737807fba141867e837058d22e70",
+      "sourceCommit": "9b862f7f8a92b37c076dbf9d868c99fe0e21346d",
       "images": [
         {
           "offset": "0x0",
@@ -116,7 +116,7 @@
       },
       "exportedAt": "2026-10-20T17:18:26.543Z",
       "sourcePath": "Sound_Visualizer_4_OLEDs",
-      "sourceCommit": "25bd4ceeb957737807fba141867e837058d22e70",
+      "sourceCommit": "9b862f7f8a92b37c076dbf9d868c99fe0e21346d",
       "images": [
         {
           "offset": "0x0",
@@ -161,7 +161,7 @@
       },
       "exportedAt": "2026-10-20T17:11:23.072Z",
       "sourcePath": "OLED_Wide_test",
-      "sourceCommit": "25bd4ceeb957737807fba141867e837058d22e70",
+      "sourceCommit": "9b862f7f8a92b37c076dbf9d868c99fe0e21346d",
       "images": [
         {
           "offset": "0x0",
@@ -196,17 +196,17 @@
       "icon": "📈",
       "order": 5,
       "description": "PC/Mac의 CPU·GPU·RAM·SSD 상태와 온도·네트워크 트래픽을 실시간 표시",
-      "note": "Arduino IDE 빌드 옵션이 EraseFlash=all로 내보내졌습니다. 연결이 불안정하면 '전체 지우기'를 사용하세요.",
-      "fqbn": "esp32:esp32:makergo_c3_supermini:UploadSpeed=921600,CDCOnBoot=default,CPUFreq=160,FlashFreq=80,PartitionScheme=default,DebugLevel=none,EraseFlash=all",
+      "note": "",
+      "fqbn": "esp32:esp32:makergo_c3_supermini:UploadSpeed=921600,CDCOnBoot=default,CPUFreq=160,FlashFreq=80,PartitionScheme=default,DebugLevel=none,EraseFlash=none",
       "partitionScheme": "default",
       "flash": {
         "mode": "dio",
         "freq": "80m",
         "size": "4MB"
       },
-      "exportedAt": "2026-10-20T17:19:23.711Z",
+      "exportedAt": "2026-10-20T17:43:10.165Z",
       "sourcePath": "Stats_Monitor",
-      "sourceCommit": "25bd4ceeb957737807fba141867e837058d22e70",
+      "sourceCommit": "9b862f7f8a92b37c076dbf9d868c99fe0e21346d",
       "images": [
         {
           "offset": "0x0",
@@ -230,7 +230,7 @@
           "offset": "0x10000",
           "path": "firmware/Stats_Monitor/Stats_Monitor.ino.bin",
           "size": 670112,
-          "sha256": "a2462e221d4fd6b4c69c1b6c6e676fdc1394a58858a10eda7a5f60857faa6ccb"
+          "sha256": "efa83f0fba5d41606f11ef7587038c8a40ad18e85b0bdb97c21637355a75a9a6"
         }
       ]
     },
@@ -249,9 +249,9 @@
         "freq": "80m",
         "size": "4MB"
       },
-      "exportedAt": "2026-10-20T17:04:33.993Z",
+      "exportedAt": "2026-10-20T17:46:56.009Z",
       "sourcePath": "DS_DECK",
-      "sourceCommit": "25bd4ceeb957737807fba141867e837058d22e70",
+      "sourceCommit": "9b862f7f8a92b37c076dbf9d868c99fe0e21346d",
       "images": [
         {
           "offset": "0x0",
@@ -275,7 +275,7 @@
           "offset": "0x10000",
           "path": "firmware/DS_DECK/DS_DECK.ino.bin",
           "size": 1489152,
-          "sha256": "74938e5085c74520a82f8593fe02b71242e9f3bda653e85fb957b92ee063fafb"
+          "sha256": "76b5b06668f7da32bd9610360d3da2879649b4bbd85eab7bbab2e87f3e08b470"
         }
       ]
     },
@@ -296,7 +296,7 @@
       },
       "exportedAt": "2026-10-20T17:13:19.894Z",
       "sourcePath": "Screen_To_OLEDs/Screen_To_OLEDs",
-      "sourceCommit": "25bd4ceeb957737807fba141867e837058d22e70",
+      "sourceCommit": "9b862f7f8a92b37c076dbf9d868c99fe0e21346d",
       "images": [
         {
           "offset": "0x0",
@@ -341,7 +341,7 @@
       },
       "exportedAt": "2026-10-20T17:07:17.332Z",
       "sourcePath": "Game_Of_Life",
-      "sourceCommit": "25bd4ceeb957737807fba141867e837058d22e70",
+      "sourceCommit": "9b862f7f8a92b37c076dbf9d868c99fe0e21346d",
       "images": [
         {
           "offset": "0x0",
@@ -386,7 +386,7 @@
       },
       "exportedAt": "2026-10-20T16:47:41.589Z",
       "sourcePath": "Hangeul_Clock",
-      "sourceCommit": "25bd4ceeb957737807fba141867e837058d22e70",
+      "sourceCommit": "9b862f7f8a92b37c076dbf9d868c99fe0e21346d",
       "images": [
         {
           "offset": "0x0",
@@ -431,7 +431,7 @@
       },
       "exportedAt": "2026-10-20T17:05:45.436Z",
       "sourcePath": "ENG_Clock",
-      "sourceCommit": "25bd4ceeb957737807fba141867e837058d22e70",
+      "sourceCommit": "9b862f7f8a92b37c076dbf9d868c99fe0e21346d",
       "images": [
         {
           "offset": "0x0",
@@ -476,7 +476,7 @@
       },
       "exportedAt": "2026-10-20T17:02:26.839Z",
       "sourcePath": "Chinese_Clock",
-      "sourceCommit": "25bd4ceeb957737807fba141867e837058d22e70",
+      "sourceCommit": "9b862f7f8a92b37c076dbf9d868c99fe0e21346d",
       "images": [
         {
           "offset": "0x0",
@@ -501,51 +501,6 @@
           "path": "firmware/Chinese_Clock/Chinese_Clock.ino.bin",
           "size": 1305920,
           "sha256": "d0e7233d6f843200c25e70e89471989b48278e750bb3b7c64e2e2c8acb1419d0"
-        }
-      ]
-    },
-    {
-      "id": "Hangeul_Clock_bitbang_i2c",
-      "name": "한글 시계 BB",
-      "version": "1.0.9",
-      "icon": "⚡",
-      "order": 12,
-      "description": "4× 1.3\" OLED를 4개의 독립 BitBang I2C 버스로 동시에 구동하는 한글 시계",
-      "note": "1.3인치 SH1106 4화면 구성입니다. WiFi·표시 설정은 NVS에 저장됩니다.",
-      "fqbn": "esp32:esp32:makergo_c3_supermini:UploadSpeed=921600,CDCOnBoot=default,CPUFreq=160,FlashFreq=80,PartitionScheme=default,DebugLevel=none,EraseFlash=none",
-      "partitionScheme": "default",
-      "flash": {
-        "mode": "dio",
-        "freq": "80m",
-        "size": "4MB"
-      },
-      "exportedAt": "2026-10-20T17:10:00.225Z",
-      "sourcePath": "Hangeul_Clock_bitbang_i2c",
-      "sourceCommit": "25bd4ceeb957737807fba141867e837058d22e70",
-      "images": [
-        {
-          "offset": "0x0",
-          "path": "firmware/Hangeul_Clock_bitbang_i2c/Hangeul_Clock_bitbang_i2c.ino.bootloader.bin",
-          "size": 19536,
-          "sha256": "9b2fa5e4af7cf282b2db5ed726b26bcca0aec7946eb3fdacc14444195ba754b3"
-        },
-        {
-          "offset": "0x8000",
-          "path": "firmware/Hangeul_Clock_bitbang_i2c/Hangeul_Clock_bitbang_i2c.ino.partitions.bin",
-          "size": 3072,
-          "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1"
-        },
-        {
-          "offset": "0xe000",
-          "path": "firmware/Hangeul_Clock_bitbang_i2c/boot_app0.bin",
-          "size": 8192,
-          "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
-        },
-        {
-          "offset": "0x10000",
-          "path": "firmware/Hangeul_Clock_bitbang_i2c/Hangeul_Clock_bitbang_i2c.ino.bin",
-          "size": 1292288,
-          "sha256": "3b6c04abd7e1ef2ca80d68c061581b24454d1df9bdc0573a94a2ad83d7a79bb5"
         }
       ]
     }

@@ -52,7 +52,7 @@
       "order": 5,
       "sourcePath": "Stats_Monitor",
       "description": "PC/Mac의 CPU·GPU·RAM·SSD 상태와 온도·네트워크 트래픽을 실시간 표시",
-      "note": "Arduino IDE 빌드 옵션이 EraseFlash=all로 내보내졌습니다. 연결이 불안정하면 '전체 지우기'를 사용하세요."
+      "note": ""
     },
     {
       "id": "DS_DECK",
@@ -113,16 +113,6 @@
       "sourcePath": "Chinese_Clock",
       "description": "NTP 기반 중국어 한자 시계. 한글·영어판과 동일한 4화면 32×32 셀 레이아웃",
       "note": "WiFi·표시 설정은 NVS에 저장됩니다. 재플래시해도 유지됩니다."
-    },
-    {
-      "id": "Hangeul_Clock_bitbang_i2c",
-      "name": "한글 시계 BB",
-      "version": "1.0.9",
-      "icon": "⚡",
-      "order": 12,
-      "sourcePath": "Hangeul_Clock_bitbang_i2c",
-      "description": "4× 1.3\" OLED를 4개의 독립 BitBang I2C 버스로 동시에 구동하는 한글 시계",
-      "note": "1.3인치 SH1106 4화면 구성입니다. WiFi·표시 설정은 NVS에 저장됩니다."
     }
   ]
 }

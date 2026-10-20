@@ -4,6 +4,8 @@ DeskStream은 ESP32-C3와 4개의 OLED 디스플레이를 활용한 다기능 �
 
 https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
+> 🌐 **웹 플래셔**: [https://worynim.github.io/DeskStream/](https://worynim.github.io/DeskStream/) — USB로 연결한 ESP32-C3 보드에 원하는 프로젝트를 브라우저에서 바로 업로드할 수 있습니다. ([사용법](#-웹-플래셔-web-flasher) · [소스](./web/))
+
 ## 🛠️ 하드웨어 사양 (Hardware Specification)
 - **MCU**: ESP32-C3 (SuperMini)
 - **Display**: 0.96" SSD1306 OLED (128x64) x 4개 (가로 배치 시 512x64 광폭 디스플레이 구현 가능)
@@ -78,12 +80,23 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
 ## 🌐 웹 플래셔 (Web Flasher)
 
-**https://worynim.github.io/DeskStream/** — Chrome/Edge 데스크톱에서 USB로 연결한 ESP32-C3 보드에 12개 프로젝트를 브라우저에서 바로 플래시할 수 있습니다. 별도 프로그램 설치가 필요 없습니다.
+**https://worynim.github.io/DeskStream/** — Chrome/Edge 데스크톱에서 USB로 연결한 ESP32-C3 보드에 11개 프로젝트를 브라우저에서 바로 플래시할 수 있습니다. 별도 프로그램 설치가 필요 없습니다.
 
 - **Web Serial + [esptool-js](https://github.com/espressif/esptool-js)** 기반, Chrome/Edge 데스크톱만 지원 (Firefox·Safari·모바일 불가)
 - 기본 플래시는 **NVS(WiFi·표시 설정) 보존**, 필요 시 "전체 지우기" 옵션 제공
-- 펌웨어 **SHA-256**(다운로드) 및 **MD5**(쓰기 후) 무결성 검증
-- 12개 프로젝트: 스마트 정보 스테이션, GPS 대시보드, 사운드 비주얼라이저, 초광폭 OLED 테스트, 시스템 상태 모니터, DS DECK, 화면 스트리머, 게임 오브 라이프, 한글/영어/중국어 시계, 한글 시계 BB
+- 펌웨어 **SHA-256**(다운로드) 및 **MD5**(쓰기 후) 무결성 검증, 플래시 후 자동 재부팅
+- 11개 프로젝트: 스마트 정보 스테이션, GPS 대시보드, 사운드 비주얼라이저, 초광폭 OLED 테스트, 시스템 상태 모니터, DS DECK, 화면 스트리머, 게임 오브 라이프, 한글/영어/중국어 시계
+- **한글 시계 BB(Hangeul_Clock_bitbang_i2c)는 1.3" SH1106 · 4-bus 회로 구성이 달라 웹 플래셔 대상에서 제외**됩니다.
+
+### 관련 파일 및 링크
+
+| 항목 | 링크 |
+|---|---|
+| 웹 플래셔 앱 (Vite + TypeScript + esptool-js) | [`web/`](./web/) |
+| 펌웨어 수집·manifest 생성 스크립트 | [`tools/collect-firmware.mjs`](./tools/collect-firmware.mjs) |
+| 프로젝트 표시 메타데이터 (이름·버전·아이콘·설명) | [`firmware/projects.json`](./firmware/projects.json) |
+| 배포된 펌웨어 목록·오프셋·SHA-256 | [`firmware/manifest.json`](./firmware/manifest.json) |
+| GitHub Pages 배포 워크플로 | [`.github/workflows/deploy-web.yml`](./.github/workflows/deploy-web.yml) |
 
 ### 펌웨어 업데이트 방법
 
@@ -97,7 +110,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
 4. `firmware/` 변경분을 커밋해 `main`에 push → GitHub Actions가 웹 플래셔를 자동 빌드·배포
 
-> 프로젝트 이름·버전·아이콘·설명은 [`firmware/projects.json`](./firmware/projects.json)에서 관리합니다.
+> 웹 플래셔에 프로젝트를 추가/제외하려면 [`firmware/projects.json`](./firmware/projects.json)을 수정한 뒤 `node tools/collect-firmware.mjs`를 다시 실행하세요.
 > 로컬 미리보기: `cd web && npm install && npm run dev` → http://localhost:5173/DeskStream/
 
 ### 최초 1회 설정
