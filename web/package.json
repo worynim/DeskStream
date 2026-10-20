@@ -1,7 +1,7 @@
 {
   "name": "deskstream-web-flasher",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.6.0",
   "type": "module",
   "description": "DeskStream ESP32-C3 web flasher (Web Serial + esptool-js)",
   "scripts": {

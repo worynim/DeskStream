@@ -1,5 +1,5 @@
 import "./styles.css";
-import { readmeUrl } from "./config";
+import { RELEASE_NOTES_URL, WEB_VERSION, readmeUrl } from "./config";
 import { flashProject, isSerialSupported, isWebUsbAvailable, type FlashStage } from "./flasher";
 import {
   dateLocale,
@@ -55,6 +55,7 @@ const dom = {
   status: $("#status"),
   log: $("#log"),
   manifestMeta: $("#manifest-meta"),
+  releaseNotesLink: $<HTMLAnchorElement>("#release-notes-link"),
 };
 
 const state: {
@@ -137,6 +138,8 @@ function applyStaticTranslations(): void {
   document.documentElement.lang = state.locale;
   document.title = strings.documentTitle;
   dom.metaDescription?.setAttribute("content", strings.metaDescription);
+  dom.releaseNotesLink.href = RELEASE_NOTES_URL;
+  dom.releaseNotesLink.textContent = strings.releaseNotes(WEB_VERSION);
 
   for (const node of document.querySelectorAll<HTMLElement>("[data-i18n]")) {
     const key = node.dataset.i18n;

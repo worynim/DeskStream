@@ -57,6 +57,7 @@ export interface UiStrings {
   guide: [string, string, string, string, string, string];
   logSummary: string;
   footerTagline: string;
+  releaseNotes: (version: string) => string;
   manifestMeta: (date: string) => string;
   selectionImages: (count: number, size: string) => string;
   selectionPartition: (chip: string, partition: string) => string;
@@ -153,6 +154,7 @@ const ko: LocalePack = {
     ],
     logSummary: "로그 보기",
     footerTagline: "DeskStream · ESP32-C3 4-OLED 데스크 가젯",
+    releaseNotes: (version) => `웹 플래셔 v${version} 릴리즈 노트`,
     manifestMeta: (date) => `펌웨어 빌드 ${date} 기준`,
     selectionImages: (count, size) => `${count}개 이미지 · ${size}`,
     selectionPartition: (chip, partition) => `${chip} · ${partition} 파티션`,
@@ -248,6 +250,7 @@ const en: LocalePack = {
     ],
     logSummary: "Show log",
     footerTagline: "DeskStream · ESP32-C3 4-OLED desk gadget",
+    releaseNotes: (version) => `Web flasher v${version} release notes`,
     manifestMeta: (date) => `Firmware built ${date}`,
     selectionImages: (count, size) => `${count} images · ${size}`,
     selectionPartition: (chip, partition) => `${chip} · ${partition} partition`,
