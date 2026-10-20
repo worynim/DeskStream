@@ -17,3 +17,12 @@ agent_failure_report.md
 antigravity_rules.md
 integrity_guard.py
 AGENTS.md
+
+# ── 웹 플래셔 ──
+web/node_modules/
+web/dist/
+web/public/firmware/
+web/.npm-cache/
+
+# 웹 플래셔 배포에 필요한 펌웨어 바이너리는 추적한다 (위의 *.bin 무시 예외)
+!firmware/**/*.bin

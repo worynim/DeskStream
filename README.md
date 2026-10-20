@@ -76,5 +76,34 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 - **성능 최적화**: 부드러운 애니메이션 구현을 위한 Dirty Page 체크 및 그래픽 가속 기법이 적용되었습니다.
 - **문서화 표준화**: 전 프로젝트 소스 코드에 Doxygen 스타일 헤더 및 작성자 정보를 도입하여 유지보수성을 극대화했습니다.
 
+## 🌐 웹 플래셔 (Web Flasher)
+
+**https://worynim.github.io/DeskStream/** — Chrome/Edge 데스크톱에서 USB로 연결한 ESP32-C3 보드에 12개 프로젝트를 브라우저에서 바로 플래시할 수 있습니다. 별도 프로그램 설치가 필요 없습니다.
+
+- **Web Serial + [esptool-js](https://github.com/espressif/esptool-js)** 기반, Chrome/Edge 데스크톱만 지원 (Firefox·Safari·모바일 불가)
+- 기본 플래시는 **NVS(WiFi·표시 설정) 보존**, 필요 시 "전체 지우기" 옵션 제공
+- 펌웨어 **SHA-256**(다운로드) 및 **MD5**(쓰기 후) 무결성 검증
+- 12개 프로젝트: 스마트 정보 스테이션, GPS 대시보드, 사운드 비주얼라이저, 초광폭 OLED 테스트, 시스템 상태 모니터, DS DECK, 화면 스트리머, 게임 오브 라이프, 한글/영어/중국어 시계, 한글 시계 BB
+
+### 펌웨어 업데이트 방법
+
+1. Arduino IDE에서 보드 선택: **ESP32C3 Super Mini** (`makergo_c3_supermini` 보드 패키지)
+2. `Sketch → Export Compiled Binary` 실행
+3. 저장소 루트에서 수집 스크립트 실행 → `firmware/<project>/`와 `firmware/manifest.json` 갱신
+
+   ```bash
+   node tools/collect-firmware.mjs
+   ```
+
+4. `firmware/` 변경분을 커밋해 `main`에 push → GitHub Actions가 웹 플래셔를 자동 빌드·배포
+
+> 프로젝트 이름·버전·아이콘·설명은 [`firmware/projects.json`](./firmware/projects.json)에서 관리합니다.
+> 로컬 미리보기: `cd web && npm install && npm run dev` → http://localhost:5173/DeskStream/
+
+### 최초 1회 설정
+
+저장소 **Settings → Pages → Build and deployment → Source**를 **GitHub Actions**로 지정합니다. 이후 `.github/workflows/deploy-web.yml`이 `main` push 시 자동 배포합니다.
+
 ---
+
 © 2026 DeskStream Project.

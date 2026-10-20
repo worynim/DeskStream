@@ -1,0 +1,26 @@
+{
+  "name": "deskstream-web-flasher",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "DeskStream ESP32-C3 web flasher (Web Serial + esptool-js)",
+  "scripts": {
+    "sync:firmware": "node scripts/sync-firmware.mjs",
+    "predev": "npm run sync:firmware",
+    "dev": "vite",
+    "prebuild": "npm run sync:firmware",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "esptool-js": "0.7.0",
+    "spark-md5": "^3.0.2"
+  },
+  "devDependencies": {
+    "@types/spark-md5": "^3.0.4",
+    "@types/w3c-web-serial": "^1.0.7",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.0"
+  }
+}
