@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "chip": "ESP32-C3",
+  "board": "DeskStream (ESP32-C3 SuperMini · 4× OLED)",
+  "flashDefaults": { "mode": "dio", "freq": "80m", "size": "4MB" },
+  "projects": [
+    {
+      "id": "Smart_Info_Station",
+      "name": "스마트 정보 스테이션",
+      "version": "2.9.0",
+      "icon": "🌤️",
+      "order": 1,
+      "sourcePath": "Smart_Info_Station",
+      "description": "시간·날씨·미세먼지·유튜브·증시·환율을 4개 OLED에 실시간으로 보여주는 정보 스테이션",
+      "note": "WiFi 설정은 기기 NVS에 저장됩니다. 재플래시해도 유지됩니다."
+    },
+    {
+      "id": "GPS_DASH",
+      "name": "GPS 대시보드",
+      "version": "2.6.0",
+      "icon": "🛰️",
+      "order": 2,
+      "sourcePath": "GPS_DASH",
+      "description": "NEO-6M GPS 기반 속도·나침반·고도·위성 상태·주행 통계 대시보드",
+      "note": ""
+    },
+    {
+      "id": "Sound_Visualizer_4_OLEDs",
+      "name": "사운드 비주얼라이저",
+      "version": "3.4.0",
+      "icon": "🎵",
+      "order": 3,
+      "sourcePath": "Sound_Visualizer_4_OLEDs",
+      "description": "아날로그 마이크 입력을 정수형 FFT로 분석해 128밴드 스펙트럼으로 시각화",
+      "note": ""
+    },
+    {
+      "id": "OLED_Wide_test",
+      "name": "초광폭 OLED 테스트",
+      "version": "1.2.0",
+      "icon": "🧪",
+      "order": 4,
+      "sourcePath": "OLED_Wide_test",
+      "description": "4개 OLED를 512×64 초광폭 캔버스로 구동하는 그래픽 테스트 펌웨어",
+      "note": ""
+    },
+    {
+      "id": "Stats_Monitor",
+      "name": "시스템 상태 모니터",
+      "version": "1.5.0",
+      "icon": "📈",
+      "order": 5,
+      "sourcePath": "Stats_Monitor",
+      "description": "PC/Mac의 CPU·GPU·RAM·SSD 상태와 온도·네트워크 트래픽을 실시간 표시",
+      "note": "Arduino IDE 빌드 옵션이 EraseFlash=all로 내보내졌습니다. 연결이 불안정하면 '전체 지우기'를 사용하세요."
+    },
+    {
+      "id": "DS_DECK",
+      "name": "DS DECK 매크로 패드",
+      "version": "1.5.0",
+      "icon": "⌨️",
+      "order": 6,
+      "sourcePath": "DS_DECK",
+      "description": "4버튼 블루투스 매크로 패드. 텍스트·단축키·미디어·브라우저 런처 지원",
+      "note": "huge_app 파티션(OTA 없음)으로 빌드된 펌웨어입니다."
+    },
+    {
+      "id": "Screen_To_OLEDs",
+      "name": "화면 스트리머 (수신 펌웨어)",
+      "version": "1.6.0",
+      "icon": "🖥️",
+      "order": 7,
+      "sourcePath": "Screen_To_OLEDs/Screen_To_OLEDs",
+      "description": "PC 화면을 4-OLED 매트릭스(512×64)로 무선 스트리밍하는 수신 펌웨어",
+      "note": "PC에서 screen_streamer.py(호스트 앱)와 함께 사용합니다. WiFi 설정은 NVS에 저장됩니다."
+    },
+    {
+      "id": "Game_Of_Life",
+      "name": "게임 오브 라이프",
+      "version": "1.0.1",
+      "icon": "🧬",
+      "order": 8,
+      "sourcePath": "Game_Of_Life",
+      "description": "512×64 대화면에서 무한 구동되는 Conway 생명 게임",
+      "note": "버튼으로 재생/일시정지·단계 진행·속도를 제어합니다."
+    },
+    {
+      "id": "Hangeul_Clock",
+      "name": "한글 시계",
+      "version": "2.9.3",
+      "icon": "🕒",
+      "order": 9,
+      "sourcePath": "Hangeul_Clock",
+      "description": "NTP 동기화 기반 고화질 한글 단어 시계. 웹 대시보드·폰트 스튜디오 지원",
+      "note": "WiFi·표시 설정은 NVS에 저장됩니다. 재플래시해도 유지됩니다."
+    },
+    {
+      "id": "ENG_Clock",
+      "name": "영어 시계",
+      "version": "1.0.3",
+      "icon": "🔤",
+      "order": 10,
+      "sourcePath": "ENG_Clock",
+      "description": "NTP 기반 영어 단어 시계. 2줄 레이아웃·POS 시간대·폰트 스튜디오 지원",
+      "note": "WiFi·표시 설정은 NVS에 저장됩니다. 재플래시해도 유지됩니다."
+    },
+    {
+      "id": "Chinese_Clock",
+      "name": "중국어 시계",
+      "version": "1.0.1",
+      "icon": "🀄",
+      "order": 11,
+      "sourcePath": "Chinese_Clock",
+      "description": "NTP 기반 중국어 한자 시계. 한글·영어판과 동일한 4화면 32×32 셀 레이아웃",
+      "note": "WiFi·표시 설정은 NVS에 저장됩니다. 재플래시해도 유지됩니다."
+    },
+    {
+      "id": "Hangeul_Clock_bitbang_i2c",
+      "name": "한글 시계 BB",
+      "version": "1.0.9",
+      "icon": "⚡",
+      "order": 12,
+      "sourcePath": "Hangeul_Clock_bitbang_i2c",
+      "description": "4× 1.3\" OLED를 4개의 독립 BitBang I2C 버스로 동시에 구동하는 한글 시계",
+      "note": "1.3인치 SH1106 4화면 구성입니다. WiFi·표시 설정은 NVS에 저장됩니다."
+    }
+  ]
+}

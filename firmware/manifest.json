@@ -1,0 +1,553 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-20T17:21:53.695Z",
+  "chip": "ESP32-C3",
+  "board": "DeskStream (ESP32-C3 SuperMini · 4× OLED)",
+  "flashDefaults": {
+    "mode": "dio",
+    "freq": "80m",
+    "size": "4MB"
+  },
+  "projects": [
+    {
+      "id": "Smart_Info_Station",
+      "name": "스마트 정보 스테이션",
+      "version": "2.9.0",
+      "icon": "🌤️",
+      "order": 1,
+      "description": "시간·날씨·미세먼지·유튜브·증시·환율을 4개 OLED에 실시간으로 보여주는 정보 스테이션",
+      "note": "WiFi 설정은 기기 NVS에 저장됩니다. 재플래시해도 유지됩니다.",
+      "fqbn": "esp32:esp32:makergo_c3_supermini:UploadSpeed=921600,CDCOnBoot=default,CPUFreq=160,FlashFreq=80,PartitionScheme=huge_app,DebugLevel=none,EraseFlash=none",
+      "partitionScheme": "huge_app",
+      "flash": {
+        "mode": "dio",
+        "freq": "80m",
+        "size": "4MB"
+      },
+      "exportedAt": "2026-10-20T17:15:07.648Z",
+      "sourcePath": "Smart_Info_Station",
+      "sourceCommit": "8eb9e71620a4d98bbc440aa9cf3068bf62fe7356",
+      "images": [
+        {
+          "offset": "0x0",
+          "path": "firmware/Smart_Info_Station/Smart_Info_Station.ino.bootloader.bin",
+          "size": 19536,
+          "sha256": "9b2fa5e4af7cf282b2db5ed726b26bcca0aec7946eb3fdacc14444195ba754b3"
+        },
+        {
+          "offset": "0x8000",
+          "path": "firmware/Smart_Info_Station/Smart_Info_Station.ino.partitions.bin",
+          "size": 3072,
+          "sha256": "aaae2888c5a6a348004b5b436f47abb25ae32e72d9003902955a998eda723edd"
+        },
+        {
+          "offset": "0xe000",
+          "path": "firmware/Smart_Info_Station/boot_app0.bin",
+          "size": 8192,
+          "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+        },
+        {
+          "offset": "0x10000",
+          "path": "firmware/Smart_Info_Station/Smart_Info_Station.ino.bin",
+          "size": 1397312,
+          "sha256": "0ee66dc195269d6401b610fcfa6de57edb36211827c1bf76d5c5e06b3d2196b4"
+        }
+      ]
+    },
+    {
+      "id": "GPS_DASH",
+      "name": "GPS 대시보드",
+      "version": "2.6.0",
+      "icon": "🛰️",
+      "order": 2,
+      "description": "NEO-6M GPS 기반 속도·나침반·고도·위성 상태·주행 통계 대시보드",
+      "note": "",
+      "fqbn": "esp32:esp32:makergo_c3_supermini:UploadSpeed=921600,CDCOnBoot=default,CPUFreq=160,FlashFreq=80,PartitionScheme=default,DebugLevel=none,EraseFlash=none",
+      "partitionScheme": "default",
+      "flash": {
+        "mode": "dio",
+        "freq": "80m",
+        "size": "4MB"
+      },
+      "exportedAt": "2026-10-20T17:08:28.746Z",
+      "sourcePath": "GPS_DASH",
+      "sourceCommit": "8eb9e71620a4d98bbc440aa9cf3068bf62fe7356",
+      "images": [
+        {
+          "offset": "0x0",
+          "path": "firmware/GPS_DASH/GPS_DASH.ino.bootloader.bin",
+          "size": 19536,
+          "sha256": "9b2fa5e4af7cf282b2db5ed726b26bcca0aec7946eb3fdacc14444195ba754b3"
+        },
+        {
+          "offset": "0x8000",
+          "path": "firmware/GPS_DASH/GPS_DASH.ino.partitions.bin",
+          "size": 3072,
+          "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1"
+        },
+        {
+          "offset": "0xe000",
+          "path": "firmware/GPS_DASH/boot_app0.bin",
+          "size": 8192,
+          "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+        },
+        {
+          "offset": "0x10000",
+          "path": "firmware/GPS_DASH/GPS_DASH.ino.bin",
+          "size": 1109584,
+          "sha256": "350f99f5e7ab8062bf5df278900bde2f20ea85240791a66af99f28fb3025a236"
+        }
+      ]
+    },
+    {
+      "id": "Sound_Visualizer_4_OLEDs",
+      "name": "사운드 비주얼라이저",
+      "version": "3.4.0",
+      "icon": "🎵",
+      "order": 3,
+      "description": "아날로그 마이크 입력을 정수형 FFT로 분석해 128밴드 스펙트럼으로 시각화",
+      "note": "",
+      "fqbn": "esp32:esp32:makergo_c3_supermini:UploadSpeed=921600,CDCOnBoot=default,CPUFreq=160,FlashFreq=80,PartitionScheme=default,DebugLevel=none,EraseFlash=none",
+      "partitionScheme": "default",
+      "flash": {
+        "mode": "dio",
+        "freq": "80m",
+        "size": "4MB"
+      },
+      "exportedAt": "2026-10-20T17:18:26.543Z",
+      "sourcePath": "Sound_Visualizer_4_OLEDs",
+      "sourceCommit": "8eb9e71620a4d98bbc440aa9cf3068bf62fe7356",
+      "images": [
+        {
+          "offset": "0x0",
+          "path": "firmware/Sound_Visualizer_4_OLEDs/Sound_Visualizer_4_OLEDs.ino.bootloader.bin",
+          "size": 19536,
+          "sha256": "9b2fa5e4af7cf282b2db5ed726b26bcca0aec7946eb3fdacc14444195ba754b3"
+        },
+        {
+          "offset": "0x8000",
+          "path": "firmware/Sound_Visualizer_4_OLEDs/Sound_Visualizer_4_OLEDs.ino.partitions.bin",
+          "size": 3072,
+          "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1"
+        },
+        {
+          "offset": "0xe000",
+          "path": "firmware/Sound_Visualizer_4_OLEDs/boot_app0.bin",
+          "size": 8192,
+          "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+        },
+        {
+          "offset": "0x10000",
+          "path": "firmware/Sound_Visualizer_4_OLEDs/Sound_Visualizer_4_OLEDs.ino.bin",
+          "size": 401344,
+          "sha256": "17953bc3ac8aae9e3c7ecdd3238c3610de02d8cba2fa8b5e5bb57c9fae9fce5e"
+        }
+      ]
+    },
+    {
+      "id": "OLED_Wide_test",
+      "name": "초광폭 OLED 테스트",
+      "version": "1.2.0",
+      "icon": "🧪",
+      "order": 4,
+      "description": "4개 OLED를 512×64 초광폭 캔버스로 구동하는 그래픽 테스트 펌웨어",
+      "note": "",
+      "fqbn": "esp32:esp32:makergo_c3_supermini:UploadSpeed=921600,CDCOnBoot=default,CPUFreq=160,FlashFreq=80,PartitionScheme=default,DebugLevel=none,EraseFlash=none",
+      "partitionScheme": "default",
+      "flash": {
+        "mode": "dio",
+        "freq": "80m",
+        "size": "4MB"
+      },
+      "exportedAt": "2026-10-20T17:11:23.072Z",
+      "sourcePath": "OLED_Wide_test",
+      "sourceCommit": "8eb9e71620a4d98bbc440aa9cf3068bf62fe7356",
+      "images": [
+        {
+          "offset": "0x0",
+          "path": "firmware/OLED_Wide_test/OLED_Wide_test.ino.bootloader.bin",
+          "size": 19536,
+          "sha256": "9b2fa5e4af7cf282b2db5ed726b26bcca0aec7946eb3fdacc14444195ba754b3"
+        },
+        {
+          "offset": "0x8000",
+          "path": "firmware/OLED_Wide_test/OLED_Wide_test.ino.partitions.bin",
+          "size": 3072,
+          "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1"
+        },
+        {
+          "offset": "0xe000",
+          "path": "firmware/OLED_Wide_test/boot_app0.bin",
+          "size": 8192,
+          "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+        },
+        {
+          "offset": "0x10000",
+          "path": "firmware/OLED_Wide_test/OLED_Wide_test.ino.bin",
+          "size": 370208,
+          "sha256": "0bcc8a0079b8ed5784db0caa1a945f0684fedba609d10c4b1f619e6a4d6f70ce"
+        }
+      ]
+    },
+    {
+      "id": "Stats_Monitor",
+      "name": "시스템 상태 모니터",
+      "version": "1.5.0",
+      "icon": "📈",
+      "order": 5,
+      "description": "PC/Mac의 CPU·GPU·RAM·SSD 상태와 온도·네트워크 트래픽을 실시간 표시",
+      "note": "Arduino IDE 빌드 옵션이 EraseFlash=all로 내보내졌습니다. 연결이 불안정하면 '전체 지우기'를 사용하세요.",
+      "fqbn": "esp32:esp32:makergo_c3_supermini:UploadSpeed=921600,CDCOnBoot=default,CPUFreq=160,FlashFreq=80,PartitionScheme=default,DebugLevel=none,EraseFlash=all",
+      "partitionScheme": "default",
+      "flash": {
+        "mode": "dio",
+        "freq": "80m",
+        "size": "4MB"
+      },
+      "exportedAt": "2026-10-20T17:19:23.711Z",
+      "sourcePath": "Stats_Monitor",
+      "sourceCommit": "8eb9e71620a4d98bbc440aa9cf3068bf62fe7356",
+      "images": [
+        {
+          "offset": "0x0",
+          "path": "firmware/Stats_Monitor/Stats_Monitor.ino.bootloader.bin",
+          "size": 19536,
+          "sha256": "9b2fa5e4af7cf282b2db5ed726b26bcca0aec7946eb3fdacc14444195ba754b3"
+        },
+        {
+          "offset": "0x8000",
+          "path": "firmware/Stats_Monitor/Stats_Monitor.ino.partitions.bin",
+          "size": 3072,
+          "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1"
+        },
+        {
+          "offset": "0xe000",
+          "path": "firmware/Stats_Monitor/boot_app0.bin",
+          "size": 8192,
+          "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+        },
+        {
+          "offset": "0x10000",
+          "path": "firmware/Stats_Monitor/Stats_Monitor.ino.bin",
+          "size": 670112,
+          "sha256": "a2462e221d4fd6b4c69c1b6c6e676fdc1394a58858a10eda7a5f60857faa6ccb"
+        }
+      ]
+    },
+    {
+      "id": "DS_DECK",
+      "name": "DS DECK 매크로 패드",
+      "version": "1.5.0",
+      "icon": "⌨️",
+      "order": 6,
+      "description": "4버튼 블루투스 매크로 패드. 텍스트·단축키·미디어·브라우저 런처 지원",
+      "note": "huge_app 파티션(OTA 없음)으로 빌드된 펌웨어입니다.",
+      "fqbn": "esp32:esp32:makergo_c3_supermini:UploadSpeed=921600,CDCOnBoot=default,CPUFreq=160,FlashFreq=80,PartitionScheme=huge_app,DebugLevel=none,EraseFlash=none",
+      "partitionScheme": "huge_app",
+      "flash": {
+        "mode": "dio",
+        "freq": "80m",
+        "size": "4MB"
+      },
+      "exportedAt": "2026-10-20T17:04:33.993Z",
+      "sourcePath": "DS_DECK",
+      "sourceCommit": "8eb9e71620a4d98bbc440aa9cf3068bf62fe7356",
+      "images": [
+        {
+          "offset": "0x0",
+          "path": "firmware/DS_DECK/DS_DECK.ino.bootloader.bin",
+          "size": 19536,
+          "sha256": "9b2fa5e4af7cf282b2db5ed726b26bcca0aec7946eb3fdacc14444195ba754b3"
+        },
+        {
+          "offset": "0x8000",
+          "path": "firmware/DS_DECK/DS_DECK.ino.partitions.bin",
+          "size": 3072,
+          "sha256": "aaae2888c5a6a348004b5b436f47abb25ae32e72d9003902955a998eda723edd"
+        },
+        {
+          "offset": "0xe000",
+          "path": "firmware/DS_DECK/boot_app0.bin",
+          "size": 8192,
+          "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+        },
+        {
+          "offset": "0x10000",
+          "path": "firmware/DS_DECK/DS_DECK.ino.bin",
+          "size": 1489152,
+          "sha256": "74938e5085c74520a82f8593fe02b71242e9f3bda653e85fb957b92ee063fafb"
+        }
+      ]
+    },
+    {
+      "id": "Screen_To_OLEDs",
+      "name": "화면 스트리머 (수신 펌웨어)",
+      "version": "1.6.0",
+      "icon": "🖥️",
+      "order": 7,
+      "description": "PC 화면을 4-OLED 매트릭스(512×64)로 무선 스트리밍하는 수신 펌웨어",
+      "note": "PC에서 screen_streamer.py(호스트 앱)와 함께 사용합니다. WiFi 설정은 NVS에 저장됩니다.",
+      "fqbn": "esp32:esp32:makergo_c3_supermini:UploadSpeed=921600,CDCOnBoot=default,CPUFreq=160,FlashFreq=80,PartitionScheme=default,DebugLevel=none,EraseFlash=none",
+      "partitionScheme": "default",
+      "flash": {
+        "mode": "dio",
+        "freq": "80m",
+        "size": "4MB"
+      },
+      "exportedAt": "2026-10-20T17:13:19.894Z",
+      "sourcePath": "Screen_To_OLEDs/Screen_To_OLEDs",
+      "sourceCommit": "8eb9e71620a4d98bbc440aa9cf3068bf62fe7356",
+      "images": [
+        {
+          "offset": "0x0",
+          "path": "firmware/Screen_To_OLEDs/Screen_To_OLEDs.ino.bootloader.bin",
+          "size": 19536,
+          "sha256": "9b2fa5e4af7cf282b2db5ed726b26bcca0aec7946eb3fdacc14444195ba754b3"
+        },
+        {
+          "offset": "0x8000",
+          "path": "firmware/Screen_To_OLEDs/Screen_To_OLEDs.ino.partitions.bin",
+          "size": 3072,
+          "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1"
+        },
+        {
+          "offset": "0xe000",
+          "path": "firmware/Screen_To_OLEDs/boot_app0.bin",
+          "size": 8192,
+          "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+        },
+        {
+          "offset": "0x10000",
+          "path": "firmware/Screen_To_OLEDs/Screen_To_OLEDs.ino.bin",
+          "size": 1172128,
+          "sha256": "4836f9b67dfc85ac353e573c6c9508a1a11568953ebd9c41a8a5a12e874a147a"
+        }
+      ]
+    },
+    {
+      "id": "Game_Of_Life",
+      "name": "게임 오브 라이프",
+      "version": "1.0.1",
+      "icon": "🧬",
+      "order": 8,
+      "description": "512×64 대화면에서 무한 구동되는 Conway 생명 게임",
+      "note": "버튼으로 재생/일시정지·단계 진행·속도를 제어합니다.",
+      "fqbn": "esp32:esp32:makergo_c3_supermini:UploadSpeed=921600,CDCOnBoot=default,CPUFreq=160,FlashFreq=80,PartitionScheme=default,DebugLevel=none,EraseFlash=none",
+      "partitionScheme": "default",
+      "flash": {
+        "mode": "dio",
+        "freq": "80m",
+        "size": "4MB"
+      },
+      "exportedAt": "2026-10-20T17:07:17.332Z",
+      "sourcePath": "Game_Of_Life",
+      "sourceCommit": "8eb9e71620a4d98bbc440aa9cf3068bf62fe7356",
+      "images": [
+        {
+          "offset": "0x0",
+          "path": "firmware/Game_Of_Life/Game_Of_Life.ino.bootloader.bin",
+          "size": 19536,
+          "sha256": "9b2fa5e4af7cf282b2db5ed726b26bcca0aec7946eb3fdacc14444195ba754b3"
+        },
+        {
+          "offset": "0x8000",
+          "path": "firmware/Game_Of_Life/Game_Of_Life.ino.partitions.bin",
+          "size": 3072,
+          "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1"
+        },
+        {
+          "offset": "0xe000",
+          "path": "firmware/Game_Of_Life/boot_app0.bin",
+          "size": 8192,
+          "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+        },
+        {
+          "offset": "0x10000",
+          "path": "firmware/Game_Of_Life/Game_Of_Life.ino.bin",
+          "size": 339984,
+          "sha256": "2bc92154eed4c613c731dd90bea64205af69513e8dd9d68449558a4088aeeefb"
+        }
+      ]
+    },
+    {
+      "id": "Hangeul_Clock",
+      "name": "한글 시계",
+      "version": "2.9.3",
+      "icon": "🕒",
+      "order": 9,
+      "description": "NTP 동기화 기반 고화질 한글 단어 시계. 웹 대시보드·폰트 스튜디오 지원",
+      "note": "WiFi·표시 설정은 NVS에 저장됩니다. 재플래시해도 유지됩니다.",
+      "fqbn": "esp32:esp32:makergo_c3_supermini:UploadSpeed=921600,CDCOnBoot=default,CPUFreq=160,FlashFreq=80,PartitionScheme=default,DebugLevel=none,EraseFlash=none",
+      "partitionScheme": "default",
+      "flash": {
+        "mode": "dio",
+        "freq": "80m",
+        "size": "4MB"
+      },
+      "exportedAt": "2026-10-20T16:47:41.589Z",
+      "sourcePath": "Hangeul_Clock",
+      "sourceCommit": "8eb9e71620a4d98bbc440aa9cf3068bf62fe7356",
+      "images": [
+        {
+          "offset": "0x0",
+          "path": "firmware/Hangeul_Clock/Hangeul_Clock.ino.bootloader.bin",
+          "size": 19536,
+          "sha256": "9b2fa5e4af7cf282b2db5ed726b26bcca0aec7946eb3fdacc14444195ba754b3"
+        },
+        {
+          "offset": "0x8000",
+          "path": "firmware/Hangeul_Clock/Hangeul_Clock.ino.partitions.bin",
+          "size": 3072,
+          "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1"
+        },
+        {
+          "offset": "0xe000",
+          "path": "firmware/Hangeul_Clock/boot_app0.bin",
+          "size": 8192,
+          "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+        },
+        {
+          "offset": "0x10000",
+          "path": "firmware/Hangeul_Clock/Hangeul_Clock.ino.bin",
+          "size": 1291008,
+          "sha256": "69d16300f6fec52fc5d288bf5091b701e8a584aa46cdeef8a5b2a0203f3c579c"
+        }
+      ]
+    },
+    {
+      "id": "ENG_Clock",
+      "name": "영어 시계",
+      "version": "1.0.3",
+      "icon": "🔤",
+      "order": 10,
+      "description": "NTP 기반 영어 단어 시계. 2줄 레이아웃·POS 시간대·폰트 스튜디오 지원",
+      "note": "WiFi·표시 설정은 NVS에 저장됩니다. 재플래시해도 유지됩니다.",
+      "fqbn": "esp32:esp32:makergo_c3_supermini:UploadSpeed=921600,CDCOnBoot=default,CPUFreq=160,FlashFreq=80,PartitionScheme=default,DebugLevel=none,EraseFlash=none",
+      "partitionScheme": "default",
+      "flash": {
+        "mode": "dio",
+        "freq": "80m",
+        "size": "4MB"
+      },
+      "exportedAt": "2026-10-20T17:05:45.436Z",
+      "sourcePath": "ENG_Clock",
+      "sourceCommit": "8eb9e71620a4d98bbc440aa9cf3068bf62fe7356",
+      "images": [
+        {
+          "offset": "0x0",
+          "path": "firmware/ENG_Clock/ENG_Clock.ino.bootloader.bin",
+          "size": 19536,
+          "sha256": "9b2fa5e4af7cf282b2db5ed726b26bcca0aec7946eb3fdacc14444195ba754b3"
+        },
+        {
+          "offset": "0x8000",
+          "path": "firmware/ENG_Clock/ENG_Clock.ino.partitions.bin",
+          "size": 3072,
+          "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1"
+        },
+        {
+          "offset": "0xe000",
+          "path": "firmware/ENG_Clock/boot_app0.bin",
+          "size": 8192,
+          "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+        },
+        {
+          "offset": "0x10000",
+          "path": "firmware/ENG_Clock/ENG_Clock.ino.bin",
+          "size": 1308560,
+          "sha256": "b5b1ce3793db40d9360d3d292a47fa67e3a5eccf7027bf55a2ef06ef4f666aeb"
+        }
+      ]
+    },
+    {
+      "id": "Chinese_Clock",
+      "name": "중국어 시계",
+      "version": "1.0.1",
+      "icon": "🀄",
+      "order": 11,
+      "description": "NTP 기반 중국어 한자 시계. 한글·영어판과 동일한 4화면 32×32 셀 레이아웃",
+      "note": "WiFi·표시 설정은 NVS에 저장됩니다. 재플래시해도 유지됩니다.",
+      "fqbn": "esp32:esp32:makergo_c3_supermini:UploadSpeed=921600,CDCOnBoot=default,CPUFreq=160,FlashFreq=80,PartitionScheme=default,DebugLevel=none,EraseFlash=none",
+      "partitionScheme": "default",
+      "flash": {
+        "mode": "dio",
+        "freq": "80m",
+        "size": "4MB"
+      },
+      "exportedAt": "2026-10-20T17:02:26.839Z",
+      "sourcePath": "Chinese_Clock",
+      "sourceCommit": "8eb9e71620a4d98bbc440aa9cf3068bf62fe7356",
+      "images": [
+        {
+          "offset": "0x0",
+          "path": "firmware/Chinese_Clock/Chinese_Clock.ino.bootloader.bin",
+          "size": 19536,
+          "sha256": "9b2fa5e4af7cf282b2db5ed726b26bcca0aec7946eb3fdacc14444195ba754b3"
+        },
+        {
+          "offset": "0x8000",
+          "path": "firmware/Chinese_Clock/Chinese_Clock.ino.partitions.bin",
+          "size": 3072,
+          "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1"
+        },
+        {
+          "offset": "0xe000",
+          "path": "firmware/Chinese_Clock/boot_app0.bin",
+          "size": 8192,
+          "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+        },
+        {
+          "offset": "0x10000",
+          "path": "firmware/Chinese_Clock/Chinese_Clock.ino.bin",
+          "size": 1305920,
+          "sha256": "d0e7233d6f843200c25e70e89471989b48278e750bb3b7c64e2e2c8acb1419d0"
+        }
+      ]
+    },
+    {
+      "id": "Hangeul_Clock_bitbang_i2c",
+      "name": "한글 시계 BB",
+      "version": "1.0.9",
+      "icon": "⚡",
+      "order": 12,
+      "description": "4× 1.3\" OLED를 4개의 독립 BitBang I2C 버스로 동시에 구동하는 한글 시계",
+      "note": "1.3인치 SH1106 4화면 구성입니다. WiFi·표시 설정은 NVS에 저장됩니다.",
+      "fqbn": "esp32:esp32:makergo_c3_supermini:UploadSpeed=921600,CDCOnBoot=default,CPUFreq=160,FlashFreq=80,PartitionScheme=default,DebugLevel=none,EraseFlash=none",
+      "partitionScheme": "default",
+      "flash": {
+        "mode": "dio",
+        "freq": "80m",
+        "size": "4MB"
+      },
+      "exportedAt": "2026-10-20T17:10:00.225Z",
+      "sourcePath": "Hangeul_Clock_bitbang_i2c",
+      "sourceCommit": "8eb9e71620a4d98bbc440aa9cf3068bf62fe7356",
+      "images": [
+        {
+          "offset": "0x0",
+          "path": "firmware/Hangeul_Clock_bitbang_i2c/Hangeul_Clock_bitbang_i2c.ino.bootloader.bin",
+          "size": 19536,
+          "sha256": "9b2fa5e4af7cf282b2db5ed726b26bcca0aec7946eb3fdacc14444195ba754b3"
+        },
+        {
+          "offset": "0x8000",
+          "path": "firmware/Hangeul_Clock_bitbang_i2c/Hangeul_Clock_bitbang_i2c.ino.partitions.bin",
+          "size": 3072,
+          "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1"
+        },
+        {
+          "offset": "0xe000",
+          "path": "firmware/Hangeul_Clock_bitbang_i2c/boot_app0.bin",
+          "size": 8192,
+          "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+        },
+        {
+          "offset": "0x10000",
+          "path": "firmware/Hangeul_Clock_bitbang_i2c/Hangeul_Clock_bitbang_i2c.ino.bin",
+          "size": 1292288,
+          "sha256": "3b6c04abd7e1ef2ca80d68c061581b24454d1df9bdc0573a94a2ad83d7a79bb5"
+        }
+      ]
+    }
+  ]
+}
