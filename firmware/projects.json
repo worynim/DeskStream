@@ -52,7 +52,7 @@
       "order": 5,
       "sourcePath": "Stats_Monitor",
       "description": "PC/Mac의 CPU·GPU·RAM·SSD 상태와 온도·네트워크 트래픽을 실시간 표시",
-      "note": ""
+      "note": "PC에서 client_py/main.py(호스트 앱)와 함께 사용합니다. BLE로 연결되며, 화면 회전·밝기 설정은 NVS에 저장됩니다."
     },
     {
       "id": "DS_DECK",
