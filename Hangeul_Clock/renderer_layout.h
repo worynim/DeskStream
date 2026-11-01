@@ -38,4 +38,22 @@
  */
 int layoutCharX(int count, int j, bool centered);
 
+/**
+ * @brief 이 텍스트가 날짜("...일")인가 — 제목 화면의 정렬 갈래를 가르는 판정
+ * @param text UTF-8 문자열 (nullptr이면 false)
+ * @return 마지막 글자가 단위 "일"이면 true
+ * @details 24시간제의 제목 화면은 `HangeulTimeConverter::getDay()`/`getNumericDay()`가
+ *          만든 날짜를 보여준다. 시·분·초 화면은 layoutCharX(count, j, false)가 마지막
+ *          글자를 우측 고정 열(x=96)에 붙이는데, 제목 화면만 가운데 정렬이면 날짜의
+ *          "일"이 우측 끝에 붙지 않아 정렬이 어긋난다. 그래서 **제목 화면의 날짜만**
+ *          우측 정렬 갈래로 보낸다 (12시간제의 "오전"/"오후"는 라벨이라 가운데 정렬 유지).
+ * @note 판정 기준이 "문자열이 '일'로 끝나는가"인 이유: 4화면에 놓이는 텍스트는
+ *       오전/오후·시·분·초·정각·날짜뿐이고, 단위 "일"로 끝나는 것은 날짜 하나다
+ *       (`isCenteredText()`의 기존 `text == "정각"` 판정과 같은 방식).
+ *       날짜 표기를 바꾸면(getDay()/getNumericDay()) 이 판정도 함께 바꿔야 한다.
+ * @note Arduino/String에 의존하지 않는 순수 C 함수다 — 네이티브 테스트 대상
+ *       (test/test_layout.cpp). 호출부는 String::c_str()을 넘긴다.
+ */
+bool layoutIsDayText(const char* text);
+
 #endif

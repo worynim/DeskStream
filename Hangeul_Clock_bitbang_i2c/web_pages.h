@@ -466,6 +466,22 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
             return chars.map((c, i) => ({ c, x: (i === count - 1) ? 96 : startX + i * 32 }));
         }
 
+        /**
+         * 이 텍스트가 날짜("...일")인가 — 펌웨어 layoutIsDayText()와 **같은 규칙**.
+         * 제목 화면에 올 수 있는 텍스트 중 "일"로 끝나는 것은 날짜뿐이다.
+         * (판정 근거·주의사항은 renderer_layout.h의 layoutIsDayText() 주석 참조)
+         */
+        function isDayText(text) { return text.endsWith("일"); }
+
+        /**
+         * 이 화면을 가운데 정렬하는가 — 펌웨어 isCenteredText() 미러.
+         * 24시간제 제목 화면(날짜)만 우측 정렬하고, 12시간제의 "오전"/"오후"는
+         * 라벨이므로 가운데 정렬을 유지한다. '정각'은 화면과 무관하게 가운데.
+         */
+        function isCenteredPreview(isTitle, text) {
+            return (isTitle && !isDayText(text)) || (text === "정각");
+        }
+
         function drawChimeIcon(ctx) {
             if (els.chime.value !== "1") return;
             const bell = [0x18, 0x3C, 0x3C, 0x3C, 0xFF, 0xDB, 0x18, 0x00];
@@ -649,11 +665,12 @@ const char font_studio_html[] PROGMEM = R"rawliteral(
             for(let s=0; s<4; s++) {
                 const ctx = pCtx[s]; const isInverted = els.invert.value === "1";
                 ctx.fillStyle = isInverted ? "#fff" : "#000"; ctx.fillRect(0,0,128,64);
-                const isC = (s === 0) || (targetTimeStrings[s] === "정각");
+                // 펌웨어 isCenteredText() 미러 — 제목 화면의 날짜("...일")만 우측 정렬한다.
+                const isC = isCenteredPreview(s === 0, targetTimeStrings[s]);
                 const curD = getCharPositions(targetTimeStrings[s], isC);
                 if (animStep >= maxStep || mode === "0") curD.forEach(d => drawChar(ctx, d.c, d.x, 0));
                 else {
-                    const isOC = (s === 0) || (lastTimeStrings[s] === "정각");
+                    const isOC = isCenteredPreview(s === 0, lastTimeStrings[s]);
                     const off = animStep * 4, oldD = getCharPositions(lastTimeStrings[s], isOC);
                     curD.forEach((nd, slot) => {
                         let od = oldD.find(o => o.x === nd.x);

@@ -7,6 +7,7 @@
  */
 #include "display_manager.h"
 #include "config.h"          // FONT_SLOT_COUNT
+#include "renderer_layout.h" // layoutIsDayText() — 제목 화면의 우측 정렬 판정
 #include "LittleFS.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/timers.h>
@@ -350,16 +351,33 @@ int DisplayManager::findNewIndexAtX(const ScreenAnimData& sd, int x) const {
 
 
 /**
+ * @brief 이 화면의 텍스트를 우측 정렬하는가 (단일 진실원)
+ * @details 24시간제의 제목 화면은 날짜("...일")를 보여준다. 시·분·초 화면은
+ *          layoutCharX(count, j, false)가 마지막 글자를 우측 고정 열(x=96)에 붙이는데,
+ *          제목 화면만 가운데 정렬이라 **날짜의 "일"만 우측 끝에 붙지 않아** 정렬이
+ *          어긋나 보였다. 그래서 제목 화면의 날짜를 시·분·초와 같은 우측 정렬로 보낸다.
+ *          날짜 판정은 layoutIsDayText()(순수 모듈)가 한다 — 12시간제의 "오전"/"오후"는
+ *          단위 "일"로 끝나지 않으므로 가운데 정렬이 그대로 유지된다.
+ * @note 정적 경로(drawCenterText)·애니메이션 경로(updateAll)·refreshNow가 **모두**
+ *       isCenteredText()를 거치므로, 이 갈래를 우회하는 새 경로를 만들면 글자 위치가
+ *       어긋난다. 새 경로도 반드시 이 두 함수를 쓴다.
+ */
+static bool isRightAlignedText(int idx, const String& text) {
+    return isTitleScreenOf(idx) && layoutIsDayText(text.c_str());
+}
+
+/**
  * @brief 이 화면의 텍스트를 가운데 정렬하는가 (단일 진실원)
  * @details [리뷰 §2.2] 제목 화면 판정과 '정각' 강제 정렬이 4곳에 복제돼 있었다.
  *          drawCenterText() 안에 `|| (text == "정각")`가 있고, updateAll()의
  *          세 호출부는 drawCenterText()를 거치지 않고 getCharData()를 직접 불러
  *          같은 규칙을 각자 다시 구현했다. 한 곳이 바뀌면 나머지가 어긋난다.
+ *          우측 정렬 갈래(제목 화면의 날짜)는 isRightAlignedText()가 판정한다.
  * @param idx 화면 번호 (is_flipped면 3번이 제목)
  * @param text 이 화면에 그릴 문자열
  */
 static bool isCenteredText(int idx, const String& text) {
-    return isTitleScreenOf(idx) || (text == "정각");
+    return !isRightAlignedText(idx, text) && (isTitleScreenOf(idx) || (text == "정각"));
 }
 
 /**

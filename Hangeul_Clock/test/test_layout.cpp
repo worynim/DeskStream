@@ -88,6 +88,34 @@ int main() {
     chk("2자 → [32, 64]", layoutCharX(2, 0, true) == 32 && layoutCharX(2, 1, true) == 64);
     chk("4자 → [0, 32, 64, 96]", layoutCharX(4, 0, true) == 0 && layoutCharX(4, 3, true) == 96);
 
+    printf("\n[신설 2026-11-01] 날짜(\"...일\") 판정 — 24시간제 제목 화면의 우측 정렬 갈래\n");
+    // 제목 화면에 오는 날짜는 한글/숫자 두 표기 모두 "일"로 끝난다
+    // (getDay() = "이십일일"…, getNumericDay() = "21일"…).
+    chk("한글 날짜: 일일 / 십일 / 이십일일 / 삼십일",
+        layoutIsDayText("일일") && layoutIsDayText("십일")
+        && layoutIsDayText("이십일일") && layoutIsDayText("삼십일"));
+    chk("숫자 날짜: 1일 / 31일", layoutIsDayText("1일") && layoutIsDayText("31일"));
+    chk("오전/오후는 날짜가 아니다 (12시간제 제목 화면은 가운데 정렬 유지)",
+        !layoutIsDayText("오전") && !layoutIsDayText("오후"));
+    chk("시/분/초/정각은 날짜가 아니다",
+        !layoutIsDayText("한시") && !layoutIsDayText("이십삼시")
+        && !layoutIsDayText("오분") && !layoutIsDayText("이십구초") && !layoutIsDayText("정각"));
+    chk("빈 문자열/nullptr은 날짜가 아니다", !layoutIsDayText("") && !layoutIsDayText(nullptr));
+    chk("접미사만 본다: '일이'는 날짜가 아니다", !layoutIsDayText("일이"));
+
+    printf("\n[신설 2026-11-01] 날짜 우측 정렬 — \"일\"이 시·분·초와 같은 우측 고정 열에 온다\n");
+    // 이 수정의 핵심: 가운데 정렬([32,64])이면 "일"이 x=64에 남아 시·분·초(x=96)와 어긋난다.
+    chk("2자 날짜 → [32, 96] (가운데 정렬이면 [32, 64])",
+        layoutCharX(2, 0, false) == 32 && layoutCharX(2, 1, false) == 96);
+    chk("3자 날짜 → [16, 48, 96] (가운데 정렬이면 [16, 48, 80])",
+        layoutCharX(3, 0, false) == 16 && layoutCharX(3, 1, false) == 48
+        && layoutCharX(3, 2, false) == 96);
+    chk("4자 날짜 → [0, 32, 64, 96] (정렬과 동일 — 화면 전체를 채운다)",
+        layoutCharX(4, 0, false) == 0 && layoutCharX(4, 3, false) == 96);
+    chk("2~4자 날짜의 마지막 글자는 항상 x=96 (시·분·초와 같은 우측 정렬)",
+        layoutCharX(2, 1, false) == 96 && layoutCharX(3, 2, false) == 96
+        && layoutCharX(4, 3, false) == 96);
+
     printf("\n방어선\n");
     chk("count=0 → 0 (음수 좌표 없음)", layoutCharX(0, 0, false) == 0);
     chk("글자 간격이 항상 LAYOUT_CELL_W",

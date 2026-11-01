@@ -1,3 +1,11 @@
+## [v4.13.4] - 2026-11-01
+### 🐛 Bug Fix (Hangeul_Clock / Hangeul_Clock BB)
+- **24시간제 첫 화면 날짜의 "일"만 우측 정렬되지 않던 문제 수정 (v2.9.6 / v1.0.12)**: 24시간제에서 첫 번째 OLED가 날짜(예: `13일`)를 보여줄 때, 마지막 "일"만 시·분·초 화면의 단위 글자보다 왼쪽에 남아 정렬이 어긋나 보이던 문제입니다. 원인은 **제목 화면만 항상 가운데 정렬**이었던 것 — 시·분·초는 `layoutCharX()`가 마지막 글자를 우측 고정 열(x=96)에 붙입니다. 2자(`1일` → `[32, 64]`)·3자(`20일` → `[16, 48, 80]`) 날짜에서 "일"이 x=96에 오지 않았습니다.
+  - **공통 수정**: 날짜 판정을 Arduino 비의존 순수 모듈 `layoutIsDayText()`(UTF-8 접미사 "일") 한 곳에 두고, `DisplayManager::isCenteredText()`가 제목 화면의 날짜만 새 우측 정렬 갈래(`isRightAlignedText()`)로 보냅니다. 12시간제 `오전`/`오후`는 라벨이라 가운데 정렬 유지. 정적·애니메이션·`refreshNow()` 경로가 같은 함수를 씁니다.
+  - **웹 미리보기 동기화**: `web_pages.h`의 `isDayText()`/`isCenteredPreview()`/`getCharPositions()`도 같은 규칙을 미러합니다.
+  - **검증**: `test_layout.cpp` 10건 추가(24 passed), `test/js/day_align_test.mjs` 20건 신설(한글판 JS 전체 78 passed / 0 failed), ESP32-C3 컴파일 통과.
+- **웹 플래셔 배포본 갱신**: Hangeul_Clock v2.9.6 바이너리와 `firmware/manifest.json`을 재생성했습니다(`node tools/collect-firmware.mjs --check` 통과). 한글 BB는 플래셔 대상에서 제외됩니다.
+
 ## [v4.13.3] - 2026-10-21
 ### 🐛 Bug Fix (Hangeul_Clock / Chinese_Clock / Hangeul_Clock BB)
 - **IP 화면 도트가 숫자 아래 줄처럼 보이던 문제 수정 (v2.9.5 / v1.0.2 / v1.0.11)**: BTN4 IP 화면에서 숫자는 세로 중앙인데 점(.)만 아래에 찍혀 "줄바꿈"처럼 보이던 문제를 한글·중국어 계열 세 프로젝트에 동일하게 수정했습니다. 원인은 각기 달랐지만 본질은 같습니다 — **도트를 래스터/화면 하단에 맞췄는데 래스터라이저는 잉크를 세로 중앙에 둔다**는 것.

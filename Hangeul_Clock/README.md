@@ -50,6 +50,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 ### 9. Smart Time & Date System
 - **24시간제 정식 지원**: 12H(오전/오후)와 24H(0~23시) 형식을 자유롭게 선택할 수 있습니다.
 - **지능형 날짜 자동 표시**: 24H 모드 사용 시, 첫 번째 OLED가 현재 날짜(예: '13일')를 자동으로 판단하여 표시하는 스마트 레이아웃이 적용됩니다.
+  - 날짜의 단위 "일"은 시·분·초 화면과 **같은 우측 열(x=96)** 에 정렬됩니다 (2~3자 날짜에서도 시·분·초와 정렬이 일치).
 - **전 구간 Zero-padding**: 숫자 모드에서 시, 분, 초 전 구간에 '05분'과 같이 0을 채워 넣는 `%02d` 포맷팅을 적용하여 시인성을 극대화했습니다.
 
 ### 10. Interactive Web Dashboard & Real-time Sync

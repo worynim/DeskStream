@@ -37,6 +37,10 @@ if node "$HERE/web_fixes_test.mjs"; then :; else mark_fail "web_fixes_test 실�
 note "IP 도트: 숫자 옆·밑동 정렬"
 if node "$HERE/ip_dot_test.mjs"; then :; else mark_fail "ip_dot_test 실패"; fi
 
+# --- 5. 24시간제 날짜("...일") 우측 정렬 (2026-11-01) ---
+note "날짜 우측 정렬: 시·분·초와 같은 우측 열"
+if node "$HERE/day_align_test.mjs"; then :; else mark_fail "day_align_test 실패"; fi
+
 note "결과"
 if [ "$rc" -eq 0 ]; then
     printf '\033[32m한글판 JS 검증 전체 통과\033[0m\n'

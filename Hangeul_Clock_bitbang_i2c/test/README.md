@@ -25,7 +25,7 @@ g++ -std=c++11 -I.. test_layout.cpp ../renderer_layout.cpp -o /tmp/test_layout &
 | `test_tz_util.cpp` | POSIX TZ 문자열 화이트리스트 검증 단위 테스트 |
 | `test_utf8_len.cpp` | UTF-8 리딩 바이트 판정 회귀 테스트 (4바이트 문자 3바이트 오판정 버그) |
 | `test_geometry.cpp` | 글자 셀 기하 판별 회귀 테스트 (257~511바이트 파일의 초과 읽음 차단) |
-| `test_layout.cpp` | 글자 x 좌표 배치 회귀 테스트 (1자일 때 화면 밖으로 나가던 버그) |
+| `test_layout.cpp` | 글자 x 좌표 배치 회귀 테스트 (1자일 때 화면 밖으로 나가던 버그) + 날짜("...일") 우측 정렬 판정(`layoutIsDayText`) |
 
 ## JS ↔ 펌웨어 배선 검증 (test/js/)
 
@@ -41,6 +41,8 @@ test/js/run_all.sh
 |:--|:--|
 | `js/extract_from_web_page.mjs` | `web_pages.h`의 `<script>`에서 심볼을 뽑아 `_extracted.mjs`·`_full_script.mjs` 생성 (생성물은 커밋하지 않는다) |
 | `js/web_fixes_test.mjs` | A-1·A-2·A-3·A-4·A-5·B-1 회귀 — 중국어판 PLAN §📌 의 언어 중립 수정을 이 판에 전파하며 추가 |
+| `js/ip_dot_test.mjs` | IP 화면 도트 인라인·잉크 하단 정렬 회귀 (2026-10-21) |
+| `js/day_align_test.mjs` | 24시간제 날짜("...일") 우측 정렬 대조 — 펌웨어 `layoutIsDayText()`/`isCenteredText()` ↔ JS `isDayText()`/`isCenteredPreview()`/`getCharPositions()` (2026-11-01) |
 | `js/run_all.sh` | 추출 → `<script>` **문법** 검사(`node --check`) → 회귀 테스트 |
 
 ## 대상 모듈

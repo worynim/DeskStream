@@ -31,6 +31,11 @@ const WEB_PAGES = join(HERE, '..', '..', 'web_pages.h');
  */
 const NAMES = [
     'UNIQ_CHARS',
+    // 제목 화면(24시간제 날짜) 우측 정렬 — 펌웨어 layoutCharX()/layoutIsDayText()와
+    // 1:1로 대조하려고 뽑는다. day_align_test.mjs가 이 셋을 직접 호출한다.
+    'getCharPositions',
+    'isDayText',
+    'isCenteredPreview',
 ];
 
 /**

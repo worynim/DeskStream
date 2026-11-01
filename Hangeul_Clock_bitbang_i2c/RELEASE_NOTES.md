@@ -19,8 +19,31 @@
 | **v1.0.9** | 마무리 | `BB_HALF_BIT_NS 0` 확정 + **코드 정리** |
 | **v1.0.10** | 잠재 블로킹 | USB CDC Serial TX 링 포화 시 2초 블로킹 제거 (`setTxTimeoutMs(0)`) |
 | **v1.0.11** | IP 도트 정렬 | 도트를 숫자 뒤 인라인 + 잉크 하단(baseline)에 정렬 |
+| **v1.0.12** | 24H 첫 화면 날짜 정렬 | 날짜("...일")도 시·분·초와 같은 우측 열 — `layoutIsDayText()` |
 
 ---
+
+## [v1.0.12] — 2026-11-01
+
+### 🐛 24시간제 첫 화면 날짜("...일")만 우측 정렬되지 않던 문제 수정
+
+**증상**: 24시간제에서 첫 OLED가 날짜를 보여줄 때만 마지막 "일"이 시·분·초의 우측 고정
+열(x=96)에 붙지 않고 왼쪽에 남아, 네 화면의 글자 끝이 어긋나 보였다.
+
+**원인**: 제목 화면(첫 화면)을 무조건 가운데 정렬하는 `isCenteredText()` 규칙 때문에 날짜만
+`layoutCharX(count, j, true)` 갈래를 탔다. 시·분·초는 비정렬 갈래에서 마지막 글자를 x=96에
+붙이므로 날짜의 "일"만 어긋났다. 12시간제는 제목 화면에 "오전"/"오후" 라벨이 와서 문제가 없었다.
+
+**수정**: 날짜 판정을 순수 모듈 `layoutIsDayText()`(UTF-8 접미사 "일", memcmp)로 떼어내고,
+`isRightAlignedText()`가 "제목 화면 + 날짜"일 때만 우측 정렬 갈래를 고르게 했다.
+`isCenteredText()`는 그 갈래를 먼저 배제한다 — 정적 경로(`drawCenterText`)·애니메이션
+경로(`updateAll`)가 모두 이 함수를 거치므로 규칙이 한 곳에 남는다. 12시간제의 "오전"/"오후"는
+라벨이므로 가운데 정렬을 유지한다. 웹 미리보기도 `isDayText()`/`isCenteredPreview()`로 같은
+규칙을 미러한다. 본판 `Hangeul_Clock` v2.9.6과 동일한 수정이다.
+
+**검증**: `test/test_layout.cpp` 24 passed / 0 failed(날짜 판정·우측 정렬 10건 신설),
+`test/js/day_align_test.mjs` 20 passed / 0 failed 신설 → JS 전체 78 passed / 0 failed.
+ESP32-C3(`esp32:esp32:makergo_c3_supermini`) 컴파일 통과.
 
 ## [v1.0.11] — 2026-10-21
 
