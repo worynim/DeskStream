@@ -1,5 +1,14 @@
 # 🚀 Release Notes
 
+## [v2.9.2] - 2026-11-04
+### 🛠️ Changed
+- **파티션 레이아웃을 DeskStream 공통안으로 통합**: 스케치 폴더에 `partitions.csv`를 추가해 spiffs를 `default` 스킴과 동일한 `0x290000`에 고정했습니다.
+  - app0 3MB → **2.5MB**(`0x280000`, 여전히 OTA 없음), spiffs `0x310000` 0.875MB → **`0x290000` 1.375MB**.
+  - `platform.txt`의 prebuild 훅이 스케치 폴더 CSV를 최우선 적용하므로, Arduino IDE에서 `Partition Scheme`을 `Huge App`으로 두어도 이 테이블이 사용됩니다.
+  - 이전에는 huge_app의 spiffs(`0x310000`)가 `default` 스킴 spiffs(`0x290000`~`0x3F0000`) **한가운데**에 놓여, 다른 프로젝트 펌웨어로 전환하면 파일시스템 메타데이터가 겹칠 수 있었습니다.
+- 이 프로젝트는 파일시스템(LittleFS/SPIFFS)을 사용하지 않고 설정을 모두 NVS(`0x9000`)에 저장하므로, WiFi 설정은 어느 스킴에서도 보존됩니다. 공통 레이아웃 적용은 영역 겹침 방지가 목적입니다.
+- 앱 이미지(1,397,344 B)와 코드는 변경되지 않았습니다. 파티션 테이블만 교체됩니다.
+
 ## [v2.9.1] - 2026-10-21
 ### 🛠️ Fixed
 - **USB CDC 로그 블로킹 방지 (ESP32-C3)**: `Serial.begin()` 직후 `Serial.setTxTimeoutMs(0)`을 적용했습니다. USB CDC(HWCDC) TX 링버퍼(256B)가 가득 찬 상태에서 로그를 출력하면 `HWCDC::write()`가 호출당 최대 2초(`tx_timeout_ms` 100 ms × `max_consec_timeouts` 20회)를 블로킹해 메인 루프(버튼·부저·웹 응답)가 멈추는 잠재 위험을 제거했습니다. `ARDUINO_USB_CDC_ON_BOOT` 가드로 CDC 부팅 보드에서만 적용됩니다.

@@ -11,15 +11,15 @@
     {
       "id": "Smart_Info_Station",
       "name": "스마트 정보 스테이션",
-      "version": "2.9.1",
+      "version": "2.9.2",
       "icon": "🌤️",
       "order": 1,
       "sourcePath": "Smart_Info_Station",
       "description": "시간·날씨·미세먼지·유튜브·증시·환율을 4개 OLED에 실시간으로 보여주는 정보 스테이션",
-      "note": "WiFi 설정은 기기 NVS에 저장됩니다. 재플래시해도 유지됩니다.",
+      "note": "파티션은 DeskStream 공통 레이아웃(app0 2.5MB OTA 없음 / spiffs 1.375MB)입니다. WiFi 설정은 NVS(0x9000)에 저장되어 다른 프로젝트로 전환해도 유지됩니다.",
       "nameEn": "Smart Info Station",
       "descriptionEn": "Real-time clock, weather, air quality, YouTube subscribers, markets, and FX rates on four OLEDs",
-      "noteEn": "WiFi settings are stored in NVS and preserved across reflashes."
+      "noteEn": "Uses the shared DeskStream partition layout (app0 2.5MB, no OTA / spiffs 1.375MB). WiFi settings live in NVS (0x9000), so they survive switching to another project."
     },
     {
       "id": "GPS_DASH",
@@ -76,15 +76,15 @@
     {
       "id": "DS_DECK",
       "name": "DS DECK 매크로 패드",
-      "version": "1.5.1",
+      "version": "1.5.2",
       "icon": "⌨️",
       "order": 6,
       "sourcePath": "DS_DECK",
       "description": "4버튼 블루투스 매크로 패드. 텍스트·단축키·미디어·브라우저 런처 지원",
-      "note": "huge_app 파티션(OTA 없음)으로 빌드된 펌웨어입니다.",
+      "note": "파티션은 DeskStream 공통 레이아웃(app0 2.5MB OTA 없음 / spiffs 1.375MB)입니다. spiffs가 default와 같은 0x290000에 있어 다른 프로젝트와 전환해도 매크로 설정이 보존됩니다.",
       "nameEn": "DS DECK Macro Pad",
       "descriptionEn": "Four-button Bluetooth macro pad with text macros, shortcuts, media keys, and a browser launcher",
-      "noteEn": "Built with the huge_app partition (no OTA)."
+      "noteEn": "Uses the shared DeskStream partition layout (app0 2.5MB, no OTA / spiffs 1.375MB). Because spiffs sits at 0x290000 like the default scheme, macro settings survive switching to another project."
     },
     {
       "id": "Screen_To_OLEDs",

@@ -1,3 +1,13 @@
+## [v4.14.1] - 2026-11-04
+### 🛠️ 파티션 레이아웃 통합 (DS_DECK · Smart_Info_Station)
+- **huge_app 계열 두 프로젝트의 spiffs 주소를 `default`와 동일하게 고정**: DS DECK(v1.5.2)과 스마트 정보 스테이션(v2.9.2)의 스케치 폴더에 `partitions.csv`를 추가했습니다.
+  - app0 3MB → **2.5MB**(`0x280000`, OTA 없음 유지), spiffs `0x310000` 0.875MB → **`0x290000` 1.375MB**.
+  - 문제: 두 스킴의 app0 시작 주소(`0x10000`)는 같지만 spiffs 위치가 달라, huge_app ↔ default를 오갈 때 파일시스템이 초기화되고 **DS DECK의 경우 이전 spiffs가 새 spiffs 영역 한가운데에 남아** 메타데이터가 겹칠 수 있었습니다.
+  - 해결: spiffs를 `0x290000`으로 통일해 어느 프로젝트로 전환해도 LittleFS 파일(한글 시계 폰트, DS DECK 매크로 설정)이 보존됩니다.
+- **적용 방식**: `platform.txt`의 prebuild 훅(`build.partitions < variant < source`)이 스케치 폴더 CSV를 최우선 적용하므로, Arduino IDE에서 `Partition Scheme`을 `Huge App`으로 두어도 이 테이블이 사용됩니다.
+  - ⚠️ Arduino IDE 빌드 로그의 "최대 3145728 바이트"는 huge_app 메뉴값이라 실제 app0(2,621,440 B)보다 큽니다. 앱이 2.5MB를 넘으면 IDE는 통과시키지만 `tools/collect-firmware.mjs`의 `app0SizeOf()` 가드가 수집 시점에 차단합니다.
+- **웹 플래셔 배포본 갱신**: 두 프로젝트 바이너리와 `firmware/manifest.json`을 재생성했습니다(`node tools/collect-firmware.mjs --check` 통과). 앱 이미지 크기·코드는 불변이며 파티션 테이블만 교체됩니다.
+
 ## [v4.14.0] - 2026-11-04
 ### ✨ Major Update (Universal_Timer: 4-OLED 범용 타이머 신규 프로젝트)
 - **신규 서브 프로젝트 Universal_Timer v1.0.0**: 4개의 OLED 디스플레이와 하단 버튼을 활용한 하드웨어 인터랙티브 카운트다운 타이머.

@@ -136,27 +136,28 @@ ESP32-C3 DeskStream 보드용 웹 플래셔 **https://worynim.github.io/DeskStre
 
 ---
 
-## v1.6.0 배포 시점 포함 펌웨어
+## 배포 펌웨어 목록
+
+> `firmware/manifest.json` 기준 현재 배포본입니다. Arduino IDE에서 다시 export한 뒤 `node tools/collect-firmware.mjs`를 실행하면 갱신됩니다.
 
 | 프로젝트 | 버전 |
 |---|---|
-| 스마트 정보 스테이션 | 2.9.1 |
+| 스마트 정보 스테이션 | 2.9.2 |
 | GPS 대시보드 | 2.6.1 |
 | 사운드 비주얼라이저 | 3.4.1 |
 | 초광폭 OLED 테스트 | 1.2.1 |
 | 시스템 상태 모니터 | 1.5.1 |
-| DS DECK 매크로 패드 | 1.5.1 |
+| DS DECK 매크로 패드 | 1.5.2 |
 | 화면 스트리머 (수신 펌웨어) | 2.2.1 |
 | 게임 오브 라이프 | 1.0.2 |
-| 한글 시계 | 2.9.5 |
+| 한글 시계 | 2.9.7 |
 | 영어 시계 | 1.0.4 |
 | 중국어 시계 | 1.0.2 |
-
-> 펌웨어 목록과 버전은 `firmware/manifest.json`을 기준으로 하며, Arduino IDE에서 다시 export한 뒤 `node tools/collect-firmware.mjs`를 실행하면 갱신됩니다.
+| 범용 타이머 | 1.0.0 |
 
 ## 알려진 제한사항
 
 - **Web Serial**: Chrome/Edge 데스크톱, Android Chrome 148+ (USB OTG 어댑터 필요). iPhone/iPad(Safari)·Firefox Android·인앱 브라우저는 지원하지 않습니다.
 - **Android USB 장치가 Web Serial 목록에 안 보이는 경우**: `USB(WebUSB) 모드`를 사용해 보세요. (v1.6.0, 실험적)
 - **GitHub Pages 캐시**: 페이지가 최대 10분간 캐시될 수 있습니다. 변경 직후에는 강력 새로고침(Cmd/Ctrl+Shift+R)을 사용하세요.
-- `Smart_Info_Station`·`DS_DECK`은 `huge_app` 파티션(OTA 없음) 빌드입니다.
+- `Smart_Info_Station`·`DS_DECK`은 OTA 없이 app0 2.5MB를 쓰는 **DeskStream 공통 파티션 레이아웃** 빌드입니다. spiffs를 `default` 스킴과 같은 `0x290000`에 두어, 다른 프로젝트와 펌웨어를 바꿔 올려도 저장된 파일(폰트·매크로 설정)이 보존됩니다.

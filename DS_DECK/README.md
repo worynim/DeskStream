@@ -95,3 +95,5 @@ DS DECK은 macOS 환경에서 언어 상태에 관계없이 완벽한 타이핑�
 - 본 프로젝트는 **macOS** 사용 환경에 최적화되어 있습니다.
 - 윈도우 사용자의 경우 한/영 전환을 위해 별도의 OS 설정이 필요합니다. (향후 업데이트 예정)
 - 컴파일 시 `Partition Scheme`을 **`Huge App`** 또는 **`No OTA (2MB APP/2MB SPIFFS)`**로 설정해야 합니다.
+  - 단, 스케치 폴더의 `partitions.csv`가 항상 우선 적용되므로(`platform.txt`의 prebuild 훅), 실제로는 이 파일의 **DeskStream 공통 레이아웃**(app0 2.5MB / spiffs `0x290000` 1.375MB)이 사용됩니다.
+  - spiffs 시작 주소를 `default` 스킴과 동일한 `0x290000`에 맞춰, 다른 프로젝트(한글 시계 등)와 펌웨어를 바꿔 올려도 **매크로 설정(`/config.json`)이 보존**됩니다.

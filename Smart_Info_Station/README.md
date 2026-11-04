@@ -51,6 +51,9 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 ## ⚙️ 아두이노 IDE 소프트웨어 설정 주의사항
 
 1. **Partition Scheme**: `Huge APP (3MB No OTA / 1MB SPIFFS)` 를 **반드시** 선택해야 합니다. 프로젝트에 포함된 한글 글꼴(`u8g2_font_unifont_t_korean2`)이 기본 제공 파티션 용량(~1.25MB)을 초과하기 때문입니다!
+   - 단, 스케치 폴더의 `partitions.csv`가 항상 우선 적용되므로(`platform.txt`의 prebuild 훅), 실제로는 이 파일의 **DeskStream 공통 레이아웃**(app0 2.5MB / spiffs `0x290000` 1.375MB)이 사용됩니다.
+   - spiffs 시작 주소를 `default` 스킴과 동일한 `0x290000`에 맞춰, 다른 프로젝트(한글 시계 등)와 펌웨어를 바꿔 올려도 **파일시스템 영역이 겹치지 않습니다**.
+   - 이 프로젝트는 파일시스템(LittleFS/SPIFFS)을 사용하지 않으므로, 설정은 모두 NVS(`0x9000`)에 저장되어 어느 스킴에서도 보존됩니다.
 
 ### 필수 라이브러리 목록
 - `U8g2` (강력한 그래픽 및 OLED 폰트 라이브러리)
