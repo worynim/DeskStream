@@ -62,23 +62,52 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 1.5rem;
   flex-wrap: wrap;
+  margin-bottom: 0.85rem;
 }
 
-.hero__brand {
+.hero__header {
+  margin: 0;
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.35rem 0.8rem;
-  border: 1px solid var(--panel-border);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.03);
-  font-size: 0.82rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  font-size: clamp(2rem, 4.2vw, 3.1rem);
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+}
+
+.hero__brand-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  text-decoration: none;
+  background: linear-gradient(120deg, #ffffff 30%, var(--accent) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
   color: var(--accent);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.hero__brand-link:hover {
+  opacity: 0.82;
+  transform: translateY(-1px);
+}
+
+.hero__brand-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: var(--radius-sm);
+}
+
+.hero__title-text {
+  background: linear-gradient(120deg, var(--accent) 20%, var(--violet) 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--text);
 }
 
 .lang-switch {
@@ -126,18 +155,8 @@ body {
 }
 
 .hero__logo {
-  font-size: 1rem;
-}
-
-.hero h1 {
-  margin: 1rem 0 0.5rem;
-  font-size: clamp(2.1rem, 4.5vw, 3.2rem);
-  line-height: 1.1;
-  letter-spacing: -0.03em;
-  background: linear-gradient(120deg, #ffffff 20%, var(--accent) 60%, var(--violet));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  font-size: 0.9em;
+  line-height: 1;
 }
 
 .hero__lead {
