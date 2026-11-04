@@ -150,6 +150,19 @@
       "nameEn": "Chinese Clock",
       "descriptionEn": "Chinese word clock synced over NTP with the same four-screen 32×32 cell layout",
       "noteEn": "WiFi and display settings are stored in NVS and preserved across reflashes."
+    },
+    {
+      "id": "Universal_Timer",
+      "name": "범용 타이머",
+      "version": "1.0.0",
+      "icon": "⏱️",
+      "order": 12,
+      "sourcePath": "Universal_Timer",
+      "description": "4개 OLED로 시·분·초를 설정하고 카운트다운을 수행하는 하드웨어 타이머. 직전 설정 시간 복원 지원",
+      "note": "BTN 1~3으로 시/분/초 설정(누르고 있으면 고속 증가), BTN 4로 시작/일시정지, BTN 4를 1초간 누르면 리셋됩니다.",
+      "nameEn": "Universal Timer",
+      "descriptionEn": "Interactive four-OLED hardware countdown timer with auto-repeat and previous time recall",
+      "noteEn": "Set hours/mins/secs with BTN 1-3 (hold for fast increment), start/pause with BTN 4, hold BTN 4 for 1s to reset."
     }
   ]
 }

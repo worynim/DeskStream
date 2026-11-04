@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-01T14:12:41.103Z",
+  "generatedAt": "2026-11-04T07:07:33.939Z",
   "chip": "ESP32-C3",
   "board": "DeskStream (ESP32-C3 SuperMini · 4× OLED)",
   "flashDefaults": {
@@ -29,7 +29,7 @@
       },
       "exportedAt": "2026-10-20T18:43:06.825Z",
       "sourcePath": "Smart_Info_Station",
-      "sourceCommit": "8e78df0e12e6b49c100121bdaa1bce2122bdf170",
+      "sourceCommit": "f8813bc21c79f94bdc7ead0b0718fbb6c2651064",
       "images": [
         {
           "offset": "0x0",
@@ -77,7 +77,7 @@
       },
       "exportedAt": "2026-10-20T18:42:24.934Z",
       "sourcePath": "GPS_DASH",
-      "sourceCommit": "8e78df0e12e6b49c100121bdaa1bce2122bdf170",
+      "sourceCommit": "f8813bc21c79f94bdc7ead0b0718fbb6c2651064",
       "images": [
         {
           "offset": "0x0",
@@ -125,7 +125,7 @@
       },
       "exportedAt": "2026-10-20T18:42:24.025Z",
       "sourcePath": "Sound_Visualizer_4_OLEDs",
-      "sourceCommit": "8e78df0e12e6b49c100121bdaa1bce2122bdf170",
+      "sourceCommit": "f8813bc21c79f94bdc7ead0b0718fbb6c2651064",
       "images": [
         {
           "offset": "0x0",
@@ -173,7 +173,7 @@
       },
       "exportedAt": "2026-10-20T18:42:24.383Z",
       "sourcePath": "OLED_Wide_test",
-      "sourceCommit": "8e78df0e12e6b49c100121bdaa1bce2122bdf170",
+      "sourceCommit": "f8813bc21c79f94bdc7ead0b0718fbb6c2651064",
       "images": [
         {
           "offset": "0x0",
@@ -221,7 +221,7 @@
       },
       "exportedAt": "2026-10-20T18:32:18.243Z",
       "sourcePath": "Stats_Monitor",
-      "sourceCommit": "8e78df0e12e6b49c100121bdaa1bce2122bdf170",
+      "sourceCommit": "f8813bc21c79f94bdc7ead0b0718fbb6c2651064",
       "images": [
         {
           "offset": "0x0",
@@ -269,7 +269,7 @@
       },
       "exportedAt": "2026-10-20T18:43:13.194Z",
       "sourcePath": "DS_DECK",
-      "sourceCommit": "8e78df0e12e6b49c100121bdaa1bce2122bdf170",
+      "sourceCommit": "f8813bc21c79f94bdc7ead0b0718fbb6c2651064",
       "images": [
         {
           "offset": "0x0",
@@ -317,7 +317,7 @@
       },
       "exportedAt": "2026-10-20T18:43:14.610Z",
       "sourcePath": "Screen_To_OLEDs/Screen_To_OLEDs",
-      "sourceCommit": "8e78df0e12e6b49c100121bdaa1bce2122bdf170",
+      "sourceCommit": "f8813bc21c79f94bdc7ead0b0718fbb6c2651064",
       "images": [
         {
           "offset": "0x0",
@@ -365,7 +365,7 @@
       },
       "exportedAt": "2026-10-20T18:40:34.303Z",
       "sourcePath": "Game_Of_Life",
-      "sourceCommit": "8e78df0e12e6b49c100121bdaa1bce2122bdf170",
+      "sourceCommit": "f8813bc21c79f94bdc7ead0b0718fbb6c2651064",
       "images": [
         {
           "offset": "0x0",
@@ -413,7 +413,7 @@
       },
       "exportedAt": "2026-11-01T14:12:06.018Z",
       "sourcePath": "Hangeul_Clock",
-      "sourceCommit": "8e78df0e12e6b49c100121bdaa1bce2122bdf170",
+      "sourceCommit": "f8813bc21c79f94bdc7ead0b0718fbb6c2651064",
       "images": [
         {
           "offset": "0x0",
@@ -461,7 +461,7 @@
       },
       "exportedAt": "2026-10-20T19:34:43.036Z",
       "sourcePath": "ENG_Clock",
-      "sourceCommit": "8e78df0e12e6b49c100121bdaa1bce2122bdf170",
+      "sourceCommit": "f8813bc21c79f94bdc7ead0b0718fbb6c2651064",
       "images": [
         {
           "offset": "0x0",
@@ -509,7 +509,7 @@
       },
       "exportedAt": "2026-10-20T19:37:12.116Z",
       "sourcePath": "Chinese_Clock",
-      "sourceCommit": "8e78df0e12e6b49c100121bdaa1bce2122bdf170",
+      "sourceCommit": "f8813bc21c79f94bdc7ead0b0718fbb6c2651064",
       "images": [
         {
           "offset": "0x0",
@@ -534,6 +534,54 @@
           "path": "firmware/Chinese_Clock/Chinese_Clock.ino.bin",
           "size": 1306176,
           "sha256": "47183e5e120338eb3a1784568a9c8e1e58f55a9cdb5ae13c0729f328ea67d35e"
+        }
+      ]
+    },
+    {
+      "id": "Universal_Timer",
+      "name": "범용 타이머",
+      "version": "1.0.0",
+      "icon": "⏱️",
+      "order": 12,
+      "description": "4개 OLED로 시·분·초를 설정하고 카운트다운을 수행하는 하드웨어 타이머. 직전 설정 시간 복원 지원",
+      "note": "BTN 1~3으로 시/분/초 설정(누르고 있으면 고속 증가), BTN 4로 시작/일시정지, BTN 4를 1초간 누르면 리셋됩니다.",
+      "nameEn": "Universal Timer",
+      "descriptionEn": "Interactive four-OLED hardware countdown timer with auto-repeat and previous time recall",
+      "noteEn": "Set hours/mins/secs with BTN 1-3 (hold for fast increment), start/pause with BTN 4, hold BTN 4 for 1s to reset.",
+      "fqbn": "esp32:esp32:nologo_esp32c3_super_mini",
+      "partitionScheme": null,
+      "flash": {
+        "mode": "dio",
+        "freq": "80m",
+        "size": "4MB"
+      },
+      "exportedAt": "2026-11-04T07:06:16.749Z",
+      "sourcePath": "Universal_Timer",
+      "sourceCommit": "f8813bc21c79f94bdc7ead0b0718fbb6c2651064",
+      "images": [
+        {
+          "offset": "0x0",
+          "path": "firmware/Universal_Timer/Universal_Timer.ino.bootloader.bin",
+          "size": 19536,
+          "sha256": "9b2fa5e4af7cf282b2db5ed726b26bcca0aec7946eb3fdacc14444195ba754b3"
+        },
+        {
+          "offset": "0x8000",
+          "path": "firmware/Universal_Timer/Universal_Timer.ino.partitions.bin",
+          "size": 3072,
+          "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1"
+        },
+        {
+          "offset": "0xe000",
+          "path": "firmware/Universal_Timer/boot_app0.bin",
+          "size": 8192,
+          "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+        },
+        {
+          "offset": "0x10000",
+          "path": "firmware/Universal_Timer/Universal_Timer.ino.bin",
+          "size": 336480,
+          "sha256": "a8509119f4ec0bb922405cc40dc102b40a22cae55bc7c893055b5a7b748fa4c6"
         }
       ]
     }

@@ -16,7 +16,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 - 상세 정보: [hardware.md](./hardware.md) 참조
 
 ## 📁 주요 프로젝트 (Sub-Projects)
-본 저장소는 DeskStream 보드용으로 개발된 10가지 주요 프로그램을 포함하고 있습니다.
+본 저장소는 DeskStream 보드용으로 개발된 11가지 주요 프로그램을 포함하고 있습니다.
 
 ### 1. [Smart_Info_Station: 스마트 정보 스테이션 (v2.9.1)](./Smart_Info_Station/)
 - **기능**: 시계, 날씨, 미세먼지, 유튜브 구독자 수, 증시 지수, 가상화폐 가격, 환율 실시간 모니터링.
@@ -73,6 +73,14 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
     - **Font Studio**: 브라우저에서 TTF를 잉크 중앙 정렬 64px 비트맵으로 래스터화해 직접 업로드.
     - **호스트 테스트 인프라**: 네이티브 C++ 단위 테스트 + 웹↔펌웨어 교차 검증(`bash test/js/run_all.sh`).
 
+### 11. [Universal_Timer: 4-OLED 범용 타이머 (v1.0.0)](./Universal_Timer/)
+- **기능**: 4개의 OLED에 시·분·초를 각각 표시 및 조절하고 카운트다운을 수행하는 하드웨어 타이머.
+- **특징**: 
+    - **4분할 인터랙티브 레이아웃**: OLED 1(시 / 00H), OLED 2(분 / 00M), OLED 3(초 / 00S), OLED 4(START / PAUSE / RESET).
+    - **자동 가속 반복 (Auto-Repeat)**: 버튼을 길게 누르면 60ms 간격으로 고속 연속 증가.
+    - **타임아웃 자동 복원 메모리**: 카운트다운 종료 알람 시 아무 버튼이나 누르면 직전에 설정했던 시간으로 자동 복원.
+    - **이벤트 기반 더티 체킹**: 변경된 화면만 선별 전송하여 지연 없는 즉각적 반응성 및 정확한 30ms 비프음 제공.
+
 ## 🚀 주요 기술적 특징
 - **하이브리드 I2C 아키텍처**: 하드웨어 I2C와 레지스터 직접 제어 기반 고속 소프트웨어 I2C를 병렬로 사용하여 4개의 화면을 끊김 없이 제어합니다.
 - **성능 최적화**: 부드러운 애니메이션 구현을 위한 Dirty Page 체크 및 그래픽 가속 기법이 적용되었습니다.
@@ -80,14 +88,14 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
 ## 🌐 웹 플래셔 (Web Flasher)
 
-**https://worynim.github.io/DeskStream/** — Chrome/Edge 데스크톱 또는 Android Chrome에서 USB로 연결한 ESP32-C3 보드에 11개 프로젝트를 브라우저에서 바로 플래시할 수 있습니다. 별도 프로그램 설치가 필요 없습니다.
+**https://worynim.github.io/DeskStream/** — Chrome/Edge 데스크톱 또는 Android Chrome에서 USB로 연결한 ESP32-C3 보드에 12개 프로젝트를 브라우저에서 바로 플래시할 수 있습니다. 별도 프로그램 설치가 필요 없습니다.
 
 - **Web Serial + [esptool-js](https://github.com/espressif/esptool-js)** 기반. Chrome/Edge 데스크톱, **Android Chrome 148+ (USB OTG)** 지원. iPhone/iPad(Safari)·Firefox Android·인앱 브라우저는 불가
 - **한국어 / English UI** 지원 — 페이지 우측 상단에서 전환 (브라우저 언어 자동 감지, 선택값 저장)
 - 각 프로젝트 카드의 **README ↗** 링크에서 해당 프로젝트 문서를 새 탭으로 열 수 있습니다.
 - 기본 플래시는 **NVS(WiFi·표시 설정) 보존**, 필요 시 "전체 지우기" 옵션 제공
 - 펌웨어 **SHA-256**(다운로드) 및 **MD5**(쓰기 후) 무결성 검증, 플래시 후 자동 재부팅
-- 11개 프로젝트: 스마트 정보 스테이션, GPS 대시보드, 사운드 비주얼라이저, 초광폭 OLED 테스트, 시스템 상태 모니터, DS DECK, 화면 스트리머, 게임 오브 라이프, 한글/영어/중국어 시계
+- 12개 프로젝트: 스마트 정보 스테이션, GPS 대시보드, 사운드 비주얼라이저, 초광폭 OLED 테스트, 시스템 상태 모니터, DS DECK, 화면 스트리머, 게임 오브 라이프, 한글/영어/중국어 시계, 범용 타이머
 - **한글 시계 BB(Hangeul_Clock_bitbang_i2c)는 1.3" SH1106 · 4-bus 회로 구성이 달라 웹 플래셔 대상에서 제외**됩니다.
 
 ### 스마트폰에서 사용하기 (Android)
