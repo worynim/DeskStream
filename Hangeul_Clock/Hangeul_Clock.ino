@@ -23,11 +23,17 @@
  */
 void configModeCallback(WiFiManager *myWiFiManager) {
     Serial.println("[WIFI] Config Mode Entered");
+    // [2026-11-04] SSID를 라벨과 값으로 나눠 4줄로 그린다.
+    //   한 줄에 "SSID: Hangeul_Clock_Setup"(25자)을 넣으면 6x10 폰트에서 150px라
+    //   128px 화면을 넘겨 "S"까지만 보인다(사용자 보고). 이름만 따로 그리면 114px로 들어간다.
+    //   문자열은 config.h의 WIFI_SSID_AP를 쓴다 — 리터럴을 중복 기재하면 AP 이름을 바꿀 때
+    //   실제 AP와 화면 표시가 어긋난다.
     display.u8g2_1.clearBuffer();
     display.u8g2_1.setFont(u8g2_font_6x10_tf);
     display.u8g2_1.drawStr(0, 10, "WiFi Config Mode");
-    display.u8g2_1.drawStr(0, 25, "SSID: Hangeul_Clock_Setup");
-    display.u8g2_1.drawStr(0, 40, "IP: 192.168.4.1");
+    display.u8g2_1.drawStr(0, 25, "SSID:");
+    display.u8g2_1.drawStr(0, 40, WIFI_SSID_AP);
+    display.u8g2_1.drawStr(0, 55, "IP: 192.168.4.1");
     display.u8g2_1.sendBuffer();
 }
 
@@ -176,20 +182,40 @@ void setup() {
     display.setYieldCallback(on_yield);
 
     // WiFi 연결 시퀀스
+    // [2026-11-04] autoConnect()를 쓰지 않는다 — STA 연결을 **비차단**으로 직접 시도한다.
+    //   왜: autoConnect()는 내부에서 waitForConnectResult()를 부르는데, _connectTimeout이
+    //   0이면 ESP32 코어 기본값 60000ms를 그대로 기다린다(블로킹). 그 동안 loop()가 돌지
+    //   않으므로 OLED 도트도 멈춰 기기가 죽은 것처럼 보였고, 사용자가 관찰한 "1분"이 바로
+    //   이 60초다. 예전 바깥 while 루프(10회 × 500ms = 5초)는 autoConnect가 반환한 뒤에야
+    //   delay를 실행하는 구조라 아무 의미가 없었다.
+    //   대신 WiFi.begin()(무인자)은 드라이버/NVS에 저장된 AP로 연결만 걸고 즉시 반환한다
+    //   (STA.cpp의 connect() → esp_wifi_get_config()). WiFiManager가 저장 시 자격증명을
+    //   NVS에 기록하므로(WiFiManager.cpp의 wifiConnectNew) 찾을 수 있다.
     WiFiManager wm;
     wm.setAPCallback(configModeCallback);
     wm.setConfigPortalTimeout(WIFI_CONFIG_TIMEOUT);
-    
+
     logger.addLog("WiFi Connecting");
-    
+
+    const unsigned long WIFI_CONNECT_TIMEOUT_MS = 10000;   // 10초 안에 못 붙으면 AP 모드로
+    WiFi.begin();
+    unsigned long wifiStart = millis();
     int dotCount = 0;
-    while (WiFi.status() != WL_CONNECTED && dotCount < 10) {
+    while (WiFi.status() != WL_CONNECTED && (millis() - wifiStart) < WIFI_CONNECT_TIMEOUT_MS) {
         String dots = "WiFi Connecting";
         for (int j = 0; j <= dotCount % 5; j++) dots += ".";
         logger.updateLastLog(dots);
-        if (wm.autoConnect(WIFI_SSID_AP)) break;
         delay(500);
         dotCount++;
+    }
+
+    // 10초 내 미연결 → 저장된 SSID를 건너뛰고 **곧바로** AP(설정) 모드로.
+    //   startConfigPortal()은 autoConnect()와 달리 STA 재시도를 하지 않는다.
+    //   setAPCallback이 살아 있어 configModeCallback이 호출되고, 블로킹 모드이므로
+    //   setConfigPortalTimeout(WIFI_CONFIG_TIMEOUT)도 그대로 적용된다.
+    if (WiFi.status() != WL_CONNECTED) {
+        logger.addLog("AP Mode");
+        wm.startConfigPortal(WIFI_SSID_AP);
     }
 
     if (WiFi.status() != WL_CONNECTED) ESP.restart();

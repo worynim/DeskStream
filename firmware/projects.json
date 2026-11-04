@@ -115,7 +115,7 @@
     {
       "id": "Hangeul_Clock",
       "name": "한글 시계",
-      "version": "2.9.6",
+      "version": "2.9.7",
       "icon": "🕒",
       "order": 9,
       "sourcePath": "Hangeul_Clock",

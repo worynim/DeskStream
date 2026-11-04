@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-04T07:07:33.939Z",
+  "generatedAt": "2026-11-04T09:36:50.732Z",
   "chip": "ESP32-C3",
   "board": "DeskStream (ESP32-C3 SuperMini · 4× OLED)",
   "flashDefaults": {
@@ -396,7 +396,7 @@
     {
       "id": "Hangeul_Clock",
       "name": "한글 시계",
-      "version": "2.9.6",
+      "version": "2.9.7",
       "icon": "🕒",
       "order": 9,
       "description": "NTP 동기화 기반 고화질 한글 단어 시계. 웹 대시보드·폰트 스튜디오 지원",
@@ -404,16 +404,16 @@
       "nameEn": "Hangeul Clock",
       "descriptionEn": "High-quality Korean word clock synced over NTP, with a web dashboard and font studio",
       "noteEn": "WiFi and display settings are stored in NVS and preserved across reflashes.",
-      "fqbn": "esp32:esp32:makergo_c3_supermini:UploadSpeed=921600,CDCOnBoot=default,CPUFreq=160,FlashFreq=80,PartitionScheme=default,DebugLevel=none,EraseFlash=none",
-      "partitionScheme": "default",
+      "fqbn": "esp32:esp32:nologo_esp32c3_super_mini",
+      "partitionScheme": null,
       "flash": {
         "mode": "dio",
         "freq": "80m",
         "size": "4MB"
       },
-      "exportedAt": "2026-11-01T14:12:06.018Z",
+      "exportedAt": "2026-11-04T09:35:38.248Z",
       "sourcePath": "Hangeul_Clock",
-      "sourceCommit": "f8813bc21c79f94bdc7ead0b0718fbb6c2651064",
+      "sourceCommit": "3c738494df67ded68638ca6a8e4aaaff5efb14e4",
       "images": [
         {
           "offset": "0x0",
@@ -436,8 +436,8 @@
         {
           "offset": "0x10000",
           "path": "firmware/Hangeul_Clock/Hangeul_Clock.ino.bin",
-          "size": 1292496,
-          "sha256": "1b7ab5e6fd4d53e6ab35f74e865c489de38e4ae51fa8b44646b8406a2984b9ac"
+          "size": 1289840,
+          "sha256": "f1491bd9b553cbc04f099149a374ec1b8f181c61a7c169147730e92b08e2df0b"
         }
       ]
     },

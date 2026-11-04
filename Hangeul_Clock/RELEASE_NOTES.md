@@ -1,5 +1,38 @@
 # Release Notes - Hangeul Clock
 
+## [v2.9.7] - 2026-11-04
+### 🐛 화면이 180° 뒤집혀 보이던 문제 · WiFi 연결이 1분간 멈추던 문제 · AP SSID 잘림 수정
+
+- **화면 방향**: 부팅 로그와 시계 화면이 **모두** 180° 뒤집혀 보였습니다.
+  - **원인**: 이 프로젝트만 `setFlipMode()`를 호출하고 그 기본값이 `true`였습니다. u8g2는 초기화 시
+    패널을 `0xa1/0xc8`(두 축 미러)로 두고 생성자의 `U8G2_R2`가 버퍼를 180° 돌리는데, 이 둘은
+    **상쇄**되어 정방향이 됩니다. 그런데 `true`는 `0xa0/0xc0`(미러 없음)를 보내 위 초기 미러를
+    **취소**시켜 R2의 180°가 그대로 남았습니다. 같은 보드의 다른 프로젝트(`Universal_Timer`,
+    `Screen_To_OLEDs`, `DS_DECK`, `Smart_Info_Station` 등)는 `setFlipMode()`를 아예 부르지 않아
+    정방향이며, **한글 시계만 유일하게 뒤집혀 있었습니다.**
+  - **수정**: `is_flipped` 기본값을 `false`로 교정(`config_manager.h/cpp`). 이 값은 하드웨어 flip과
+    화면 배정(`isTitleScreenOf()` 등) **두 가지 역할**을 하는데, 뒤집을 것은 하드웨어 flip 명령뿐이라
+    화면 배정 논리는 그대로 두었습니다.
+  - **기존 기기 마이그레이션**: 기본값을 바꿔도 `getBool("flip", …)`의 기본 인자는 키가 없을 때만
+    쓰이므로, 이미 NVS에 `flip=true`가 저장된 기기는 그대로 뒤집힌 채입니다. `flip_mig` 표식을 두고
+    표식이 없는 기기를 **한 번만** 교정합니다. 표식은 신규 기기에도 남깁니다 — 그래야 이후 사용자가
+    BTN1/웹으로 고른 FLIP 선택을 다음 부팅이 덮어쓰지 않습니다. **펌웨어만 올리면 즉시 정상**입니다.
+- **WiFi 연결 지연**: 저장된 SSID 접속에 실패하면 약 **1분** 뒤에야 AP 모드로 넘어가고, 그동안 OLED의
+  `WiFi Connecting.` 도트가 멈춰 기기가 죽은 것처럼 보였습니다.
+  - **원인**: `wm.autoConnect()`가 블로킹이었습니다. `_connectTimeout`이 `0`이라 내부
+    `waitForConnectResult()`가 ESP32 코어 기본값 **60000ms**를 그대로 기다립니다. 기존 바깥
+    `while` 루프(10회 × 500ms = 5초)는 `autoConnect()`가 **반환한 뒤에야** `delay()`를 실행하는
+    구조라 아무 의미가 없었습니다.
+  - **수정**: `WiFi.begin()`(무인자, 비차단)로 직접 연결을 시도하고 **10초** 동안 도트를 순환시킵니다.
+    미연결 시 `wm.startConfigPortal()`로 저장된 SSID 재시도 없이 **곧바로** AP 모드에 진입합니다.
+    `setAPCallback`·`setConfigPortalTimeout`은 그대로 동작합니다.
+- **AP SSID 잘림**: `WiFi Config Mode` 화면에서 `SSID: Hangeul_Clock_Setup`이 "S"까지만 보였습니다.
+  - **원인**: 6x10 폰트에서 25자 × 6px = **150px**로 128px 화면을 넘겼습니다.
+  - **수정**: 라벨과 값을 4줄로 분리(`WiFi Config Mode` / `SSID:` / `Hangeul_Clock_Setup` /
+    `IP: 192.168.4.1`, 최대 114px). 문자열은 `config.h`의 `WIFI_SSID_AP` 매크로를 쓰도록 통일했습니다.
+- **검증**: ESP32-C3(`esp32:esp32:nologo_esp32c3_super_mini`) 컴파일 통과(98%, 이전 대비 2.6KB 감소),
+  네이티브 단위 테스트 5종 및 JS 회귀 78건 전체 통과.
+
 ## [v2.9.6] - 2026-11-01
 ### 🐛 24시간제 첫 화면(날짜)의 "일"만 우측 정렬되지 않던 문제 수정
 

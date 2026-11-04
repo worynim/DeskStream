@@ -35,11 +35,17 @@ struct SystemSettings {
     char timezone[TIMEZONE_MAX_LEN];
 
     // 기본값 설정
+    // [2026-11-04] is_flipped 기본값을 true → false로 교정했다.
+    //   이 값은 하드웨어 flip(setFlipMode)과 화면 배정(어느 OLED가 제목인가) 두 곳에 쓰인다.
+    //   R2가 이미 180°를 적용하므로, setFlipMode(false)(= u8g2 초기 미러 0xa1/0xc8 유지)라야
+    //   상쇄되어 정방향이 된다. 같은 보드의 다른 프로젝트(Universal_Timer 등)는 setFlipMode를
+    //   아예 부르지 않아 초기값 0xa1/0xc8 그대로 = 정방향이다. 즉 Hangeul_Clock만 true 때문에
+    //   180° 뒤집혀 있었다. 자세한 근거는 config_manager.cpp의 load() 주석 참조.
     SystemSettings() :
         anim_mode(ANIMATION_TYPE_SCROLL_UP),
         display_mode(CLOCK_MODE_HANGUL),
         hour_format(HOUR_FORMAT_12H),
-        is_flipped(true),
+        is_flipped(false),
         chime_enabled(false),
         is_inverted(false),
         font_name("System Default"),
@@ -77,6 +83,11 @@ private:
     Preferences _prefs;
     TimerHandle_t _saveTimer;
     bool _isDirty;
+
+    // 이번 부팅에서 방향 기본값 교정(true → false)이 일어났는가.
+    //   load()에서 세우고 saveNow()가 소비한다 — false로 남은 값과 "아직 마이그레이션 안 된
+    //   옛 기기"를 구분하려면 NVS에 표식(flip_mig)을 남겨야 하므로 저장 시점까지 들고 간다.
+    bool _flipMigrated;
 
     void load(); // 저장소에서 데이터 로드 (private)
 

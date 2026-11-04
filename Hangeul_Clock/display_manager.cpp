@@ -61,6 +61,12 @@ void DisplayManager::begin() {
     configManager.begin();
     
     for (int i = 0; i < 4; i++) {
+        // is_flipped는 **하드웨어 flip 명령**과 **화면 배정**(isTitleScreenOf 등) 두 곳에 쓰인다.
+        //   여기서는 앞의 역할만 한다 — 뒤집힌 장착을 상쇄하는 물리 방향 보정이다.
+        //   u8g2는 초기화 시 패널을 0xa1/0xc8(두 축 미러)로 두고, 생성자의 U8G2_R2가 버퍼를
+        //   180° 돌린다. 두 변환이 상쇄되어 **false가 정방향**이 된다. 같은 보드의 다른
+        //   프로젝트들(Universal_Timer 등)은 setFlipMode를 아예 부르지 않아 같은 결과다.
+        //   ⚠ true로 두면 0xa0/0xc0(미러 없음)이 초기 미러를 취소해 R2의 180°가 남는다.
         screens[i]->setFlipMode(configManager.get().is_flipped);
         screens[i]->sendF("c", configManager.get().is_inverted ? 0xA7 : 0xA6);
         screens[i]->setContrast(configManager.get().brightness);

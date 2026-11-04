@@ -11,7 +11,7 @@
 // 전역 인스턴스 정의
 ConfigManager configManager;
 
-ConfigManager::ConfigManager() : _isDirty(false) {
+ConfigManager::ConfigManager() : _isDirty(false), _flipMigrated(false) {
     // 5,000ms(5초) 지연 저장용 소프트웨어 타이머 생성
     _saveTimer = xTimerCreate("SaveTimer", pdMS_TO_TICKS(5000), pdFALSE, (void*)this, _timerCallback);
 }
@@ -30,7 +30,31 @@ void ConfigManager::load() {
     _settings.anim_mode = _prefs.getUChar("anim", ANIMATION_TYPE_SCROLL_UP);
     _settings.display_mode = _prefs.getUChar("mode", CLOCK_MODE_HANGUL);
     _settings.hour_format = _prefs.getUChar("format", HOUR_FORMAT_12H);
-    _settings.is_flipped = _prefs.getBool("flip", true);
+    // [2026-11-04] 방향 기본값 이전 (true → false) — 1회성.
+    //   왜 옛 값이 뒤집혀 있었나:
+    //     u8g2 초기화 시퀀스가 패널을 0xa1/0xc8(두 축 미러)로 두고, 생성자의 U8G2_R2가
+    //     버퍼를 180° 돌린다. 이 둘은 **상쇄**되어 정방향이 된다.
+    //     그런데 이 프로젝트는 begin()에서 setFlipMode(is_flipped)를 부르는데, true는
+    //     0xa0/0xc0(미러 없음)를 보내 위 초기 미러를 **취소**시킨다 → R2의 180°가 남아 뒤집힘.
+    //     같은 보드의 다른 프로젝트(Universal_Timer·Screen_To_OLEDs 등)는 setFlipMode를
+    //     아예 부르지 않아 정방향이다. 그래서 기본값만 false로 맞추면 동작이 일치한다.
+    //   왜 마이그레이션이 필요한가:
+    //     기본값을 바꿔도 getBool("flip", …)의 **기본 인자**는 키가 없을 때만 쓰인다.
+    //     이미 저장된 기기는 NVS에 flip=true가 남아 있어 그대로 뒤집힌 채다.
+    //     flip_mig 표식이 없는 기기 = 옛 기본값이 박힌 기기로 보고 한 번만 교정한다.
+    //   ⚠ 표식은 **신규 기기에도** 남긴다. 그래야 이 교정이 기기당 딱 한 번만 돌고,
+    //     이후 사용자가 BTN1/웹으로 고른 FLIP 선택을 다음 부팅이 덮어쓰지 않는다.
+    //     (표식을 옛 기기에만 남기면, 새 기기에서 FLIP을 켠 뒤 재부팅할 때
+    //      isKey("flip")가 참이라 다시 교정 분기에 걸려 사용자 선택이 지워진다.)
+    if (!_prefs.getBool("flip_mig", false)) {
+        _settings.is_flipped = false;
+        _flipMigrated = true;   // saveNow()가 표식을 함께 커밋한다
+        if (_prefs.isKey("flip")) {
+            Serial.println("[CONFIG] Flip default migrated (true -> false).");
+        }
+    } else {
+        _settings.is_flipped = _prefs.getBool("flip", false);
+    }
     _settings.chime_enabled = _prefs.getBool("chime", false);
     _settings.is_inverted = _prefs.getBool("inv", false);
     _settings.font_name = _prefs.getString("font_name", "System Default");
@@ -51,6 +75,11 @@ void ConfigManager::load() {
     }
 
     _prefs.end();
+
+    // 교정한 방향 기본값을 저장한다 — 사용자가 아무 조작을 하지 않아도 다음 부팅부터
+    //   정상 방향이어야 한다. (표식 flip_mig도 saveNow()가 함께 커밋한다)
+    if (_flipMigrated) setDirty();
+
     Serial.printf("[CONFIG] Settings loaded. TZ=%s\n", _settings.timezone);
 }
 
@@ -64,7 +93,10 @@ void ConfigManager::setDirty() {
 }
 
 void ConfigManager::saveNow() {
-    if (!_isDirty) return;
+    // 마이그레이션은 사용자가 아무것도 바꾸지 않아도 저장돼야 한다.
+    //   load()가 setDirty()를 부르므로 보통은 _isDirty가 서지만, 그 경로가
+    //   나중에 바뀌더라도 표식이 누락되지 않도록 여기서도 조건에 포함한다.
+    if (!_isDirty && !_flipMigrated) return;
 
     // [리뷰 §3.4] 검증은 **한 개라도 실패하면 전체를 건너뛴다.**
     //   이전엔 나머지 9개 필드를 먼저 써 두고 timezone만 건너뛰었는데, 그러면
@@ -90,6 +122,13 @@ void ConfigManager::saveNow() {
     _prefs.putUChar("slot", _settings.font_slot);
     _prefs.putUChar("bright", _settings.brightness);
     _prefs.putString("tz", _settings.timezone);
+
+    // 마이그레이션 표식을 남긴다 — 다음 부팅부터는 교정을 다시 하지 않는다.
+    //   이 표식이 없으면 매 부팅마다 사용자가 고른 FLIP 선택을 덮어쓴다.
+    if (_flipMigrated) {
+        _prefs.putBool("flip_mig", true);
+        _flipMigrated = false;
+    }
 
     _prefs.end();
     _isDirty = false;
