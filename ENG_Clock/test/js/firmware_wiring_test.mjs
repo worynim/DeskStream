@@ -29,6 +29,7 @@ const chk = (name, ok) => {
 
 const config = read('config.h');
 const dm = read('display_manager.cpp');
+const ts = read('time_sync.cpp');   // [2026-11-08] TZ 적용/SNTP 시작이 이 서비스로 이동
 const ino = read('ENG_Clock.ino');
 const eth = read('english_time.h');
 const etcpp = read('english_time.cpp');
@@ -411,20 +412,29 @@ chk('각 줄이 MAX_CHARS_PER_LINE 안에 들어간다',
 // ===================================================================
 console.log('\nbug 2: applyTimezone이 TZ를 유지한다');
 
+// [2026-11-08] TZ 적용/SNTP 시작이 time_sync 서비스로 옮겨졌다 — 주기 재동기화·WiFi 복구와
+//   **같은 경로**를 쓰기 위해서다. 회귀 방지 대상은 그대로이므로 검사 지점만 따라갔다:
+//   (1) applyTimezone은 timeSync로 위임, (2) 실제 적용부는 설정된 TZ를 configTzTime에
+//   그대로 넘기고 configTime(오프셋)을 쓰지 않는다.
 const applyTzFn = body(dm, /void DisplayManager::applyTimezone\(\) \{[\s\S]*?\n\}/);
 chk('applyTimezone 정의 존재', applyTzFn.length > 0);
+chk('applyTimezone이 timeSync.applyTimezone()로 위임한다 (단일 경로)',
+    /timeSync\.applyTimezone\(\)/.test(applyTzFn));
+
+const startSntpFn = body(ts, /void TimeSyncManager::startSntp\([\s\S]*?\n\}/);
+chk('startSntp 정의 존재 (실제 TZ 적용 지점)', startSntpFn.length > 0);
 // 코드만 대상으로 한다 — 함수 안의 설명 주석에도 원인 설명으로 configTime이 언급된다.
-const applyTzCode = applyTzFn.split('\n')
+const startSntpCode = startSntpFn.split('\n')
     .filter(l => !l.trim().startsWith('//')).join('\n');
 // configTime(오프셋, ...)은 코어(esp32-hal-time.c setTimeZone)가 내부에서
 // setenv("TZ", "UTC0DST0")로 TZ를 **덮어써서** 어떤 타임존을 골라도 UTC가 된다.
-chk('applyTimezone이 configTime(오프셋)을 쓰지 않는다 (TZ 덮어쓰기 원인)',
-    !/configTime\s*\(/.test(applyTzCode));
-chk('applyTimezone이 configTzTime(tz, ...)을 쓴다',
-    /configTzTime\(\s*tz\s*,\s*NTP_SERVER1/.test(applyTzCode));
+chk('startSntp이 configTime(오프셋)을 쓰지 않는다 (TZ 덮어쓰기 원인)',
+    !/configTime\s*\(/.test(startSntpCode));
+chk('startSntp이 configTzTime(tz, ...)을 쓴다',
+    /configTzTime\(\s*tz\s*,\s*NTP_SERVER1/.test(startSntpCode));
 // 설정된 TZ 문자열을 그대로 넘기는지 (새 변수로 속이지 않는다)
 chk('configTzTime에 configManager의 timezone을 넘긴다',
-    /const char\* tz = configManager\.get\(\)\.timezone;/.test(applyTzFn));
+    /const char\* tz = configManager\.get\(\)\.timezone;/.test(startSntpFn));
 
 // ===================================================================
 // [여백 수정 v4/v5 — PLAN §6.13/§6.14] 확장 래스터 GEOM_192B·GEOM_384B (웹 ↔ 펌웨어 기하 대조)

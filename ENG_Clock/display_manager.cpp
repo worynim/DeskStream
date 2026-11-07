@@ -8,6 +8,7 @@
  */
 #include "display_manager.h"
 #include "config.h"          // FONT_SLOT_COUNT
+#include "time_sync.h"       // applyTimezone()의 실제 SNTP/TZ 적용 (감독 서비스와 단일 경로)
 #include "LittleFS.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/timers.h>
@@ -176,16 +177,13 @@ void DisplayManager::setDateOrder(uint8_t order) {
 }
 
 void DisplayManager::applyTimezone() {
-    const char* tz = configManager.get().timezone;
-    // [bug 2 수정 - 원인 2] configTime(0, 0, ...)을 쓰면 코어(esp32-hal-time.c)가
-    //   마지막에 setTimeZone(-0, 0)을 호출해 setenv("TZ", "UTC0DST0")로
-    //   **방금 설정한 TZ를 덮어쓴다**. GMT 오프셋 0을 POSIX TZ로 강제 변환하기
-    //   때문에 어떤 타임존을 골라도 항상 UTC로 표시되었다
-    //   (서울 16시에 7시로 나오는 증상의 원인).
-    // configTzTime()은 SNTP 서버 설정 후 setenv("TZ", tz) + tzset()까지 해 주는
-    //   코어 제공 함수이므로 별도의 setenv/tzset이 필요 없다.
-    configTzTime(tz, NTP_SERVER1, NTP_SERVER2);
-    Serial.printf("[TZ] Applied: %s\n", tz);
+    // 실제 TZ 적용과 SNTP (재)시작은 time_sync 서비스가 한다.
+    //   [2026-11-08] 주기 재동기화·WiFi 복구·TZ 변경이 **같은 경로**를 쓰도록 옮겼다.
+    //   경로가 둘로 갈라지면 한쪽만 고쳐져 "웹에서 TZ를 바꾸면 동기화가 멈춘다" 같은
+    //   결함이 생긴다. configTzTime()이 setenv("TZ", tz)+tzset()까지 해 주며,
+    //   configTime(오프셋,...)이 TZ를 UTC로 덮어쓰는 함정은 time_sync.cpp의
+    //   startSntp() 주석 참조.
+    timeSync.applyTimezone();
     setForceUpdate(true);   // 다음 루프에서 새 시각으로 즉시 재렌더링
 }
 

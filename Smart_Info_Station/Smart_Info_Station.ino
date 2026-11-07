@@ -26,6 +26,7 @@
 #include "display_utils.h"  // 그리기 관련 헬퍼 함수 분리
 #include "widgets_display.h" // 위젯 렌더링 함수 분리
 #include "data_manager.h"   // 데이터 수집 및 관리 로직 분리
+#include "time_sync.h"      // NTP 재동기화 감독 (시각 누적 오차 방지)
 
 
 // OLED 1, 2 (Hardware I2C) -> 표시 갱신 속도가 중요한 시간/마켓 정보 배치에 유리
@@ -219,8 +220,8 @@ U8G2 &getScreen(int num) {
 void redraw_current_page();
 
 int timezone_offset = 9;            // 시간대 설정 (기본값: 대한민국 UTC+9)
-const char* NTP_SERVER1 = "kr.pool.ntp.org"; // 주 NTP 서버
-const char* NTP_SERVER2 = "time.nist.gov";   // 보조 NTP 서버
+// NTP 서버 이름은 config.h의 NTP_SERVER1/NTP_SERVER2 매크로가 단일 정의처다
+// (setup·web_handlers·time_sync가 같은 값을 쓰도록 — 여기서 중복 정의하지 않는다).
 
 Preferences preferences;            // 설정을 플래시 메모리에 영구 저장하기 위한 객체
 WebServer server(80);               // 설정용 웹 페이지를 제공하는 서버 객체 (80포트)
@@ -546,7 +547,11 @@ void setup() {
   }
   preferences.end();
 
-  configTime(timezone_offset * 3600, 0, "kr.pool.ntp.org", "time.nist.gov");
+  // [2026-11-08] 시각 동기화 감독 시작 + 최초 동기화.
+  //   시간대(오프셋) 적용·SNTP 시작은 timeSync.applyTimezone() 한 경로로만 일어난다
+  //   (웹에서 시간대를 바꿀 때도 같은 경로 — web_handlers.cpp).
+  timeSync.begin();
+  timeSync.applyTimezone();
 
   server.on("/", HTTP_GET, handleRoot);
   server.on("/set", HTTP_POST, handleSet);
@@ -558,6 +563,7 @@ void setup() {
 
 void loop() {
   server.handleClient();
+  timeSync.loop();   // NTP 재동기화 감독: 주기·WiFi 복구·실패 재시도
   unsigned long now_ms = millis();
 
   // [입력] 버튼 처리

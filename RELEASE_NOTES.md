@@ -1,3 +1,19 @@
+## [v4.14.2] - 2026-11-08
+### 🐛 Bug Fix (Hangeul_Clock · ENG_Clock · Chinese_Clock · Smart_Info_Station) — 상시 가동 시 누적 시각 오차
+- **증상**: 시계·정보 스테이션을 계속 켜 두면 실제 시각과의 차이가 조금씩 벌어져 수일~수주 뒤 **십여 초**가 됩니다. 전원을 껐다 켜면 다시 맞습니다(부팅 때 NTP로 한 번 맞추므로).
+- **원인**: 네 프로젝트 모두 NTP 동기화를 **부팅 시 1회**(정보 스테이션은 웹 시간대 변경 시 추가)만 수행하고, SNTP 백그라운드 폴링의 성공 여부를 확인하거나 다시 무장하지 않았습니다. ESP32-C3의 시스템 시각은 40MHz 크리스털 기반 free-running 카운터(전형 ±10~30ppm = 하루 1~3초)라, WiFi 재접속·DNS 실패 등으로 재폴링이 한 번 끊기면 오차가 그대로 누적됩니다.
+- **공통 수정 — NTP 재동기화 감독 서비스 신설**: `time_sync.h`·`time_sync.cpp`(판정 규칙은 순수 모듈 `time_sync_policy.h`).
+  - 6시간마다 강제 재동기화 + 마지막 성공 후 12시간이면 즉시(감독 실패 감지) → 누적 오차 상한 ≈ 0.2초.
+  - WiFi 복구 즉시 재동기화, 끊긴 동안 60초 간격 `WiFi.reconnect()`, 미동기 30초 재시도, 연속 요청은 1분 간격 제한.
+  - SNTP 내부 재요청 주기를 코어 기본 3시간 → 1시간으로 낮춰 안전망 이중화.
+  - IDF `sntp_sync_time()`(weak)을 대체해 **보정 직전 드리프트를 기록**: `[NTP] sync #3 drift=+842ms gap=21605s` (부호 **+ = 보정 전 로컬이 느렸다**).
+  - 시각 적용 방식은 각 프로젝트 그대로 유지 — 세 시계는 POSIX TZ(`configTzTime`), 정보 스테이션은 오프셋(`configTime(offset)`).
+  - 세 시계는 1초 렌더 트리거도 `millis()` 주기 → **초 경계(epoch 초) 감지**로 교체(비차단 조회, `getLocalTime()`의 최대 5초 블로킹 제거).
+- **버전**: Hangeul_Clock **v2.9.8** · ENG_Clock **v1.0.5** · Chinese_Clock **v1.0.3** · Smart_Info_Station **v2.9.3**.
+- **검증**: ESP32-C3 컴파일 통과 — Hangeul 1,290,711B(98%), ENG 1,309,825B(99%), Chinese 1,307,013B(99%), Smart_Info_Station 1,397,951B(44%, huge_app). 네이티브 단위 테스트(신설 정책 30건 포함) 및 `ENG_Clock` JS 교차 검증 전체 통과. `node tools/collect-firmware.mjs --check` 통과(12개 프로젝트).
+  - ⚠️ ENG_Clock 앱 이미지는 default app0 한계(1,310,720B) 대비 여유가 약 0.9KB뿐입니다. 이후 기능을 추가할 때는 용량·파티션 검토가 필요합니다.
+- **웹 플래셔 배포본 갱신**: 네 프로젝트 바이너리와 `firmware/manifest.json`·`firmware/projects.json` 버전을 재생성했습니다.
+
 ## [v4.14.1] - 2026-11-04
 ### 🛠️ 파티션 레이아웃 통합 (DS_DECK · Smart_Info_Station)
 - **huge_app 계열 두 프로젝트의 spiffs 주소를 `default`와 동일하게 고정**: DS DECK(v1.5.2)과 스마트 정보 스테이션(v2.9.2)의 스케치 폴더에 `partitions.csv`를 추가했습니다.

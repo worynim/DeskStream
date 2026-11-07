@@ -10,6 +10,7 @@
 #include "youtube.h"
 #include "dust.h"
 #include "weather.h"
+#include "time_sync.h"
 
 void handleRoot() {
   String html;
@@ -151,9 +152,9 @@ void handleSet() {
     }
   }
 
-  // 시간대 변경 시 즉시 시스템 시각 설정 재호출
+  // 시간대 변경 시 즉시 재적용 — time_sync 단일 경로를 쓴다 (부팅·주기 재동기화와 동일).
   if (tz_changed) {
-    configTime(timezone_offset * 3600, 0, "kr.pool.ntp.org", "time.nist.gov");
+    timeSync.applyTimezone();
   }
 
   portENTER_CRITICAL(&updateMux);  // force_update 쓰기 보호

@@ -1,4 +1,4 @@
-# ENG Clock (English Language Clock) - v1.0.0
+# ENG Clock (English Language Clock) - v1.0.5
 
 NTP 서버로부터 시간을 동기화하여 4개의 OLED 디스플레이에 **영어 단어**로 시, 분, 초를 표시하는 ESP32-C3 기반 프리미엄 데스크 가젯입니다. `Hangeul_Clock` v2.6.0의 기능·품질을 100% 유지하면서 텍스트만 영어로 교체한 포트입니다.
 

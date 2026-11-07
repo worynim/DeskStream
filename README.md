@@ -18,7 +18,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 ## 📁 주요 프로젝트 (Sub-Projects)
 본 저장소는 DeskStream 보드용으로 개발된 12가지 주요 프로그램을 포함하고 있습니다.
 
-### 1. [Smart_Info_Station: 스마트 정보 스테이션 (v2.9.2)](./Smart_Info_Station/)
+### 1. [Smart_Info_Station: 스마트 정보 스테이션 (v2.9.3)](./Smart_Info_Station/)
 - **기능**: 시계, 날씨, 미세먼지, 유튜브 구독자 수, 증시 지수, 가상화폐 가격, 환율 실시간 모니터링.
 - **특징**: **전면 모듈화 아키텍처**, 웹 대시보드 실시간 설정, 비동기 데이터 갱신(FreeRTOS), 네이티브 HAL 기반 고속 SW I2C.
 - **버튼 동작**: 버튼 1을 사용하여 HUD 반전 모드 순환, 버튼 4를 사용하여 페이지를 전환합니다.
@@ -48,7 +48,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 - **특징**: 지능형 캡처 엔진(Full 대응), Numba JIT 가속, 6종 디더링 알고리즘, 실시간 설정 변경.
 - **버튼 동작**: 버튼 2를 눌러 밝기를 조절하고, 버튼 1을 롱프레스하여 화면을 180도 회전(플립)합니다.
 
-### 8. [Hangeul_Clock: 고화질 폰트 한글 시계 (v2.9.4)](./Hangeul_Clock/)
+### 8. [Hangeul_Clock: 고화질 폰트 한글 시계 (v2.9.8)](./Hangeul_Clock/)
 - **기능**: NTP 동기화 기반의 고화질 한글 시계 및 하이엔드 폰트 렌더링 시스템.
 - **특징**: 
     - **제로-스터터(Zero-Stutter) 웹 API**: 폰트 슬롯 이름 메모리 캐싱으로 웹 대시보드 호출 시 시스템 멈춤 현상 근본 해결.
@@ -65,7 +65,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 - **기능**: Conway의 생명 게임(Game of Life) 시뮬레이션을 512x64 대화면에서 무한 루프로 실행.
 - **특징**: 1-bit 메모리 최적화(총 8KB 사용), 4개 버튼을 통한 **재생/일시정지, 수동 단계 진행, 속도 조절(5/10/20 FPS), 패턴 리셋** 지원.
 
-### 10. [ENG_Clock: 고화질 폰트 영어 시계 (v1.0.0)](./ENG_Clock/)
+### 10. [ENG_Clock: 고화질 폰트 영어 시계 (v1.0.5)](./ENG_Clock/)
 - **기능**: NTP 동기화 기반의 고화질 영어 단어 시계. `Hangeul_Clock`의 아키텍처와 품질을 유지하며 텍스트만 영어로 포트.
 - **특징**: 
     - **2-Line Word Layout**: 영어 최장 단어(`SEVENTEEN`, 9자)를 수용하는 어절 단위 2줄 레이아웃.

@@ -11,6 +11,7 @@ g++ -std=c++11 -I.. test_i2c_retry_policy.cpp -o /tmp/test_i2c_retry_policy && /
 g++ -std=c++11 -I.. test_utf8_len.cpp -o /tmp/test_utf8_len && /tmp/test_utf8_len
 g++ -std=c++11 -I.. test_geometry.cpp ../renderer_geometry.cpp -o /tmp/test_geometry && /tmp/test_geometry
 g++ -std=c++11 -I.. test_layout.cpp ../renderer_layout.cpp -o /tmp/test_layout && /tmp/test_layout
+g++ -std=c++11 -I.. test_time_sync_policy.cpp -o /tmp/test_time_sync_policy && /tmp/test_time_sync_policy
 ```
 
 ## 파일 안내
@@ -22,6 +23,7 @@ g++ -std=c++11 -I.. test_layout.cpp ../renderer_layout.cpp -o /tmp/test_layout &
 | `test_utf8_len.cpp` | UTF-8 리딩 바이트 판정 회귀 테스트 (4바이트 문자 3바이트 오판정 버그) |
 | `test_geometry.cpp` | 글자 셀 기하 판별 회귀 테스트 (257~511바이트 파일의 초과 읽음 차단) |
 | `test_layout.cpp` | 글자 x 좌표 배치 회귀 테스트 (1자일 때 화면 밖으로 나가던 버그) + 날짜("...일") 우측 정렬 판정(`layoutIsDayText`) |
+| `test_time_sync_policy.cpp` | NTP 재동기화 시점 정책(주기 6h · 오래됨 12h · 미동기 30s 재시도 · WiFi 복구)과 1초 렌더 트리거(`tm_sec` 변화) 회귀 테스트. `millis()` 49.7일 랩 구간 포함 |
 
 ## JS ↔ 펌웨어 배선 검증 (test/js/)
 

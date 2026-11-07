@@ -1,5 +1,32 @@
 # 🚀 Release Notes
 
+## [v2.9.3] - 2026-11-08
+### 🐛 상시 가동 시 시계 위젯이 조금씩 틀어지던 문제 (NTP 재동기화 감독 부재)
+
+- **확인**: 이 펌웨어도 `configTime(timezone_offset * 3600, 0, ...)`을 **부팅 때 한 번**,
+  그리고 웹에서 시간대를 바꿀 때만 호출하고 있었다. SNTP 백그라운드 폴링의 성공 여부를
+  확인하거나 다시 무장하는 코드가 없어, ESP32-C3의 크리스털 기반 free-running 시스템 시각
+  (전형 ±10~30ppm = 하루 1~3초) 오차가 그대로 누적된다. 시계 위젯(`display_clock_oled`)이
+  `time(nullptr)` 값을 그대로 표시하므로 "계속 켜 두면 십여 초 틀어짐"이 재현된다.
+  (`isDomesticMarketOpen()`/`isUsMarketOpen()`도 같은 시스템 시각을 쓰므로 장기 오차는
+  장 개장 판단에도 영향을 준다.)
+- **수정**: NTP 재동기화 **감독 서비스** 신설(`time_sync.h/.cpp`, 정책은 순수 모듈
+  `time_sync_policy.h`).
+  - 6시간마다 강제 재동기화 + 마지막 성공 후 12시간이면 즉시 강제 → 누적 오차 상한 ≈ 0.2초.
+  - WiFi 끊김→복구 시 즉시 재동기화, 끊긴 동안 60초 간격 `WiFi.reconnect()`.
+  - 미동기(부팅 직후·실패) 상태는 30초 간격 재시도, 연속 요청은 1분 간격 제한.
+  - SNTP 내부 재요청 주기를 코어 기본 3시간 → 1시간으로 낮춰 안전망 이중화.
+  - IDF `sntp_sync_time()`(weak)을 대체해 **보정 직전 드리프트를 기록**:
+    `[NTP] sync #3 drift=+842ms gap=21605s` (부호 **+ = 보정 전 로컬이 느렸다**).
+  - **시각 적용 방식은 기존 그대로**: `configTime(오프셋, 0, ...)` (오프셋 저장 형식·웹 UI 불변).
+    부팅(`setup`)·웹 시간대 변경(`web_handlers.cpp`)이 `timeSync.applyTimezone()` **한 경로**를 쓴다.
+- **파일**: `time_sync.h`·`time_sync.cpp`·`time_sync_policy.h`(신설), `config.h`(NTP 서버 매크로·정책 상수),
+  `Smart_Info_Station.ino`(감독 시작·루프 호출), `web_handlers.cpp`(시간대 변경 경로 통일).
+- **검증**: ESP32-C3(`esp32:esp32:makergo_c3_supermini`, Partition Scheme = **Huge APP**) 컴파일 통과
+  — 1,397,855B / 3,145,728B(44%), 이전 빌드 1,397,344B 대비 +511B.
+  정책 모듈은 동일 헤더를 쓰는 `Hangeul_Clock/test/test_time_sync_policy.cpp`로 **30건 전체 통과**.
+
+
 ## [v2.9.2] - 2026-11-04
 ### 🛠️ Changed
 - **파티션 레이아웃을 DeskStream 공통안으로 통합**: 스케치 폴더에 `partitions.csv`를 추가해 spiffs를 `default` 스킴과 동일한 `0x290000`에 고정했습니다.

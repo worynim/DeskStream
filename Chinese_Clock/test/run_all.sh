@@ -25,6 +25,7 @@ TESTS=(
   "test_chinese_time|chinese_time_core.cpp"
   "test_geometry|renderer_geometry.cpp"
   "test_layout|layout_engine.cpp renderer_geometry.cpp chinese_time_core.cpp"
+  "test_time_sync_policy|"
 )
 
 fail=0

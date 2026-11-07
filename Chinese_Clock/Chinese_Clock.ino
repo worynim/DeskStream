@@ -17,6 +17,7 @@
 #include "web_manager.h"
 #include "input_manager.h"
 #include "logger.h"
+#include "time_sync.h"
 
 /**
  * @brief WiFi 설정 모드(AP) 진입 시 호출되는 콜백
@@ -207,6 +208,10 @@ void setup() {
     // 3. 시간 동기화 (NTP + POSIX TZ)
     // configManager.begin()이 display.begin() 내부에서 이미 끝났으므로
     // 이 시점의 configManager.get().timezone은 NVS에서 로드·검증된 값이다.
+    //   [2026-11-08] timeSync.begin()이 SNTP 내부 재폴링 주기를 1시간으로 낮추고
+    //   재동기화 감독을 시작한다. TZ 적용·SNTP 시작은 display.applyTimezone()
+    //   → timeSync.applyTimezone() 한 경로로만 일어난다.
+    timeSync.begin();
     display.applyTimezone();
     logger.addLog("Syncing Time");
 
@@ -227,13 +232,7 @@ void setup() {
     display.clearAll(); // 부팅 로그 종료 후 시계 시작 전 잔상 완벽 소거
 }
 
-void handleClockUpdate(bool force) {
-    struct tm timeinfo;
-    if (!getLocalTime(&timeinfo)) {
-        display.showStatus("Time Sync Error!");
-        return;
-    }
-
+void handleClockUpdate(const struct tm& timeinfo, bool force) {
     // [시보] 정시 알림 로직
     if (configManager.get().chime_enabled && timeinfo.tm_min == 0 && timeinfo.tm_sec == 0) {
         static int lastChimeHour = -1;
@@ -278,17 +277,43 @@ void handleClockUpdate(bool force) {
 
 // 루프 시작
 void loop() {
-    on_yield();
-    display.updateTick();
+    on_yield(); 
+    display.updateTick(); 
+    timeSync.loop();   // NTP 재동기화 감독: 주기·WiFi 복구·실패 재시도
 
-    static unsigned long lastUpdate = 0;
-    unsigned long now = millis();
+    // [2026-11-08] 1초 갱신 트리거를 millis() 1000ms 주기에서 **초 경계(epoch 초) 감지**로
+    //   교체했다. 이전 방식은 실제 초 경계와 위상이 어긋나 (1) 화면이 최대 1초 늦게
+    //   바뀌고 (2) 렌더 시점이 매초 흔들려 초 표시가 건너뛰거나 겹쳐 보였다.
+    //   초 경계는 시스템 시각이 유일한 기준이다. 판정 규칙은 time_sync_policy.h의
+    //   clockRenderDue()/secondTickDue() (호스트 단위 테스트 대상).
+    //
+    //   매 loop마다 읽는 것은 time()(epoch 초)뿐이다 — 비차단이고 저비용이다.
+    //   localtime_r()은 실제 렌더가 일어나는 초에만 호출한다.
+    //   getLocalTime()은 인자를 생략하면 최대 5초(기본 5000ms) 블로킹이라
+    //   메인 루프에서 쓰면 버튼·애니메이션이 그만큼 멈추므로 쓰지 않는다.
+    static int64_t lastEpochSec = -1;
+    static unsigned long lastFallbackMs = 0;
 
-    bool needsUpdate = display.checkForceUpdate();
+    const time_t epochNow = time(nullptr);
+    const bool timeValid = localTimeIsValid((int64_t)epochNow);
+    const bool secondChanged = timeValid && secondTickDue(lastEpochSec, (int64_t)epochNow);
+    if (timeValid) lastEpochSec = (int64_t)epochNow;
 
-    // IP/도움말 모드가 아니고, (1초가 지났거나 강제 트리거가 발생했을 때) 갱신
-    if (uiStage == 0 && (needsUpdate || (now - lastUpdate >= UPDATE_INTERVAL_MS))) {
-        handleClockUpdate(needsUpdate);
-        lastUpdate = now;
+    const unsigned long now = millis();
+    const bool fallbackDue = !timeValid && (now - lastFallbackMs >= UPDATE_INTERVAL_MS);
+    // force 플래그는 uiStage가 0일 때만 소비한다 — IP/도움말 화면에서 버튼·웹이 세운
+    //   갱신 요청을 잃지 않기 위해서다 (이전에는 매 루프에서 무조건 소비됐다).
+    const bool forceUpdate = (uiStage == 0) && display.checkForceUpdate();
+
+    if (uiStage == 0 && clockRenderDue(forceUpdate, timeValid, secondChanged, fallbackDue)) {
+        lastFallbackMs = now;
+        if (timeValid) {
+            struct tm timeinfo;
+            localtime_r(&epochNow, &timeinfo);   // 초당 1회만 변환 (매 루프 아님)
+            handleClockUpdate(timeinfo, forceUpdate);
+        } else {
+            lastEpochSec = -1;   // 시각이 돌아오면 반드시 다시 그린다
+            display.showStatus("Time Sync Error!");
+        }
     }
 }

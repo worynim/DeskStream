@@ -27,8 +27,22 @@
 // === [2] NTP 및 시간 설정 ===
 // 영어판은 고정 오프셋 대신 POSIX TZ 문자열을 쓴다 (DST 자동 처리, PLAN §6.6).
 // NTP는 UTC로 수신하고 localtime() 시점에 TZ 환경변수가 적용된다.
-#define NTP_SERVER1 "pool.ntp.org"
-#define NTP_SERVER2 "time.nist.gov"
+
+// [2026-11-08 사용자 보고] "상시 가동하면 시계가 조금씩 틀어진다" — 이 판에도
+//   같은 구조의 누적 오차가 있다(부팅 1회 동기화 + 백그라운드 재폴링 감독 부재).
+//   ESP32-C3의 시스템 시각은 40MHz 크리스털에서 파생된 free-running 카운터라
+//   (전형 ±10~30ppm = 하루 1~3초) 재동기화가 조용히 끊기면 오차가 그대로 쌓인다.
+//   아래 값들이 time_sync.cpp의 "동기화 감독" 정책이다 — 자세한 근거는 그 파일 주석 참조.
+#define NTP_SERVER1 "kr.pool.ntp.org"   // 국내 풀: RTT가 짧고 도달률이 높다
+#define NTP_SERVER2 "pool.ntp.org"
+#define NTP_SERVER3 "time.nist.gov"     // 보조 (3번째 서버까지 시도)
+
+#define NTP_SNTP_POLL_MS        3600000UL   // SNTP 내부 재요청 주기 (코어 기본 3시간 → 1시간 안전망)
+#define NTP_RESYNC_INTERVAL_MS  21600000UL  // 6시간마다 강제 재동기화 (누적 오차 상한 ≈ 0.2초)
+#define NTP_SYNC_STALE_MS       43200000UL  // 12시간 동안 성공 기록이 없으면 즉시 강제
+#define NTP_RETRY_INTERVAL_MS   30000UL     // 미동기(부팅 직후·실패) 상태 재시도 간격
+#define NTP_MIN_RESYNC_GAP_MS   60000UL     // 연속 재동기화 요청 최소 간격
+#define NTP_WIFI_RETRY_MS       60000UL     // WiFi 끊김 시 재접속 시도 간격
 
 // 웹에서 시간대를 설정하기 전까지의 폴백 (config_manager가 NVS에 보관)
 #define DEFAULT_TIMEZONE "KST-9"

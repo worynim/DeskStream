@@ -16,6 +16,7 @@ g++ -std=c++11 -I.. test_tz_util.cpp ../tz_util.cpp -o /tmp/test_tz_util && /tmp
 g++ -std=c++11 -I.. test_geometry.cpp ../renderer_geometry.cpp -o /tmp/test_geometry && /tmp/test_geometry
 g++ -std=c++11 -I.. test_i2c_retry_policy.cpp -o /tmp/test_i2c_retry_policy && /tmp/test_i2c_retry_policy
 g++ -std=c++11 -I.. test_utf8_len.cpp -o /tmp/test_utf8_len && /tmp/test_utf8_len
+g++ -std=c++11 -I.. test_time_sync_policy.cpp -o /tmp/test_time_sync_policy && /tmp/test_time_sync_policy
 ```
 
 ## 파일 안내
@@ -28,6 +29,7 @@ g++ -std=c++11 -I.. test_utf8_len.cpp -o /tmp/test_utf8_len && /tmp/test_utf8_le
 | `test_geometry.cpp` | 글자 기하(192B/384B) 판별 단위 테스트 |
 | `test_i2c_retry_policy.cpp` | I2C dirty 마스크 갱신 정책 회귀 테스트 (전송 실패 시 페이지 재시도) |
 | `test_utf8_len.cpp` | UTF-8 리딩 바이트 판정 회귀 테스트 (한글판의 4바이트 오판정 버그) |
+| `test_time_sync_policy.cpp` | NTP 재동기화 시점 정책(주기 6h · 오래됨 12h · 미동기 30s 재시도 · WiFi 복구)과 1초 렌더 트리거(초 경계) 회귀 테스트 |
 | `js/` | 웹 페이지 JS ↔ 펌웨어 C++ 교차 검증 (아래 표) |
 
 ## js/ — 교차 검증 스크립트

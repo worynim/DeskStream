@@ -1,5 +1,33 @@
 # Release Notes - ENG Clock (English Language Clock)
 
+## [v1.0.5] - 2026-11-08
+### 🐛 상시 가동 시 시각이 조금씩 틀어져 십여 초씩 늦어지던 문제 (NTP 재동기화 감독 부재)
+
+- **증상**: 계속 켜 두면 실제 시각과의 차이가 조금씩 벌어져, 수일~수주 뒤 **십여 초**가 된다.
+  전원을 껐다 켜면 다시 맞는다(부팅 때 NTP로 한 번 맞추므로).
+- **원인 ①(근본)**: ESP32-C3의 시스템 시각은 40MHz 크리스털 기반 free-running 카운터
+  (전형 ±10~30ppm = 하루 1~3초)인데, 이 펌웨어는 `configTzTime()`을 **부팅 때 한 번**만
+  호출하고 그 뒤로 SNTP 백그라운드 폴링의 성공 여부를 확인하거나 다시 무장하지 않았다.
+  WiFi 재접속·DNS 실패·공유기 재부팅 등으로 재폴링이 한 번 끊기면 시계는 조용히 free-run이
+  되어 오차가 누적된다. 부팅 동기화가 실패한 경우(로그 `Time Sync Fail!`)도 재시도가 없었다.
+- **원인 ②(체감)**: 1초 렌더가 `millis()` 1000ms 주기여서 실제 초 경계와 위상이 어긋났다.
+  누적 오차는 아니지만 화면이 최대 1초 늦게 바뀌어 "시계가 늦다"는 체감을 키웠다.
+- **수정 ①**: `time_sync.h/.cpp` NTP 재동기화 **감독 서비스** 신설(정책은 순수 모듈
+  `time_sync_policy.h`). 6시간마다 강제 재동기화 + 12시간 성공 기록 없으면 즉시,
+  WiFi 복구 즉시 재동기화, 미동기 30초 간격 재시도, 연속 요청 1분 제한.
+  SNTP 내부 폴링 주기도 코어 기본 3시간 → 1시간으로 낮춰 안전망 이중화.
+  IDF `sntp_sync_time()`(weak)을 대체해 **보정 직전 드리프트를 기록**한다:
+  `[NTP] sync #3 drift=+842ms gap=21605s` (부호 **+ = 보정 전 로컬이 느렸다**).
+- **수정 ②**: 1초 갱신을 `millis()` 주기 → **초 경계(epoch 초) 감지**로 교체.
+  `getLocalTime()`(최대 5초 블로킹) 대신 `time()`/`localtime_r()` 비차단 조회.
+- **파일**: `time_sync.h`·`time_sync.cpp`·`time_sync_policy.h`(신설), `config.h`(NTP 정책 상수·
+  서버 3개), `display_manager.h/.cpp`(`applyTimezone()` → `timeSync` 단일 경로),
+  `ENG_Clock.ino`, `test/test_time_sync_policy.cpp`(신설), `test/js/firmware_wiring_test.mjs`
+  (TZ 적용 지점을 `time_sync.cpp`의 `startSntp()`로 추적 — 회귀 방지 대상은 그대로).
+- **검증**: ESP32-C3(`esp32:esp32:nologo_esp32c3_super_mini`) 컴파일 통과
+  (1,309,697B / 99%), 네이티브 단위 테스트 7종(신설 30건 포함) 전체 통과,
+  JS ↔ 펌웨어 교차 검증 전체 통과(배선 회귀 151 passed / 0 failed).
+
 ## [v1.0.4] - 2026-10-21
 ### 🐛 IP 화면에서 백의 자리가 잘리는 문제 수정 (BTN4)
 

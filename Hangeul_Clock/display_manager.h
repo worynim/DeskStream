@@ -71,9 +71,10 @@ public:
     void setAnimMode(uint8_t mode);
 
     /**
-     * @brief 설정된 POSIX TZ를 환경변수에 적용하고 NTP를 재동기화한다
+     * @brief 설정된 POSIX TZ를 적용하고 NTP를 재동기화한다
      * @details lwIP는 UTC를 내부 보관하고 localtime() 호출 시점에 TZ를 적용한다.
-     *          configTzTime()이 setenv("TZ", tz) + tzset()까지 해 준다.
+     *          실제 적용(SNTP (재)시작 + setenv("TZ") + tzset())은 time_sync 서비스가
+     *          한다 — 주기 재동기화·WiFi 복구·TZ 변경이 같은 경로를 쓰도록 단일화했다.
      *          configTime(오프셋, ...)은 절대 쓰지 않는다 — 코어가 오프셋을
      *          POSIX TZ로 강제 변환해 설정값을 덮어써서 항상 UTC가 된다.
      *
