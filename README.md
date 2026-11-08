@@ -73,7 +73,16 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
     - **Font Studio**: 브라우저에서 TTF를 잉크 중앙 정렬 64px 비트맵으로 래스터화해 직접 업로드.
     - **호스트 테스트 인프라**: 네이티브 C++ 단위 테스트 + 웹↔펌웨어 교차 검증(`bash test/js/run_all.sh`).
 
-### 11. [Universal_Timer: 4-OLED 범용 타이머 (v1.0.0)](./Universal_Timer/)
+### 11. [Chinese_Clock: 고화질 폰트 중국어 시계 (v1.0.3)](./Chinese_Clock/)
+- **기능**: NTP 동기화 기반의 중국어 한자 단어 시계. `Hangeul_Clock` / `ENG_Clock`의 하드웨어·UI·애니메이션·웹 파이프라인을 승계하고 텍스트 생성부만 중국어로 포트.
+- **특징**: 
+    - **4화면 32×32 셀 레이아웃**: 최장 표현이 4자(`四十五分`)라 줄바꿈 없이 화면당 정사각형 셀 4개에 표시.
+    - **표준형 한자 표현**: `两点`, `三点零五分`, `三点半`, `九点整`, `上午`/`下午`, `星期日`~`星期六` 등 표준 규칙 적용.
+    - **간체 / 번체 / 숫자 표시 순환**: `简体 → 繁體 → 數字` (차이 3글자를 치환표 하나로 처리).
+    - **POSIX TZ 시간대 시스템**: DST 자동 처리, 기본값 `CST-8`, 웹 UI 프리셋 + Custom 입력.
+    - **Font Studio**: 브라우저에서 TTF를 37자(간체 ∪ 번체) 48×48 비트맵으로 구워 5개 폰트 슬롯에 업로드.
+
+### 12. [Universal_Timer: 4-OLED 범용 타이머 (v1.0.0)](./Universal_Timer/)
 - **기능**: 4개의 OLED에 시·분·초를 각각 표시 및 조절하고 카운트다운을 수행하는 하드웨어 타이머.
 - **특징**: 
     - **4분할 인터랙티브 레이아웃**: OLED 1(시 / 00H), OLED 2(분 / 00M), OLED 3(초 / 00S), OLED 4(START / PAUSE / RESET).
