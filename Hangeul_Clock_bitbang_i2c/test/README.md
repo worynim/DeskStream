@@ -11,6 +11,7 @@
 ```bash
 cd test
 g++ -std=c++11 -I.. test_bitbang_core.cpp -o /tmp/test_bitbang_core && /tmp/test_bitbang_core
+g++ -std=c++11 -I.. test_frame_diff.cpp -o /tmp/test_frame_diff && /tmp/test_frame_diff
 g++ -std=c++11 -I.. test_tz_util.cpp ../tz_util.cpp -o /tmp/test_tz_util && /tmp/test_tz_util
 g++ -std=c++11 -I.. test_utf8_len.cpp -o /tmp/test_utf8_len && /tmp/test_utf8_len
 g++ -std=c++11 -I.. test_geometry.cpp ../renderer_geometry.cpp -o /tmp/test_geometry && /tmp/test_geometry
@@ -22,6 +23,7 @@ g++ -std=c++11 -I.. test_layout.cpp ../renderer_layout.cpp -o /tmp/test_layout &
 | 파일 | 내용 |
 |:--|:--|
 | `test_bitbang_core.cpp` | BitBang 인코딩 순수 로직. 비트 순서(MSB 먼저), ACK 극성(LOW가 ACK), 4버스 동시 전송의 열 구간 합집합. 인코더 출력을 **복조해 원바이트로 왕복**시키는 검증 포함 |
+| `test_frame_diff.cpp` | 셰도 버퍼 페이지 diff(`fdDiffPage`, 타일 워드 비교). 예전 바이트 루프를 옮긴 기준 구현과 구간·셰도를 무작위 20000회 대조 |
 | `test_tz_util.cpp` | POSIX TZ 문자열 화이트리스트 검증 단위 테스트 |
 | `test_utf8_len.cpp` | UTF-8 리딩 바이트 판정 회귀 테스트 (4바이트 문자 3바이트 오판정 버그) |
 | `test_geometry.cpp` | 글자 셀 기하 판별 회귀 테스트 (257~511바이트 파일의 초과 읽음 차단) |

@@ -63,7 +63,7 @@ public:
      */
     OledPanel u8g2_1, u8g2_2, u8g2_3, u8g2_4;
     U8G2* screens[NUM_SCREENS];
-    uint8_t u8g2_buffers[NUM_SCREENS][SCREEN_WIDTH * PAGES_PER_SCREEN]; 
+    alignas(4) uint8_t u8g2_buffers[NUM_SCREENS][SCREEN_WIDTH * PAGES_PER_SCREEN];   // 4바이트 정렬 — frame_diff.h 워드 비교
     String lastTexts[4];
 
     DisplayManager();

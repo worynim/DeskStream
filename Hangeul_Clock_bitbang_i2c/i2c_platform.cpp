@@ -73,19 +73,6 @@ void I2CPlatform::begin() {
 // 셰도 버퍼 · dirty 장부
 // ─────────────────────────────────────────────────────────────────────────────
 
-void I2CPlatform::setShadowData(uint8_t screenIdx, int offset, uint8_t data) {
-    if (screenIdx < NUM_SCREENS && offset < (SCREEN_WIDTH * PAGES_PER_SCREEN)) {
-        _shadow_buffer[screenIdx][offset] = data;
-    }
-}
-
-uint8_t I2CPlatform::getShadowData(uint8_t screenIdx, int offset) const {
-    if (screenIdx < NUM_SCREENS && offset < (SCREEN_WIDTH * PAGES_PER_SCREEN)) {
-        return _shadow_buffer[screenIdx][offset];
-    }
-    return 0;
-}
-
 void I2CPlatform::invalidateShadow(uint8_t screenIdx) {
     if (screenIdx < NUM_SCREENS) {
         // 0xEE는 0x00(Clear)이나 0xFF(Initial)와 다른 특수 값으로,

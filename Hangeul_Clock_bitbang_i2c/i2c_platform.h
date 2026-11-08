@@ -53,8 +53,12 @@ public:
     void begin();
 
     // ── 셰도 버퍼 (diff 기준) ───────────────────────────────────────────
-    void setShadowData(uint8_t screenIdx, int offset, uint8_t data);
-    uint8_t getShadowData(uint8_t screenIdx, int offset) const;
+    /**
+     * @brief 화면의 셰도 버퍼 시작 (SCREEN_WIDTH × PAGES_PER_SCREEN 바이트, 4바이트 정렬)
+     * @details [FPS 개선] 바이트 단위 get/setShadowData()를 대체한다 — diff가 타일을
+     *          워드로 직접 비교·복사한다 (frame_diff.h). screenIdx는 호출부가 보장한다.
+     */
+    uint8_t* shadowBuffer(uint8_t screenIdx) { return _shadow_buffer[screenIdx]; }
     void invalidateShadow(uint8_t screenIdx);
 
     // ── 캡처 후 재생 ────────────────────────────────────────────────────
@@ -97,7 +101,7 @@ private:
      * 셰도 버퍼 — "화면에 실제로 들어가 있는 값"의 사본.
      * 페이지 변경 구간을 찾는 diff의 기준이다.
      */
-    uint8_t _shadow_buffer[NUM_SCREENS][SCREEN_WIDTH * PAGES_PER_SCREEN];
+    alignas(4) uint8_t _shadow_buffer[NUM_SCREENS][SCREEN_WIDTH * PAGES_PER_SCREEN];
 
     /** U8g2가 START_TRANSFER~END_TRANSFER 사이에 누적하는 패킷 (즉시 전송 경로용) */
     uint8_t  _packet_buf[NUM_SCREENS][I2C_PACKET_BUF_SIZE];

@@ -1,11 +1,11 @@
-# Hangeul Clock BB — v1.1.0
+# Hangeul Clock BB — v1.1.1
 
 4× 1.3" OLED 한글 시계. ESP32-C3에서 **4개의 독립 BitBang I2C 버스**로 화면 4개를
 **동시에** 구동합니다. [`Hangeul_Clock`](../Hangeul_Clock/) v2.9.3을 복사해
 **전송 계층만 교체**한 파생 프로젝트입니다.
 
-> 실기 검증 완료(2026-10-10). v1.1.0(2026-11-08)에서 전송 경로를 최적화해
-> **4화면 풀 프레임 86.8fps** — 원본 `Hangeul_Clock`(34fps)의 약 2.5배 (부팅 벤치마크 실측).
+> 실기 검증 완료(2026-10-10). v1.1.0~v1.1.1(2026-11-08)에서 전송 경로와 diff를 최적화해
+> **4화면 풀 프레임 97.3fps** — 원본 `Hangeul_Clock`(34fps)의 약 2.9배 (부팅 벤치마크 실측).
 
 ---
 
@@ -41,7 +41,8 @@ SCL을 공유한 채 4개 SDA에 서로 다른 비트를 실으면 **4개 화면
 | 원본 `Hangeul_Clock` (HW 2화면 + SW 2화면 병렬, 버스마다 순차) | HW 710 / SW 763 kHz | 29.8 ms | 34 |
 | 이 펌웨어 v1.0.x (`BB_HALF_BIT_NS 0`) | 474 kHz | 25.1 ms | 40 |
 | v1.1.0, `BB_HALF_BIT_NS 250` | 848 kHz | 15.0 ms | 66.6 |
-| **v1.1.0, `BB_HALF_BIT_NS 150` (기본)** | **1,170 kHz** | **11.5 ms** | **86.8** |
+| v1.1.0, `BB_HALF_BIT_NS 150` | 1,170 kHz | 11.5 ms | 86.8 |
+| **v1.1.1, `BB_HALF_BIT_NS 150` (기본) + diff 최적화** | **1,170 kHz** | **10.3 ms** | **97.3** |
 
 같은 클럭이면 원본은 화면 2개분, 동시 전송은 화면 1개분의 시간이 든다 — 구조만으로 2배.
 1화면만 바꿀 때와 4화면을 모두 바꿀 때의 전송 시간이 같다(트랜잭션 64/frame으로 동일).
@@ -151,7 +152,7 @@ Multi_BitBang은 GPLv3이며 원본 그대로 들어 있습니다 — 출처·�
 [I2C] 화면2 (SDA 7): 0x3C OK
 [I2C] 화면3 (SDA 8): 0x3C OK
 [I2C] 반주기 지연: 없음 (최대 속도)
-[SYSTEM] Hangeul_Clock_bitbang_i2c v1.1.0 OLED=SH1106 frame=CONCURRENT screenRev=1
+[SYSTEM] Hangeul_Clock_bitbang_i2c v1.1.1 OLED=SH1106 frame=CONCURRENT screenRev=1
 ```
 
 **마지막 줄이 보이면 정상 시계 펌웨어가 도는 중입니다.**
@@ -189,7 +190,7 @@ Multi_BitBang은 GPLv3이며 원본 그대로 들어 있습니다 — 출처·�
 | `BB_SCREEN_ORDER_REVERSED` | `1` | 좌→우 배치가 반대일 때 |
 | `BB_HALF_BIT_NS` | `150` | 오류·노이즈가 보이면 **키운다** (250 ≈ 850kHz, 400 ≈ 700kHz). 0(약 1.5MHz)은 실기에서 오류 |
 | `BB_SCL_SPIN_MAX` | `32` | SCL 상승을 micros() 없이 다시 읽는 횟수 (넘으면 타임아웃 경로) |
-| `FPS_BENCH_ON_BOOT` | `1` | 부팅 시 FPS 벤치마크 (결과는 시리얼과 화면 0, 약 10초). 측정이 끝나면 `0` |
+| `FPS_BENCH_ON_BOOT` | `0` | `1`이면 부팅 시 FPS 벤치마크 (결과는 시리얼과 화면 0, 부팅 약 10초 지연) |
 | `BB_FRAME_PATH` | `CONCURRENT` | 동시 전송이 문제일 때 `U8G2`(순차, 안전) |
 | `HAS_BUZZER` | `0` | 부저를 달 때 (**GPIO 7은 OLED3 SDA라 재지정 필요**) |
 
@@ -201,6 +202,7 @@ Multi_BitBang은 GPLv3이며 원본 그대로 들어 있습니다 — 출처·�
 |:--|:--|
 | `Hangeul_Clock_bitbang_i2c.ino` | 메인 (setup/loop, 버튼 콜백, 진단 트리거) |
 | `config.h` | 핀맵 · 컨트롤러 · 전송 경로 · 클럭 |
+| `frame_diff.h` | **순수 diff 로직** — 페이지의 바뀐 타일 구간 (타일 워드 비교, 호스트 테스트 대상) |
 | `bitbang_i2c_core.h` | **순수 판단 로직** — 비트 순서, ACK 극성, 열 구간 합집합 (호스트 테스트 대상) |
 | `bitbang_i2c.{h,cpp}` | ESP32-C3 BitBang 드라이버 — 4버스 동시 전송 |
 | `i2c_platform.{h,cpp}` | **캡처 후 재생** 전송 계층 + 셰도 버퍼 |

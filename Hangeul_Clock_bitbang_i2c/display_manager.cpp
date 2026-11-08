@@ -8,6 +8,7 @@
 #include "display_manager.h"
 #include "config.h"          // FONT_SLOT_COUNT
 #include "renderer_layout.h" // layoutIsDayText() — 제목 화면의 우측 정렬 판정
+#include "frame_diff.h"      // fdDiffPage() — 셰도 버퍼 타일 diff (순수 로직)
 #include "LittleFS.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/timers.h>
@@ -617,24 +618,19 @@ void DisplayManager::renderFlapFrame(int i, int step) {
  *      통일됐다. `screen` 인자는 남아 있지만 onHwPageDirty는 쓰지 않는다 —
  *      시그니처를 바꾸면 diff 루프와 콜백 쌍을 다시 맞춰야 해서 얻는 것이 없다.
  */
+__attribute__((optimize("O2")))
 static void diffAndForEachPage(int screenIdx, U8G2* screen,
                                void (*onPageDirty)(U8G2* screen, int screenIdx, int page, int firstTile, int tileCount)) {
-    uint8_t* buf = screen->getBufferPtr();
+    // [FPS 개선] 바이트마다 get/setShadowData()를 부르던 루프를 타일 워드 비교로 바꿨다.
+    //   구간 규칙(첫~마지막 바뀐 타일)과 셰도 갱신 시점(비교 직후)은 그대로다 — frame_diff.h.
+    //   ⚠ getBufferPtr()는 u8g2_buffers(alignas(4))를 가리켜야 한다 (begin()에서 tile_buf_ptr 지정).
+    const uint8_t* buf = screen->getBufferPtr();
+    uint8_t* shadow = i2cPlatform.shadowBuffer((uint8_t)screenIdx);
     for (int p = 0; p < PAGES_PER_SCREEN; p++) {
-        bool page_dirty = false;
-        int first_tile = -1, last_tile = -1;
-        for (int t = 0; t < TILES_PER_PAGE; t++) {
-            bool tile_dirty = false;
-            for (int tx = 0; tx < 8; tx++) {
-                int idx = p * SCREEN_WIDTH + t * 8 + tx;
-                if (buf[idx] != i2cPlatform.getShadowData(screenIdx, idx)) {
-                    tile_dirty = true;
-                    i2cPlatform.setShadowData(screenIdx, idx, buf[idx]);
-                }
-            }
-            if (tile_dirty) { if (first_tile == -1) first_tile = t; last_tile = t; page_dirty = true; }
+        uint8_t first = 0, count = 0;
+        if (fdDiffPage(buf + p * SCREEN_WIDTH, shadow + p * SCREEN_WIDTH, TILES_PER_PAGE, &first, &count)) {
+            onPageDirty(screen, screenIdx, p, first, count);
         }
-        if (page_dirty) onPageDirty(screen, screenIdx, p, first_tile, last_tile - first_tile + 1);
     }
 }
 
