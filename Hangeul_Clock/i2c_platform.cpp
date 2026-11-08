@@ -53,7 +53,10 @@ void I2CPlatform::notifyTransmission() {
 
 void I2CPlatform::waitForSync(uint32_t timeout_ms) {
     if (_is_transmitting && _hw_task_handle) {
-        if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(timeout_ms)) == 0) {
+        const uint32_t w0 = micros();
+        const uint32_t got = ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(timeout_ms));
+        _statWaitUs += (uint32_t)(micros() - w0);
+        if (got == 0) {
             Serial.printf("[I2C] Sync Timeout! (%d ms)\n", timeout_ms);
             _error_count += 5; // 동기화 타임아웃은 심각한 지연이므로 가중치 부여
         }
@@ -136,6 +139,7 @@ void I2CPlatform::i2c_hw_task(void* arg) {
     I2CPlatform* plt = (I2CPlatform*)arg;
     while (1) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        const uint32_t t0 = micros();   // 통계: 이번 회차 HW 전송 시간
         bool has_error = false;
 
         for (int s = 0; s < 2; s++) {
@@ -151,6 +155,12 @@ void I2CPlatform::i2c_hw_task(void* arg) {
                 page_ok[p] = transmitPage(dev_h, s, p, plt->_shadow_buffer[s],
                                           plt->_hw_first_tile[s][p], plt->_hw_tile_count[s][p]) ? 1 : 0;
                 if (!page_ok[p]) has_error = true;
+                else {
+                    // 통계: CMD(주소+4바이트) + DATA(주소+0x40+len) 두 트랜잭션
+                    const uint32_t len = (uint32_t)plt->_hw_tile_count[s][p] * 8u;
+                    plt->_statHwBits += (2u + 9u * (1u + 4u)) + (2u + 9u * (1u + 1u + len));
+                    plt->_statHwTx += 2;
+                }
             }
             plt->_hw_dirty_mask[s] = dirtyMaskAfterSend(mask, page_ok, PAGES_PER_SCREEN);
         }
@@ -164,6 +174,7 @@ void I2CPlatform::i2c_hw_task(void* arg) {
             plt->_error_count--;
         }
 
+        plt->_statHwUs += (uint32_t)(micros() - t0);
         if (plt->_main_task_handle) xTaskNotifyGive(plt->_main_task_handle);
     }
 }

@@ -50,6 +50,45 @@ static inline void bbByteBitMasks(const uint8_t* bytes, const uint8_t* sdaPins,
 }
 
 /**
+ * @brief 니블(4비트) → 비트별 SDA "HIGH 핀 마스크" 표를 미리 계산한다
+ * @param sdaPins  버스별 SDA GPIO 번호
+ * @param busCount 버스 수
+ * @param nib      [출력] nib[b][n][k] = 버스 b의 니블 값이 n일 때, 그 니블의 k번째 비트
+ *                 (MSB부터)에서 HIGH로 둘 핀. 상위 니블은 바이트 비트 0~3, 하위 니블은
+ *                 비트 4~7에 같은 표를 쓴다 (니블→비트 규칙이 같으므로 표는 하나).
+ *
+ * @details [FPS 개선] bbByteBitMasks()는 바이트마다 4버스 × 8비트 이중 루프를 돌았다
+ *          (분기 포함, 바이트당 수백 사이클 — 실측 SCL 474kHz의 원인 후보).
+ *          이 표를 쓰면 비트 i의 ones = 4버스 표값의 OR 세 번으로 끝난다.
+ *          LOW로 당길 핀은 `참여핀마스크 & ~ones` 로 얻는다.
+ *          크기: 4버스 × 16 × 4 × 4B = 1KB.
+ * @note 비참여 버스는 바이트 0을 넣으면 ones에 아무것도 보태지 않는다 (니블 0 행은 전부 0).
+ *       결과는 bbByteBitMasks()의 ones와 **같아야 한다** — 호스트 테스트로 전 바이트 대조.
+ */
+static inline void bbBuildNibbleLut(const uint8_t* sdaPins, uint8_t busCount,
+                                    uint32_t nib[][16][4]) {
+    for (uint8_t b = 0; b < BB_CORE_MAX_BUSES; b++) {
+        const uint32_t pinBit = (b < busCount) ? ((uint32_t)1u << sdaPins[b]) : 0u;
+        for (int n = 0; n < 16; n++) {
+            for (int k = 0; k < 4; k++) {
+                nib[b][n][k] = (n & (0x8 >> k)) ? pinBit : 0u;   // 니블도 MSB부터
+            }
+        }
+    }
+}
+
+/**
+ * @brief 니블 표로 바이트 4개(버스별)의 비트 i에서 HIGH로 둘 핀 마스크를 구한다
+ * @details 펌웨어 핫 루프와 **같은 식**을 호스트 테스트가 검증하도록 순수 함수로 둔다.
+ */
+static inline uint32_t bbOnesFromLut(const uint32_t nib[][16][4], const uint8_t* bytes, int i) {
+    const int sh = (i < 4) ? 4 : 0;
+    const int k  = i & 3;
+    return nib[0][(bytes[0] >> sh) & 0xF][k] | nib[1][(bytes[1] >> sh) & 0xF][k]
+         | nib[2][(bytes[2] >> sh) & 0xF][k] | nib[3][(bytes[3] >> sh) & 0xF][k];
+}
+
+/**
  * @brief ACK 클럭에서 읽은 GPIO 입력 레지스터로부터 "ACK한 버스" 마스크를 만든다
  * @param inReg      GPIO 입력 레지스터 값 (핀 단위)
  * @param sdaPins    버스별 SDA GPIO 번호

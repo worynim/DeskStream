@@ -112,6 +112,12 @@ public:
     void showLargeIP(IPAddress ip);
     void showButtonHelp();
     void showStatus(const String& msg);
+
+    /**
+     * @brief 풀 프레임 전송 FPS를 측정해 시리얼과 화면에 보고한다
+     * @details config.h의 FPS_BENCH_ON_BOOT 참조. 화면 내용을 덮어쓰므로 부팅 중에만 부른다.
+     */
+    void runFpsBenchmark();
     void playStartupMelody(); // 시작 멜로디 재생
     void playChimeMelody(); // 시보 멜로디 재생
 

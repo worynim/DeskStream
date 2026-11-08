@@ -739,4 +739,129 @@ void DisplayManager::showStatus(const String& msg) {
     u8g2->drawStr(0, 10, msg.c_str()); pushParallel();
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// FPS 벤치마크 (config.h FPS_BENCH_ON_BOOT) — 꺼져 있으면 컴파일하지 않는다
+// ─────────────────────────────────────────────────────────────────────────────
+#if FPS_BENCH_ON_BOOT
+
+// SW 버스 통계 — 벤치마크 동안만 화면 2·3의 byte_cb를 이 래퍼로 바꿔 끼운다.
+static uint64_t g_swBits = 0, g_swUs = 0;
+static uint32_t g_swTx = 0, g_swT0 = 0, g_swCur = 0;
+
+/** U8g2 SW I2C byte_cb를 감싸 트랜잭션별 바이트 수·시간을 센다 */
+static uint8_t benchSwByteCb(u8x8_t* u8x8, uint8_t msg, uint8_t arg_int, void* arg_ptr) {
+    if (msg == U8X8_MSG_BYTE_START_TRANSFER) { g_swT0 = micros(); g_swCur = 0; }
+    else if (msg == U8X8_MSG_BYTE_SEND)      { g_swCur += arg_int; }
+    const uint8_t r = u8x8_byte_sw_i2c(u8x8, msg, arg_int, arg_ptr);
+    if (msg == U8X8_MSG_BYTE_END_TRANSFER) {
+        g_swUs   += (uint32_t)(micros() - g_swT0);
+        g_swBits += 2u + 9u * (1u + g_swCur);   // START + (주소+페이로드)×9 + STOP
+        g_swTx++;
+    }
+    return r;
+}
+
+/** 한 케이스의 측정 결과 */
+struct FpsBenchResult {
+    uint32_t frames;
+    uint32_t totalUs;           // N프레임 전체 (마지막 HW 전송 완료까지)
+    uint64_t hwUs, hwBits;      // HW 버스 (I2C 태스크)
+    uint64_t swUs, swBits;      // SW 버스 (메인 루프)
+    uint64_t waitUs;            // 메인이 HW 완료를 기다린 시간
+    uint32_t hwTx, swTx;
+};
+
+/**
+ * @brief screenMask에 속한 화면만 매 프레임 전부 바뀌게 그리고 pushParallel()을 잰다
+ * @details 0xAA/0x55를 번갈아 채우면 **모든 바이트**가 직전 프레임과 달라져
+ *          diff가 8페이지 × 16타일 전부를 잡는다 → 풀 프레임 전송이 강제된다.
+ *          pushParallel()은 HW 전송을 태스크에 넘기고 돌아오므로, 마지막에 waitForSync()로
+ *          **마지막 HW 전송까지** 포함해 잰다 (실제 연속 프레임 처리량과 같다).
+ */
+static FpsBenchResult fpsBenchCase(DisplayManager* dm, uint8_t screenMask, uint32_t frames) {
+    U8G2* const* screens = dm->screens;
+    for (int s = 0; s < NUM_SCREENS; s++) screens[s]->clearBuffer();
+    dm->pushParallel();
+    i2cPlatform.waitForSync(I2C_SYNC_TIMEOUT_MS);
+
+    i2cPlatform.resetStats();
+    g_swBits = 0; g_swUs = 0; g_swTx = 0;
+
+    FpsBenchResult r = {};
+    r.frames = frames;
+    const uint32_t t0 = micros();
+    for (uint32_t f = 0; f < frames; f++) {
+        const uint8_t pat = (f & 1u) ? 0x55 : 0xAA;
+        for (int s = 0; s < NUM_SCREENS; s++) {
+            if (screenMask & (1u << s)) memset(screens[s]->getBufferPtr(), pat, SCREEN_WIDTH * PAGES_PER_SCREEN);
+        }
+        dm->pushParallel();
+    }
+    i2cPlatform.waitForSync(I2C_SYNC_TIMEOUT_MS);   // 마지막 HW 전송 완료까지
+    r.totalUs = (uint32_t)(micros() - t0);
+
+    r.hwUs = i2cPlatform.statHwUs();   r.hwBits = i2cPlatform.statHwBits(); r.hwTx = i2cPlatform.statHwTx();
+    r.swUs = g_swUs;                   r.swBits = g_swBits;                 r.swTx = g_swTx;
+    r.waitUs = i2cPlatform.statWaitUs();
+    return r;
+}
+
+static float benchKHz(uint64_t bits, uint64_t us) { return us ? (float)bits * 1000.0f / (float)us : 0.0f; }
+
+static void fpsBenchPrint(const char* name, const FpsBenchResult& r) {
+    const float n = (float)(r.frames ? r.frames : 1);
+    const float msPerFrame = (float)r.totalUs / 1000.0f / n;
+    const float fps = r.totalUs ? (1e6f * n / (float)r.totalUs) : 0.0f;
+    Serial.printf("[FPS] %s\n", name);
+    Serial.printf("[FPS]   %u프레임, 평균 %.2f ms/frame -> %.1f FPS\n", (unsigned)r.frames, msPerFrame, fps);
+    Serial.printf("[FPS]   HW 버스: %.2f ms/frame, 실효 SCL %.0f kHz (트랜잭션 %u/frame)\n",
+                  (float)r.hwUs / 1000.0f / n, benchKHz(r.hwBits, r.hwUs), (unsigned)(r.hwTx / n));
+    Serial.printf("[FPS]   SW 버스: %.2f ms/frame, 실효 SCL %.0f kHz (트랜잭션 %u/frame)\n",
+                  (float)r.swUs / 1000.0f / n, benchKHz(r.swBits, r.swUs), (unsigned)(r.swTx / n));
+    Serial.printf("[FPS]   메인이 HW 완료를 기다린 시간: %.2f ms/frame\n", (float)r.waitUs / 1000.0f / n);
+}
+
+void DisplayManager::runFpsBenchmark() {
+    Serial.printf("[FPS] 벤치마크 시작 (원본 HW+SW) — HW %d Hz, CPU %u MHz\n",
+                  (int)I2C_SPEED_HZ, (unsigned)getCpuFrequencyMhz());
+
+    // SW 버스 통계용 래퍼를 끼운다 (벤치마크가 끝나면 원래 콜백으로 되돌린다)
+    u8x8_msg_cb swCb2 = u8g2_3.getU8x8()->byte_cb;
+    u8x8_msg_cb swCb3 = u8g2_4.getU8x8()->byte_cb;
+    u8g2_3.getU8x8()->byte_cb = benchSwByteCb;
+    u8g2_4.getU8x8()->byte_cb = benchSwByteCb;
+
+    const FpsBenchResult a = fpsBenchCase(this, 0x0F, FPS_BENCH_FRAMES);   // 4화면
+    const FpsBenchResult b = fpsBenchCase(this, 0x01, FPS_BENCH_FRAMES);   // HW 1화면
+    const FpsBenchResult c = fpsBenchCase(this, 0x04, FPS_BENCH_FRAMES);   // SW 1화면
+
+    u8g2_3.getU8x8()->byte_cb = swCb2;
+    u8g2_4.getU8x8()->byte_cb = swCb3;
+
+    fpsBenchPrint("A) 4화면 풀 프레임 (HW 2 + SW 2 병렬)", a);
+    fpsBenchPrint("B) 화면 0만 (HW 1화면)", b);
+    fpsBenchPrint("C) 화면 2만 (SW 1화면)", c);
+
+    // 화면에도 띄운다 — USB CDC는 포트를 늦게 열면 부팅 로그를 놓친다
+    auto fpsOf = [](const FpsBenchResult& r) { return r.totalUs ? 1e6f * r.frames / r.totalUs : 0.0f; };
+    auto msOf  = [](const FpsBenchResult& r) { return r.frames ? r.totalUs / 1000.0f / r.frames : 0.0f; };
+    char line[32];
+    for (int s = 0; s < NUM_SCREENS; s++) screens[s]->clearBuffer();
+    U8G2* u = screens[0];
+    u->setFont(STATUS_FONT);
+    u->drawStr(0, 10, "FPS BENCH (HW+SW)");
+    snprintf(line, sizeof(line), "4scr %.1fms %.0ffps", msOf(a), fpsOf(a)); u->drawStr(0, 24, line);
+    snprintf(line, sizeof(line), "HW1 %.1fms %.0ffps", msOf(b), fpsOf(b));  u->drawStr(0, 36, line);
+    snprintf(line, sizeof(line), "SW1 %.1fms %.0ffps", msOf(c), fpsOf(c));  u->drawStr(0, 48, line);
+    snprintf(line, sizeof(line), "HW%.0f SW%.0f kHz",
+             benchKHz(a.hwBits, a.hwUs), benchKHz(a.swBits, a.swUs));        u->drawStr(0, 60, line);
+    pushParallel();
+    i2cPlatform.waitForSync(I2C_SYNC_TIMEOUT_MS);
+    delay(FPS_BENCH_SHOW_MS);
+
+    for (int s = 0; s < NUM_SCREENS; s++) screens[s]->clearBuffer();
+    pushParallel();
+}
+#endif  // FPS_BENCH_ON_BOOT
+
 // 하위 레벨 I2C 전송 콜백은 i2c_platform.cpp로 이관됨

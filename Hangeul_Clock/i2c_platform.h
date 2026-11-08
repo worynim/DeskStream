@@ -55,6 +55,19 @@ public:
     // HW 전송 태스크
     static void i2c_hw_task(void* arg);
 
+    // ── 전송 통계 (FPS 벤치마크용) ──────────────────────────────────────
+    /**
+     * @brief HW 버스가 실제로 낸 비트 주기 수·전송 시간, 메인이 HW를 기다린 시간을 누적한다
+     * @details 비트 주기 = START 1 + (주소 1 + 페이로드 N) × 9(8비트+ACK) + STOP 1.
+     *          `statHwBits / statHwUs` = HW 버스 실효 SCL 주파수.
+     *          `statWaitUs` > 0 이면 HW 버스가 SW 버스보다 늦게 끝나 메인이 기다렸다는 뜻.
+     */
+    void     resetStats() { _statHwBits = 0; _statHwUs = 0; _statWaitUs = 0; _statHwTx = 0; }
+    uint64_t statHwBits() const { return _statHwBits; }
+    uint64_t statHwUs()   const { return _statHwUs; }
+    uint64_t statWaitUs() const { return _statWaitUs; }
+    uint32_t statHwTx()   const { return _statHwTx; }
+
 private:
     i2c_master_bus_handle_t _i2c_bus_handle;
     i2c_master_dev_handle_t _i2c_dev_handle[2];
@@ -69,7 +82,12 @@ private:
 
     volatile bool _is_transmitting = false;
     uint32_t _error_count = 0;
-    
+
+    volatile uint64_t _statHwBits = 0;   // HW 태스크가 갱신, 메인이 읽음 (벤치마크는 동기화 후 읽는다)
+    volatile uint64_t _statHwUs   = 0;
+    uint64_t _statWaitUs = 0;
+    volatile uint32_t _statHwTx   = 0;
+
     TaskHandle_t _hw_task_handle = nullptr;
     TaskHandle_t _main_task_handle = nullptr;
 };

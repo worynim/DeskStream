@@ -62,6 +62,19 @@
 #define I2C_ERROR_THRESHOLD 50   // 누적 오류 횟수 — 초과 시 recoverBus()로 버스 자가 복구
 #define HW_I2C_BUF_SIZE 256
 
+/**
+ * 부팅 시 FPS 벤치마크 실행 여부 (1 = 실행). Hangeul_Clock_bitbang_i2c와 같은 방식이다.
+ * @details display.begin() 직후, WiFi 연결 전에 한 번 돈다. 매 프레임 모든 바이트가
+ *          바뀌는 패턴을 그려 **풀 프레임 전송**을 강제하고 pushParallel() 시간을 잰다.
+ *            · 케이스 A: 4화면 풀 프레임 (HW 2화면 + SW 2화면 병렬)
+ *            · 케이스 B: 화면 0만 (HW 버스 1화면)
+ *            · 케이스 C: 화면 2만 (SW 버스 1화면)
+ *          결과는 시리얼(115200)과 화면 0에 표시된다. 측정이 끝나면 0으로 되돌린다.
+ */
+#define FPS_BENCH_ON_BOOT 0
+#define FPS_BENCH_FRAMES 50      // 케이스당 측정 프레임 수
+#define FPS_BENCH_SHOW_MS 8000   // 결과를 화면에 띄워 두는 시간 (ms)
+
 // === [5] RTOS 태스크 설정 ===
 #define HW_TASK_STACK 4096
 #define HW_TASK_PRIO 10

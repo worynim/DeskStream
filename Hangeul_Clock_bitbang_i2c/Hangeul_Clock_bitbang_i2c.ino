@@ -194,7 +194,10 @@ void setup() {
 
     // 디스플레이 초기화 및 시작 피드백
     display.begin();
-    display.playStartupMelody(); 
+#if FPS_BENCH_ON_BOOT
+    display.runFpsBenchmark();   // 풀 프레임 전송 FPS 측정 (config.h FPS_BENCH_ON_BOOT)
+#endif
+    display.playStartupMelody();
     
     // 부팅 로그 — 브링업에서 "어느 펌웨어가 도는가"를 화면과 시리얼 양쪽에서 확인한다.
     //   화면(6x10 폰트)은 21자가 상한이라 두 줄로 나눈다.

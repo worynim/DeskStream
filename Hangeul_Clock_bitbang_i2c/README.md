@@ -1,10 +1,11 @@
-# Hangeul Clock BB — v1.0.9
+# Hangeul Clock BB — v1.1.0
 
 4× 1.3" OLED 한글 시계. ESP32-C3에서 **4개의 독립 BitBang I2C 버스**로 화면 4개를
 **동시에** 구동합니다. [`Hangeul_Clock`](../Hangeul_Clock/) v2.9.3을 복사해
 **전송 계층만 교체**한 파생 프로젝트입니다.
 
-> 실기 검증 완료(2026-10-10). 원본과 동급 속도로 동작합니다.
+> 실기 검증 완료(2026-10-10). v1.1.0(2026-11-08)에서 전송 경로를 최적화해
+> **4화면 풀 프레임 86.8fps** — 원본 `Hangeul_Clock`(34fps)의 약 2.5배 (부팅 벤치마크 실측).
 
 ---
 
@@ -33,10 +34,17 @@ SCL을 공유한 채 4개 SDA에 서로 다른 비트를 실으면 **4개 화면
 
 **필요한 이유**: ESP32-C3는 단일 코어라 순차 전송이 곧 메인 루프 정지입니다.
 
-| | 4화면 풀 프레임 |
-|:--|--:|
-| 순차 전송 (화면 1대씩) | 약 41 ms |
-| **동시 전송 (기본)** | **약 10 ms** |
+부팅 벤치마크 실측 (2026-11-08, 4화면 풀 프레임, `FPS_BENCH_ON_BOOT`):
+
+| 구성 | 실효 SCL | 프레임 | FPS |
+|:--|--:|--:|--:|
+| 원본 `Hangeul_Clock` (HW 2화면 + SW 2화면 병렬, 버스마다 순차) | HW 710 / SW 763 kHz | 29.8 ms | 34 |
+| 이 펌웨어 v1.0.x (`BB_HALF_BIT_NS 0`) | 474 kHz | 25.1 ms | 40 |
+| v1.1.0, `BB_HALF_BIT_NS 250` | 848 kHz | 15.0 ms | 66.6 |
+| **v1.1.0, `BB_HALF_BIT_NS 150` (기본)** | **1,170 kHz** | **11.5 ms** | **86.8** |
+
+같은 클럭이면 원본은 화면 2개분, 동시 전송은 화면 1개분의 시간이 든다 — 구조만으로 2배.
+1화면만 바꿀 때와 4화면을 모두 바꿀 때의 전송 시간이 같다(트랜잭션 64/frame으로 동일).
 
 ---
 
@@ -143,7 +151,7 @@ Multi_BitBang은 GPLv3이며 원본 그대로 들어 있습니다 — 출처·�
 [I2C] 화면2 (SDA 7): 0x3C OK
 [I2C] 화면3 (SDA 8): 0x3C OK
 [I2C] 반주기 지연: 없음 (최대 속도)
-[SYSTEM] Hangeul_Clock_bitbang_i2c v1.0.9 OLED=SH1106 frame=CONCURRENT screenRev=1
+[SYSTEM] Hangeul_Clock_bitbang_i2c v1.1.0 OLED=SH1106 frame=CONCURRENT screenRev=1
 ```
 
 **마지막 줄이 보이면 정상 시계 펌웨어가 도는 중입니다.**
@@ -179,7 +187,9 @@ Multi_BitBang은 GPLv3이며 원본 그대로 들어 있습니다 — 출처·�
 |:--|:--|:--|
 | `OLED_DRIVER` | `SH1106` | 컨트롤러가 다를 때 (진단 3으로 확인) |
 | `BB_SCREEN_ORDER_REVERSED` | `1` | 좌→우 배치가 반대일 때 |
-| `BB_HALF_BIT_NS` | `0` | 화면이 깨질 때 **키운다** (1250 = 약 400kHz) |
+| `BB_HALF_BIT_NS` | `150` | 오류·노이즈가 보이면 **키운다** (250 ≈ 850kHz, 400 ≈ 700kHz). 0(약 1.5MHz)은 실기에서 오류 |
+| `BB_SCL_SPIN_MAX` | `32` | SCL 상승을 micros() 없이 다시 읽는 횟수 (넘으면 타임아웃 경로) |
+| `FPS_BENCH_ON_BOOT` | `1` | 부팅 시 FPS 벤치마크 (결과는 시리얼과 화면 0, 약 10초). 측정이 끝나면 `0` |
 | `BB_FRAME_PATH` | `CONCURRENT` | 동시 전송이 문제일 때 `U8G2`(순차, 안전) |
 | `HAS_BUZZER` | `0` | 부저를 달 때 (**GPIO 7은 OLED3 SDA라 재지정 필요**) |
 

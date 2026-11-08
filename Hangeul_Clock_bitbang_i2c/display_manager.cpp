@@ -871,4 +871,109 @@ void DisplayManager::showStatus(const String& msg) {
     u8g2->drawStr(0, 10, msg.c_str()); pushParallel();
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// FPS 벤치마크 (config.h FPS_BENCH_ON_BOOT) — 꺼져 있으면 컴파일하지 않는다 (Flash 98%)
+// ─────────────────────────────────────────────────────────────────────────────
+#if FPS_BENCH_ON_BOOT
+
+/** 한 케이스의 측정 결과 */
+struct FpsBenchResult {
+    uint32_t frames;
+    uint32_t totalUs;   // pushParallel() 전체 (diff + 캡처 + 전송)
+    uint64_t wireUs;    // writeConcurrent() 안에서 보낸 시간
+    uint64_t wireBits;  // 선 위의 비트 주기 수
+    uint32_t tx;        // 트랜잭션 수
+    uint32_t errors;    // 측정 중 늘어난 오류 수 (폴백 발생 단서)
+};
+
+/**
+ * @brief screenMask에 속한 화면만 매 프레임 전부 바뀌게 그리고 pushParallel()을 잰다
+ * @details 0xAA/0x55를 번갈아 채우면 **모든 바이트**가 직전 프레임과 달라져
+ *          diff가 8페이지 × 16타일 전부를 잡는다 → 풀 프레임 전송이 강제된다.
+ */
+static FpsBenchResult fpsBenchCase(DisplayManager* dm, uint8_t screenMask, uint32_t frames) {
+    U8G2* const* screens = dm->screens;
+    // 시작 상태를 맞춘다: 전 화면을 지우고 한 번 보내 셰도 버퍼를 동기화
+    for (int s = 0; s < NUM_SCREENS; s++) screens[s]->clearBuffer();
+    dm->pushParallel();
+
+    FpsBenchResult r = {};
+    r.frames = frames;
+    // 오류는 드라이버 누적 카운터로 센다. i2cPlatform.errorCount()는 50회를 넘으면
+    //   recoverBus()가 0으로 되돌려, 오류가 많을수록 오히려 적게 집계됐다.
+    const uint32_t err0 = bitBang.errorCount();
+    bitBang.resetStats();
+
+    const uint32_t t0 = micros();
+    for (uint32_t f = 0; f < frames; f++) {
+        const uint8_t pat = (f & 1u) ? 0x55 : 0xAA;
+        for (int s = 0; s < NUM_SCREENS; s++) {
+            if (screenMask & (1u << s)) memset(screens[s]->getBufferPtr(), pat, SCREEN_WIDTH * PAGES_PER_SCREEN);
+        }
+        dm->pushParallel();
+    }
+    r.totalUs  = (uint32_t)(micros() - t0);
+    r.wireUs   = bitBang.statUs();
+    r.wireBits = bitBang.statBits();
+    r.tx       = bitBang.statTx();
+    r.errors   = bitBang.errorCount() - err0;       // NACK·SCL 타임아웃으로 실패한 트랜잭션 수
+    return r;
+}
+
+static void fpsBenchPrint(const char* name, const FpsBenchResult& r) {
+    const float msPerFrame   = (float)r.totalUs / 1000.0f / (float)r.frames;
+    const float fps          = (r.totalUs > 0) ? (1e6f * (float)r.frames / (float)r.totalUs) : 0.0f;
+    const float wireMsFrame  = (float)r.wireUs / 1000.0f / (float)r.frames;
+    const float otherMsFrame = msPerFrame - wireMsFrame;
+    const float sclKHz       = (r.wireUs > 0) ? ((float)r.wireBits * 1000.0f / (float)r.wireUs) : 0.0f;
+    Serial.printf("[FPS] %s\n", name);
+    Serial.printf("[FPS]   %u프레임, 평균 %.2f ms/frame -> %.1f FPS\n",
+                  (unsigned)r.frames, msPerFrame, fps);
+    Serial.printf("[FPS]   전송 %.2f ms + 그 외(diff·캡처) %.2f ms\n", wireMsFrame, otherMsFrame);
+    Serial.printf("[FPS]   실효 SCL %.0f kHz (비트 %llu / 전송 %llu us, 트랜잭션 %u/frame)\n",
+                  sclKHz, (unsigned long long)r.wireBits, (unsigned long long)r.wireUs,
+                  (unsigned)(r.tx / (r.frames ? r.frames : 1)));
+    if (r.errors) Serial.printf("[FPS]   ⚠ 실패 트랜잭션 %u회 — 순차 폴백이 섞여 시간이 늘었다"
+                                " (성공분만 집계되어 SCL·트랜잭션 수도 왜곡)\n", (unsigned)r.errors);
+}
+
+void DisplayManager::runFpsBenchmark() {
+    Serial.printf("[FPS] 벤치마크 시작 — BB_HALF_BIT_NS=%d, CPU %u MHz\n",
+                  (int)BB_HALF_BIT_NS, (unsigned)getCpuFrequencyMhz());
+
+    // 케이스 A: 4화면 동시 / 케이스 B: 화면 0만
+    const FpsBenchResult a = fpsBenchCase(this, 0x0F, FPS_BENCH_FRAMES);
+    const FpsBenchResult b = fpsBenchCase(this, 0x01, FPS_BENCH_FRAMES);
+
+    fpsBenchPrint("A) 4화면 풀 프레임 (동시 전송)", a);
+    fpsBenchPrint("B) 1화면 풀 프레임", b);
+    const float ratio = (b.totalUs > 0) ? ((float)a.totalUs / (float)b.totalUs) : 0.0f;
+    Serial.printf("[FPS] A/B 시간 비 = %.2f  (1.0에 가까울수록 4화면이 동시에 나간다)\n", ratio);
+
+    // 화면에도 띄운다 — USB CDC는 포트를 늦게 열면 부팅 로그를 놓친다
+    const float fpsA = (a.totalUs > 0) ? (1e6f * a.frames / a.totalUs) : 0.0f;
+    const float fpsB = (b.totalUs > 0) ? (1e6f * b.frames / b.totalUs) : 0.0f;
+    const float sclA = (a.wireUs > 0) ? ((float)a.wireBits * 1000.0f / (float)a.wireUs) : 0.0f;
+    char line[32];
+    for (int s = 0; s < NUM_SCREENS; s++) screens[s]->clearBuffer();
+    U8G2* u = screens[0];
+    u->setFont(STATUS_FONT);
+    u->drawStr(0, 10, "FPS BENCH");
+    snprintf(line, sizeof(line), "4scr %.1fms %.0ffps", a.totalUs / 1000.0f / a.frames, fpsA);
+    u->drawStr(0, 24, line);
+    snprintf(line, sizeof(line), "1scr %.1fms %.0ffps", b.totalUs / 1000.0f / b.frames, fpsB);
+    u->drawStr(0, 36, line);
+    snprintf(line, sizeof(line), "SCL %.0fkHz A/B %.2f", sclA, ratio);
+    u->drawStr(0, 48, line);
+    snprintf(line, sizeof(line), "err %u/%u ns%d", (unsigned)a.errors, (unsigned)b.errors,
+             (int)BB_HALF_BIT_NS);
+    u->drawStr(0, 60, line);
+    pushParallel();
+    delay(FPS_BENCH_SHOW_MS);
+
+    for (int s = 0; s < NUM_SCREENS; s++) screens[s]->clearBuffer();
+    pushParallel();
+}
+#endif  // FPS_BENCH_ON_BOOT
+
 // 하위 레벨 I2C 전송 콜백은 i2c_platform.cpp로 이관됨

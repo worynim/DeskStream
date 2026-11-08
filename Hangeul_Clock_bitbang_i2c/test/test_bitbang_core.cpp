@@ -157,6 +157,38 @@ int main() {
         expectU8("단일 버스 타일 수", c, 2);
     }
 
+    // --- ④ [FPS 개선] 니블 표: 모든 바이트·모든 참여 조합에서 bbByteBitMasks()와 같아야 한다 ---
+    {
+        uint32_t nib[BB_CORE_MAX_BUSES][16][4];
+        bbBuildNibbleLut(sda, 4, nib);
+        int mismatch = 0;
+        for (int mask = 1; mask < 16; mask++) {
+            const uint32_t pm = (mask & 1 ? 1u << 5 : 0) | (mask & 2 ? 1u << 6 : 0)
+                              | (mask & 4 ? 1u << 7 : 0) | (mask & 8 ? 1u << 8 : 0);
+            for (int v = 0; v < 256; v++) {
+                // 버스마다 다른 값 (같은 값이면 버스 섞임을 못 잡는다). 비참여 버스는 0을 넣는다.
+                uint8_t bytes[4];
+                for (int b = 0; b < 4; b++) bytes[b] = (mask & (1 << b)) ? (uint8_t)(v * (b * 2 + 1) + b * 37) : 0;
+                uint32_t ones[8], zeros[8];
+                bbByteBitMasks(bytes, sda, 4, (uint8_t)mask, ones, zeros);
+                for (int i = 0; i < 8; i++) {
+                    const uint32_t o = bbOnesFromLut(nib, bytes, i);
+                    if (o != ones[i] || (pm & ~o) != zeros[i]) mismatch++;
+                }
+            }
+        }
+        expectU32("니블 표 == bbByteBitMasks (15조합 × 256값 × 8비트)", (uint32_t)mismatch, 0u);
+
+        // 복조 왕복: 표로 만든 전이를 MSB 규칙만 아는 디코더가 되살려야 한다
+        const uint8_t bytes[4] = {0xA5, 0x3C, 0x01, 0x80};
+        uint32_t ones[8], zeros[8];
+        for (int i = 0; i < 8; i++) { ones[i] = bbOnesFromLut(nib, bytes, i); zeros[i] = ((1u<<5)|(1u<<6)|(1u<<7)|(1u<<8)) & ~ones[i]; }
+        expectU8("표 복조 버스0", demodulate(ones, zeros, 5), 0xA5);
+        expectU8("표 복조 버스1", demodulate(ones, zeros, 6), 0x3C);
+        expectU8("표 복조 버스2", demodulate(ones, zeros, 7), 0x01);
+        expectU8("표 복조 버스3", demodulate(ones, zeros, 8), 0x80);
+    }
+
     printf("test_bitbang_core: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail == 0 ? 0 : 1;
 }

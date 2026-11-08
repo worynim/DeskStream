@@ -173,7 +173,10 @@ void setup() {
 
     // 디스플레이 초기화 및 시작 피드백
     display.begin();
-    display.playStartupMelody(); 
+#if FPS_BENCH_ON_BOOT
+    display.runFpsBenchmark();   // 풀 프레임 전송 FPS 측정 (config.h FPS_BENCH_ON_BOOT)
+#endif
+    display.playStartupMelody();
     
     logger.addLog("Hangeul Clock");
     logger.addLog("Service Unitized");

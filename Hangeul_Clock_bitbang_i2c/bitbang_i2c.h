@@ -71,6 +71,18 @@ public:
 
     uint32_t errorCount() const { return _errors; }
 
+    // ── 전송 통계 (FPS 벤치마크용) ──────────────────────────────────────
+    /**
+     * @brief writeConcurrent()가 실제로 선 위에 낸 **비트 주기 수**와 그 시간을 누적한다
+     * @details 비트 주기 = START 1 + (주소 1 + 페이로드 N) × 9(8비트+ACK) + STOP 1.
+     *          동시 전송은 4버스가 같은 클럭을 쓰므로 **버스 수와 무관하게 한 번만** 센다.
+     *          → `statBits / statUs` = 실효 SCL 주파수 (바이트 사이 계산 오버헤드 포함).
+     */
+    void     resetStats() { _statBits = 0; _statUs = 0; _statTx = 0; }
+    uint64_t statBits() const { return _statBits; }
+    uint64_t statUs()   const { return _statUs; }
+    uint32_t statTx()   const { return _statTx; }
+
     // ── 저수준 핀 조작 ──────────────────────────────────────────────────
     // 모든 SDA/SCL은 Open-Drain: 래치 1 = Hi-Z(외부 풀업이 HIGH로 끌어올림), 0 = LOW로 당김.
     // GPIO_MODE_INPUT_OUTPUT_OD 로 두면 출력과 동시에 입력(ACK 읽기)도 살아 있다.
@@ -105,7 +117,13 @@ public:
      */
     inline uint8_t sclWaitHigh() const {
         sclHigh();
-        if (GPIO.in.val & _sclBit) return 1;
+        // [FPS 개선] 풀업 RC 때문에 SCL 상승은 수백 ns가 걸린다 — 쓰기 직후 첫 읽기는 대개 LOW다.
+        //   예전엔 첫 읽기에서 실패하면 곧바로 micros() 루프(호출당 수백 사이클)로 빠져
+        //   **매 비트** 그 비용을 냈다. 먼저 레지스터만 몇 번 다시 읽고, 그래도 LOW일 때만
+        //   (진짜 스트레칭·stuck) micros() 타임아웃 경로로 간다.
+        for (uint32_t n = 0; n < BB_SCL_SPIN_MAX; n++) {
+            if (GPIO.in.val & _sclBit) return 1;
+        }
         const uint32_t t0 = micros();
         while (!(GPIO.in.val & _sclBit)) {
             if ((uint32_t)(micros() - t0) > BB_SCL_STRETCH_TIMEOUT_US) return 0;
@@ -132,6 +150,16 @@ private:
     uint32_t _errors     = 0;
     uint32_t _sdaMask    = 0;
     uint32_t _sclBit     = 0;
+    /** [FPS 개선] 니블 → 비트별 HIGH 핀 마스크 표 (bbBuildNibbleLut, 1KB) */
+    uint32_t _nib[BB_CORE_MAX_BUSES][16][4];
+    uint64_t _statBits   = 0;   // 누적 비트 주기 수 (FPS 벤치마크)
+    uint64_t _statUs     = 0;   // 누적 전송 시간 (us)
+    uint32_t _statTx     = 0;   // 누적 트랜잭션 수
+
+    uint8_t writeConcurrentImpl(uint8_t addr, const uint8_t* const* payloads,
+                                uint16_t length, uint8_t busMask);
+    /** [FPS 개선] 핫 경로 — 니블 표로 4버스 바이트 1개 + ACK. 전 참여 버스 ACK면 1 */
+    inline uint8_t sendByteLut(const uint8_t* bytes, uint32_t pm) __attribute__((always_inline));
 
     void    calibrateBitDelay(uint16_t targetNs);
     uint8_t start(uint8_t busMask);
