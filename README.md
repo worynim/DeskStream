@@ -97,6 +97,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 - 펌웨어 **SHA-256**(다운로드) 및 **MD5**(쓰기 후) 무결성 검증, 플래시 후 자동 재부팅
 - 12개 프로젝트: 스마트 정보 스테이션, GPS 대시보드, 사운드 비주얼라이저, 초광폭 OLED 테스트, 시스템 상태 모니터, DS DECK, 화면 스트리머, 게임 오브 라이프, 한글/영어/중국어 시계, 범용 타이머
 - **한글 시계 BB(Hangeul_Clock_bitbang_i2c)는 1.3" SH1106 · 4-bus 회로 구성이 달라 웹 플래셔 대상에서 제외**됩니다.
+  하드웨어가 달라 2026-11-08부터 별도 폴더 **DeskStream_V2**에서 관리합니다.
 
 ### 스마트폰에서 사용하기 (Android)
 
