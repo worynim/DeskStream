@@ -78,17 +78,37 @@ bool isAnimated(State st) {
     return st == State::Think || st == State::Run || st == State::Approve || st == State::Input;
 }
 
-void drawSlot(U8G2& u, const Slot& s, uint8_t idx, uint32_t nowMs) {
+/** 빈 슬롯 — 버튼 idx 를 길게 누르면 하는 일 */
+static void drawEmptySlot(U8G2& u, uint8_t idx, const CmdInfo& cmd) {
+    char buf[24];
+    u.setFont(u8g2_font_6x10_tf);
+    snprintf(buf, sizeof(buf), "SLOT %u  empty", idx + 1);
+    u.drawStr(0, 10, buf);
+    u.drawHLine(0, 13, 128);
+    snprintf(buf, sizeof(buf), "HOLD BTN%u:", idx + 1);
+    u.drawStr(0, 26, buf);
+    if (!cmd.label[0]) {
+        u.drawStr(0, 42, "(not set)");
+        u.drawStr(0, 58, "agent_monitor.toml");
+        return;
+    }
+    u.setFont(u8g2_font_7x13B_tf);
+    u.drawStr(0, 43, cmd.label);
+    u.setFont(u8g2_font_6x10_tf);
+    const char* what = strcmp(cmd.kind, "focus") == 0 ? "open app"
+                     : strcmp(cmd.kind, "shell") == 0 ? "run command"
+                     : strcmp(cmd.kind, "keys") == 0  ? "send keys"
+                                                      : "check config";
+    u.drawStr(0, 58, what);
+}
+
+void drawSlot(U8G2& u, const Slot& s, uint8_t idx, const CmdInfo& cmd, uint32_t nowMs) {
     u.clearBuffer();
     u.setDrawColor(1);
     u.setFontMode(1);
 
     if (!s.on) {
-        u.setFont(u8g2_font_6x10_tf);
-        char buf[12];
-        snprintf(buf, sizeof(buf), "SLOT %u", idx + 1);
-        u.drawStr(64 - u.getStrWidth(buf) / 2, 30, buf);
-        u.drawStr(64 - u.getStrWidth("empty") / 2, 44, "empty");
+        drawEmptySlot(u, idx, cmd);
         return;
     }
 

@@ -15,8 +15,11 @@
 
 namespace am {
 
-/** 슬롯 하나를 화면에 그린다 (버퍼만 — 전송은 display.push()) */
-void drawSlot(U8G2& u, const Slot& s, uint8_t idx, uint32_t nowMs);
+/**
+ * @brief 슬롯 하나를 화면에 그린다 (버퍼만 — 전송은 display.push())
+ * @details 빈 슬롯이면 그 화면 밑 버튼을 길게 눌렀을 때 실행되는 PC 명령(cmd)을 보여준다.
+ */
+void drawSlot(U8G2& u, const Slot& s, uint8_t idx, const CmdInfo& cmd, uint32_t nowMs);
 
 /**
  * @brief 승인 화면 중 화면 idx 부분을 그린다 (4화면이 한 장처럼 이어짐)

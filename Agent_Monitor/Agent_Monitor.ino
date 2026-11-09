@@ -246,7 +246,7 @@ static void render(uint32_t now) {
             am::drawOffline(u, i, model.everRx, now);
         } else {
             if (detailSlot >= 0) am::drawDetail(u, i, detailFor(detailSlot), settings.muted, now);
-            else am::drawSlot(u, model.slots[i], i, now);
+            else am::drawSlot(u, model.slots[i], i, model.cmds[i], now);
             am::drawToast(u, model.toasts[i], now);
             if (detailSlot < 0 && i == ds::kNumScreens - 1 && settings.muted) am::drawMuteIcon(u);
         }

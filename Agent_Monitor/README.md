@@ -1,4 +1,4 @@
-# 🤖 Agent_Monitor — AI 개발 에이전트 모니터 (v0.4.1)
+# 🤖 Agent_Monitor — AI 개발 에이전트 모니터 (v0.4.2)
 
 Claude Code 세션의 작업 상태를 DeskStream 4-OLED에 실시간으로 보여주는 책상 위 모니터입니다.
 OLED 한 장이 세션 하나를 맡아 **생각 중 / 실행 중(도구·명령) / 승인 대기 / 입력 대기 / 완료 / 오류**를 표시하고,
@@ -71,6 +71,7 @@ BLE 는 근처 누구나 접속할 수 있어, 같은 이름의 **가짜 장치*
 - 60초 동안 버튼을 누르지 않거나 세션이 끝나면 개요로 돌아갑니다.
 - PC 명령 결과는 해당 버튼 화면 아래에 `RUN …` → `OK … exit 0` / `FAIL … exit 2` 띠로 4초간 보입니다.
 - 음소거 중에는 개요의 OLED 4 오른쪽 위에 스피커+X 아이콘이 보이고, 버튼음·알림음·부팅음이 모두 꺼집니다.
+- **빈 슬롯**에는 그 화면 밑 버튼을 **길게 누르면 하는 일**이 보입니다 — `HOLD BTN2:` + 명령 이름(`git status`) + 종류(`run command` / `open app` / `send keys`). 설정이 없으면 `(not set)`, 설정 파일 오류면 `check config`. 설정 파일을 고치면 바로 반영됩니다.
 
 ## 버튼
 
@@ -147,6 +148,7 @@ timeout = 300
 - 장치는 **버튼 번호만** 보냅니다. 실행 내용은 이 파일에만 있고, 버튼을 누를 때마다 다시 읽습니다 (데몬 재시작 불필요).
 - 파일을 다른 사용자도 쓸 수 있는 권한이면(group/other write) 실행하지 않습니다.
 - `keys` 는 ASCII 텍스트와 `return · escape · tab · space · ctrl+c` 만 지원하고, macOS **손쉬운 사용** 권한(데몬을 실행한 터미널 앱)이 필요합니다. `app` 을 지정하면 그 앱을 먼저 앞으로 가져옵니다.
+  권한이 없으면 장치에 `FAIL … no access` 가 뜹니다 → **시스템 설정 > 개인정보 보호 및 보안 > 손쉬운 사용**에서 데몬을 실행한 앱(터미널, 또는 Claude 앱 터미널 패널이면 Claude)을 허용하세요.
 - 전체 예시: [bridge_py/agent_monitor.example.toml](./bridge_py/agent_monitor.example.toml). 다른 위치의 설정은 `run --config 경로`.
 
 ### 5. 화면 확인 (Claude Code 없이)
@@ -189,7 +191,7 @@ python3 demo_hooks.py --end
 ## 테스트
 
 ```bash
-cd Agent_Monitor/bridge_py && python3 -m unittest discover -s tests -v      # 데몬 43건
+cd Agent_Monitor/bridge_py && python3 -m unittest discover -s tests -v      # 데몬 46건
 
 # 펌웨어 상태 해석 (저장소 루트에서)
 L=libraries/DeskStreamCore/src

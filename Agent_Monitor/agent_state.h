@@ -59,6 +59,12 @@ struct Detail {
 
 enum class CmdState : uint8_t { None, Run, Ok, Fail };
 
+/** 버튼 길게 누르기에 설정된 PC 명령 (데몬 설정 파일에서 — 빈 슬롯 화면에 표시) */
+struct CmdInfo {
+    char label[21] = "";     ///< 빈 문자열 = 설정 없음
+    char kind[6] = "";       ///< focus / shell / keys / error
+};
+
 /** 버튼 길게 누르기 PC 명령의 진행·결과 (버튼별 알림 띠) */
 struct CmdToast {
     CmdState st = CmdState::None;
@@ -72,11 +78,12 @@ struct Model {
     Perm perm;
     Detail detail;
     CmdToast toasts[kSlots];
+    CmdInfo cmds[kSlots];    ///< 버튼별 길게 누르기 명령
     uint32_t lastRxMs = 0;   ///< 마지막으로 유효한 메시지를 받은 시각
     bool everRx = false;
 };
 
-enum class MsgType : uint8_t { Invalid, Slot, Alert, Heartbeat, Perm, Detail, Cmd };
+enum class MsgType : uint8_t { Invalid, Slot, Alert, Heartbeat, Perm, Detail, Cmd, Cmds };
 
 struct ParseResult {
     MsgType type = MsgType::Invalid;

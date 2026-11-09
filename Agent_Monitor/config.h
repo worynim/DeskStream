@@ -7,7 +7,7 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#define AM_FW_VERSION "0.4.1"
+#define AM_FW_VERSION "0.4.2"
 
 // --- 데몬 링크 (USB 시리얼 · BLE UART, JSON Lines) ---
 #define AM_BLE_NAME         "DeskStream Agent"   // BLE 광고 이름 — 데몬이 이 이름으로 찾는다

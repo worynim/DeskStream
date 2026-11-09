@@ -369,6 +369,12 @@ class TestCommands(unittest.TestCase):
                 commands.load_config(p)
         self.assertEqual(commands.load_config(NO_CONFIG).commands, {})
 
+    def test_no_accessibility_detected(self):
+        ko = "36:47: execution error: System Events에 오류 발생: osascript에서 키스트로크를 보내도록 허용되지 않습니다. (1002)"
+        self.assertTrue(commands._no_accessibility(ko.encode()))
+        self.assertTrue(commands._no_accessibility(b"osascript is not allowed to send keystrokes."))
+        self.assertFalse(commands._no_accessibility(b"syntax error"))
+
     def test_example_config_is_valid(self):
         c = commands.parse_config(__import__("tomllib").loads(commands.EXAMPLE_PATH.read_text(encoding="utf-8")))
         self.assertEqual(sorted(c.commands), [1, 2, 3, 4])
@@ -414,6 +420,22 @@ class TestBridgeButtons(unittest.TestCase):
         self.assertEqual(self.bridge.table.view(0)[0]["st"], "idle")   # 완료 확인
         self.bridge.on_device_line('{"t":"btn","b":9,"press":"short"}')  # 범위 밖 무시
         self.assertEqual(self.bridge.watch, 0)
+
+    def test_button_labels_and_cmds_msg(self):
+        self.assertEqual(commands.button_labels(self.cfg), [("", ""), ("Test", "shell"), ("", ""), ("", "")])
+        m = json.loads(protocol.cmds_msg(commands.button_labels(self.cfg)))
+        self.assertEqual((m["l1"], m["k1"], m["l0"], m["k3"]), ("Test", "shell", "", ""))
+        self.assertEqual(commands.button_labels(NO_CONFIG), [("", "")] * 4)
+        self.cfg.write_text("broken = [")
+        self.assertEqual(commands.button_labels(self.cfg)[0], ("config error", "error"))
+
+    def test_cmds_line_reloads_on_change(self):
+        first = json.loads(self.bridge.cmds_line())
+        self.assertEqual(first["l1"], "Test")
+        self.cfg.write_text('[[commands]]\nbutton = 1\nlabel = "Finder"\ntype = "focus"\napp = "Finder"\n')
+        os.utime(self.cfg, (time.time() + 5, time.time() + 5))   # 수정 시각이 확실히 바뀌게
+        second = json.loads(self.bridge.cmds_line())
+        self.assertEqual((second["l0"], second["k0"], second["l1"]), ("Finder", "focus", ""))
 
     def test_alert_sent_on_done(self):
         self.bridge.on_hook("Stop", ev())

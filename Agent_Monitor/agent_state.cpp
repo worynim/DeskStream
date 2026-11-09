@@ -136,6 +136,16 @@ ParseResult applyLine(Model& m, const char* line, uint32_t nowMs) {
         m.toasts[b] = tmp;
         r.type = MsgType::Cmd;
         r.slot = (int)b;
+    } else if (strcmp(type, "cmds") == 0) {
+        static const char* const lk[kSlots] = {"l0", "l1", "l2", "l3"};
+        static const char* const kk[kSlots] = {"k0", "k1", "k2", "k3"};
+        CmdInfo tmp[kSlots];
+        for (int k = 0; k < kSlots; k++) {
+            if (!getStr(line, lk[k], tmp[k].label, sizeof(tmp[k].label)) ||
+                !getStr(line, kk[k], tmp[k].kind, sizeof(tmp[k].kind))) return r;
+        }
+        for (int k = 0; k < kSlots; k++) m.cmds[k] = tmp[k];
+        r.type = MsgType::Cmds;
     } else if (strcmp(type, "perm") == 0) {
         long id;
         if (!ds::jsonGetInt(line, "id", &id) || id < 0) return r;

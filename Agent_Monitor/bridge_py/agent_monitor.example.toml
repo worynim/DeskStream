@@ -17,10 +17,9 @@ app = "Terminal"
 
 [[commands]]
 button = 2
-label = "git status"
+label = "Downloads"
 type = "shell"
-command = "git status --short"
-cwd = "~"
+command = "open ~/Downloads"      # 예: 프로젝트 테스트라면 command = "npm test", cwd = "~/work/my-app"
 timeout = 30
 
 [[commands]]

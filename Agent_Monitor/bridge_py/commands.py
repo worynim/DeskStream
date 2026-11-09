@@ -97,6 +97,16 @@ def load_config(path: Path = CONFIG_PATH) -> Config:
     return parse_config(data)
 
 
+def button_labels(path: Path = CONFIG_PATH) -> list:
+    """BTN1~4 의 (이름, 종류) — 장치 빈 슬롯 화면에 "길게 누르면 하는 일"로 표시. 설정 없음 = ("", "").
+    설정 오류면 네 버튼 모두 ("config error", "error")."""
+    try:
+        cmds = load_config(path).commands
+    except ConfigError:
+        return [("config error", "error")] * 4
+    return [(cmds[b].label, cmds[b].type) if b in cmds else ("", "") for b in (1, 2, 3, 4)]
+
+
 def _applescript_str(s: str) -> str:
     return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
@@ -120,6 +130,12 @@ def build_argv(cmd: Command) -> list:
     return ["osascript", "-e", "\n".join(lines)]
 
 
+def _no_accessibility(stderr: bytes) -> bool:
+    """osascript 가 손쉬운 사용 권한이 없어 키 입력을 거부당했는지 (오류 1002 / 'not allowed')"""
+    text = (stderr or b"").decode("utf-8", errors="replace")
+    return "1002" in text or "not allowed" in text.lower()
+
+
 def execute(cmd: Command) -> tuple:
     """명령을 실행하고 (성공 여부, 짧은 결과 문구) 를 돌려준다."""
     if cmd.type in ("focus", "keys") and sys.platform != "darwin":
@@ -134,6 +150,8 @@ def execute(cmd: Command) -> tuple:
         return False, "timeout"
     except OSError as e:
         return False, type(e).__name__
+    if cmd.type == "keys" and r.returncode != 0 and _no_accessibility(r.stderr):
+        return False, "no access"   # macOS 손쉬운 사용 권한 없음 (데몬을 실행한 앱에 허용 필요)
     return r.returncode == 0, f"exit {r.returncode}"
 
 

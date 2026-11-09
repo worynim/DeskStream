@@ -106,6 +106,20 @@ static void testDetailCmd() {
     CHECK(applyLine(m, "{\"t\":\"cmd\",\"b\":4,\"st\":\"ok\"}", 0).type == MsgType::Invalid);
 }
 
+static void testCmds() {
+    Model m;
+    auto r = applyLine(m,
+                       "{\"t\":\"cmds\",\"l0\":\"Terminal\",\"k0\":\"focus\",\"l1\":\"\",\"k1\":\"\","
+                       "\"l2\":\"npm test\",\"k2\":\"shell\",\"l3\":\"\",\"k3\":\"\"}",
+                       10);
+    CHECK(r.type == MsgType::Cmds);
+    CHECK(strcmp(m.cmds[0].label, "Terminal") == 0 && strcmp(m.cmds[0].kind, "focus") == 0);
+    CHECK(m.cmds[1].label[0] == '\0' && strcmp(m.cmds[2].kind, "shell") == 0);
+    // 종류가 버퍼(5자)를 넘으면 전체를 바꾸지 않는다
+    CHECK(applyLine(m, "{\"t\":\"cmds\",\"l0\":\"x\",\"k0\":\"toolong\"}", 20).type == MsgType::Invalid);
+    CHECK(strcmp(m.cmds[0].label, "Terminal") == 0);
+}
+
 static void testFormat() {
     char b[12];
     formatElapsed(0, b, sizeof(b));
@@ -123,6 +137,7 @@ int main() {
     testAlertAndHeartbeat();
     testPerm();
     testDetailCmd();
+    testCmds();
     testFormat();
     printf(fails ? "❌ %d failed\n" : "✅ all passed\n", fails);
     return fails ? 1 : 0;

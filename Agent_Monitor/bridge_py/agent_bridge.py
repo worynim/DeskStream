@@ -57,6 +57,8 @@ class Bridge:
         self.sent = [None] * len(self.table.slots)   # 슬롯별 마지막으로 보낸 내용 (같으면 생략)
         self.sent_perm = None                         # 마지막으로 보낸 승인 화면 줄
         self.sent_detail = None                       # 마지막으로 보낸 상세 화면 내용
+        self.sent_cmds = None                         # 마지막으로 보낸 버튼 명령 이름 줄
+        self._cmds = (None, None)                     # (설정 파일 수정 시각, cmds 줄) — 파일이 바뀔 때만 다시 읽음
         self.watch = -1                               # 장치가 상세 화면으로 보고 있는 슬롯
         self.outbox = []                              # 바로 보낼 줄(알림·명령 진행) — 시리얼 쓰기는 송신 스레드만 한다
         self.verbose = verbose
@@ -123,7 +125,18 @@ class Bridge:
         self.sent = [None] * len(self.sent)   # 새 연결이면 전체 재전송
         self.sent_perm = None
         self.sent_detail = None
+        self.sent_cmds = None
         self.dirty.set()
+
+    def cmds_line(self) -> str:
+        """버튼별 PC 명령 이름 메시지 — 설정 파일 수정 시각이 바뀌었을 때만 다시 읽는다."""
+        try:
+            mtime = self.config_path.stat().st_mtime
+        except OSError:
+            mtime = None
+        if self._cmds[1] is None or mtime != self._cmds[0]:
+            self._cmds = (mtime, protocol.cmds_msg(commands.button_labels(self.config_path)))
+        return self._cmds[1]
 
     def on_device_line(self, line: str):
         msg = protocol.parse_device(line)
@@ -145,6 +158,7 @@ class Bridge:
             self.sent = [None] * len(self.sent)
             self.sent_perm = None
             self.sent_detail = None
+            self.sent_cmds = None
             self.dirty.set()
         elif kind == "decide":
             self._on_decide(msg.get("id"), msg.get("act"))
@@ -199,6 +213,10 @@ class Bridge:
             if perm_line != self.sent_perm:
                 self.sent_perm = perm_line
                 self.link.send(perm_line)
+            cmds_line = self.cmds_line()
+            if cmds_line != self.sent_cmds:
+                self.sent_cmds = cmds_line
+                self.link.send(cmds_line)
             if self.watch >= 0:
                 key = None if detail is None else {**detail, "el": None}
                 if key != self.sent_detail:
