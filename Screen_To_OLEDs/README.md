@@ -40,7 +40,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 ### ESP32 펌웨어
 - **고속 UDP 수신**: 프레임을 1024바이트 청크로 분할 수신하여 4096바이트 1-bit 비트맵 복원.
 - **Dirty-Tile 렌더링**: 변경된 타일만 HW·SW 버스 병렬로 전송 — DeskStreamCore `ds::DisplayCore::pushCanvas()` (v2.3.0~).
-- **WiFiManager 연동**: 편리한 AP 설정을 지원하며, 부팅 시 AP 정보 표시.
+- **WiFi 설정 포털**: 저장된 공유기가 없으면 설정용 AP(`ESP_SCREEN_OLED`)를 열어 휴대폰으로 SSID·비밀번호를 입력받습니다 (DeskStreamCore 내장).
 - **비차단 부저**: 동작 상태를 부드러운 소리로 안내.
 
 ## 🛠 설치 및 사용 방법
@@ -58,7 +58,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 4. `START STREAMING` 버튼을 눌러 스트리밍을 시작합니다.
 
 ### 하드웨어 환경 (ESP32)
-1. `Screen_To_OLEDs` 폴더의 `.ino` 파일을 Arduino IDE 로 업로드합니다. (필요 라이브러리: U8g2·LovyanGFX·WiFiManager + 저장소 `libraries/DeskStreamCore` — 루트에서 `bash scripts/link-arduino-lib.sh` 1회)
+1. `Screen_To_OLEDs` 폴더의 `.ino` 파일을 Arduino IDE 로 업로드합니다. (필요 라이브러리: U8g2·LovyanGFX + 저장소 `libraries/DeskStreamCore` — 루트에서 `bash scripts/link-arduino-lib.sh` 1회)
 2. 부팅 시 OLED에 표시되는 WiFi AP(`ESP_SCREEN_OLED`)에 접속하여 네트워크 설정을 완료합니다.
 3. 연결 성공 시 표시되는 IP 주소를 스트리머에 입력합니다.
 

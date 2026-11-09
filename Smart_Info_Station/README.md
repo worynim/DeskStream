@@ -57,7 +57,6 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
 ### 필수 라이브러리 목록
 - `U8g2` (강력한 그래픽 및 OLED 폰트 라이브러리)
-- `WiFiManager` (AP 모드를 통한 공유기 연결)
 - `DeskStreamCore` (저장소 `libraries/DeskStreamCore` — 빌드 전 `bash scripts/link-arduino-lib.sh` 1회)
 - `UrlEncode` (HTTP 웹 요청 URL 변환 라이브러리)
 

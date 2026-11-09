@@ -33,7 +33,7 @@
 bash scripts/link-arduino-lib.sh        # PC마다 1회 — 스케치북 libraries/에 심볼릭 링크
 ```
 
-- 필요한 외부 라이브러리: **U8g2**, **WiFiManager** (라이브러리의 모든 .cpp가 함께 컴파일되므로 WiFi를 안 써도 필요)
+- 필요한 외부 라이브러리: **U8g2** (WiFi 설정 포털은 라이브러리에 내장 — WiFiManager 불필요)
 - 보드: `esp32:esp32:makergo_c3_supermini` (또는 `nologo_esp32c3_super_mini`), CPU 160MHz
 - 앱이 1.25MB를 넘을 수 있으면 스케치 폴더에 **DeskStream 공통 `partitions.csv`** 를 복사하고(예: `ENG_Clock/partitions.csv`)
   IDE에서 `Partition Scheme = Huge APP`를 고른다. app0 2.5MB, spiffs는 `default`와 같은 `0x290000`이라
@@ -176,7 +176,8 @@ bool ok = wifi.begin(w);        // 접속(+포털)이 끝날 때까지 반환하
 // loop(): wifi.loop();         // 끊기면 60초마다 재접속 시도
 ```
 
-- `WiFiManager::autoConnect()`를 직접 쓰지 않는다 — 내부에서 최대 60초 블로킹한다.
+- WiFiManager 등 외부 포털 라이브러리를 쓰지 않는다. 설정 포털(열린 AP + 캡티브 DNS + SSID 목록·비밀번호 입력 페이지)은
+  `ds::WifiService`에 내장돼 있다 (WiFiManager 대비 약 70KB 작다). 자격증명은 ESP32 NVS에 저장돼 다른 프로젝트와 공유된다.
 - 공장 초기화: `ds::WifiService::resetSettings()`.
 - 스케치에서 `WiFi.localIP()` 등을 쓰면 `#include <WiFi.h>`를 직접 넣는다.
 

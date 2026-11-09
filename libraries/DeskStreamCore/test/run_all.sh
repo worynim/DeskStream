@@ -22,6 +22,7 @@ TESTS=(
   "test_json_lite|util/ds_json_lite.cpp"
   "test_button_fsm|"
   "test_canvas|display/ds_canvas.cpp"
+  "test_wifi_portal|net/ds_wifi_portal_util.cpp"
 )
 
 fail=0

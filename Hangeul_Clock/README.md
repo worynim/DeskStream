@@ -111,7 +111,6 @@ DeskStreamCore에서 쓰는 모듈: `ds::DisplayCore`(4-OLED 셰도 diff·HW/SW 
 ## 📚 라이브러리 의존성
 - `DeskStreamCore` (저장소 `libraries/DeskStreamCore` — 빌드 전 `bash scripts/link-arduino-lib.sh` 1회)
 - `U8g2` (고속 그래픽 제어)
-- `WiFiManager` (네트워크 설정 관리)
 - `LittleFS` (비트맵 및 설정 저장)
 
 ## 🔧 빌드 설정

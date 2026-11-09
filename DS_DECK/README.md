@@ -14,8 +14,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 | 라이브러리명 | 용도 | 
 | :--- | :--- |
 | **U8g2** | 4개의 OLED 디스플레이 제어 | 
-| **WiFiManager** | WiFi 설정 포털 (DeskStreamCore 경유) |
-| **DeskStreamCore** | 저장소 `libraries/DeskStreamCore` — 화면 전송·버튼·부저·WiFi (v1.6.0, 빌드 전 `bash scripts/link-arduino-lib.sh` 1회) |
+| **DeskStreamCore** | 저장소 `libraries/DeskStreamCore` — 화면 전송·버튼·부저·WiFi 설정 포털 (v1.6.0, 빌드 전 `bash scripts/link-arduino-lib.sh` 1회) |
 | **HijelHID\_BLEKeyboard** | 최신 ESP32 3.x 환경용 BLE 키보드 (NimBLE 기반) |
 | **ArduinoJson** | 기기 설정값 관리 |
 

@@ -29,7 +29,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 ## 🐍 Python 클라이언트 설정
 PC의 시스템 지표를 BLE를 통해 ESP32로 전송하기 위해 다음 설정이 필요합니다.
 
-> **펌웨어 빌드**: 화면 전송·버튼·부저는 공통 라이브러리 [DeskStreamCore](../libraries/DeskStreamCore/) — 빌드 전 저장소 루트에서 `bash scripts/link-arduino-lib.sh` 1회를 씁니다 (v1.6.0, `WiFiManager` 설치 필요).
+> **펌웨어 빌드**: 화면 전송·버튼·부저는 공통 라이브러리 [DeskStreamCore](../libraries/DeskStreamCore/) — 빌드 전 저장소 루트에서 `bash scripts/link-arduino-lib.sh` 1회를 씁니다 (v1.6.0~).
 
 ### 1. 필수 라이브러리 설치
 Python 3.10 이상 환경에서 다음 명령어를 실행하여 필요한 패키지를 설치합니다.

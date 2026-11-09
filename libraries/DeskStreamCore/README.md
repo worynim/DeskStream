@@ -40,8 +40,8 @@ void loop() {
 `ds::TimeSyncConfig`·`ds::ButtonTiming` 구조체로 넘깁니다 (기본값 = Hangeul_Clock 채택값).
 쓰지 않는 모듈의 코드는 링커가 제거합니다.
 
-> 필요한 라이브러리: `U8g2`, `WiFiManager` (Arduino 라이브러리 매니저). 라이브러리의 모든 `.cpp`가
-> 함께 컴파일되므로, WiFi를 쓰지 않는 스케치도 WiFiManager가 설치되어 있어야 합니다.
+> 필요한 라이브러리: `U8g2` (Arduino 라이브러리 매니저). WiFi 설정 포털은 이 라이브러리에 내장돼 있어
+> WiFiManager는 필요 없습니다 (v0.6.0~).
 
 ## 모듈
 
@@ -57,7 +57,8 @@ void loop() {
 | `src/input/ds_buttons.*` | 4버튼 폴링 — 콜백(짧게/길게/누름/반복) 또는 이벤트 조회 | Hangeul_Clock + Universal_Timer |
 | `src/input/ds_button_fsm.h` | 버튼 판정 상태 머신 — 자동 반복·안정 디바운스 옵션 (순수) | Hangeul·Universal_Timer·Game_Of_Life |
 | `src/sound/ds_buzzer.*` | 비차단 비프·멜로디·반복 알람 (FreeRTOS 타이머) | Hangeul_Clock + Universal_Timer |
-| `src/net/ds_wifi.*` | 저장 AP 비차단 접속 → WiFiManager 포털 → 끊김 재접속 | Hangeul_Clock v2.10.0 |
+| `src/net/ds_wifi.*` | 저장 AP 비차단 접속 → **자체 설정 포털**(열린 AP·캡티브 DNS·SSID 목록) → 끊김 재접속 | Hangeul_Clock v2.10.0 + 자체 포털 |
+| `src/net/ds_wifi_portal_util.*` | 포털 입력 검증(SSID·비밀번호 길이)·HTML 이스케이프 (순수) | 신규 |
 | `src/net/ds_time_sync.*` | NTP 재동기화 감독·드리프트 기록 (`sntp_sync_time` 대체) | Hangeul_Clock v2.10.0 |
 | `src/net/ds_time_sync_policy.h` | NTP 재동기화 시점·1초 렌더 트리거 규칙 (순수) | Hangeul_Clock v2.10.0 |
 | `src/net/ds_tz_util.*` | POSIX TZ 문자열 화이트리스트 검증 (순수) | Hangeul_Clock v2.10.0 |
@@ -86,6 +87,7 @@ bash libraries/DeskStreamCore/test/run_all.sh
 | `test/test_i2c_retry_policy.cpp` | 전송 실패 페이지 재시도 마스크 회귀 |
 | `test/test_time_sync_policy.cpp` | NTP 재동기화 정책·1초 렌더 트리거·millis 랩 구간 |
 | `test/test_json_lite.cpp` | JSON 키 값 파서 (키 오프셋 버그 회귀, 문자열 속 키 오인, 이스케이프·잘림 거부) |
+| `test/test_wifi_portal.cpp` | 포털 SSID·비밀번호 검증, SSID HTML 이스케이프(스크립트 삽입 방지) |
 | `test/test_canvas.cpp` | 캔버스 전치 좌표·화면 경계·무작위 패턴 전 픽셀 왕복 |
 | `test/test_button_fsm.cpp` | 버튼 짧게/길게 경계·바운스·millis 랩·자동 반복·LONG\|REPEAT 동시·안정 디바운스 |
 

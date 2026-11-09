@@ -142,8 +142,8 @@ mklink /J "%USERPROFILE%\Documents\Arduino\libraries\DeskStreamCore" "C:\경로\
 - 저장소를 옮긴 경우: `rmdir "%USERPROFILE%\Documents\Arduino\libraries\DeskStreamCore"`로 정션만 지우고
   (`rmdir`은 정션만 지우고 원본 폴더는 건드리지 않습니다) 다시 만듭니다.
 
-**3. 외부 라이브러리 설치** — Arduino IDE 라이브러리 매니저에서 **U8g2**, **WiFiManager**(tzapu)를 설치합니다.
-DeskStreamCore의 모든 `.cpp`가 함께 컴파일되므로 WiFi를 쓰지 않는 프로젝트도 WiFiManager가 필요합니다.
+**3. 외부 라이브러리 설치** — Arduino IDE 라이브러리 매니저에서 **U8g2**를 설치합니다 (모든 프로젝트).
+WiFi 설정 포털은 DeskStreamCore에 들어 있어 WiFiManager는 필요 없습니다 (v0.6.0~).
 캔버스 프로젝트(Sound_Visualizer·Screen_To_OLEDs·OLED_Wide_test)는 **LovyanGFX**도 필요합니다.
 
 **4. 확인** — Arduino IDE를 **완전히 껐다 켠 뒤**(시작할 때 라이브러리 목록을 읽습니다) 아무 프로젝트(예: `Game_Of_Life`)를

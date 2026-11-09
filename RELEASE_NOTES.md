@@ -1,3 +1,10 @@
+## [v4.19.0] - 2026-11-10
+### 📶 WiFiManager 제거 — DeskStreamCore v0.6.0 자체 설정 포털
+- WiFi 설정 포털(열린 AP + 캡티브 DNS + 주변 SSID 목록·비밀번호 입력 + 실패 이유 표시)을 `ds::WifiService` 안에 직접 구현해 WiFiManager 의존을 없앴습니다. 스케치 코드와 저장된 WiFi 정보(ESP32 NVS)는 그대로입니다.
+- **크기 감소 (약 74KB)**: Hangeul_Clock 1,295,285 → 1,221,599 B · ENG_Clock 1,310,579 → 1,236,901 B · Chinese_Clock 1,307,021 → 1,233,335 B · DS_DECK 1,493,225 → 1,420,091 B · Smart_Info_Station 1,401,723 → 1,330,209 B · Screen_To_OLEDs 1,173,734 → 1,101,160 B. 12개 프로젝트 모두 빌드 확인.
+- 새 PC 설정에서 WiFiManager 설치가 필요 없어졌습니다 (README "최초 설정" 반영).
+- ⚠️ **웹 플래셔 배포본은 아직 v4.18.0 빌드**입니다. 휴대폰으로 설정 포털(자동 팝업·SSID 목록·연결·실패 표시)을 확인한 뒤 WiFi 사용 프로젝트 6종을 다시 Export합니다.
+
 ## [v4.18.0] - 2026-11-09
 ### 🧩 캔버스 프로젝트 3종 전환 (3단계) · 보안 수정 · 웹 플래셔 배포본 갱신
 - **DeskStreamCore v0.5.0**: 512x64 캔버스 전치 `ds::canvasToScreenPages()`(순수 함수, 호스트 테스트 7건)와 `DisplayCore::pushCanvas()` 추가. 호스트 테스트 7종 통과.

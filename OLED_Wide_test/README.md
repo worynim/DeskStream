@@ -30,7 +30,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 ## 📦 설치가 필요한 라이브러리
 이 소스 코드를 컴파일하려면 아두이노 라이브러리 매니저에서 다음 라이브러리들을 설치해야 합니다:
 *   **U8g2**: OLED 디스플레이 드라이버 및 폰트 제어
-*   **DeskStreamCore** + **WiFiManager**: 저장소 `libraries/DeskStreamCore` — 4-OLED 전송·버튼·부저 (빌드 전 루트에서 `bash scripts/link-arduino-lib.sh` 1회) (v1.3.0~)
+*   **DeskStreamCore**: 저장소 `libraries/DeskStreamCore` — 4-OLED 전송·버튼·부저 (빌드 전 루트에서 `bash scripts/link-arduino-lib.sh` 1회) (v1.3.0~)
 *   **LovyanGFX**: 고속 그리기 및 가상 캔버스 라이브러리
 
 ## 🕹️ 조작 및 버튼 기능 (Interface)

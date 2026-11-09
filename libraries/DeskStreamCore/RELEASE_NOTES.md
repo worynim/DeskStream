@@ -1,5 +1,18 @@
 # DeskStreamCore Release Notes
 
+## [v0.6.0] - 2026-11-10
+### 📶 WiFiManager 제거 — 자체 설정 포털
+- `ds::WifiService` 포털을 WiFiManager 대신 직접 구현했다: 열린 AP(`apName`) + 캡티브 DNS(모든 도메인 → 192.168.4.1)
+  + 설정 페이지(주변 SSID 목록 — 신호 세기 순·중복 제거, 직접 입력, 비밀번호) → 그 자리에서 연결 시도 →
+  실패하면 이유(네트워크 없음 / 비밀번호·거부 / 시간 초과)를 페이지에 표시.
+  - API(`WifiConfig`·`begin`·`loop`·`resetSettings`)는 그대로 — 스케치 변경 없음.
+  - 자격증명은 `WiFi.begin(ssid, pass)`로 ESP32 NVS에 저장 — WiFiManager와 같은 곳이라 **기존 기기 설정 유지**.
+  - `resetSettings()`는 `WiFi.disconnect(true, true)`로 저장된 AP를 지운다.
+- **크기**: 웹서버를 쓰는 스케치 기준 WiFiManager 약 90KB → 자체 포털 약 18KB (**약 74KB 감소**).
+  `library.properties`의 `depends`에서 WiFiManager를 뺐다 — 설치하지 않아도 빌드된다.
+- 보안: 페이지에 찍히는 SSID(누구나 정할 수 있는 값)는 HTML 이스케이프한다. 설정 AP는 예전과 같이 **암호 없는 열린 AP**다.
+- 순수 함수 `ds_wifi_portal_util`(SSID·비밀번호 검증, HTML 이스케이프) + 호스트 테스트 `test_wifi_portal` 20건 — 8종 통과.
+
 ## [v0.5.0] - 2026-11-09
 ### 🧩 512x64 캔버스 지원 (3단계)
 - `display/ds_canvas.*`: `ds::canvasToScreenPages(canvas, width, column, out)` — 행 우선·MSB 먼저 1bpp 캔버스

@@ -9,7 +9,7 @@
 #ifndef DESKSTREAM_CORE_H
 #define DESKSTREAM_CORE_H
 
-#define DS_CORE_VERSION "0.5.0"   // library.properties 의 version 과 일치해야 한다
+#define DS_CORE_VERSION "0.6.0"   // library.properties 의 version 과 일치해야 한다
 
 #include "ds_board.h"
 
@@ -19,6 +19,7 @@
 #include "input/ds_button_fsm.h"
 #include "net/ds_time_sync_policy.h"
 #include "net/ds_tz_util.h"
+#include "net/ds_wifi_portal_util.h"
 #include "util/ds_json_lite.h"
 #include "util/ds_utf8.h"
 
