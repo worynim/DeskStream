@@ -29,7 +29,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
 ### 3. [Sound_Visualizer_4_OLEDs: 고속 오디오 비주얼라이저](./Sound_Visualizer_4_OLEDs/)
 - **기능**: 아날로그 마이크 입력(G0)을 통한 128밴드 실시간 주파수 시각화.
-- **특징**: ESP-DSP 정수형 FFT 가속(Max 70+ FPS), 512x64 초광폭 캔버스 제어, ADC DMA 샘플링.
+- **특징**: ESP-DSP 정수형 FFT 가속(Max 70+ FPS), 512x64 초광폭 캔버스 제어, ADC DMA 샘플링, 6가지 시각화 모드(스펙트럼·파형·미러·스펙트로그램·도트 매트릭스·파티클).
 
 ### 4. [OLED_Wide_test: 초광폭 디스플레이 테스트](./OLED_Wide_test/)
 - **기능**: 4개의 OLED를 하나의 512x64 화면으로 제어하는 데모 및 테스트 코드.

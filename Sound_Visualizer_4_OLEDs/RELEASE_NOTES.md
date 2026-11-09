@@ -1,5 +1,26 @@
 # Release Notes - Sound Visualizer
 
+## [v3.6.0] - 2026-11-10
+### ✨ 시각화 모드 4종 추가
+BTN4 짧게 누름으로 Spectrum → Waveform → Mirror → Spectrogram → DotMatrix → Particles 순환.
+- **Mirror**: 중앙선 기준 위아래 대칭 스펙트럼.
+- **Spectrogram**: 1비트 캔버스 버퍼를 1픽셀씩 왼쪽으로 밀고 맨 오른쪽 열만 새로 그린다. 세기는 4x4 Bayer 디더링(패턴은 열 번호에 고정).
+- **DotMatrix**: 128열×16행 도트 기둥, 박자마다 2프레임 화면 반전(`DOT_FLASH_FRAMES`, 0이면 끔).
+- **Particles**: 전 대역(`PARTICLE_FIRST_BAND`부터, 기본 0)에서 스펙트럼 막대 세기(AGC 정규화, 스펙트럼 모드와 같은 기준)가 `PARTICLE_MIN_LEVEL` 이상인 밴드마다 세기에 비례한 확률(최대 `PARTICLE_RATE_PCT`%/프레임)로 계속 생성(x 위치 = 주파수, OLED1 저음 → OLED4 고음), 중력·바닥 반사(최대 128개, 튕길 때마다 옆으로도 무작위로 튐: `PARTICLE_BOUNCE_VX`). 막대가 솟은 위치에서만 지속음에도 계속 떨어진다.
+- BassPulse(베이스 펄스)는 실기에서 별로여서 넣지 않았다.
+### 🎚️ 노이즈 캘리브레이션 강화
+- 측정 횟수 120 → 200회(약 3초 → 약 5초), 마진 +10% → +25%. 밴드별 **최댓값** 기준은 그대로라 드물게 튀는 잡음까지 노이즈 플로어에 반영된다(`CAL_ITERATIONS`, `NOISE_FLOOR_FACTOR`).
+### 🎚️ AGC 최대 게인 제한
+- `AGC_MIN_AMPLITUDE` 64 → 512. 조용할 때 게인이 너무 커져 노이즈 플로어를 살짝 넘는 잡음이 막대로 솟던 문제를 줄인다.
+### 🩺 잡음 진단 모드
+- `DEBUG_MODE` 4(화면 전송 끔)·5(켬): 상위 피크 3개의 주파수·크기를 0.5초마다 `[PEAK]`로 출력해 I2C 전송 잡음 여부를 A/B로 비교한다. `[DIAG]` 로그는 `DEBUG_MODE == 3`에서만 나온다.
+### 🔧 내부 변경
+- `AudioAnalyzer::updateBands()` 분리(AGC·막대 하강·피크, 막대 계열 모드 공용), `band_level`(평활 전 세기) 추가, 박자 판정 `detectBeat()` 공용화. 기존 Spectrum 모드 동작은 같다.
+- `vizMode`를 `VizMode` enum으로 바꾸고 모드 전환·도움말 토글·캘리브레이션 뒤 `resetHistory()`로 스펙트로그램 화면을 비운다.
+- 새 상수는 `config.h`(`BASS_*`, `BEAT_*`, `DOT_*`, `PARTICLE_*`).
+### ⚠️ 검증
+- `makergo_c3_supermini` 컴파일 통과(492,674 B, 37%). 도트 매트릭스·스펙트로그램·미러는 실기 확인 중, 파티클 수정본(막대 세기 기반)은 실기 재확인 필요 — 박자 감지·파티클 생성량은 실제 음악으로 상수 조정이 필요할 수 있다.
+
 ## [v3.5.1] - 2026-11-10
 ### 🔧 DeskStreamCore v0.6.0으로 재빌드
 - 공통 라이브러리 갱신(WiFiManager 의존 제거)에 맞춰 다시 빌드했다. 이 프로젝트는 WiFi 설정 포털을 쓰지 않으므로 **동작 변경은 없다**.
