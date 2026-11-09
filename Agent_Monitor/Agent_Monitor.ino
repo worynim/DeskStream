@@ -9,11 +9,15 @@
  *            AM_DETAIL_IDLE_MS 동안 입력이 없거나 세션이 끝나면 개요로 돌아간다.
  *          - 승인 화면(권한 요청 대기 중): BTN1 승인 · BTN2 다음 요청 · BTN3 거절 · BTN4 나중에(터미널에 맡김).
  *            새 요청이 뜬 직후 AM_PERM_GUARD_MS 동안은 버튼을 무시한다.
+ *          연결: USB 시리얼과 BLE UART(이름 AM_BLE_NAME) 둘 다 받는다 — 데몬이 USB 우선으로 하나를 쓴다.
+ *          BLE 로 보내는 버튼·승인 신호는 USB 로 등록한 키로 서명한다 (agent_auth.h).
  *          프로토콜: bridge_py/protocol.py 참조.
  */
 #include <Arduino.h>
 #include <DeskStreamCore.h>
 
+#include "agent_auth.h"
+#include "agent_ble.h"
 #include "agent_state.h"
 #include "agent_ui.h"
 #include "config.h"
@@ -54,14 +58,36 @@ static void playAlert(am::State kind) {
     }
 }
 
+/** 한 줄을 USB·BLE 양쪽으로 보낸다 (데몬은 연결한 쪽 하나만 읽는다) */
+static void writeLine(const char* line) {
+    Serial.println(line);
+    am::bleWriteLine(line);
+}
+
+/** 버튼·승인 신호 — 카운터와 서명을 붙여 보낸다 */
+static void sendSigned(const char* body) {
+    char out[AM_LINE_MAX];
+    writeLine(am::authSignLine(body, out, sizeof(out)));
+}
+
+static void sendHello() {
+    char line[80];
+    snprintf(line, sizeof(line), "{\"t\":\"hello\",\"fw\":\"%s\",\"kid\":\"%s\"}", AM_FW_VERSION, am::authKid());
+    writeLine(line);
+}
+
 /** 버튼 이벤트를 데몬에 보낸다 */
 static void sendButton(uint8_t b, const char* press) {
-    Serial.printf("{\"t\":\"btn\",\"b\":%u,\"press\":\"%s\"}\n", b, press);
+    char body[64];
+    snprintf(body, sizeof(body), "{\"t\":\"btn\",\"b\":%u,\"press\":\"%s\"}", b, press);
+    sendSigned(body);
 }
 
 /** 승인 화면 결정을 데몬에 보낸다 (act = allow | next | deny | pass) */
 static void sendDecision(uint32_t id, const char* act) {
-    Serial.printf("{\"t\":\"decide\",\"id\":%lu,\"act\":\"%s\"}\n", (unsigned long)id, act);
+    char body[64];
+    snprintf(body, sizeof(body), "{\"t\":\"decide\",\"id\":%lu,\"act\":\"%s\"}", (unsigned long)id, act);
+    sendSigned(body);
 }
 
 /** 승인 화면이 떠 있는지 (데몬 연결 중 + 대기 요청 있음) */
@@ -69,26 +95,57 @@ static bool approvalActive(uint32_t now) {
     return model.perm.id != 0 && am::linkAlive(model, now, AM_LINK_TIMEOUT_MS);
 }
 
-/** 시리얼에서 줄을 모아 하나씩 모델에 반영한다 */
-static void pollSerial() {
-    static char line[AM_LINE_MAX];
-    static size_t len = 0;
-    static bool overflow = false;
-    while (Serial.available()) {
-        char c = (char)Serial.read();
-        if (c == '\r') continue;
+/** 데몬이 보낸 한 줄 처리. setkey 는 USB 에서만, nonce 는 BLE 에서만 받는다. who 에는 hello 로 답한다 */
+static void handleLine(const char* line, bool fromUsb) {
+    char type[8], val[72];
+    if (ds::jsonGetString(line, "t", type, sizeof(type))) {
+        if (strcmp(type, "who") == 0) {   // 이미 켜져 있던 장치에 데몬이 새로 붙었을 때 — 키 id 확인용
+            sendHello();
+            return;
+        }
+        if (strcmp(type, "setkey") == 0) {
+            if (fromUsb && ds::jsonGetString(line, "key", val, sizeof(val)) && am::authSetKey(val)) sendHello();
+            return;
+        }
+        if (strcmp(type, "nonce") == 0) {
+            if (!fromUsb && ds::jsonGetString(line, "n", val, sizeof(val))) {
+                am::authSetNonce(val);
+                sendHello();   // 데몬이 키 일치 여부(kid)를 확인한다
+            }
+            return;
+        }
+    }
+    am::ParseResult r = am::applyLine(model, line, millis());
+    if (r.type == am::MsgType::Alert) playAlert(r.alert);
+}
+
+/** 바이트를 모아 줄 단위로 handleLine 에 넘긴다 (넘치는 줄은 버림) */
+struct LineAssembler {
+    char buf[AM_LINE_MAX];
+    size_t len = 0;
+    bool overflow = false;
+
+    void feed(char c, bool fromUsb) {
+        if (c == '\r') return;
         if (c != '\n') {
-            if (len < sizeof(line) - 1) line[len++] = c;
+            if (len < sizeof(buf) - 1) buf[len++] = c;
             else overflow = true;
-            continue;
+            return;
         }
-        line[len] = '\0';
-        if (!overflow && len) {
-            am::ParseResult r = am::applyLine(model, line, millis());
-            if (r.type == am::MsgType::Alert) playAlert(r.alert);
-        }
+        buf[len] = '\0';
+        if (!overflow && len) handleLine(buf, fromUsb);
         len = 0;
         overflow = false;
+    }
+};
+
+static void pollLinks() {
+    static LineAssembler usb, ble;
+    while (Serial.available()) usb.feed((char)Serial.read(), true);
+    char chunk[64];
+    size_t n;
+    while ((n = am::bleRead(chunk, sizeof(chunk))) > 0) {
+        for (size_t i = 0; i < n; i++) ble.feed(chunk[i], false);
     }
 }
 
@@ -174,6 +231,7 @@ static void render(uint32_t now) {
         U8G2& u = display.screen(i);
         if (approval) {
             am::drawApproval(u, i, model.perm, now);
+            if (i == 0 && am::bleConnected() && !am::authHasKey()) am::drawNotice(u, "PAIR VIA USB");
         } else if (!alive) {
             am::drawOffline(u, i, model.everRx, now);
         } else {
@@ -195,12 +253,14 @@ void setup() {
     buttons.begin();
     buzzer.begin();
     store.begin("agentmon", &settings, kFields, sizeof(kFields) / sizeof(kFields[0]));
+    am::authBegin();
+    am::bleBegin(AM_BLE_NAME);
     buzzer.playMelody(MELODY_START, 3);
-    Serial.println("{\"t\":\"hello\",\"fw\":\"" AM_FW_VERSION "\"}");
+    sendHello();
 }
 
 void loop() {
-    pollSerial();
+    pollLinks();
     pollButtons();
     static uint32_t lastFrame = 0;
     uint32_t now = millis();

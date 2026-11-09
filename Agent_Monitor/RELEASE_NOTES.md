@@ -1,5 +1,16 @@
 # Release Notes - Agent_Monitor
 
+## [v0.4.0] - 2026-11-10
+### ✨ P4 — BLE 무선 연결 · 서명 · 트레이 앱 · 웹 플래셔
+- **BLE UART**: 펌웨어가 USB 와 BLE("DeskStream Agent", NimBLE) 양쪽에서 같은 JSON Lines 를 받는다. 데몬은 `--transport auto`(기본: USB 우선, 없으면 BLE, BLE 중 USB 가 꽂히면 USB 로) · `usb` · `ble`.
+- **BLE 서명 (보안)**: USB 로 처음 연결하면 데몬이 32바이트 키를 만들어(`~/.deskstream/device_key`, 600) 장치 NVS 에 등록 — 키 등록은 USB 에서만 받는다. BLE 연결마다 nonce, BLE 로 오는 버튼·승인 신호는 HMAC-SHA256 서명 + 증가 카운터가 맞을 때만 수락 (가짜 장치·변조·재전송 거부). 키 없는 장치는 승인 화면에 `PAIR VIA USB`.
+- **who/hello**: USB 연결 시 데몬이 `who` 를 보내 이미 켜져 있던 장치도 키 id(kid)를 알려 준다 (실기 중 발견해 추가).
+- **트레이 앱** `agent_bridge.py tray`: 메뉴 막대 아이콘 색(회색·초록 USB·파랑 BLE·주황 승인 대기), 상태·설정 파일 열기·종료.
+- **Windows 이식성**: 설정 파일 권한 검사를 Windows 에서 제외, 트레이 설정 열기 `os.startfile`. focus·keys 는 macOS 전용, SessionStart 훅은 Git Bash 필요. Windows 실기 미검증.
+- **웹 플래셔 배포본**: `firmware/Agent_Monitor/` 추가 (13번째 프로젝트), `--check` 통과.
+- 크기: 735,611 B (56%, NimBLE 포함). 테스트: 데몬 43건(서명 위조·재전송·카운터·다른 키·새 연결·BLE 키 등록 거부 포함).
+- 실기 확인: USB 키 등록, BLE 전용 연결에서 서명된 승인·상세 화면·PC 명령, 트레이(아이콘 색·메뉴·설정 열기), **데스크톱 앱(Code 탭) 세션 훅 수신**. 위조 신호 거부는 단위 테스트로만 확인. 데스크톱 앱에서 권한 요청 시 앱 대화상자와 장치의 동시 대기는 미확인.
+
 ## [v0.3.0] - 2026-11-10
 ### ✨ P3 — 세션 상세 화면 · 음소거/무음 시간대 · PC 명령
 - **버튼 배치 변경**: 개요에서 짧게 = 그 슬롯 상세 화면(+완료 확인), 길게 = PC 명령.

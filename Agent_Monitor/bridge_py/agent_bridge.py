@@ -10,6 +10,8 @@
          - 슬롯·승인·상세 화면이 바뀌면 바로, 그 밖에는 HEARTBEAT_SEC 마다 하트비트를 보낸다.
          - 장치 버튼: 짧게 = 그 슬롯 상세 보기(+완료 확인), 길게 = 설정 파일의 PC 명령 (commands.py).
          - 설정 파일의 무음 시간대에는 알림음 메시지(alert)를 보내지 않는다.
+         - 연결: USB 우선, 없으면 BLE (transport.AutoLink). USB 로 연결되면 장치에 서명 키를 등록하고,
+           BLE 로 온 버튼·승인 신호는 서명·카운터가 맞을 때만 받는다 (security.py).
 
 명령:
   python3 agent_bridge.py run [--serial PORT]          # 데몬 실행
@@ -32,6 +34,7 @@ import commands
 import hooks_config
 import protocol
 from approvals import DECISIONS, ApprovalQueue
+from security import DeviceAuth
 from sessions import SessionTable, summarize_tool
 
 DEFAULT_HTTP_PORT = 9230
@@ -40,6 +43,7 @@ HOLD_SEC = hooks_config.PERMISSION_TIMEOUT_SEC - 10   # 훅 timeout 전에 스�
 CLEAR_SESSION_EVENTS = ("UserPromptSubmit", "Stop", "StopFailure", "SessionEnd")
 CLEAR_TOOL_EVENTS = ("PostToolUse", "PostToolUseFailure")
 QUIET_RELOAD_SEC = 30   # 무음 시간대 설정을 다시 읽는 주기
+SIGNED_TYPES = ("decide", "btn")   # BLE 로 올 때 서명이 필요한 장치 메시지
 
 
 def log(msg: str):
@@ -48,7 +52,7 @@ def log(msg: str):
 
 class Bridge:
     def __init__(self, link_factory, verbose=False, hold_sec=HOLD_SEC, config_path=commands.CONFIG_PATH,
-                 executor=commands.execute):
+                 executor=commands.execute, auth=None):
         self.table = SessionTable()
         self.approvals = ApprovalQueue()
         self.lock = threading.Lock()
@@ -63,6 +67,7 @@ class Bridge:
         self.config_path = config_path
         self._quiet = (None, 0.0)                     # (설정의 무음 시간대, 읽은 시각)
         self.runner = commands.CommandRunner(self._on_cmd_status, log, config_path, executor)
+        self.auth = auth or DeviceAuth()
         self.link = link_factory(self.on_device_line, self.on_connect)
 
     def start(self):
@@ -128,6 +133,11 @@ class Bridge:
 
     # --- 장치 → 데몬 ---
     def on_connect(self):
+        with self.lock:
+            if self.link.kind == "ble":       # 연결마다 새 nonce — 서명 확인의 기준 (장치가 hello 로 답한다)
+                self.outbox.insert(0, self.auth.new_nonce())
+            else:                             # 이미 켜져 있던 장치도 hello(키 id)를 보내게
+                self.outbox.insert(0, protocol.WHO)
         self.sent = [None] * len(self.sent)   # 새 연결이면 전체 재전송
         self.sent_perm = None
         self.sent_detail = None
@@ -138,9 +148,22 @@ class Bridge:
         if msg is None:
             return
         kind = msg.get("t")
+        if kind in SIGNED_TYPES and self.link.kind == "ble" and not self.auth.verify(line):
+            log(f"[device] BLE 신호 거부 (서명 없음·불일치·재전송): {line.strip()[:60]}")
+            return
         if kind == "hello":
-            log(f"[device] hello fw={msg.get('fw')}")
-            self.on_connect()
+            log(f"[device] hello fw={msg.get('fw')} kid={msg.get('kid') or '-'} via {self.link.kind}")
+            if msg.get("kid") != self.auth.kid():
+                if self.link.kind == "usb":
+                    log("[device] 서명 키 등록 (USB)")
+                    with self.lock:
+                        self.outbox.append(self.auth.setkey_msg())
+                else:
+                    log("[device] 장치 키가 없거나 다름 — BLE 버튼·승인은 거부됨. USB 로 한 번 연결하세요")
+            self.sent = [None] * len(self.sent)
+            self.sent_perm = None
+            self.sent_detail = None
+            self.dirty.set()
         elif kind == "decide":
             self._on_decide(msg.get("id"), msg.get("act"))
         elif kind == "btn":
@@ -235,14 +258,22 @@ def make_handler(bridge: Bridge):
     return HookHandler
 
 
-def cmd_run(args):
-    from transport import SerialLink   # pyserial 은 run 에서만 필요
-    bridge = Bridge(lambda on_line, on_connect: SerialLink(on_line, on_connect, port=args.serial, log=log),
+def start_daemon(args) -> tuple:
+    """Bridge 와 훅 서버를 만들어 시작한다 (서버 루프는 호출한 쪽이 돌린다). (bridge, server)"""
+    from transport import AutoLink   # pyserial·bleak 은 실행할 때만 필요
+    bridge = Bridge(lambda on_line, on_connect: AutoLink(on_line, on_connect, serial_port=args.serial, log=log,
+                                                         mode=args.transport),
                     verbose=args.verbose, config_path=args.config)
     bridge.start()
     server = ThreadingHTTPServer(("127.0.0.1", args.http_port), make_handler(bridge))
     server.daemon_threads = True          # 붙잡힌 권한 요청이 종료를 막지 않게
-    log(f"agent_bridge: 훅 수신 127.0.0.1:{args.http_port} · 시리얼 {args.serial or '자동 탐색'}")
+    via = args.serial or {"auto": "USB 우선 · 없으면 BLE", "usb": "USB 만", "ble": "BLE 만"}[args.transport]
+    log(f"agent_bridge: 훅 수신 127.0.0.1:{args.http_port} · 연결 {via}")
+    return bridge, server
+
+
+def cmd_run(args):
+    _bridge, server = start_daemon(args)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -253,10 +284,13 @@ def main():
     ap = argparse.ArgumentParser(description="Agent_Monitor PC 데몬")
     ap.add_argument("--http-port", type=int, default=DEFAULT_HTTP_PORT)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    run = sub.add_parser("run", help="데몬 실행")
-    run.add_argument("--serial", help="시리얼 포트 (기본: Espressif USB 자동 탐색)")
-    run.add_argument("-v", "--verbose", action="store_true", help="훅 이벤트 출력")
-    run.add_argument("--config", type=Path, default=commands.CONFIG_PATH, help="설정 파일 (기본: %(default)s)")
+    for name, help_text in (("run", "데몬 실행"), ("tray", "메뉴 막대 아이콘과 함께 데몬 실행")):
+        run = sub.add_parser(name, help=help_text)
+        run.add_argument("--serial", help="시리얼 포트 지정 (지정하면 USB 만)")
+        run.add_argument("--transport", choices=("auto", "usb", "ble"), default="auto",
+                         help="auto = USB 가 보이면 USB, 아니면 BLE (기본) · usb · ble")
+        run.add_argument("-v", "--verbose", action="store_true", help="훅 이벤트 출력")
+        run.add_argument("--config", type=Path, default=commands.CONFIG_PATH, help="설정 파일 (기본: %(default)s)")
     sub.add_parser("settings", help="claude --settings 용 훅 설정 JSON 출력")
     for name in ("install-hooks", "uninstall-hooks"):
         p = sub.add_parser(name)
@@ -266,6 +300,9 @@ def main():
 
     if args.cmd == "run":
         cmd_run(args)
+    elif args.cmd == "tray":
+        import tray      # pystray·Pillow 는 트레이에서만 필요
+        tray.main(args, start_daemon)
     elif args.cmd == "settings":
         print(json.dumps({"hooks": hooks_config.build_hooks(args.http_port)}, indent=2))
     elif args.cmd == "install-hooks":

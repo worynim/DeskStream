@@ -7,9 +7,10 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#define AM_FW_VERSION "0.3.0"
+#define AM_FW_VERSION "0.4.0"
 
-// --- 데몬 링크 (USB 시리얼, JSON Lines) ---
+// --- 데몬 링크 (USB 시리얼 · BLE UART, JSON Lines) ---
+#define AM_BLE_NAME         "DeskStream Agent"   // BLE 광고 이름 — 데몬이 이 이름으로 찾는다
 #define AM_SERIAL_BAUD      115200
 #define AM_LINE_MAX         512     // 한 줄 최대 바이트 (넘는 줄은 버린다) — perm 요약 120자 + 이스케이프 여유
 #define AM_LINK_TIMEOUT_MS  6000    // 하트비트(2초)가 이만큼 없으면 "PC 연결 끊김"

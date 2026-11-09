@@ -90,9 +90,9 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
     - **타임아웃 자동 복원 메모리**: 카운트다운 종료 알람 시 아무 버튼이나 누르면 직전에 설정했던 시간으로 자동 복원.
     - **이벤트 기반 더티 체킹**: 변경된 화면만 선별 전송하여 지연 없는 즉각적 반응성 및 정확한 30ms 비프음 제공.
 
-### 13. [Agent_Monitor: AI 개발 에이전트 모니터 (v0.3.0)](./Agent_Monitor/)
+### 13. [Agent_Monitor: AI 개발 에이전트 모니터 (v0.4.0)](./Agent_Monitor/)
 - **기능**: Claude Code 세션 상태(생각 중 / 실행 중 / 승인 대기 / 입력 대기 / 완료 / 오류)를 OLED 한 장에 세션 하나씩 실시간 표시하고 부저로 알림.
-- **특징**: Claude Code 훅 → PC 데몬(Python) → USB 시리얼. 데몬이 꺼져 있어도 Claude Code 동작에 영향 없음. 권한 요청을 장치 버튼으로 승인/거절(터미널 대화상자와 동시 대기, 자동 허용 없음). 세션 상세 화면, 음소거·무음 시간대, 버튼 길게 누르기로 PC 명령(앱 앞으로·셸 명령·키 입력) 실행.
+- **특징**: Claude Code 훅(CLI·데스크톱 앱) → PC 데몬(Python, 트레이 아이콘) → USB 시리얼 또는 BLE(USB 로 등록한 키로 서명). 데몬이 꺼져 있어도 Claude Code 동작에 영향 없음. 권한 요청을 장치 버튼으로 승인/거절(터미널 대화상자와 동시 대기, 자동 허용 없음). 세션 상세 화면, 음소거·무음 시간대, 버튼 길게 누르기로 PC 명령(앱 앞으로·셸 명령·키 입력) 실행.
 
 ## 🚀 주요 기술적 특징
 - **하이브리드 I2C 아키텍처**: 하드웨어 I2C와 레지스터 직접 제어 기반 고속 소프트웨어 I2C를 병렬로 사용하여 4개의 화면을 끊김 없이 제어합니다.
@@ -162,14 +162,14 @@ WiFi 설정 포털은 DeskStreamCore에 들어 있어 WiFiManager는 필요 없�
 
 ## 🌐 웹 플래셔 (Web Flasher)
 
-**https://worynim.github.io/DeskStream/** — Chrome/Edge 데스크톱 또는 Android Chrome에서 USB로 연결한 ESP32-C3 보드에 12개 프로젝트를 브라우저에서 바로 플래시할 수 있습니다. 별도 프로그램 설치가 필요 없습니다.
+**https://worynim.github.io/DeskStream/** — Chrome/Edge 데스크톱 또는 Android Chrome에서 USB로 연결한 ESP32-C3 보드에 13개 프로젝트를 브라우저에서 바로 플래시할 수 있습니다. 별도 프로그램 설치가 필요 없습니다.
 
 - **Web Serial + [esptool-js](https://github.com/espressif/esptool-js)** 기반. Chrome/Edge 데스크톱, **Android Chrome 148+ (USB OTG)** 지원. iPhone/iPad(Safari)·Firefox Android·인앱 브라우저는 불가
 - **한국어 / English UI** 지원 — 페이지 우측 상단에서 전환 (브라우저 언어 자동 감지, 선택값 저장)
 - 각 프로젝트 카드의 **README ↗** 링크에서 해당 프로젝트 문서를 새 탭으로 열 수 있습니다.
 - 기본 플래시는 **NVS(WiFi·표시 설정) 보존**, 필요 시 "전체 지우기" 옵션 제공
 - 펌웨어 **SHA-256**(다운로드) 및 **MD5**(쓰기 후) 무결성 검증, 플래시 후 자동 재부팅
-- 12개 프로젝트: 스마트 정보 스테이션, GPS 대시보드, 사운드 비주얼라이저, 초광폭 OLED 테스트, 시스템 상태 모니터, DS DECK, 화면 스트리머, 게임 오브 라이프, 한글/영어/중국어 시계, 범용 타이머
+- 13개 프로젝트: 스마트 정보 스테이션, GPS 대시보드, 사운드 비주얼라이저, 초광폭 OLED 테스트, 시스템 상태 모니터, DS DECK, 화면 스트리머, 게임 오브 라이프, 한글/영어/중국어 시계, 범용 타이머, AI 에이전트 모니터
 - **한글 시계 BB(Hangeul_Clock_bitbang_i2c)는 1.3" SH1106 · 4-bus 회로 구성이 달라 웹 플래셔 대상에서 제외**됩니다.
   하드웨어가 달라 2026-11-08부터 별도 폴더 **DeskStream_V2**에서 관리합니다.
 

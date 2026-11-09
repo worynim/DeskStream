@@ -6,6 +6,7 @@
          fixtures/p0_run2.jsonl = P0 자동 시나리오 실제 훅 기록 (개인 경로 제거본)
 """
 import json
+import os
 import sys
 import tempfile
 import threading
@@ -22,6 +23,7 @@ import hooks_config  # noqa: E402
 import protocol  # noqa: E402
 from agent_bridge import Bridge  # noqa: E402
 from approvals import ApprovalQueue  # noqa: E402
+from security import DeviceAuth  # noqa: E402
 from sessions import SessionTable, summarize_tool  # noqa: E402
 
 
@@ -179,11 +181,18 @@ class TestApprovalQueue(unittest.TestCase):
 
 
 NO_CONFIG = Path(tempfile.gettempdir()) / "agent_monitor_test_absent.toml"
+TEST_KEY_DIR = tempfile.TemporaryDirectory()
+
+
+def test_auth(name="key"):
+    """사용자 홈의 실제 키를 건드리지 않는 테스트용 DeviceAuth"""
+    return DeviceAuth(Path(TEST_KEY_DIR.name) / name)
 
 
 class FakeLink:
-    def __init__(self, connected=True):
+    def __init__(self, connected=True, kind="usb"):
         self.connected = connected
+        self.kind = kind if connected else None
         self.lines = []
 
     def start(self):
@@ -196,7 +205,7 @@ class FakeLink:
 class TestBridgePermission(unittest.TestCase):
     def make(self, connected=True, hold=2.0):
         link = FakeLink(connected)
-        return Bridge(lambda *_: link, hold_sec=hold, config_path=NO_CONFIG), link
+        return Bridge(lambda *_: link, hold_sec=hold, config_path=NO_CONFIG, auth=test_auth()), link
 
     def ask(self, bridge, cmd="rm -rf build", sid="s1"):
         """권한 요청을 별도 스레드로 보내고 (스레드, 결과 dict) 를 돌려준다."""
@@ -351,6 +360,7 @@ class TestCommands(unittest.TestCase):
         ok, msg = commands.execute(commands.Command(2, "t", "shell", command="sleep 2", timeout=0.2))
         self.assertEqual((ok, msg), (False, "timeout"))
 
+    @unittest.skipIf(os.name == "nt", "Windows 는 st_mode 권한 검사를 하지 않음")
     def test_load_rejects_group_writable(self):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "c.toml"
@@ -379,7 +389,7 @@ class TestBridgeButtons(unittest.TestCase):
         self.cfg.chmod(0o600)
         self.ran = []
         self.link = FakeLink()
-        self.bridge = Bridge(lambda *_: self.link, config_path=self.cfg,
+        self.bridge = Bridge(lambda *_: self.link, config_path=self.cfg, auth=test_auth(),
                              executor=lambda c: (self.ran.append(c.label), (True, "exit 0"))[1])
 
     def tearDown(self):
@@ -420,6 +430,64 @@ class TestBridgeButtons(unittest.TestCase):
             self.skipTest("23:59 경계")
         self.bridge.on_hook("Stop", ev())
         self.assertEqual(self.bridge.outbox, [])
+
+
+def sign(auth: DeviceAuth, body: str) -> str:
+    """펌웨어 authSignLine 과 같은 방식으로 서명 (본문은 "c" 포함)"""
+    import hashlib
+    import hmac
+    sig = hmac.new(auth.key, (auth.nonce + body).encode(), hashlib.sha256).hexdigest()[:32]
+    return body[:-1] + f',"sig":"{sig}"}}'
+
+
+class TestSecurity(unittest.TestCase):
+    def test_key_created_private_and_stable(self):
+        a = test_auth("k1")
+        kid = a.kid()
+        if os.name != "nt":   # Windows 는 st_mode 로 권한을 볼 수 없음
+            self.assertEqual(oct(a.key_path.stat().st_mode & 0o777), "0o600")
+        self.assertEqual(DeviceAuth(a.key_path).kid(), kid)     # 다시 읽어도 같은 키
+        self.assertEqual(json.loads(a.setkey_msg())["key"], a.key.hex())
+
+    def test_verify(self):
+        a = test_auth("k2")
+        self.assertFalse(a.verify('{"t":"btn","b":0,"press":"long","c":1}'))      # nonce 없음·서명 없음
+        a.new_nonce()
+        good = sign(a, '{"t":"decide","id":7,"act":"allow","c":1}')
+        self.assertTrue(a.verify(good))
+        self.assertFalse(a.verify(good))                                           # 같은 카운터 재전송
+        self.assertTrue(a.verify(sign(a, '{"t":"btn","b":1,"press":"long","c":5}')))
+        self.assertFalse(a.verify(sign(a, '{"t":"btn","b":1,"press":"long","c":3}')))   # 카운터 감소
+        tampered = sign(a, '{"t":"decide","id":7,"act":"deny","c":9}').replace("deny", "allow")
+        self.assertFalse(a.verify(tampered))
+        other = test_auth("k3")                                                    # 다른 키 (가짜 장치)
+        other.nonce = a.nonce
+        self.assertFalse(a.verify(sign(other, '{"t":"decide","id":7,"act":"allow","c":20}')))
+        old = sign(a, '{"t":"decide","id":7,"act":"allow","c":30}')
+        a.new_nonce()                                                              # 새 연결
+        self.assertFalse(a.verify(old))
+
+    def test_bridge_rejects_unsigned_ble(self):
+        link = FakeLink(kind="ble")
+        auth = test_auth("k4")
+        b = Bridge(lambda *_: link, config_path=NO_CONFIG, auth=auth)
+        b.on_connect()
+        self.assertEqual(json.loads(b.outbox[0])["t"], "nonce")
+        b.on_hook("Stop", ev())
+        b.on_device_line('{"t":"btn","b":0,"press":"short","c":1}')
+        self.assertEqual(b.watch, -1)                                              # 서명 없음 → 무시
+        b.on_device_line(sign(auth, '{"t":"btn","b":0,"press":"short","c":2}'))
+        self.assertEqual(b.watch, 0)
+
+    def test_bridge_registers_key_over_usb_only(self):
+        for kind, expect in (("usb", True), ("ble", False)):
+            link = FakeLink(kind=kind)
+            b = Bridge(lambda *_: link, config_path=NO_CONFIG, auth=test_auth("k5"))
+            b.on_device_line('{"t":"hello","fw":"0.4.0","kid":""}')
+            self.assertEqual(any('"setkey"' in x for x in b.outbox), expect, kind)
+        b.outbox.clear()
+        b.on_device_line(json.dumps({"t": "hello", "kid": b.auth.kid()}))
+        self.assertFalse(any('"setkey"' in x for x in b.outbox))
 
 
 class TestHooksConfig(unittest.TestCase):

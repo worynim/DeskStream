@@ -37,6 +37,9 @@ void drawDetail(U8G2& u, uint8_t idx, const Detail& d, bool muted, uint32_t nowM
 /** PC 명령 진행·결과 띠를 화면 아래에 덧그린다 (표시할 것이 없으면 아무것도 안 함) */
 void drawToast(U8G2& u, const CmdToast& t, uint32_t nowMs);
 
+/** 화면 아래에 반전 띠로 짧은 안내를 덧그린다 */
+void drawNotice(U8G2& u, const char* text);
+
 /** 음소거 표시 (오른쪽 위 작은 스피커 + X) */
 void drawMuteIcon(U8G2& u);
 

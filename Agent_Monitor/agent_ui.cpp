@@ -213,19 +213,25 @@ void drawDetail(U8G2& u, uint8_t idx, const Detail& d, bool muted, uint32_t nowM
     u.drawStr(x + 5, 61, label);
 }
 
-void drawToast(U8G2& u, const CmdToast& t, uint32_t nowMs) {
-    if (t.st == CmdState::None) return;
-    if (t.st != CmdState::Run && nowMs - t.rxMs > AM_TOAST_MS) return;
-    char buf[40];
-    const char* tag = t.st == CmdState::Run ? "RUN" : t.st == CmdState::Ok ? "OK" : "FAIL";
-    snprintf(buf, sizeof(buf), "%s %s %s", tag, t.label, t.msg);
+void drawNotice(U8G2& u, const char* text) {
+    char buf[kCols + 1];
+    strncpy(buf, text, kCols);
+    buf[kCols] = '\0';
     u.setDrawColor(1);
     u.drawBox(0, 50, 128, 14);
     u.setDrawColor(0);
     u.setFont(u8g2_font_6x10_tf);
-    buf[kCols] = '\0';
     u.drawStr(1, 61, buf);
     u.setDrawColor(1);
+}
+
+void drawToast(U8G2& u, const CmdToast& t, uint32_t nowMs) {
+    if (t.st == CmdState::None) return;
+    if (t.st != CmdState::Run && nowMs - t.rxMs > AM_TOAST_MS) return;
+    char buf[48];
+    const char* tag = t.st == CmdState::Run ? "RUN" : t.st == CmdState::Ok ? "OK" : "FAIL";
+    snprintf(buf, sizeof(buf), "%s %s %s", tag, t.label, t.msg);
+    drawNotice(u, buf);
 }
 
 void drawMuteIcon(U8G2& u) {

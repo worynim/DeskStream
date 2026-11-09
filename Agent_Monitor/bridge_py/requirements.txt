@@ -1,1 +1,4 @@
 pyserial>=3.5
+bleak>=0.22      # BLE 연결 (없으면 USB 만)
+pystray>=0.19    # tray 명령
+Pillow>=10

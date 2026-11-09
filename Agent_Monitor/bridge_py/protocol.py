@@ -16,8 +16,10 @@ PC → 장치
    "msg":"마지막 답변","h0":"+Bash npm test","h1":">Edit app.py","h2":"","h3":""}             상세 화면 (h: '>' 실행 중 '+' 성공 '!' 실패)
   {"t":"cmd","b":1,"st":"run","label":"npm test","msg":""}      PC 명령 진행 (st = run | ok | fail, b = 버튼 0~3)
   {"t":"hb","quiet":1}                                          quiet = 무음 시간대 (없으면 0)
+  {"t":"who"}                                                   USB 연결 시 — 장치가 hello 로 답한다
+  {"t":"setkey","key":"<64 hex>"} / {"t":"nonce","n":"<hex>"}    서명 키 등록(USB 만) / BLE 연결마다 nonce (security.py)
 장치 → PC
-  {"t":"hello","fw":"0.3.0"}
+  {"t":"hello","fw":"0.4.0","kid":"a1b2c3d4"}   kid = 등록된 서명 키 id (없으면 빈 문자열)
   {"t":"btn","b":0,"press":"short"}      short = 슬롯 b 상세 보기(+완료 확인), long = PC 명령 b+1 (승인 화면이 아닐 때)
   {"t":"decide","id":7,"act":"allow"}    act = allow | deny | pass(나중에) | next
 """
@@ -32,6 +34,7 @@ MSG_MAX = 120        # 펌웨어 Detail::msg[121]
 HIST_MAX = 21        # 펌웨어 Detail::h[4][22] — 상세 화면 한 줄
 CMD_MSG_MAX = 12     # 펌웨어 CmdToast::msg[13]
 PERM_NONE = '{"t":"perm","id":0}'
+WHO = '{"t":"who"}'
 
 
 def clean(text, limit: int) -> str:

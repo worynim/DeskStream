@@ -4,7 +4,7 @@
 @brief 사용자 설정 파일(~/.deskstream/agent_monitor.toml) — 버튼 길게 누르기 PC 명령과 무음 시간대
 @details 보안 원칙
          - 장치는 버튼 번호만 보낸다. 실행할 내용은 오직 이 설정 파일에서 온다 (장치·네트워크에서 명령 문자열을 받지 않음).
-         - 설정 파일이 다른 사용자도 쓸 수 있는 권한(group/other write)이면 명령을 실행하지 않는다.
+         - 설정 파일이 다른 사용자도 쓸 수 있는 권한(group/other write)이면 명령을 실행하지 않는다 (macOS·Linux).
          - 버튼을 누를 때마다 파일을 다시 읽는다 → 데몬 재시작 없이 수정 반영.
          명령 종류
          - focus : 앱을 앞으로 (`open -a`, macOS)
@@ -101,8 +101,8 @@ def load_config(path: Path = CONFIG_PATH) -> Config:
     """설정 파일을 읽는다. 파일이 없으면 빈 설정. 문법·값 오류는 ConfigError."""
     if not path.exists():
         return Config({}, None)
-    mode = path.stat().st_mode
-    if mode & (stat.S_IWGRP | stat.S_IWOTH):
+    # Windows 는 권한을 ACL 로 관리해 st_mode 가 늘 0o666 으로 보이므로 검사하지 않는다 (사용자 프로필 폴더 보호에 맡김)
+    if os.name != "nt" and path.stat().st_mode & (stat.S_IWGRP | stat.S_IWOTH):
         raise ConfigError(f"{path} 를 다른 사용자도 쓸 수 있습니다 — chmod 600 후 다시 시도하세요")
     try:
         data = tomllib.loads(path.read_text(encoding="utf-8"))

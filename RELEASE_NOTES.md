@@ -1,3 +1,9 @@
+## [v4.25.0] - 2026-11-10
+### 🤖 Agent_Monitor v0.4.0 — BLE 무선 · 서명 · 트레이 앱 · 웹 플래셔 (P4)
+- USB 우선, 없으면 BLE("DeskStream Agent")로 연결합니다. BLE 로 오는 버튼·승인 신호는 USB 로 등록한 키의 HMAC 서명·카운터가 맞을 때만 받습니다(가짜 장치·재전송 거부).
+- 메뉴 막대 트레이 앱(`agent_bridge.py tray`), Windows 이식성 점검(실기 미검증), 데스크톱 앱(Code 탭) 세션 훅 수신 확인.
+- 웹 플래셔 배포본에 13번째 프로젝트로 추가 (`firmware/Agent_Monitor`, `--check` 통과).
+
 ## [v4.23.0] - 2026-11-10
 ### 🤖 Agent_Monitor v0.3.0 — 세션 상세 화면 · 음소거 · PC 명령 (P3)
 - 슬롯 버튼 짧게 = 세션 상세(최근 도구·마지막 답변·권한 모드), 길게 = 설정 파일(`~/.deskstream/agent_monitor.toml`)의 PC 명령(앱 앞으로·셸 명령·키 입력). 음소거(보드 저장)와 무음 시간대 추가.
