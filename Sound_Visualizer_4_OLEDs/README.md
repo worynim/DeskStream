@@ -1,4 +1,4 @@
-# ESP32-C3 Ultra-Wide OLED (512x64) Matrix (v3.3.0)
+# ESP32-C3 Ultra-Wide OLED (512x64) Matrix (v3.6.0)
 
 이 프로젝트는 4개의 128x64 OLED(SSD1306)를 가로로 배치하여 하나의 **512x64 초광폭(Ultra-Wide) 디스플레이**로 제어하는 Arduino 프로젝트입니다. ESP32-C3의 하드웨어 FPU 부재를 극복하기 위해 **ESP-DSP의 정수형 FFT**를 도입하여 극한의 성능(Max 70+ FPS)을 구현했습니다.
 
@@ -16,7 +16,8 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 *   **128 Bands Support**: 연산 성능 향상으로 128개의 세밀한 주파수 밴드를 실시간으로 처리할 수 있습니다.
 *   **Sum Pooling (High-Freq Weighting)**: 고음역대 가시성을 개선하기 위해 단순히 최대값을 찾는 대신 주파수 에너지를 **합산(Sum)**하여 렌더링하는 가중치 방식을 적용했습니다.
 *   **Peak Hold Animation**: 고속 프레임 환경에서 시각적 안정감을 주기 위해 피크 점이 일정 시간 체공 후 중력에 의해 떨어지는 애니메이션 로직을 탑재했습니다.
-*   **Oscilloscope Mode (New)**: 프레임마다 파형의 최대 진폭을 감지하는 **자동 스케일링(Auto-Scaling)** 기능이 포함된 실시간 시간 영역 파형 모드를 제공합니다.
+*   **Oscilloscope Mode**: 프레임마다 파형의 최대 진폭을 감지하는 **자동 스케일링(Auto-Scaling)** 기능이 포함된 실시간 시간 영역 파형 모드를 제공합니다.
+*   **6가지 시각화 모드 (v3.6.0)**: 아래 "시각화 모드" 표 참고. 모드 전환은 BTN 4 짧게 누름.
 
 ### 3. Zero-Conflict 병렬 전송 엔진 (Smart Flush 2.0)
 *   **Dual-Core 분산 처리**: ESP32-C3의 단일 코어 환경에서도 FreeRTOS 태스크를 활용하여 I2C 전송과 CPU 연산을 효율적으로 분할합니다.
@@ -54,14 +55,28 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 *   **BTN 2 (GPIO 4)**:
     *   **길게 누름**: 버튼 기능 안내(Help) 화면 토글. 
 *   **BTN 4 (GPIO 9)**:
-    *   **짧게 누름**: 시각화 모드 전환 (스펙트럼 막대 ↔ 오실로스코프 파형).
+    *   **짧게 누름**: 시각화 모드 순환 (아래 "시각화 모드" 순서).
     *   **길게 누름**: 노이즈 캘리브레이션 시작.
+
+## 🎨 시각화 모드 (BTN 4 짧게 누름으로 순환)
+| # | 모드 | 표현 |
+|---|---|---|
+| 1 | Spectrum | 128밴드 막대 + 피크 도트 |
+| 2 | Waveform | 오실로스코프 파형 (자동 스케일링) |
+| 3 | Mirror | 중앙선 기준 위아래 대칭 막대 + 피크 도트 |
+| 4 | Spectrogram | 가로=시간(오른쪽이 최신), 세로=주파수(위가 고음), 세기=Bayer 디더링 점 밀도 |
+| 5 | DotMatrix | 4px 간격 LED 도트 기둥, 박자마다 화면 반전 플래시 |
+| 6 | Particles | 스펙트럼 막대가 솟은 밴드의 주파수 위치(왼쪽 저음 → 오른쪽 고음)에서 세기에 비례한 확률로 계속 떨어져 바닥에서 튕기는 점 (속도 비례 꼬리) |
+
+*   박자 판정(DotMatrix 플래시): 저역(하위 `BASS_BANDS`개 밴드) 세기가 이동 평균의 `BEAT_RATIO`배를 넘고 `BEAT_MIN_LEVEL` 이상일 때, `BEAT_COOLDOWN` 프레임 간격으로 판정.
+*   튜닝 상수는 모두 `config.h`에 있다 (`BASS_BANDS`, `BEAT_*`, `DOT_*`, `PARTICLE_*`).
 
 ## 📺 포함된 기능 (데모 및 비주얼라이저)
 - 4대의 OLED를 하나의 512x64 광폭 캔버스로 제어
 - **실시간 사운드 비주얼라이저 (Sound Visualizer)**
   - 128개 밴드 스펙트럼 및 2픽셀 두께의 Peak Dot
   - **오실로스코프 모드**: 0V 기준선 기반 실시간 파형 시각화
+  - **추가 모드 4종**: 미러 스펙트럼·스펙트로그램·도트 매트릭스·파티클
   - 부드러운 막대 하강 이펙트 및 하드웨어 가속 FFT 연산
   - 하이브리드 지연(vTaskDelay + delayMicroseconds) 기반 정밀 FPS 제어
   - 버튼 도움말 오버레이 안내 시스템

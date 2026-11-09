@@ -16,12 +16,14 @@ Preferences prefs;
 
 // --- [1] 설정 및 객체 생성 ---
 // (상수 및 핀 설정은 각 모듈의 헤더 파일에서 관리함)
-int DEBUG_MODE = 1; // 0: Off, 1: FPS, 2: FPS+Perf, 3: Full (includes DMA Diag)
+int DEBUG_MODE = 0; // 0: Off, 1: FPS, 2: FPS+Perf, 3: Full (includes DMA Diag), 4: 화면 전송 끄고 피크 주파수 출력, 5: 화면 전송 켜고 피크 주파수 출력 (I2C 잡음 A/B 비교용)
 
 AudioAnalyzer analyzer(DEFAULT_SAMPLES, DEFAULT_SAMPLING_FREQ, DEFAULT_NUM_BANDS);
 Ticker fps_ticker;
 
-uint8_t vizMode = 0; // 0: 스펙트럼(막대), 1: 파형(오실로스코프)
+enum VizMode : uint8_t { VIZ_SPECTRUM, VIZ_WAVEFORM, VIZ_MIRROR, VIZ_SPECTROGRAM, VIZ_DOTMATRIX, VIZ_PARTICLES, VIZ_COUNT };
+static const char* const VIZ_NAMES[VIZ_COUNT] = { "Spectrum", "Waveform", "Mirror", "Spectrogram", "DotMatrix", "Particles" };
+uint8_t vizMode = VIZ_SPECTRUM;
 bool is_flipped = true; // true = 패널 기본 방향(0xA1/0xC8) + 화면 순서 4→1 (기존 기본값)
 
 // --- [도움말 모드] ---
@@ -186,6 +188,34 @@ void drawHelpScreen() {
 }
 
 // --- [버튼 콜백] ---
+/**
+ * @brief FFT 결과에서 가장 큰 피크 3개의 주파수·크기를 0.5초마다 시리얼로 출력 (잡음 원인 진단용, DEBUG_MODE 4·5)
+ * @details DEBUG_MODE 4(화면 전송 끔)와 5(켬)에서 같은 주파수 피크가 나오는지 비교하면 I2C 전송 잡음 여부를 알 수 있다.
+ */
+static void reportPeaks() {
+  static uint32_t lastMs = 0;
+  if (millis() - lastMs < 500) return;
+  lastMs = millis();
+
+  const float* mag = analyzer.getvReal();
+  const int half = DEFAULT_SAMPLES / 2;
+  const float binHz = DEFAULT_SAMPLING_FREQ / DEFAULT_SAMPLES;
+  int top[3] = {-1, -1, -1};
+  for (int i = 3; i < half - 1; i++) {                 // DC 근처 3개 빈 제외, 지역 최댓값만 후보
+    if (mag[i] < mag[i - 1] || mag[i] < mag[i + 1]) continue;
+    for (int k = 0; k < 3; k++) {
+      if (top[k] < 0 || mag[i] > mag[top[k]]) {
+        for (int j = 2; j > k; j--) top[j] = top[j - 1];
+        top[k] = i;
+        break;
+      }
+    }
+  }
+  Serial.printf("[PEAK] disp=%s", DEBUG_MODE == 4 ? "OFF" : "ON");
+  for (int k = 0; k < 3; k++) if (top[k] >= 0) Serial.printf(" | %.0fHz %.0f", top[k] * binHz, mag[top[k]]);
+  Serial.println();
+}
+
 /** BTN1 짧게: 화면 180° 플립 */
 static void onFlipShort() {
   toggleFlip();
@@ -200,15 +230,17 @@ static void onHelpShort() {
 /** BTN2 길게: 도움말 토글 */
 static void onHelpLong() {
   isHelpMode = !isHelpMode;
+  analyzer.resetHistory();   // 도움말 화면이 누적 화면에 남지 않도록
   buzzer.beep(200, 2000);
   if (isHelpMode) drawHelpScreen();   // 진입 시 1회 렌더링
 }
 
-/** BTN4 짧게: 스펙트럼 ↔ 파형 */
+/** BTN4 짧게: 시각화 모드 순환 */
 static void onModeShort() {
-  vizMode = (vizMode + 1) % 2;
+  vizMode = (vizMode + 1) % VIZ_COUNT;
+  analyzer.resetHistory();   // 이전 모드 화면 위에 이어 그리지 않도록
   buzzer.beep(50, 3000);
-  Serial.printf("[VIZ] Mode: %s\n", vizMode == 0 ? "Spectrum" : "Waveform");
+  Serial.printf("[VIZ] Mode: %s\n", VIZ_NAMES[vizMode]);
 }
 
 /** BTN4 길게: 버튼을 뗀 뒤 1초 기다렸다가 노이즈 캘리브레이션 (버튼 소음 방지) */
@@ -228,6 +260,7 @@ static void onCalibrateLong() {
   delay(CAL_START_DELAY_MS);
 
   runCalibration();
+  analyzer.resetHistory();   // 안내 문구가 누적 화면에 남지 않도록
 }
 
 void setup() {
@@ -292,15 +325,19 @@ void loop() {
     // 1. FFT 분석
     analyzer.process();
 
-    // 2. 렌더링 (모드에 따라 스펙트럼 또는 파형 선택)
-    if (vizMode == 0) {
-      analyzer.render(display.getCanvas());      // 스펙트럼 막대 모드
-    } else {
-      analyzer.renderWaveform(display.getCanvas()); // 오실로스코프 파형 모드
+    // 2. 렌더링 (현재 시각화 모드에 맞는 렌더러 호출)
+    switch (vizMode) {
+      case VIZ_WAVEFORM: analyzer.renderWaveform(display.getCanvas()); break; // 오실로스코프 파형
+      case VIZ_MIRROR:   analyzer.renderMirror(display.getCanvas());   break; // 미러 스펙트럼
+      case VIZ_SPECTROGRAM: analyzer.renderSpectrogram(display.getCanvas()); break; // 스크롤 스펙트로그램
+      case VIZ_DOTMATRIX:   analyzer.renderDotMatrix(display.getCanvas());   break; // 도트 매트릭스
+      case VIZ_PARTICLES:   analyzer.renderParticles(display.getCanvas());   break; // 파티클
+      default:           analyzer.render(display.getCanvas());         break; // 스펙트럼 막대
     }
 
-    // 3. 디스플레이 전송 (Smart Flush)
-    display.pushCanvas();
+    // 3. 디스플레이 전송 (Smart Flush) — DEBUG_MODE 4는 I2C 잡음 진단을 위해 전송을 끈다
+    if (DEBUG_MODE >= 4) reportPeaks();
+    if (DEBUG_MODE != 4) display.pushCanvas();
 
     // [Step 6] FPS 상한 제어
     // 화면 변화가 적을 때 너무 빨라지는 것을 막아 애니메이션 일관성 유지

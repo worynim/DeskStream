@@ -42,8 +42,8 @@
 #define TARGET_FPS          70          // 목표 프레임 레이트 (초당 70프레임)
 #define TARGET_FRAME_US     (1000000 / TARGET_FPS) // 1프레임당 목표 시간 (마이크로초)
 
-#define DEFAULT_SAMPLES       1024       // FFT 샘플 수 (결과가 클수록 해상도가 높아지나 연산량 증가)
-#define DEFAULT_SAMPLING_FREQ 40000.0f  // 마이크로폰 샘플링 주파수 (40kHz = 최대 20kHz 대역 감지)
+#define DEFAULT_SAMPLES       512       // FFT 샘플 수 (결과가 클수록 해상도가 높아지나 연산량 증가)
+#define DEFAULT_SAMPLING_FREQ 20000.0f  // 마이크로폰 샘플링 주파수 (40kHz = 최대 20kHz 대역 감지)
 #define DEFAULT_NUM_BANDS     128        // 화면에 표시할 주파수 막대(밴드) 총 개수
 
 // 주파수 매핑 설정
@@ -58,15 +58,39 @@
 #define PEAK_HOLD_TIME      10          // 피크 대기 지속 프레임 수
 #define PEAK_DOT_HEIGHT     3           // 피크 점의 두께 (픽셀 단위)
 
+// 박자 판정 (도트 매트릭스 플래시용, BASS_BANDS는 DEFAULT_NUM_BANDS·매핑 설정에 따라 저역 범위가 달라짐)
+#define BASS_BANDS          12          // 저역(베이스)으로 취급할 하위 밴드 개수
+#define BEAT_RATIO          1.5f        // 저역 세기가 평균의 몇 배를 넘으면 박자로 판정
+#define BEAT_MIN_LEVEL      16          // 박자 판정 최소 저역 세기 (0~CANVAS_HEIGHT, 잡음 방지)
+#define BEAT_COOLDOWN       10          // 박자 판정 뒤 다음 박자까지 최소 프레임 수
+
+// 도트 매트릭스 모드 (DOT_PITCH 간격마다 DOT_SIZE 크기의 점, 열 수 = CANVAS_WIDTH/DOT_PITCH → 밴드 수와 같게 둘 것)
+#define DOT_PITCH           4           // 점 간격 (px)
+#define DOT_SIZE            3           // 켜진 점 한 변 (px, DOT_PITCH보다 작게)
+#define DOT_FLASH_FRAMES    2           // 박자 때 화면 반전 유지 프레임 수 (0이면 플래시 끔)
+
+// 파티클 모드 (스펙트럼 막대가 높은 밴드마다 그 주파수 위치(x)에서 확률적으로 위에서 떨어져 바닥에서 튕김)
+#define PARTICLE_MAX        256          // 동시에 존재하는 파티클 최대 개수
+#define PARTICLE_FIRST_BAND 0           // 파티클을 만드는 시작 밴드 (0 = 전 대역: 왼쪽 OLED1 저음 → 오른쪽 OLED4 고음)
+#define PARTICLE_MIN_LEVEL  12          // 생성 최소 막대 세기 (0~CANVAS_HEIGHT, 스펙트럼 막대 높이와 같은 기준 → 잡음 밴드 제외)
+#define PARTICLE_RATE_PCT   80          // 막대가 최대(CANVAS_HEIGHT)일 때 프레임당 생성 확률 (%, 세기에 비례해 증가)
+#define PARTICLE_SPAWN_PER_FRAME 6      // 프레임당 최대 생성 개수
+#define PARTICLE_GRAVITY    6           // 중력 (1/16 px/프레임², 6 ≈ 0.375px)
+#define PARTICLE_SPAWN_VX   6           // 생성 시 가로 속도 범위 ±(1/16 px/프레임, 6 ≈ ±0.4px)
+#define PARTICLE_BOUNCE_VX  24          // 바닥에서 튕길 때마다 가로 속도에 더해지는 무작위 범위 ±(1/16 px/프레임, 24 = ±1.5px)
+#define PARTICLE_MAX_VX     48          // 가로 속도 상한 (1/16 px/프레임, 48 = 3px)
+#define PARTICLE_BOUNCE_PCT 60          // 바닥 반발 계수 (%)
+#define PARTICLE_MIN_BOUNCE 24          // 튕긴 뒤 속도(1/16 px/프레임)가 이보다 작으면 소멸
+
 #define AGC_DECAY_RATE      0.95f       // 자동 이득 제어(AGC) 감쇠율 (낮을수록 빠르게 반응)
-#define AGC_MIN_AMPLITUDE   64.0f       // AGC가 동작하기 위한 최소 신호 크기
+#define AGC_MIN_AMPLITUDE   512.0f      // AGC 기준값의 하한 = 최대 게인 상한 (클수록 조용할 때 잡음이 덜 증폭됨, 작은 소리는 낮게 보임)
 #define AGC_INITIAL_MAX_AMP 2000.0f     // 초기 AGC 기준값 (동적으로 변경됨)
 
-#define NOISE_FLOOR_FACTOR  1.1f        // 측정된 노이즈 레벨에 곱할 마진 비율 (1.1 = +10%)
+#define NOISE_FLOOR_FACTOR  1.25f       // 측정된 노이즈 최댓값에 곱할 마진 비율 (1.25 = +25%)
 #define NOISE_FLOOR_OFFSET  50.0f       // 노이즈 필터링 시 추가로 적용할 상수 오프셋
 #define DEFAULT_NOISE_FLOOR 150.0f      // 캘리브레이션 전 기본 노이즈 레벨
 
-#define CAL_ITERATIONS      120         // 캘리브레이션 시 소음을 측정할 횟수
+#define CAL_ITERATIONS      200         // 캘리브레이션 시 소음을 측정할 횟수 (1회 약 25ms → 약 5초, 밴드별 최댓값 기준)
 #define BTN_LONG_PRESS_MS   1000        // 버튼을 길게 누르는 판단 시간 (1초)
 
 #define ADC_DMA_BUF_COUNT   4           // ADC DMA 내부 링버퍼 프레임 깊이
