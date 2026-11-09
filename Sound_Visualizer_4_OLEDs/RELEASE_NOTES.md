@@ -1,5 +1,10 @@
 # Release Notes - Sound Visualizer
 
+## [v3.5.1] - 2026-11-10
+### 🔧 DeskStreamCore v0.6.0으로 재빌드
+- 공통 라이브러리 갱신(WiFiManager 의존 제거)에 맞춰 다시 빌드했다. 이 프로젝트는 WiFi 설정 포털을 쓰지 않으므로 **동작 변경은 없다**.
+- 크기: 490,962 → 489,574 B.
+
 ## [v3.5.0] - 2026-11-09
 ### 🧩 공통 라이브러리 DeskStreamCore로 전환
 - **복사본 제거**: `DisplayEngine.*`(자체 I2C·셰도·전치)과 버튼·부저 코드를 지우고 DeskStreamCore(`ds::DisplayCore`·`ds::Buttons`·`ds::Buzzer`)를 쓴다. 그리기 코드가 쓰는 `display.getCanvas()/pushCanvas()/smartDelay()`는 스케치의 작은 어댑터(`CanvasDisplay`)가 그대로 제공한다.

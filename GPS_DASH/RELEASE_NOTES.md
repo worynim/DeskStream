@@ -1,5 +1,10 @@
 # 🚀 Release Notes - GPS OLED4 Dashboard
 
+## [v2.7.1] - 2026-11-10
+### 🔧 DeskStreamCore v0.6.0으로 재빌드
+- 공통 라이브러리 갱신(WiFiManager 의존 제거)에 맞춰 다시 빌드했다. 이 프로젝트는 WiFi 설정 포털을 쓰지 않으므로 **동작 변경은 없다**.
+- 크기: 1,116,253 → 1,116,353 B.
+
 ## [v2.7.0] - 2026-11-09
 ### 🧩 공통 라이브러리 DeskStreamCore로 전환
 - **DeskStreamCore 전환**: Wire 1MHz 전체 프레임 동기 전송(`sendBuffer`)·자체 SW I2C 콜백·버튼 구조체·`ToneNote` 큐를 지우고 `ds::DisplayCore`·`ds::Buttons`·`ds::Buzzer`를 쓴다.

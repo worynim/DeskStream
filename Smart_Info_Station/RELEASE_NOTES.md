@@ -1,5 +1,12 @@
 # 🚀 Release Notes
 
+## [v2.10.1] - 2026-11-10
+### 📶 WiFi 설정 포털 교체 (WiFiManager → DeskStreamCore v0.6.0 자체 포털)
+- 저장된 공유기에 연결하지 못하면 여는 설정 포털을 라이브러리 내장 포털로 바꿨다. 열린 AP·캡티브 DNS·주변 SSID 목록·
+  비밀번호 입력은 같고, 연결 실패 이유(네트워크 없음 / 비밀번호·거부 / 시간 초과)를 페이지에 보여 준다.
+- 저장된 WiFi 정보(ESP32 NVS)는 그대로 쓰므로 다시 설정할 필요가 없다. 코드 변경 없음(라이브러리만).
+- 크기: 1,401,723 → 1,330,209 B (약 70KB 감소).
+
 ## [v2.10.0] - 2026-11-09
 ### 🧩 공통 라이브러리 DeskStreamCore로 전환
 - **DeskStreamCore 전환**: HW 400kHz 전체 프레임 동기 전송(`sendBuffer`)·자체 SW I2C 콜백·버튼 구조체·부저 타이머·`time_sync.*`(감독 복사본)을 지우고 `ds::DisplayCore`·`ds::Buttons`·`ds::Buzzer`·`ds::WifiService`·`ds::TimeSync`를 쓴다.

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-09T13:21:51.044Z",
+  "generatedAt": "2026-11-09T15:54:53.075Z",
   "chip": "ESP32-C3",
   "board": "DeskStream (ESP32-C3 SuperMini · 4× OLED)",
   "flashDefaults": {
@@ -12,7 +12,7 @@
     {
       "id": "Smart_Info_Station",
       "name": "스마트 정보 스테이션",
-      "version": "2.10.0",
+      "version": "2.10.1",
       "icon": "🌤️",
       "order": 1,
       "description": "시간·날씨·미세먼지·유튜브·증시·환율을 4개 OLED에 실시간으로 보여주는 정보 스테이션",
@@ -27,9 +27,9 @@
         "freq": "80m",
         "size": "4MB"
       },
-      "exportedAt": "2026-11-09T13:16:55.860Z",
+      "exportedAt": "2026-11-09T15:44:11.692Z",
       "sourcePath": "Smart_Info_Station",
-      "sourceCommit": "e4d474b7f0d243f2d657728990ddd30f1a4a8e86",
+      "sourceCommit": "e1efc0f73d658ff823bcef8b7d08e8acf4777396",
       "images": [
         {
           "offset": "0x0",
@@ -52,15 +52,15 @@
         {
           "offset": "0x10000",
           "path": "firmware/Smart_Info_Station/Smart_Info_Station.ino.bin",
-          "size": 1401872,
-          "sha256": "ba40e458946af2b5cb045e8eadd042e060f9be572eac2ef9d81cc449dd999f54"
+          "size": 1330368,
+          "sha256": "b106d67159cebf1bd6fc409d1804e1edb008b65fc6ff262cd7ee60f1a9a58232"
         }
       ]
     },
     {
       "id": "GPS_DASH",
       "name": "GPS 대시보드",
-      "version": "2.7.0",
+      "version": "2.7.1",
       "icon": "🛰️",
       "order": 2,
       "description": "NEO-6M GPS 기반 속도·나침반·고도·위성 상태·주행 통계 대시보드",
@@ -75,9 +75,9 @@
         "freq": "80m",
         "size": "4MB"
       },
-      "exportedAt": "2026-11-09T13:14:01.529Z",
+      "exportedAt": "2026-11-09T15:51:25.982Z",
       "sourcePath": "GPS_DASH",
-      "sourceCommit": "e4d474b7f0d243f2d657728990ddd30f1a4a8e86",
+      "sourceCommit": "e1efc0f73d658ff823bcef8b7d08e8acf4777396",
       "images": [
         {
           "offset": "0x0",
@@ -100,15 +100,15 @@
         {
           "offset": "0x10000",
           "path": "firmware/GPS_DASH/GPS_DASH.ino.bin",
-          "size": 1116400,
-          "sha256": "2f5cbcc70edab06728065fca07061d6708d5bec59d268703c51724a5c2668ed2"
+          "size": 1116496,
+          "sha256": "453bae36b9307933213f592bba6f72be0802acb9a3bf37b43d85662d26b3e175"
         }
       ]
     },
     {
       "id": "Sound_Visualizer_4_OLEDs",
       "name": "사운드 비주얼라이저",
-      "version": "3.5.0",
+      "version": "3.5.1",
       "icon": "🎵",
       "order": 3,
       "description": "아날로그 마이크 입력을 정수형 FFT로 분석해 128밴드 스펙트럼으로 시각화",
@@ -123,9 +123,9 @@
         "freq": "80m",
         "size": "4MB"
       },
-      "exportedAt": "2026-11-09T13:18:30.655Z",
+      "exportedAt": "2026-11-09T15:53:05.698Z",
       "sourcePath": "Sound_Visualizer_4_OLEDs",
-      "sourceCommit": "e4d474b7f0d243f2d657728990ddd30f1a4a8e86",
+      "sourceCommit": "e1efc0f73d658ff823bcef8b7d08e8acf4777396",
       "images": [
         {
           "offset": "0x0",
@@ -148,15 +148,15 @@
         {
           "offset": "0x10000",
           "path": "firmware/Sound_Visualizer_4_OLEDs/Sound_Visualizer_4_OLEDs.ino.bin",
-          "size": 491104,
-          "sha256": "a492351ec672c213300180815432af5533f0431594304a8fbab6d54dc5284254"
+          "size": 489728,
+          "sha256": "1117f354f01130c51a85036575a16741d98a54c0cbe9458cccc3591d9081a139"
         }
       ]
     },
     {
       "id": "OLED_Wide_test",
       "name": "초광폭 OLED 테스트",
-      "version": "1.3.0",
+      "version": "1.3.1",
       "icon": "🧪",
       "order": 4,
       "description": "4개 OLED를 512×64 초광폭 캔버스로 구동하는 그래픽 테스트 펌웨어",
@@ -171,9 +171,9 @@
         "freq": "80m",
         "size": "4MB"
       },
-      "exportedAt": "2026-11-09T13:21:43.464Z",
+      "exportedAt": "2026-11-09T15:54:44.704Z",
       "sourcePath": "OLED_Wide_test",
-      "sourceCommit": "e4d474b7f0d243f2d657728990ddd30f1a4a8e86",
+      "sourceCommit": "e1efc0f73d658ff823bcef8b7d08e8acf4777396",
       "images": [
         {
           "offset": "0x0",
@@ -196,15 +196,15 @@
         {
           "offset": "0x10000",
           "path": "firmware/OLED_Wide_test/OLED_Wide_test.ino.bin",
-          "size": 466576,
-          "sha256": "c62809ea689dc4391ad225f9c2f6dc792a223d20a5076a12c1c2482027b31bf7"
+          "size": 465184,
+          "sha256": "ecc0bc456e94ee555b1406690b431fdeb4fba5caaa957f3593d1627ab994393b"
         }
       ]
     },
     {
       "id": "Stats_Monitor",
       "name": "시스템 상태 모니터",
-      "version": "1.6.0",
+      "version": "1.6.1",
       "icon": "📈",
       "order": 5,
       "description": "PC/Mac의 CPU·GPU·RAM·SSD 상태와 온도·네트워크 트래픽을 실시간 표시",
@@ -219,9 +219,9 @@
         "freq": "80m",
         "size": "4MB"
       },
-      "exportedAt": "2026-11-09T13:12:42.965Z",
+      "exportedAt": "2026-11-09T15:50:06.266Z",
       "sourcePath": "Stats_Monitor",
-      "sourceCommit": "e4d474b7f0d243f2d657728990ddd30f1a4a8e86",
+      "sourceCommit": "e1efc0f73d658ff823bcef8b7d08e8acf4777396",
       "images": [
         {
           "offset": "0x0",
@@ -244,15 +244,15 @@
         {
           "offset": "0x10000",
           "path": "firmware/Stats_Monitor/Stats_Monitor.ino.bin",
-          "size": 763632,
-          "sha256": "e8ded997c5c79d268fa7df74fe89f5a525d329f15cd33390c68c0865131a0511"
+          "size": 762240,
+          "sha256": "3f952395b87f1f87bb1399b826646978332c2240a6963f35ece10097ee4a9f84"
         }
       ]
     },
     {
       "id": "DS_DECK",
       "name": "DS DECK 매크로 패드",
-      "version": "1.6.0",
+      "version": "1.6.1",
       "icon": "⌨️",
       "order": 6,
       "description": "4버튼 블루투스 매크로 패드. 텍스트·단축키·미디어·브라우저 런처 지원",
@@ -267,9 +267,9 @@
         "freq": "80m",
         "size": "4MB"
       },
-      "exportedAt": "2026-11-09T13:15:33.885Z",
+      "exportedAt": "2026-11-09T15:42:51.147Z",
       "sourcePath": "DS_DECK",
-      "sourceCommit": "e4d474b7f0d243f2d657728990ddd30f1a4a8e86",
+      "sourceCommit": "e1efc0f73d658ff823bcef8b7d08e8acf4777396",
       "images": [
         {
           "offset": "0x0",
@@ -292,15 +292,15 @@
         {
           "offset": "0x10000",
           "path": "firmware/DS_DECK/DS_DECK.ino.bin",
-          "size": 1493376,
-          "sha256": "5da3c11b81e246024d1f31eff72a99bde0d4b40009000b77cd75c7667bf4e04c"
+          "size": 1420240,
+          "sha256": "5ff54c681799680fb9199d03af8267acf591b8036edfd43e602f1109310c6553"
         }
       ]
     },
     {
       "id": "Screen_To_OLEDs",
       "name": "화면 스트리머 (수신 펌웨어)",
-      "version": "2.3.0",
+      "version": "2.3.1",
       "icon": "🖥️",
       "order": 7,
       "description": "PC 화면을 4-OLED 매트릭스(512×64)로 무선 스트리밍하는 수신 펌웨어",
@@ -315,9 +315,9 @@
         "freq": "80m",
         "size": "4MB"
       },
-      "exportedAt": "2026-11-09T13:20:04.538Z",
+      "exportedAt": "2026-11-09T15:45:52.594Z",
       "sourcePath": "Screen_To_OLEDs/Screen_To_OLEDs",
-      "sourceCommit": "e4d474b7f0d243f2d657728990ddd30f1a4a8e86",
+      "sourceCommit": "e1efc0f73d658ff823bcef8b7d08e8acf4777396",
       "images": [
         {
           "offset": "0x0",
@@ -340,15 +340,15 @@
         {
           "offset": "0x10000",
           "path": "firmware/Screen_To_OLEDs/Screen_To_OLEDs.ino.bin",
-          "size": 1173888,
-          "sha256": "a45cb4e40f3589d0d87d919e96ff92df3381e7ad550b6e6cc003fd87f91afddf"
+          "size": 1101312,
+          "sha256": "467321adbf4125b9284862f0222afc2b9ee4020e2d98dc34bed5a24eaa7cb985"
         }
       ]
     },
     {
       "id": "Game_Of_Life",
       "name": "게임 오브 라이프",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "icon": "🧬",
       "order": 8,
       "description": "512×64 대화면에서 무한 구동되는 Conway 생명 게임",
@@ -363,9 +363,9 @@
         "freq": "80m",
         "size": "4MB"
       },
-      "exportedAt": "2026-11-09T13:10:01.631Z",
+      "exportedAt": "2026-11-09T15:47:21.970Z",
       "sourcePath": "Game_Of_Life",
-      "sourceCommit": "e4d474b7f0d243f2d657728990ddd30f1a4a8e86",
+      "sourceCommit": "e1efc0f73d658ff823bcef8b7d08e8acf4777396",
       "images": [
         {
           "offset": "0x0",
@@ -388,15 +388,15 @@
         {
           "offset": "0x10000",
           "path": "firmware/Game_Of_Life/Game_Of_Life.ino.bin",
-          "size": 429808,
-          "sha256": "a70a2a12df04db3230d9bc694ae8c21218e893c84dbe0c0735231cc457b443a7"
+          "size": 428416,
+          "sha256": "de0b5cbe881f24130dc6c0eb174ade2473e82a1e9625c4f22960c3d9eaf5968c"
         }
       ]
     },
     {
       "id": "Hangeul_Clock",
       "name": "한글 시계",
-      "version": "2.11.0",
+      "version": "2.11.1",
       "icon": "🕒",
       "order": 9,
       "description": "NTP 동기화 기반 고화질 한글 단어 시계. 웹 대시보드·폰트 스튜디오 지원",
@@ -411,9 +411,9 @@
         "freq": "80m",
         "size": "4MB"
       },
-      "exportedAt": "2026-11-09T13:05:50.386Z",
+      "exportedAt": "2026-11-09T15:38:46.835Z",
       "sourcePath": "Hangeul_Clock",
-      "sourceCommit": "e4d474b7f0d243f2d657728990ddd30f1a4a8e86",
+      "sourceCommit": "e1efc0f73d658ff823bcef8b7d08e8acf4777396",
       "images": [
         {
           "offset": "0x0",
@@ -436,15 +436,15 @@
         {
           "offset": "0x10000",
           "path": "firmware/Hangeul_Clock/Hangeul_Clock.ino.bin",
-          "size": 1295440,
-          "sha256": "6efc70e626948befdd7b108492ea67ac296c1779b0baa15ea52b6c150035a308"
+          "size": 1221744,
+          "sha256": "34cf473ac56daa59c8c188197d382e46e27c19e31cc95258ced4aedb49929726"
         }
       ]
     },
     {
       "id": "ENG_Clock",
       "name": "영어 시계",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "icon": "🔤",
       "order": 10,
       "description": "NTP 기반 영어 단어 시계. 2줄 레이아웃·POS 시간대·폰트 스튜디오 지원",
@@ -459,9 +459,9 @@
         "freq": "80m",
         "size": "4MB"
       },
-      "exportedAt": "2026-11-09T13:07:26.347Z",
+      "exportedAt": "2026-11-09T15:40:02.073Z",
       "sourcePath": "ENG_Clock",
-      "sourceCommit": "e4d474b7f0d243f2d657728990ddd30f1a4a8e86",
+      "sourceCommit": "e1efc0f73d658ff823bcef8b7d08e8acf4777396",
       "images": [
         {
           "offset": "0x0",
@@ -484,15 +484,15 @@
         {
           "offset": "0x10000",
           "path": "firmware/ENG_Clock/ENG_Clock.ino.bin",
-          "size": 1310736,
-          "sha256": "90270ea2e83419755c8df7f233a8dcb0247c683da364c91c0f4a69e700b24460"
+          "size": 1237056,
+          "sha256": "eafc882f81fe56fef35f96b991ac108cab004d354779244295b2d727f1b9ca4c"
         }
       ]
     },
     {
       "id": "Chinese_Clock",
       "name": "중국어 시계",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "icon": "🀄",
       "order": 11,
       "description": "NTP 기반 중국어 한자 시계. 한글·영어판과 동일한 4화면 32×32 셀 레이아웃",
@@ -507,9 +507,9 @@
         "freq": "80m",
         "size": "4MB"
       },
-      "exportedAt": "2026-11-09T13:08:45.356Z",
+      "exportedAt": "2026-11-09T15:41:17.365Z",
       "sourcePath": "Chinese_Clock",
-      "sourceCommit": "e4d474b7f0d243f2d657728990ddd30f1a4a8e86",
+      "sourceCommit": "e1efc0f73d658ff823bcef8b7d08e8acf4777396",
       "images": [
         {
           "offset": "0x0",
@@ -532,15 +532,15 @@
         {
           "offset": "0x10000",
           "path": "firmware/Chinese_Clock/Chinese_Clock.ino.bin",
-          "size": 1307168,
-          "sha256": "946bf161923b2b20dfb1c8639dd87f62d44f385efae3a454f3af231ba8a71d11"
+          "size": 1233488,
+          "sha256": "a718c29366ea7e74f5d2aa56c14394ce76d35046bc5484a4df86c77a03e75162"
         }
       ]
     },
     {
       "id": "Universal_Timer",
       "name": "범용 타이머",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "icon": "⏱️",
       "order": 12,
       "description": "4개 OLED로 시·분·초를 설정하고 카운트다운을 수행하는 하드웨어 타이머. 직전 설정 시간 복원 지원",
@@ -555,9 +555,9 @@
         "freq": "80m",
         "size": "4MB"
       },
-      "exportedAt": "2026-11-09T13:11:17.064Z",
+      "exportedAt": "2026-11-09T15:48:35.013Z",
       "sourcePath": "Universal_Timer",
-      "sourceCommit": "e4d474b7f0d243f2d657728990ddd30f1a4a8e86",
+      "sourceCommit": "e1efc0f73d658ff823bcef8b7d08e8acf4777396",
       "images": [
         {
           "offset": "0x0",
@@ -580,8 +580,8 @@
         {
           "offset": "0x10000",
           "path": "firmware/Universal_Timer/Universal_Timer.ino.bin",
-          "size": 430784,
-          "sha256": "e594428265369058f3e6d3cb5aeba81139b433ec950e466d837bfba06342f97a"
+          "size": 429392,
+          "sha256": "66c2eea89c4429045e46f8889b63237f252e9de05206bd6e3a074f4023afaca2"
         }
       ]
     }

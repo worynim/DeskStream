@@ -1,5 +1,10 @@
 # Release Notes - Universal Timer
 
+## [v1.1.1] - 2026-11-10
+### 🔧 DeskStreamCore v0.6.0으로 재빌드
+- 공통 라이브러리 갱신(WiFiManager 의존 제거)에 맞춰 다시 빌드했다. 이 프로젝트는 WiFi 설정 포털을 쓰지 않으므로 **동작 변경은 없다**.
+- 크기: 430,634 → 429,242 B.
+
 ## [v1.1.0] - 2026-11-09
 ### 🧩 공통 라이브러리 DeskStreamCore로 전환
 - **복사본 제거**: `DisplayEngine.*`·`ButtonManager.*`·`BuzzerManager.*` → DeskStreamCore. 화면·버튼 순서 반전 옵션(`REVERSE_*`)은 `config.h`에 그대로 있다.

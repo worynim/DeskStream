@@ -1,9 +1,15 @@
+## [v4.20.0] - 2026-11-10
+### 📦 웹 플래셔 배포본 갱신 — DeskStreamCore v0.6.0 (12종 전체 재빌드)
+- **WiFi 설정 포털 교체(6종)**: Hangeul_Clock 2.11.1 · ENG_Clock 1.1.1 · Chinese_Clock 1.1.1 · DS_DECK 1.6.1 · Smart_Info_Station 2.10.1 · Screen_To_OLEDs 2.3.1 — WiFiManager 대신 자체 포털, 각각 약 71~74KB 감소. 저장된 WiFi 정보는 그대로 씁니다.
+- **재빌드만(6종, 동작 변경 없음)**: Game_Of_Life 1.1.1 · Universal_Timer 1.1.1 · Stats_Monitor 1.6.1 · GPS_DASH 2.7.1 · Sound_Visualizer_4_OLEDs 3.5.1 · OLED_Wide_test 1.3.1.
+- `firmware/`·`manifest.json`·`projects.json` 갱신, `node tools/collect-firmware.mjs --check` 통과.
+- ⚠️ 설정 포털은 휴대폰 실기 확인 전에 배포했습니다.
+
 ## [v4.19.0] - 2026-11-10
 ### 📶 WiFiManager 제거 — DeskStreamCore v0.6.0 자체 설정 포털
 - WiFi 설정 포털(열린 AP + 캡티브 DNS + 주변 SSID 목록·비밀번호 입력 + 실패 이유 표시)을 `ds::WifiService` 안에 직접 구현해 WiFiManager 의존을 없앴습니다. 스케치 코드와 저장된 WiFi 정보(ESP32 NVS)는 그대로입니다.
 - **크기 감소 (약 74KB)**: Hangeul_Clock 1,295,285 → 1,221,599 B · ENG_Clock 1,310,579 → 1,236,901 B · Chinese_Clock 1,307,021 → 1,233,335 B · DS_DECK 1,493,225 → 1,420,091 B · Smart_Info_Station 1,401,723 → 1,330,209 B · Screen_To_OLEDs 1,173,734 → 1,101,160 B. 12개 프로젝트 모두 빌드 확인.
 - 새 PC 설정에서 WiFiManager 설치가 필요 없어졌습니다 (README "최초 설정" 반영).
-- ⚠️ **웹 플래셔 배포본은 아직 v4.18.0 빌드**입니다. 휴대폰으로 설정 포털(자동 팝업·SSID 목록·연결·실패 표시)을 확인한 뒤 WiFi 사용 프로젝트 6종을 다시 Export합니다.
 
 ## [v4.18.0] - 2026-11-09
 ### 🧩 캔버스 프로젝트 3종 전환 (3단계) · 보안 수정 · 웹 플래셔 배포본 갱신

@@ -11,7 +11,7 @@
     {
       "id": "Smart_Info_Station",
       "name": "스마트 정보 스테이션",
-      "version": "2.10.0",
+      "version": "2.10.1",
       "icon": "🌤️",
       "order": 1,
       "sourcePath": "Smart_Info_Station",
@@ -24,7 +24,7 @@
     {
       "id": "GPS_DASH",
       "name": "GPS 대시보드",
-      "version": "2.7.0",
+      "version": "2.7.1",
       "icon": "🛰️",
       "order": 2,
       "sourcePath": "GPS_DASH",
@@ -37,7 +37,7 @@
     {
       "id": "Sound_Visualizer_4_OLEDs",
       "name": "사운드 비주얼라이저",
-      "version": "3.5.0",
+      "version": "3.5.1",
       "icon": "🎵",
       "order": 3,
       "sourcePath": "Sound_Visualizer_4_OLEDs",
@@ -50,7 +50,7 @@
     {
       "id": "OLED_Wide_test",
       "name": "초광폭 OLED 테스트",
-      "version": "1.3.0",
+      "version": "1.3.1",
       "icon": "🧪",
       "order": 4,
       "sourcePath": "OLED_Wide_test",
@@ -63,7 +63,7 @@
     {
       "id": "Stats_Monitor",
       "name": "시스템 상태 모니터",
-      "version": "1.6.0",
+      "version": "1.6.1",
       "icon": "📈",
       "order": 5,
       "sourcePath": "Stats_Monitor",
@@ -76,7 +76,7 @@
     {
       "id": "DS_DECK",
       "name": "DS DECK 매크로 패드",
-      "version": "1.6.0",
+      "version": "1.6.1",
       "icon": "⌨️",
       "order": 6,
       "sourcePath": "DS_DECK",
@@ -89,7 +89,7 @@
     {
       "id": "Screen_To_OLEDs",
       "name": "화면 스트리머 (수신 펌웨어)",
-      "version": "2.3.0",
+      "version": "2.3.1",
       "icon": "🖥️",
       "order": 7,
       "sourcePath": "Screen_To_OLEDs/Screen_To_OLEDs",
@@ -102,7 +102,7 @@
     {
       "id": "Game_Of_Life",
       "name": "게임 오브 라이프",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "icon": "🧬",
       "order": 8,
       "sourcePath": "Game_Of_Life",
@@ -115,7 +115,7 @@
     {
       "id": "Hangeul_Clock",
       "name": "한글 시계",
-      "version": "2.11.0",
+      "version": "2.11.1",
       "icon": "🕒",
       "order": 9,
       "sourcePath": "Hangeul_Clock",
@@ -128,7 +128,7 @@
     {
       "id": "ENG_Clock",
       "name": "영어 시계",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "icon": "🔤",
       "order": 10,
       "sourcePath": "ENG_Clock",
@@ -141,7 +141,7 @@
     {
       "id": "Chinese_Clock",
       "name": "중국어 시계",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "icon": "🀄",
       "order": 11,
       "sourcePath": "Chinese_Clock",
@@ -154,7 +154,7 @@
     {
       "id": "Universal_Timer",
       "name": "범용 타이머",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "icon": "⏱️",
       "order": 12,
       "sourcePath": "Universal_Timer",

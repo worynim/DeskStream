@@ -1,5 +1,12 @@
 # Release Notes - DS DECK
 
+## [v1.6.1] - 2026-11-10
+### 📶 WiFi 설정 포털 교체 (WiFiManager → DeskStreamCore v0.6.0 자체 포털)
+- 저장된 공유기에 연결하지 못하면 여는 설정 포털을 라이브러리 내장 포털로 바꿨다. 열린 AP·캡티브 DNS·주변 SSID 목록·
+  비밀번호 입력은 같고, 연결 실패 이유(네트워크 없음 / 비밀번호·거부 / 시간 초과)를 페이지에 보여 준다.
+- 저장된 WiFi 정보(ESP32 NVS)는 그대로 쓰므로 다시 설정할 필요가 없다. 코드 변경 없음(라이브러리만).
+- 크기: 1,493,225 → 1,420,091 B (약 71KB 감소).
+
 ## [v1.6.0] - 2026-11-09
 ### 🧩 공통 라이브러리 DeskStreamCore로 전환
 - **DeskStreamCore 전환**: Wire 400kHz 전송·자체 SW I2C 콜백·`pushDirty` diff·버튼 구조체를 지우고 `ds::DisplayCore`·`ds::Buttons`·`ds::Buzzer`·`ds::WifiService`를 쓴다.
