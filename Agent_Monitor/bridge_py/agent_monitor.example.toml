@@ -1,0 +1,44 @@
+# Agent_Monitor 사용자 설정 예시
+# 설치: python3 agent_bridge.py init-config   →  ~/.deskstream/agent_monitor.toml (권한 600)
+# 버튼을 누를 때마다 다시 읽으므로 데몬을 재시작할 필요가 없습니다.
+
+# 무음 시간대 — 이 시간에는 장치 알림음을 보내지 않습니다 (자정을 넘어도 됩니다)
+[quiet]
+start = "23:00"
+end = "08:00"
+
+# 버튼 길게 누르기(1초) → PC 명령. button = 1~4 (BTN1~BTN4)
+# type = "focus" : app 을 앞으로
+# type = "shell" : command 실행 (cwd, timeout 초 선택) → 장치에 exit 코드 표시
+# type = "keys"  : text 입력 후 key 누름 (app 지정 시 그 앱을 먼저 앞으로)
+#                  key = return | escape | tab | space | ctrl+c, text 는 ASCII 만
+#                  macOS 시스템 설정 > 개인정보 보호 및 보안 > 손쉬운 사용 에서 터미널(데몬을 실행한 앱) 허용 필요
+
+[[commands]]
+button = 1
+label = "Terminal"
+type = "focus"
+app = "Terminal"
+
+[[commands]]
+button = 2
+label = "git status"
+type = "shell"
+command = "git status --short"
+cwd = "~"
+timeout = 30
+
+[[commands]]
+button = 3
+label = "Continue"
+type = "keys"
+app = "Terminal"
+text = "continue"
+key = "return"
+
+[[commands]]
+button = 4
+label = "Esc"
+type = "keys"
+app = "Terminal"
+key = "escape"

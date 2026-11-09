@@ -26,6 +26,20 @@ void drawSlot(U8G2& u, const Slot& s, uint8_t idx, uint32_t nowMs);
  */
 void drawApproval(U8G2& u, uint8_t idx, const Perm& p, uint32_t nowMs);
 
+/**
+ * @brief 상세 화면 중 화면 idx 부분을 그린다
+ * @details 화면 0: 이름 · 상태 · 경과 · 권한 모드 · 하위 에이전트/오류 수
+ *          화면 1: 최근 도구 4개 / 화면 2~3: 마지막 답변
+ *          아래 라벨: BACK · MUTE(UNMUTE) · < PREV · NEXT >
+ */
+void drawDetail(U8G2& u, uint8_t idx, const Detail& d, bool muted, uint32_t nowMs);
+
+/** PC 명령 진행·결과 띠를 화면 아래에 덧그린다 (표시할 것이 없으면 아무것도 안 함) */
+void drawToast(U8G2& u, const CmdToast& t, uint32_t nowMs);
+
+/** 음소거 표시 (오른쪽 위 작은 스피커 + X) */
+void drawMuteIcon(U8G2& u);
+
 /** PC 데몬과 연결되지 않았을 때 화면 idx 의 안내 */
 void drawOffline(U8G2& u, uint8_t idx, bool everConnected, uint32_t nowMs);
 

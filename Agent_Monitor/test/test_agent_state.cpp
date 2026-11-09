@@ -85,6 +85,32 @@ static void testPerm() {
     CHECK(applyLine(m, "{\"t\":\"perm\",\"id\":-1}", 0).type == MsgType::Invalid);
 }
 
+static void testDetailCmdQuiet() {
+    Model m;
+    auto r = applyLine(m,
+                       "{\"t\":\"detail\",\"i\":2,\"on\":1,\"name\":\"api\",\"st\":\"done\",\"mode\":\"plan\",\"el\":5,"
+                       "\"err\":1,\"sub\":0,\"msg\":\"All good\",\"h0\":\"+Bash npm test\",\"h1\":\"!Edit x.py\","
+                       "\"h2\":\"\",\"h3\":\"\"}",
+                       50);
+    CHECK(r.type == MsgType::Detail && r.slot == 2);
+    CHECK(m.detail.on && m.detail.slot == 2 && m.detail.st == State::Done);
+    CHECK(strcmp(m.detail.mode, "plan") == 0 && strcmp(m.detail.msg, "All good") == 0);
+    CHECK(strcmp(m.detail.h[1], "!Edit x.py") == 0 && m.detail.h[2][0] == '\0' && m.detail.err == 1);
+    r = applyLine(m, "{\"t\":\"detail\",\"i\":2,\"on\":0}", 60);
+    CHECK(r.type == MsgType::Detail && !m.detail.on);
+
+    r = applyLine(m, "{\"t\":\"cmd\",\"b\":1,\"st\":\"fail\",\"label\":\"npm test\",\"msg\":\"exit 1\"}", 70);
+    CHECK(r.type == MsgType::Cmd && m.toasts[1].st == CmdState::Fail);
+    CHECK(strcmp(m.toasts[1].msg, "exit 1") == 0 && m.toasts[1].rxMs == 70);
+    CHECK(applyLine(m, "{\"t\":\"cmd\",\"b\":1,\"st\":\"zz\"}", 0).type == MsgType::Invalid);
+    CHECK(applyLine(m, "{\"t\":\"cmd\",\"b\":4,\"st\":\"ok\"}", 0).type == MsgType::Invalid);
+
+    applyLine(m, "{\"t\":\"hb\",\"quiet\":1}", 80);
+    CHECK(m.quiet);
+    applyLine(m, "{\"t\":\"hb\"}", 90);
+    CHECK(!m.quiet);
+}
+
 static void testFormat() {
     char b[12];
     formatElapsed(0, b, sizeof(b));
@@ -101,6 +127,7 @@ int main() {
     testRejects();
     testAlertAndHeartbeat();
     testPerm();
+    testDetailCmdQuiet();
     testFormat();
     printf(fails ? "❌ %d failed\n" : "✅ all passed\n", fails);
     return fails ? 1 : 0;

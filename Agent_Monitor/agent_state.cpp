@@ -68,6 +68,7 @@ ParseResult applyLine(Model& m, const char* line, uint32_t nowMs) {
     if (!ds::jsonGetString(line, "t", type, sizeof(type))) return r;
 
     if (strcmp(type, "hb") == 0) {
+        m.quiet = getIntOr(line, "quiet", 0) != 0;
         r.type = MsgType::Heartbeat;
     } else if (strcmp(type, "slot") == 0 || strcmp(type, "alert") == 0) {
         long i;
@@ -95,6 +96,47 @@ ParseResult applyLine(Model& m, const char* line, uint32_t nowMs) {
             m.slots[i] = tmp;
             r.type = MsgType::Slot;
         }
+    } else if (strcmp(type, "detail") == 0) {
+        long i;
+        if (!ds::jsonGetInt(line, "i", &i) || i < 0 || i >= kSlots) return r;
+        Detail tmp;
+        tmp.slot = (int8_t)i;
+        tmp.on = getIntOr(line, "on", 0) != 0;
+        if (tmp.on) {
+            char st[10];
+            if (!ds::jsonGetString(line, "st", st, sizeof(st)) || !parseState(st, &tmp.st)) return r;
+            static const char* const hk[4] = {"h0", "h1", "h2", "h3"};
+            if (!getStr(line, "name", tmp.name, sizeof(tmp.name)) ||
+                !getStr(line, "mode", tmp.mode, sizeof(tmp.mode)) ||
+                !getStr(line, "msg", tmp.msg, sizeof(tmp.msg))) return r;
+            for (int k = 0; k < 4; k++) {
+                if (!getStr(line, hk[k], tmp.h[k], sizeof(tmp.h[k]))) return r;
+            }
+            long el = getIntOr(line, "el", 0);
+            tmp.elS = el < 0 ? 0 : (uint32_t)el;
+            tmp.err = clampU8(getIntOr(line, "err", 0));
+            tmp.sub = clampU8(getIntOr(line, "sub", 0));
+        }
+        tmp.rxMs = nowMs;
+        m.detail = tmp;
+        r.type = MsgType::Detail;
+        r.slot = (int)i;
+    } else if (strcmp(type, "cmd") == 0) {
+        long b;
+        char st[6];
+        if (!ds::jsonGetInt(line, "b", &b) || b < 0 || b >= kSlots) return r;
+        if (!ds::jsonGetString(line, "st", st, sizeof(st))) return r;
+        CmdToast tmp;
+        if (strcmp(st, "run") == 0) tmp.st = CmdState::Run;
+        else if (strcmp(st, "ok") == 0) tmp.st = CmdState::Ok;
+        else if (strcmp(st, "fail") == 0) tmp.st = CmdState::Fail;
+        else return r;
+        if (!getStr(line, "label", tmp.label, sizeof(tmp.label)) ||
+            !getStr(line, "msg", tmp.msg, sizeof(tmp.msg))) return r;
+        tmp.rxMs = nowMs;
+        m.toasts[b] = tmp;
+        r.type = MsgType::Cmd;
+        r.slot = (int)b;
     } else if (strcmp(type, "perm") == 0) {
         long id;
         if (!ds::jsonGetInt(line, "id", &id) || id < 0) return r;

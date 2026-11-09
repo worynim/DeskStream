@@ -12,10 +12,13 @@ PC → 장치
   {"t":"alert","kind":"done","i":0}
   {"t":"perm","id":7,"slot":0,"name":"web-app","tool":"Bash","sum":"rm -rf build","n":1,"q":2}   승인 화면
   {"t":"perm","id":0}                                                                             승인 화면 닫기
-  {"t":"hb"}
+  {"t":"detail","i":0,"on":1,"name":"web-app","st":"run","mode":"default","el":12,"err":0,"sub":0,
+   "msg":"마지막 답변","h0":"+Bash npm test","h1":">Edit app.py","h2":"","h3":""}             상세 화면 (h: '>' 실행 중 '+' 성공 '!' 실패)
+  {"t":"cmd","b":1,"st":"run","label":"npm test","msg":""}      PC 명령 진행 (st = run | ok | fail, b = 버튼 0~3)
+  {"t":"hb","quiet":1}                                          quiet = 무음 시간대 (없으면 0)
 장치 → PC
-  {"t":"hello","fw":"0.2.0"}
-  {"t":"btn","b":0,"press":"short"}      press = short | long (승인 화면이 아닐 때)
+  {"t":"hello","fw":"0.3.0"}
+  {"t":"btn","b":0,"press":"short"}      short = 슬롯 b 상세 보기(+완료 확인), long = PC 명령 b+1 (승인 화면이 아닐 때)
   {"t":"decide","id":7,"act":"allow"}    act = allow | deny | pass(나중에) | next
 """
 import json
@@ -24,7 +27,10 @@ NAME_MAX = 20        # 펌웨어 Slot::name[21] / Perm::name[21]
 TOOL_MAX = 20        # 펌웨어 Slot::tool[21] / Perm::tool[21]
 SUM_MAX = 63         # 펌웨어 Slot::sum[64]
 PERM_SUM_MAX = 120   # 펌웨어 Perm::sum[121] — 승인 화면은 4화면 × 2줄에 나눠 보여준다
-HEARTBEAT = '{"t":"hb"}'
+MODE_MAX = 12        # 펌웨어 Detail::mode[13]
+MSG_MAX = 120        # 펌웨어 Detail::msg[121]
+HIST_MAX = 21        # 펌웨어 Detail::h[4][22] — 상세 화면 한 줄
+CMD_MSG_MAX = 12     # 펌웨어 CmdToast::msg[13]
 PERM_NONE = '{"t":"perm","id":0}'
 
 
@@ -64,6 +70,28 @@ def permission_response(decision: str) -> bytes:
     if decision == "deny":
         body["message"] = "Denied from the DeskStream Agent_Monitor device."
     return json.dumps({"hookSpecificOutput": {"hookEventName": "PermissionRequest", "decision": body}}).encode()
+
+
+def detail_msg(i: int, d) -> str:
+    """상세 화면 메시지. d = SessionTable.detail() (None 이면 빈 슬롯)."""
+    if d is None:
+        return encode({"t": "detail", "i": i, "on": 0})
+    msg = {"t": "detail", "i": i, "on": 1, "name": clean(d["name"], NAME_MAX), "st": d["st"],
+           "mode": clean(d["mode"], MODE_MAX), "el": d["el"], "err": d["err"], "sub": d["sub"],
+           "msg": clean(d["msg"], MSG_MAX)}
+    hist = list(d["h"])[-4:]
+    for k in range(4):
+        msg[f"h{k}"] = clean(hist[k], HIST_MAX) if k < len(hist) else ""
+    return encode(msg)
+
+
+def cmd_msg(b: int, state: str, label: str, result: str) -> str:
+    return encode({"t": "cmd", "b": b, "st": state, "label": clean(label, NAME_MAX),
+                   "msg": clean(result, CMD_MSG_MAX)})
+
+
+def heartbeat_msg(quiet: bool) -> str:
+    return encode({"t": "hb", "quiet": 1 if quiet else 0})
 
 
 def alert_msg(kind: str, i: int) -> str:

@@ -11,11 +11,13 @@ import tempfile
 import threading
 import time
 import unittest
+from datetime import datetime
 from pathlib import Path
 
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE.parent))
 
+import commands  # noqa: E402
 import hooks_config  # noqa: E402
 import protocol  # noqa: E402
 from agent_bridge import Bridge  # noqa: E402
@@ -176,6 +178,9 @@ class TestApprovalQueue(unittest.TestCase):
         self.assertEqual([p.id for p in self.q.items], [self.c.id])
 
 
+NO_CONFIG = Path(tempfile.gettempdir()) / "agent_monitor_test_absent.toml"
+
+
 class FakeLink:
     def __init__(self, connected=True):
         self.connected = connected
@@ -191,7 +196,7 @@ class FakeLink:
 class TestBridgePermission(unittest.TestCase):
     def make(self, connected=True, hold=2.0):
         link = FakeLink(connected)
-        return Bridge(lambda *_: link, hold_sec=hold), link
+        return Bridge(lambda *_: link, hold_sec=hold, config_path=NO_CONFIG), link
 
     def ask(self, bridge, cmd="rm -rf build", sid="s1"):
         """권한 요청을 별도 스레드로 보내고 (스레드, 결과 dict) 를 돌려준다."""
@@ -273,6 +278,148 @@ class TestBridgePermission(unittest.TestCase):
         self.assertEqual(protocol.perm_msg(None, 0, 0), '{"t":"perm","id":0}')
         bridge.on_hook("Stop", ev())
         t.join(2)
+
+
+class TestDetail(unittest.TestCase):
+    def test_history_and_detail(self):
+        t = SessionTable()
+        t.apply("UserPromptSubmit", ev(permission_mode="plan"), 0)
+        for k in range(5):
+            t.apply("PreToolUse", ev(tool_name="Bash", tool_input={"command": f"c{k}"}), k)
+            t.apply("PostToolUse" if k != 3 else "PostToolUseFailure", ev(tool_name="Bash"), k)
+        t.apply("PreToolUse", ev(tool_name="Edit", tool_input={"file_path": "/a/x.py"}), 9)
+        d = t.detail(0, 10)
+        self.assertEqual(d["h"], ["+Bash c2", "!Bash c3", "+Bash c4", ">Edit x.py"])   # 최근 4개
+        self.assertEqual((d["mode"], d["err"], d["st"]), ("plan", 1, "run"))
+        t.apply("Stop", ev(last_assistant_message="All good"), 11)
+        self.assertEqual(t.detail(0, 11)["msg"], "All good")
+        self.assertIsNone(t.detail(3, 11))
+        self.assertIsNone(t.detail(-1, 11))
+
+    def test_detail_msg(self):
+        line = protocol.detail_msg(1, {"name": "p", "st": "done", "mode": "acceptEdits-long", "el": 3,
+                                       "err": 0, "sub": 0, "msg": "x" * 200, "h": ["+Bash " + "y" * 40]})
+        m = json.loads(line)
+        self.assertEqual((m["mode"], len(m["msg"]), len(m["h0"]), m["h3"]), ("acceptEdits-", 120, 21, ""))
+        self.assertEqual(protocol.detail_msg(2, None), '{"t":"detail","i":2,"on":0}')
+
+
+class TestCommands(unittest.TestCase):
+    def test_parse_valid(self):
+        c = commands.parse_config({
+            "quiet": {"start": "23:00", "end": "08:00"},
+            "commands": [{"button": 1, "type": "focus", "app": "Terminal"},
+                         {"button": 2, "type": "shell", "command": "true", "label": "T"},
+                         {"button": 3, "type": "keys", "text": "continue", "key": "return"}]})
+        self.assertEqual(sorted(c.commands), [1, 2, 3])
+        self.assertEqual(c.commands[1].label, "focus")     # label 없으면 type
+        self.assertTrue(commands.in_quiet(datetime(2026, 1, 1, 23, 30), c.quiet))
+        self.assertTrue(commands.in_quiet(datetime(2026, 1, 1, 7, 59), c.quiet))
+        self.assertFalse(commands.in_quiet(datetime(2026, 1, 1, 8, 0), c.quiet))
+        self.assertFalse(commands.in_quiet(datetime(2026, 1, 1, 12, 0), None))
+
+    def test_parse_errors(self):
+        bad = [
+            {"commands": [{"button": 5, "type": "focus", "app": "a"}]},
+            {"commands": [{"button": 1, "type": "rm"}]},
+            {"commands": [{"button": 1, "type": "focus"}]},
+            {"commands": [{"button": 1, "type": "shell"}]},
+            {"commands": [{"button": 1, "type": "keys"}]},
+            {"commands": [{"button": 1, "type": "keys", "key": "f13"}]},
+            {"commands": [{"button": 1, "type": "keys", "text": "계속"}]},
+            {"commands": [{"button": 1, "type": "focus", "app": "a"}, {"button": 1, "type": "focus", "app": "b"}]},
+            {"quiet": {"start": "25", "end": "08:00"}},
+        ]
+        for data in bad:
+            with self.assertRaises(commands.ConfigError, msg=str(data)):
+                commands.parse_config(data)
+
+    def test_build_argv(self):
+        self.assertEqual(commands.build_argv(commands.Command(1, "t", "focus", app="Ghostty")),
+                         ["open", "-a", "Ghostty"])
+        script = commands.build_argv(commands.Command(1, "c", "keys", app="Terminal", text='say "hi"',
+                                                      key="return"))[2]
+        self.assertIn('tell application "Terminal" to activate', script)
+        self.assertIn('keystroke "say \\"hi\\""', script)
+        self.assertIn("key code 36", script)
+        one = commands.build_argv(commands.Command(1, "e", "keys", key="escape"))[2]
+        self.assertEqual(one, 'tell application "System Events" to key code 53')
+
+    def test_shell_execute(self):
+        ok, msg = commands.execute(commands.Command(2, "t", "shell", command="exit 3"))
+        self.assertEqual((ok, msg), (False, "exit 3"))
+        ok, msg = commands.execute(commands.Command(2, "t", "shell", command="sleep 2", timeout=0.2))
+        self.assertEqual((ok, msg), (False, "timeout"))
+
+    def test_load_rejects_group_writable(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "c.toml"
+            p.write_text('[[commands]]\nbutton = 1\ntype = "shell"\ncommand = "true"\n')
+            p.chmod(0o600)
+            self.assertIn(1, commands.load_config(p).commands)
+            p.chmod(0o620)
+            with self.assertRaises(commands.ConfigError):
+                commands.load_config(p)
+            p.write_text("not = [toml")
+            p.chmod(0o600)
+            with self.assertRaises(commands.ConfigError):
+                commands.load_config(p)
+        self.assertEqual(commands.load_config(NO_CONFIG).commands, {})
+
+    def test_example_config_is_valid(self):
+        c = commands.parse_config(__import__("tomllib").loads(commands.EXAMPLE_PATH.read_text(encoding="utf-8")))
+        self.assertEqual(sorted(c.commands), [1, 2, 3, 4])
+
+
+class TestBridgeButtons(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.cfg = Path(self.dir.name) / "c.toml"
+        self.cfg.write_text('[[commands]]\nbutton = 2\nlabel = "Test"\ntype = "shell"\ncommand = "true"\n')
+        self.cfg.chmod(0o600)
+        self.ran = []
+        self.link = FakeLink()
+        self.bridge = Bridge(lambda *_: self.link, config_path=self.cfg,
+                             executor=lambda c: (self.ran.append(c.label), (True, "exit 0"))[1])
+
+    def tearDown(self):
+        self.dir.cleanup()
+
+    def wait_outbox(self, n):
+        for _ in range(100):
+            if len(self.bridge.outbox) >= n:
+                return
+            time.sleep(0.01)
+
+    def test_long_press_runs_configured_command(self):
+        self.bridge.on_device_line('{"t":"btn","b":1,"press":"long"}')
+        self.wait_outbox(2)
+        msgs = [json.loads(x) for x in self.bridge.outbox]
+        self.assertEqual(self.ran, ["Test"])
+        self.assertEqual([(m["b"], m["st"]) for m in msgs], [(1, "run"), (1, "ok")])
+
+    def test_long_press_unset_button(self):
+        self.bridge.on_device_line('{"t":"btn","b":0,"press":"long"}')
+        m = json.loads(self.bridge.outbox[-1])
+        self.assertEqual((m["b"], m["st"], m["msg"]), (0, "fail", "not set"))
+        self.assertEqual(self.ran, [])
+
+    def test_short_press_watches_slot(self):
+        self.bridge.on_hook("Stop", ev())
+        self.bridge.on_device_line('{"t":"btn","b":0,"press":"short"}')
+        self.assertEqual(self.bridge.watch, 0)
+        self.assertEqual(self.bridge.table.view(0)[0]["st"], "idle")   # 완료 확인
+        self.bridge.on_device_line('{"t":"btn","b":9,"press":"short"}')  # 범위 밖 무시
+        self.assertEqual(self.bridge.watch, 0)
+
+    def test_quiet_hours_suppress_alerts(self):
+        self.cfg.write_text('[quiet]\nstart = "00:00"\nend = "23:59"\n')
+        self.cfg.chmod(0o600)
+        self.bridge._quiet = (None, 0.0)          # 다시 읽게
+        if not self.bridge.quiet_now():
+            self.skipTest("23:59 경계")
+        self.bridge.on_hook("Stop", ev())
+        self.assertEqual(self.bridge.outbox, [])
 
 
 class TestHooksConfig(unittest.TestCase):

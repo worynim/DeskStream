@@ -170,6 +170,75 @@ void drawApproval(U8G2& u, uint8_t idx, const Perm& p, uint32_t nowMs) {
     u.drawStr(x + 5, 60, labels[idx]);
 }
 
+void drawDetail(U8G2& u, uint8_t idx, const Detail& d, bool muted, uint32_t nowMs) {
+    u.clearBuffer();
+    u.setDrawColor(1);
+    u.setFontMode(1);
+    u.setFont(u8g2_font_6x10_tf);
+    char buf[24];
+
+    switch (idx) {
+        case 0: {
+            u.setFont(u8g2_font_7x13B_tf);
+            u.drawStr(0, 11, d.name);
+            u.drawHLine(0, 14, 128);
+            u.setFont(u8g2_font_6x10_tf);
+            char el[12];
+            formatElapsed(d.elS + (uint32_t)(nowMs - d.rxMs) / 1000, el, sizeof(el));
+            u.drawStr(0, 25, stateLabel(d.st));
+            u.drawStr(128 - u.getStrWidth(el), 25, el);
+            snprintf(buf, sizeof(buf), "mode %s", d.mode[0] ? d.mode : "-");
+            u.drawStr(0, 36, buf);
+            snprintf(buf, sizeof(buf), "sub %u  err %u", d.sub, d.err);
+            u.drawStr(0, 47, buf);
+            break;
+        }
+        case 1:
+            u.drawStr(0, 9, "RECENT TOOLS");
+            for (int k = 0; k < 4; k++) u.drawStr(0, 20 + k * 10, d.h[k]);
+            break;
+        case 2:
+            u.drawStr(0, 9, "LAST MESSAGE");
+            for (int k = 0; k < 4; k++) drawCols(u, 20 + k * 10, d.msg, k * kCols);
+            break;
+        default:   // 화면 2 의 4줄 뒤를 이어 5줄
+            for (int k = 0; k < 5; k++) drawCols(u, 9 + k * 10, d.msg, (4 + k) * kCols);
+    }
+
+    static const char* const labels[4] = {"BACK", "MUTE", "< PREV", "NEXT >"};
+    const char* label = (idx == 1 && muted) ? "UNMUTE" : labels[idx];
+    int w = u.getStrWidth(label) + 10;
+    int x = 64 - w / 2;
+    u.drawRFrame(x, 51, w, 13, 3);
+    u.drawStr(x + 5, 61, label);
+}
+
+void drawToast(U8G2& u, const CmdToast& t, uint32_t nowMs) {
+    if (t.st == CmdState::None) return;
+    if (t.st != CmdState::Run && nowMs - t.rxMs > AM_TOAST_MS) return;
+    char buf[40];
+    const char* tag = t.st == CmdState::Run ? "RUN" : t.st == CmdState::Ok ? "OK" : "FAIL";
+    snprintf(buf, sizeof(buf), "%s %s %s", tag, t.label, t.msg);
+    u.setDrawColor(1);
+    u.drawBox(0, 50, 128, 14);
+    u.setDrawColor(0);
+    u.setFont(u8g2_font_6x10_tf);
+    buf[kCols] = '\0';
+    u.drawStr(1, 61, buf);
+    u.setDrawColor(1);
+}
+
+void drawMuteIcon(U8G2& u) {
+    u.setDrawColor(0);
+    u.drawBox(116, 0, 12, 10);   // 이름과 겹치면 지우고 그린다
+    u.setDrawColor(1);
+    u.drawBox(117, 3, 2, 4);                 // 스피커 몸통
+    u.drawTriangle(119, 3, 122, 0, 122, 9);  // 나팔
+    u.drawTriangle(119, 6, 122, 0, 122, 9);
+    u.drawLine(124, 2, 127, 7);              // X
+    u.drawLine(124, 7, 127, 2);
+}
+
 void drawOffline(U8G2& u, uint8_t idx, bool everConnected, uint32_t nowMs) {
     u.clearBuffer();
     u.setDrawColor(1);

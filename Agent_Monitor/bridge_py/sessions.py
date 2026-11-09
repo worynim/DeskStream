@@ -7,12 +7,14 @@
          스레드 안전하지 않다 — 호출하는 쪽(agent_bridge.Bridge)이 잠금을 잡는다.
 """
 import os
-from dataclasses import dataclass
+from collections import deque
+from dataclasses import dataclass, field
 
 MAX_SLOTS = 4
 STALE_SEC = 2 * 3600            # 이벤트가 이만큼 없으면 (SessionEnd 없이 꺼진 세션) 정리
 ALERT_STATES = ("approve", "input", "done", "error")   # 이 상태로 바뀌면 장치가 소리를 낸다
 INPUT_NOTIFICATIONS = ("idle_prompt", "elicitation_dialog", "agent_needs_input")
+HISTORY_LEN = 4                 # 상세 화면의 최근 도구 줄 수
 SUMMARY_KEYS = ("command", "file_path", "pattern", "url", "description", "prompt", "query")
 
 
@@ -28,6 +30,9 @@ class Session:
     errors: int = 0
     subagents: int = 0
     slot: int = -1               # -1 = 장치에 표시되지 않음
+    mode: str = ""               # permission_mode (default / plan / acceptEdits / auto …)
+    last_msg: str = ""           # 마지막 Stop 의 답변
+    history: deque = field(default_factory=lambda: deque(maxlen=HISTORY_LEN))   # [표시, 도구, 요약] — '>' 실행 중 '+' 성공 '!' 실패
 
 
 def summarize_tool(tool_input) -> str:
@@ -62,6 +67,7 @@ class SessionTable:
             name = os.path.basename(p.get("cwd", "").rstrip("/")) or sid[:8]
             s = self.sessions[sid] = Session(sid, name, since=now, last_seen=now)
         s.last_seen = now
+        s.mode = p.get("permission_mode") or s.mode
 
         new = None
         if event == "SessionStart":
@@ -72,11 +78,13 @@ class SessionTable:
             new = "run" if event == "PreToolUse" else "approve"
             s.tool = p.get("tool_name", "")
             s.summary = summarize_tool(p.get("tool_input"))
-        elif event == "PostToolUse":
+            if event == "PreToolUse":
+                s.history.append([">", s.tool, s.summary])
+        elif event in ("PostToolUse", "PostToolUseFailure"):
             new = "think"
-        elif event == "PostToolUseFailure":
-            new = "think"
-            s.errors += 1
+            self._finish_history(s, p.get("tool_name", ""), "+" if event == "PostToolUse" else "!")
+            if event == "PostToolUseFailure":
+                s.errors += 1
         elif event == "Notification":
             kind = p.get("notification_type")
             if kind == "permission_prompt":
@@ -85,7 +93,7 @@ class SessionTable:
                 new = "input"   # idle_prompt 는 완료 뒤 60초에도 오므로 done/idle 이면 무시
         elif event == "Stop":
             new, s.tool = "done", ""
-            s.summary = p.get("last_assistant_message", "") or ""
+            s.summary = s.last_msg = p.get("last_assistant_message", "") or ""
         elif event == "StopFailure":
             new = "error"
         elif event == "SubagentStart":
@@ -135,6 +143,21 @@ class SessionTable:
                 "name": s.name, "st": s.state, "tool": s.tool, "sum": s.summary,
                 "el": int(now - s.since), "err": s.errors, "sub": s.subagents})
         return out
+
+    def detail(self, slot: int, now: float):
+        """상세 화면 정보 (빈 슬롯이면 None)."""
+        s = self.sessions.get(self.slots[slot]) if 0 <= slot < len(self.slots) else None
+        if s is None:
+            return None
+        return {"name": s.name, "st": s.state, "mode": s.mode, "el": int(now - s.since), "err": s.errors,
+                "sub": s.subagents, "msg": s.last_msg, "h": [f"{m}{t} {sm}" for m, t, sm in s.history]}
+
+    @staticmethod
+    def _finish_history(s: Session, tool: str, mark: str):
+        for entry in reversed(s.history):
+            if entry[0] == ">" and entry[1] == tool:
+                entry[0] = mark
+                return
 
     def _ensure_slot(self, s: Session):
         """표시되지 않은 세션에 슬롯을 준다. 꽉 찼으면 주의가 필요 없는 가장 오래된 세션 자리를 빼앗는다."""

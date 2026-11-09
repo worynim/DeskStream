@@ -7,22 +7,28 @@
          - PermissionRequest: 장치가 연결돼 있으면 최대 HOLD_SEC 동안 응답을 붙잡고 버튼 결정을 기다린다.
            장치 미연결·시간 초과·"나중에"·터미널 선결정이면 빈 응답 → 터미널 대화상자로 결정 (자동 허용 없음).
            터미널 대화상자는 기다리는 동안에도 함께 떠 있다 (P0 확인 — 먼저 답한 쪽이 이김).
-         - 슬롯·승인 화면이 바뀌면 바로, 그 밖에는 HEARTBEAT_SEC 마다 하트비트를 보낸다.
+         - 슬롯·승인·상세 화면이 바뀌면 바로, 그 밖에는 HEARTBEAT_SEC 마다 하트비트를 보낸다.
+         - 장치 버튼: 짧게 = 그 슬롯 상세 보기(+완료 확인), 길게 = 설정 파일의 PC 명령 (commands.py).
+         - 설정 파일의 무음 시간대에는 알림음 메시지(alert)를 보내지 않는다.
 
 명령:
   python3 agent_bridge.py run [--serial PORT]          # 데몬 실행
   python3 agent_bridge.py settings > hooks.json        # claude --settings 용 훅 설정 출력 (전역 설정 변경 없음)
   python3 agent_bridge.py install-hooks                # ~/.claude/settings.json 에 설치 (백업 생성)
   python3 agent_bridge.py uninstall-hooks              # 설치한 항목만 제거
+  python3 agent_bridge.py init-config                  # 예시 설정 → ~/.deskstream/agent_monitor.toml (권한 600)
 """
 import argparse
 import json
+import shutil
 import sys
 import threading
 import time
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+import commands
 import hooks_config
 import protocol
 from approvals import DECISIONS, ApprovalQueue
@@ -33,6 +39,7 @@ HEARTBEAT_SEC = 2
 HOLD_SEC = hooks_config.PERMISSION_TIMEOUT_SEC - 10   # 훅 timeout 전에 스스로 pass 로 끝낸다
 CLEAR_SESSION_EVENTS = ("UserPromptSubmit", "Stop", "StopFailure", "SessionEnd")
 CLEAR_TOOL_EVENTS = ("PostToolUse", "PostToolUseFailure")
+QUIET_RELOAD_SEC = 30   # 무음 시간대 설정을 다시 읽는 주기
 
 
 def log(msg: str):
@@ -40,16 +47,22 @@ def log(msg: str):
 
 
 class Bridge:
-    def __init__(self, link_factory, verbose=False, hold_sec=HOLD_SEC):
+    def __init__(self, link_factory, verbose=False, hold_sec=HOLD_SEC, config_path=commands.CONFIG_PATH,
+                 executor=commands.execute):
         self.table = SessionTable()
         self.approvals = ApprovalQueue()
         self.lock = threading.Lock()
         self.dirty = threading.Event()
         self.sent = [None] * len(self.table.slots)   # 슬롯별 마지막으로 보낸 내용 (같으면 생략)
         self.sent_perm = None                         # 마지막으로 보낸 승인 화면 줄
-        self.alerts = []                              # 보낼 알림 줄 — 시리얼 쓰기는 송신 스레드만 한다
+        self.sent_detail = None                       # 마지막으로 보낸 상세 화면 내용
+        self.watch = -1                               # 장치가 상세 화면으로 보고 있는 슬롯
+        self.outbox = []                              # 바로 보낼 줄(알림·명령 진행) — 시리얼 쓰기는 송신 스레드만 한다
         self.verbose = verbose
         self.hold_sec = hold_sec
+        self.config_path = config_path
+        self._quiet = (None, 0.0)                     # (설정의 무음 시간대, 읽은 시각)
+        self.runner = commands.CommandRunner(self._on_cmd_status, log, config_path, executor)
         self.link = link_factory(self.on_device_line, self.on_connect)
 
     def start(self):
@@ -65,8 +78,10 @@ class Bridge:
             elif event in CLEAR_TOOL_EVENTS:
                 self._log_cleared(self.approvals.clear_tool(sid, payload.get("tool_name", ""),
                                                             payload.get("tool_input")))
+            quiet = self.quiet_now()
             for kind, slot in self.table.apply(event, payload, time.time()):
-                self.alerts.append(protocol.alert_msg(kind, slot))
+                if not quiet:
+                    self.outbox.append(protocol.alert_msg(kind, slot))
         if self.verbose:
             log(f"[hook] {event:<18} {sid[:8]} {payload.get('tool_name', '')}")
         self.dirty.set()
@@ -90,6 +105,23 @@ class Bridge:
         log(f"[perm] #{p.id} {p.tool} {p.summary[:40]!r} → {p.decision}")
         return protocol.permission_response(p.decision)
 
+    def quiet_now(self) -> bool:
+        """지금이 설정 파일의 무음 시간대인지 (설정은 QUIET_RELOAD_SEC 마다 다시 읽는다)."""
+        quiet, read_at = self._quiet
+        if time.time() - read_at > QUIET_RELOAD_SEC:
+            try:
+                quiet = commands.load_config(self.config_path).quiet
+            except commands.ConfigError as e:
+                log(f"[config] {e}")
+                quiet = None
+            self._quiet = (quiet, time.time())
+        return commands.in_quiet(datetime.now(), quiet)
+
+    def _on_cmd_status(self, button: int, state: str, label: str, result: str):
+        with self.lock:
+            self.outbox.append(protocol.cmd_msg(button - 1, state, label, result))
+        self.dirty.set()
+
     def _log_cleared(self, cleared):
         for p in cleared:
             log(f"[perm] #{p.id} 터미널 등에서 먼저 결정됨 → 장치 화면 정리")
@@ -98,6 +130,7 @@ class Bridge:
     def on_connect(self):
         self.sent = [None] * len(self.sent)   # 새 연결이면 전체 재전송
         self.sent_perm = None
+        self.sent_detail = None
         self.dirty.set()
 
     def on_device_line(self, line: str):
@@ -113,11 +146,16 @@ class Bridge:
         elif kind == "btn":
             b, press = msg.get("b"), msg.get("press")
             log(f"[device] 버튼 {b} {press}")
-            if press == "short" and isinstance(b, int):
+            if not isinstance(b, int) or not 0 <= b < len(self.table.slots):
+                return
+            if press == "short":            # 슬롯 b 상세 보기 + 완료 확인
                 with self.lock:
-                    if self.table.mark_read(b, time.time()):
-                        self.dirty.set()
-            # press == "long": PC 명령 실행은 P3 에서 결정 (현재는 기록만)
+                    self.table.mark_read(b, time.time())
+                    self.watch = b
+                    self.sent_detail = None
+                self.dirty.set()
+            elif press == "long":           # 설정 파일의 PC 명령 (버튼 번호 1~4)
+                self.runner.run(b + 1)
 
     def _on_decide(self, pid, act):
         if not isinstance(pid, int):
@@ -142,9 +180,10 @@ class Bridge:
             with self.lock:
                 self.table.prune(now)
                 views = self.table.view(now)
-                alerts, self.alerts = self.alerts, []
+                outbox, self.outbox = self.outbox, []
                 perm_line = protocol.perm_msg(self.approvals.current(), *self.approvals.position())
-            for line in alerts:
+                detail = self.table.detail(self.watch, now) if self.watch >= 0 else None
+            for line in outbox:
                 self.link.send(line)
             for i, v in enumerate(views):
                 # el(경과 초)은 매번 달라지므로 비교에서 빼고, 장치가 직접 센다
@@ -155,9 +194,14 @@ class Bridge:
             if perm_line != self.sent_perm:
                 self.sent_perm = perm_line
                 self.link.send(perm_line)
+            if self.watch >= 0:
+                key = None if detail is None else {**detail, "el": None}
+                if key != self.sent_detail:
+                    self.sent_detail = key
+                    self.link.send(protocol.detail_msg(self.watch, detail))
             if now - last_hb >= HEARTBEAT_SEC:
                 last_hb = now
-                self.link.send(protocol.HEARTBEAT)
+                self.link.send(protocol.heartbeat_msg(self.quiet_now()))
 
 
 def make_handler(bridge: Bridge):
@@ -194,7 +238,7 @@ def make_handler(bridge: Bridge):
 def cmd_run(args):
     from transport import SerialLink   # pyserial 은 run 에서만 필요
     bridge = Bridge(lambda on_line, on_connect: SerialLink(on_line, on_connect, port=args.serial, log=log),
-                    verbose=args.verbose)
+                    verbose=args.verbose, config_path=args.config)
     bridge.start()
     server = ThreadingHTTPServer(("127.0.0.1", args.http_port), make_handler(bridge))
     server.daemon_threads = True          # 붙잡힌 권한 요청이 종료를 막지 않게
@@ -212,10 +256,12 @@ def main():
     run = sub.add_parser("run", help="데몬 실행")
     run.add_argument("--serial", help="시리얼 포트 (기본: Espressif USB 자동 탐색)")
     run.add_argument("-v", "--verbose", action="store_true", help="훅 이벤트 출력")
+    run.add_argument("--config", type=Path, default=commands.CONFIG_PATH, help="설정 파일 (기본: %(default)s)")
     sub.add_parser("settings", help="claude --settings 용 훅 설정 JSON 출력")
     for name in ("install-hooks", "uninstall-hooks"):
         p = sub.add_parser(name)
         p.add_argument("--file", type=Path, default=hooks_config.DEFAULT_SETTINGS)
+    sub.add_parser("init-config", help=f"예시 설정을 {commands.CONFIG_PATH} 로 복사 (이미 있으면 그대로 둠)")
     args = ap.parse_args()
 
     if args.cmd == "run":
@@ -225,6 +271,15 @@ def main():
     elif args.cmd == "install-hooks":
         backup = hooks_config.install(args.file, args.http_port)
         print(f"설치 완료: {args.file}" + (f" (백업: {backup})" if backup else ""))
+    elif args.cmd == "init-config":
+        dst = commands.CONFIG_PATH
+        if dst.exists():
+            print(f"이미 있습니다: {dst}")
+        else:
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(commands.EXAMPLE_PATH, dst)
+            dst.chmod(0o600)
+            print(f"생성: {dst} — 버튼 명령과 무음 시간대를 편집하세요")
     elif args.cmd == "uninstall-hooks":
         removed, backup = hooks_config.uninstall(args.file, args.http_port)
         print(f"제거한 훅 {removed}개: {args.file}" + (f" (백업: {backup})" if backup else ""))

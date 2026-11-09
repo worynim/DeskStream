@@ -7,7 +7,7 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#define AM_FW_VERSION "0.2.0"
+#define AM_FW_VERSION "0.3.0"
 
 // --- 데몬 링크 (USB 시리얼, JSON Lines) ---
 #define AM_SERIAL_BAUD      115200
@@ -21,6 +21,10 @@
 
 // --- 승인 화면 ---
 #define AM_PERM_GUARD_MS    700     // 새 승인 요청이 뜬 직후 이 시간 동안 결정 버튼 무시 (다른 걸 누르려다 승인 방지)
+
+// --- 상세 화면 · PC 명령 ---
+#define AM_DETAIL_IDLE_MS   60000   // 상세 화면에서 버튼을 이만큼 안 누르면 개요로 돌아간다
+#define AM_TOAST_MS         4000    // PC 명령 결과(OK/FAIL) 띠를 보여주는 시간 (실행 중은 계속)
 
 // --- 소리 ---
 #define AM_BEEP_MS          40

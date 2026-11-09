@@ -1,10 +1,10 @@
-# 🤖 Agent_Monitor — AI 개발 에이전트 모니터 (v0.2.0)
+# 🤖 Agent_Monitor — AI 개발 에이전트 모니터 (v0.3.0)
 
 Claude Code 세션의 작업 상태를 DeskStream 4-OLED에 실시간으로 보여주는 책상 위 모니터입니다.
 OLED 한 장이 세션 하나를 맡아 **생각 중 / 실행 중(도구·명령) / 승인 대기 / 입력 대기 / 완료 / 오류**를 표시하고,
-상태가 바뀌면 부저로 알려 줍니다. 권한 요청은 **장치 버튼으로 승인/거절**할 수 있습니다.
+상태가 바뀌면 부저로 알려 줍니다. 권한 요청은 **장치 버튼으로 승인/거절**하고, 버튼을 길게 눌러 **PC 명령**(앱 앞으로 · 셸 명령 · 키 입력)을 실행할 수 있습니다.
 
-> 현재 단계: **P2 — 버튼 승인** 완료. PC 명령 실행은 P3. 계획·조사: `PLAN.md`, 훅 검증 결과: [p0_spike/RESULTS.md](./p0_spike/RESULTS.md)
+> 현재 단계: **P3 — 상세 화면 · 음소거 · PC 명령** 완료. 계획·조사: `PLAN.md`, 훅 검증 결과: [p0_spike/RESULTS.md](./p0_spike/RESULTS.md)
 
 ## 구성
 
@@ -47,12 +47,24 @@ Claude Code ──HTTP 훅──▶ bridge_py/agent_bridge.py (PC 데몬) ──
      BTN1           BTN2           BTN3           BTN4
 ```
 
+### 상세 화면 (개요에서 슬롯 버튼 짧게)
+
+| 화면 1 | 화면 2 | 화면 3 · 4 |
+|:--|:--|:--|
+| 이름 · 상태 · 경과 · 권한 모드(`mode plan` 등) · 하위 에이전트/오류 수 | 최근 도구 4개 — `>` 실행 중 · `+` 성공 · `!` 실패 | 마지막 답변 (최대 120자) |
+
+- 60초 동안 버튼을 누르지 않거나 세션이 끝나면 개요로 돌아갑니다.
+- PC 명령 결과는 해당 버튼 화면 아래에 `RUN …` → `OK … exit 0` / `FAIL … exit 2` 띠로 4초간 보입니다.
+- 음소거 중이거나 무음 시간대면 개요의 OLED 4 오른쪽 위에 스피커+X 아이콘이 보입니다.
+
 ## 버튼
 
 | 화면 | 동작 | 기능 |
 |:--|:--|:--|
-| 개요 | BTN i 짧게 | 슬롯 i 의 완료(DONE) 표시를 확인 처리 → IDLE |
-| 개요 | BTN i 길게 | 데몬에 전달만 함 (PC 명령 실행은 P3에서 결정) |
+| 개요 | BTN i 짧게 | 슬롯 i 상세 화면 (완료 표시도 확인 처리 → IDLE) |
+| 개요·상세 | BTN i 길게 | 설정 파일의 PC 명령 i 실행 |
+| 상세 | BTN1 / BTN2 | 개요로 / 음소거 켜기·끄기 (보드에 저장) |
+| 상세 | BTN3 / BTN4 | 이전 / 다음 세션 |
 | 승인 | BTN1 | **승인** — 도구가 바로 실행됨 |
 | 승인 | BTN2 | 다음 대기 요청 보기 (대기 2개 이상일 때만) |
 | 승인 | BTN3 | **거절** — Claude에게 "장치에서 거절" 메시지 전달 |
@@ -71,7 +83,7 @@ Claude Code ──HTTP 훅──▶ bridge_py/agent_bridge.py (PC 데몬) ──
 arduino-cli compile --fqbn "esp32:esp32:makergo_c3_supermini:CDCOnBoot=default,CPUFreq=160,PartitionScheme=default" Agent_Monitor
 ```
 
-### 2. PC 데몬 (Python 3.10+, macOS에서 검증)
+### 2. PC 데몬 (Python 3.11+, macOS에서 검증)
 
 ```bash
 cd Agent_Monitor/bridge_py
@@ -95,7 +107,32 @@ python3 agent_bridge.py install-hooks
 python3 agent_bridge.py uninstall-hooks   # 추가한 항목만 제거
 ```
 
-### 4. 화면 확인 (Claude Code 없이)
+### 4. PC 명령 · 무음 시간대 설정 (선택)
+
+```bash
+python3 agent_bridge.py init-config     # 예시 → ~/.deskstream/agent_monitor.toml (권한 600)
+```
+
+```toml
+[quiet]                 # 이 시간에는 알림음을 보내지 않음 (자정 넘김 가능)
+start = "23:00"
+end = "08:00"
+
+[[commands]]            # 버튼 길게 누르기 — button = 1~4
+button = 2
+label = "npm test"
+type = "shell"          # focus(app 앞으로) | shell(command 실행) | keys(text 입력 + key)
+command = "npm test"
+cwd = "~/work/web-app"
+timeout = 300
+```
+
+- 장치는 **버튼 번호만** 보냅니다. 실행 내용은 이 파일에만 있고, 버튼을 누를 때마다 다시 읽습니다 (데몬 재시작 불필요).
+- 파일을 다른 사용자도 쓸 수 있는 권한이면(group/other write) 실행하지 않습니다.
+- `keys` 는 ASCII 텍스트와 `return · escape · tab · space · ctrl+c` 만 지원하고, macOS **손쉬운 사용** 권한(데몬을 실행한 터미널 앱)이 필요합니다. `app` 을 지정하면 그 앱을 먼저 앞으로 가져옵니다.
+- 전체 예시: [bridge_py/agent_monitor.example.toml](./bridge_py/agent_monitor.example.toml). 다른 위치의 설정은 `run --config 경로`.
+
+### 5. 화면 확인 (Claude Code 없이)
 ```bash
 python3 demo_hooks.py        # 슬롯 4개를 실행 중 / 승인 대기 / 완료 / 생각 중으로
 python3 demo_hooks.py --end
@@ -107,11 +144,13 @@ python3 demo_hooks.py --end
 |:--|:--|
 | `Agent_Monitor.ino` | 시리얼 수신 · 버튼 · 알림음 · 100ms 주기 렌더링 |
 | `agent_state.h/.cpp` | 슬롯 모델과 메시지 해석 (순수 C++, 호스트 테스트) |
-| `agent_ui.h/.cpp` | 슬롯 화면·승인 화면·오프라인 화면 그리기 |
-| `config.h` | 링크 timeout · 프레임 주기 · 깜빡임 주기 · 승인 오조작 방지 시간 등 |
+| `agent_ui.h/.cpp` | 슬롯 · 승인 · 상세 · 오프라인 화면, PC 명령 결과 띠, 음소거 아이콘 |
+| `config.h` | 링크 timeout · 프레임 주기 · 깜빡임 주기 · 승인 오조작 방지 · 상세 화면 복귀 시간 등 |
 | `bridge_py/agent_bridge.py` | 데몬 (훅 서버 · 송신 루프 · 훅 설정 명령) |
 | `bridge_py/sessions.py` | 훅 이벤트 → 세션 상태 · 슬롯 배정 |
 | `bridge_py/approvals.py` | 권한 요청 대기열 (결정 · 다음 · 터미널 선결정 정리) |
+| `bridge_py/commands.py` | 사용자 설정 파일 · PC 명령 실행 · 무음 시간대 |
+| `bridge_py/agent_monitor.example.toml` | 설정 예시 |
 | `bridge_py/protocol.py` | 시리얼 메시지 형식 (프로토콜 설명 포함) |
 | `bridge_py/transport.py` | USB 시리얼 (자동 탐색 · 재연결 · 쓰기 timeout) |
 | `bridge_py/hooks_config.py` | 훅 설정 생성 · 설치 · 제거 |
@@ -121,7 +160,7 @@ python3 demo_hooks.py --end
 ## 테스트
 
 ```bash
-cd Agent_Monitor/bridge_py && python3 -m unittest discover -s tests -v      # 데몬 27건
+cd Agent_Monitor/bridge_py && python3 -m unittest discover -s tests -v      # 데몬 39건
 
 # 펌웨어 상태 해석 (저장소 루트에서)
 L=libraries/DeskStreamCore/src

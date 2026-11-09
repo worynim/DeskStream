@@ -38,8 +38,11 @@ def main():
          tool_input={"command": "arduino-cli compile --fqbn esp32:esp32 Agent_Monitor"})
     time.sleep(1)
     post(p, "UserPromptSubmit", SESSIONS[1], "web-app")
-    post(p, "PermissionRequest", SESSIONS[1], "web-app", tool_name="Bash",
+    # 승인 대기 "상태"만 보여준다 — PermissionRequest 는 장치 결정을 기다리느라 응답을 붙잡는다 (P2)
+    post(p, "PreToolUse", SESSIONS[1], "web-app", tool_name="Bash",
          tool_input={"command": "rm -rf node_modules && npm install"})
+    post(p, "Notification", SESSIONS[1], "web-app", notification_type="permission_prompt",
+         message="Claude needs your permission")
     time.sleep(1)
     post(p, "UserPromptSubmit", SESSIONS[2], "api-server")
     post(p, "PostToolUseFailure", SESSIONS[2], "api-server", tool_name="Bash")

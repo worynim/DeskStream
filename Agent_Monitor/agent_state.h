@@ -42,14 +42,42 @@ struct Perm {
     uint32_t shownMs = 0;    ///< 이 id 를 처음 받은 시각 — 오조작 방지·대기 시간 표시용
 };
 
+/** 상세 화면 정보 — 장치가 보고 있는 슬롯 하나 (데몬이 바뀔 때마다 다시 보냄) */
+struct Detail {
+    bool on = false;
+    int8_t slot = -1;
+    char name[21] = "";
+    State st = State::Idle;
+    char mode[13] = "";      ///< permission_mode
+    uint32_t elS = 0;
+    uint32_t rxMs = 0;
+    uint8_t err = 0;
+    uint8_t sub = 0;
+    char msg[121] = "";      ///< 마지막 답변
+    char h[4][22] = {};      ///< 최근 도구 — 첫 글자 '>' 실행 중 '+' 성공 '!' 실패
+};
+
+enum class CmdState : uint8_t { None, Run, Ok, Fail };
+
+/** 버튼 길게 누르기 PC 명령의 진행·결과 (버튼별 알림 띠) */
+struct CmdToast {
+    CmdState st = CmdState::None;
+    char label[21] = "";
+    char msg[13] = "";
+    uint32_t rxMs = 0;
+};
+
 struct Model {
     Slot slots[kSlots];
     Perm perm;
+    Detail detail;
+    CmdToast toasts[kSlots];
+    bool quiet = false;      ///< 데몬 설정의 무음 시간대 (하트비트로 받음)
     uint32_t lastRxMs = 0;   ///< 마지막으로 유효한 메시지를 받은 시각
     bool everRx = false;
 };
 
-enum class MsgType : uint8_t { Invalid, Slot, Alert, Heartbeat, Perm };
+enum class MsgType : uint8_t { Invalid, Slot, Alert, Heartbeat, Perm, Detail, Cmd };
 
 struct ParseResult {
     MsgType type = MsgType::Invalid;
