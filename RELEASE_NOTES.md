@@ -1,3 +1,9 @@
+## [v4.28.0] - 2026-11-10
+### 📦 웹 플래셔 배포본 갱신 — Sound_Visualizer 3.6.0
+- Sound_Visualizer_4_OLEDs 3.5.1 → 3.6.0 재빌드(489,728 → 493,440 B): 시각화 모드 6종(미러·스펙트로그램·도트 매트릭스·파티클 추가). 웹 플래셔 설명도 갱신.
+- Agent_Monitor 0.4.2 포함 13종 구성 확인 (`firmware/Agent_Monitor`, 소스 변경 없어 재빌드 안 함).
+- `firmware/`·`manifest.json`·`projects.json` 갱신, `node tools/collect-firmware.mjs --check` 통과.
+
 ## [v4.27.0] - 2026-11-10
 ### 🤖 Agent_Monitor v0.4.2 — 빈 슬롯에 길게 누르기 명령 표시
 - 빈 슬롯 화면에 그 버튼을 길게 눌렀을 때 실행되는 PC 명령 이름과 종류를 표시합니다. 웹 플래셔 배포본 0.4.2 갱신 (`--check` 통과).

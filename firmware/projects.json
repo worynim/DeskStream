@@ -37,14 +37,14 @@
     {
       "id": "Sound_Visualizer_4_OLEDs",
       "name": "사운드 비주얼라이저",
-      "version": "3.5.1",
+      "version": "3.6.0",
       "icon": "🎵",
       "order": 3,
       "sourcePath": "Sound_Visualizer_4_OLEDs",
-      "description": "아날로그 마이크 입력을 정수형 FFT로 분석해 128밴드 스펙트럼으로 시각화",
+      "description": "아날로그 마이크 입력을 정수형 FFT로 분석해 128밴드 스펙트럼·미러·스펙트로그램·도트 매트릭스·파티클 등 6가지 모드로 시각화",
       "note": "",
       "nameEn": "Sound Visualizer",
-      "descriptionEn": "128-band real-time spectrum visualizer from analog mic input using integer FFT",
+      "descriptionEn": "Real-time visualizer from analog mic input using integer FFT: 128-band spectrum, mirror, spectrogram, dot matrix, particles, and more (6 modes)",
       "noteEn": ""
     },
     {

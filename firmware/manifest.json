@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-09T20:29:16.545Z",
+  "generatedAt": "2026-11-09T21:52:10.230Z",
   "chip": "ESP32-C3",
   "board": "DeskStream (ESP32-C3 SuperMini · 4× OLED)",
   "flashDefaults": {
@@ -108,13 +108,13 @@
     {
       "id": "Sound_Visualizer_4_OLEDs",
       "name": "사운드 비주얼라이저",
-      "version": "3.5.1",
+      "version": "3.6.0",
       "icon": "🎵",
       "order": 3,
-      "description": "아날로그 마이크 입력을 정수형 FFT로 분석해 128밴드 스펙트럼으로 시각화",
+      "description": "아날로그 마이크 입력을 정수형 FFT로 분석해 128밴드 스펙트럼·미러·스펙트로그램·도트 매트릭스·파티클 등 6가지 모드로 시각화",
       "note": "",
       "nameEn": "Sound Visualizer",
-      "descriptionEn": "128-band real-time spectrum visualizer from analog mic input using integer FFT",
+      "descriptionEn": "Real-time visualizer from analog mic input using integer FFT: 128-band spectrum, mirror, spectrogram, dot matrix, particles, and more (6 modes)",
       "noteEn": "",
       "fqbn": "esp32:esp32:makergo_c3_supermini:UploadSpeed=921600,CDCOnBoot=default,CPUFreq=160,FlashFreq=80,DebugLevel=none,EraseFlash=none,PartitionScheme=default",
       "partitionScheme": "default",
@@ -123,9 +123,9 @@
         "freq": "80m",
         "size": "4MB"
       },
-      "exportedAt": "2026-11-09T15:53:05.698Z",
+      "exportedAt": "2026-11-09T21:51:59.609Z",
       "sourcePath": "Sound_Visualizer_4_OLEDs",
-      "sourceCommit": "e1efc0f73d658ff823bcef8b7d08e8acf4777396",
+      "sourceCommit": "be892eee279fb28e5bade0ac4d72751c92de008c",
       "images": [
         {
           "offset": "0x0",
@@ -148,8 +148,8 @@
         {
           "offset": "0x10000",
           "path": "firmware/Sound_Visualizer_4_OLEDs/Sound_Visualizer_4_OLEDs.ino.bin",
-          "size": 489728,
-          "sha256": "1117f354f01130c51a85036575a16741d98a54c0cbe9458cccc3591d9081a139"
+          "size": 493440,
+          "sha256": "68db3605f715faae90a9286a3e08110a97e6669421eb7e2da142edc0b5a9f989"
         }
       ]
     },
