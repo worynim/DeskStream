@@ -1,19 +1,17 @@
+// worynim@gmail.com
+/**
+ * @file Game_Of_Life.ino
+ * @brief 512x64 Conway's Game of Life — 화면 전송·버튼·부저는 DeskStreamCore
+ */
 #include <Arduino.h>
-#include <U8g2lib.h>
-#include "config.h"
-#include "i2c_platform.h"
+#include <DeskStreamCore.h>
 #include "engine.h"
 
-// 4개의 디스플레이 인스턴스 (Hangeul_Clock과 동일한 병렬 제어 구성)
-U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_1(U8G2_R0, /* clock=*/ 255, /* data=*/ 255, /* reset=*/ U8X8_PIN_NONE);
-U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_2(U8G2_R0, /* clock=*/ 255, /* data=*/ 255, /* reset=*/ U8X8_PIN_NONE);
-U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_3(U8G2_R0, /* clock=*/ SW_SCL_PIN, /* data=*/ SW_SDA_PIN, /* reset=*/ U8X8_PIN_NONE);
-U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_4(U8G2_R0, /* clock=*/ SW_SCL_PIN, /* data=*/ SW_SDA_PIN, /* reset=*/ U8X8_PIN_NONE);
-
-U8G2* screens[NUM_SCREENS] = {&u8g2_1, &u8g2_2, &u8g2_3, &u8g2_4};
-
-// U8g2 공유 버퍼 문제 방지를 위한 개별 메모리 버퍼 할당
-uint8_t u8g2_buffers[NUM_SCREENS][1024];
+// 4-OLED 화면 엔진 (HW 1.1MHz·병합 전송·고속 SW I2C·셰도 diff) — DeskStreamCore
+static ds::DisplayCore display;
+static U8G2** screens = display.screens();
+static ds::Buttons buttons;
+static ds::Buzzer buzzer;
 
 // UI State variables
 bool isPlaying = true;
@@ -22,39 +20,24 @@ int frameDelay = 100; // approx 10fps
 
 volatile bool btnFlag[4] = {false, false, false, false};
 
-void playStartupMelody() {
-    int melody[] = {2093, 2637, 3136, 4186}; // Do-Mi-Sol-Do
-    for (int i = 0; i < 4; i++) {
-        tone(BUZZER_PIN, melody[i], 100);
-        delay(120);
-    }
-    noTone(BUZZER_PIN);
-}
+// 시작 멜로디 Do-Mi-Sol-Do (100ms 음 + 20ms 쉼) — ds::Buzzer가 타이머로 재생한다
+static const ds::Note STARTUP_MELODY[] = {{2093, 100, 20}, {2637, 100, 20}, {3136, 100, 20}, {4186, 100, 20}};
 
+// 버튼 PRESS(누르는 순간) → 플래그. 실제 처리는 메인 루프의 processButtonFlags()가 한다.
+static void onPress0() { btnFlag[0] = true; }
+static void onPress1() { btnFlag[1] = true; }
+static void onPress2() { btnFlag[2] = true; }
+static void onPress3() { btnFlag[3] = true; }
+
+/**
+ * @brief 버튼 전용 백그라운드 태스크 — 5ms마다 스캔 (렌더링 루프와 독립적)
+ * @details 메인 루프의 세대 계산·전송 중에도 짧은 입력을 놓치지 않기 위해 별도 태스크에서 돈다.
+ *          판정(20ms 안정 디바운스 + 누르는 순간 PRESS)은 ds::Buttons가 한다.
+ */
 void buttonTask(void* parameter) {
-    uint32_t lastDebounceTime[4] = {0, 0, 0, 0};
-    bool lastFlickerState[4] = {HIGH, HIGH, HIGH, HIGH};
-    bool lastStableState[4] = {HIGH, HIGH, HIGH, HIGH};
-    int pins[] = {BTN1_PIN, BTN2_PIN, BTN3_PIN, BTN4_PIN};
-    
     while (true) {
-        uint32_t now = millis();
-        for (int i = 0; i < 4; i++) {
-            bool reading = digitalRead(pins[i]);
-            if (reading != lastFlickerState[i]) {
-                lastDebounceTime[i] = now;
-            }
-            if ((now - lastDebounceTime[i]) > 20) {
-                if (reading != lastStableState[i]) {
-                    lastStableState[i] = reading;
-                    if (lastStableState[i] == LOW) {
-                        btnFlag[i] = true;
-                    }
-                }
-            }
-            lastFlickerState[i] = reading;
-        }
-        vTaskDelay(pdMS_TO_TICKS(5)); // 5ms마다 스캔 (렌더링 루프와 독립적)
+        buttons.update();
+        vTaskDelay(pdMS_TO_TICKS(5));
     }
 }
 
@@ -62,7 +45,7 @@ void processButtonFlags() {
     if (btnFlag[0]) { // BTN1: Play/Pause
         btnFlag[0] = false;
         isPlaying = !isPlaying;
-        tone(BUZZER_PIN, isPlaying ? 2000 : 1000, 50);
+        buzzer.beep(50, isPlaying ? 2000 : 1000);
     }
     if (btnFlag[1]) { // BTN2: Step
         btnFlag[1] = false;
@@ -70,7 +53,7 @@ void processButtonFlags() {
             engine.computeNextGeneration();
             mapEngineToBuffers();
             pushParallel();
-            tone(BUZZER_PIN, 1500, 30);
+            buzzer.beep(30, 1500);
         }
     }
     if (btnFlag[2]) { // BTN3: Speed Toggle
@@ -79,7 +62,7 @@ void processButtonFlags() {
         if (fpsMode == 0) frameDelay = 200; // 5fps
         else if (fpsMode == 1) frameDelay = 100;  // 10fps
         else frameDelay = 50;  // 20fps
-        tone(BUZZER_PIN, 1000 + fpsMode * 500, 50);
+        buzzer.beep(50, 1000 + fpsMode * 500);
     }
     if (btnFlag[3]) { // BTN4: Reset Pattern
         btnFlag[3] = false;
@@ -88,84 +71,23 @@ void processButtonFlags() {
             mapEngineToBuffers();
             pushParallel();
         }
-        tone(BUZZER_PIN, 800, 100);
+        buzzer.beep(100, 800);
     }
 }
 
+/** 바뀐 페이지만 4화면에 병렬 전송한다 (HW 0·1은 태스크, SW 2·3은 이 태스크) */
 void pushParallel() {
-    i2cPlatform.waitForSync(I2C_SYNC_TIMEOUT_MS);
-
-    bool any_hw_dirty = false;
-    for (int s = 0; s < 2; s++) {
-        uint8_t* buf = screens[s]->getBufferPtr();
-        for (int p = 0; p < PAGES_PER_SCREEN; p++) {
-            bool page_dirty = false; int first_tile = -1, last_tile = -1;
-            for (int t = 0; t < TILES_PER_PAGE; t++) {
-                bool tile_dirty = false;
-                for (int tx = 0; tx < 8; tx++) {
-                    int idx = p * SCREEN_WIDTH + t * 8 + tx;
-                    if (buf[idx] != i2cPlatform.getShadowData(s, idx)) { 
-                        tile_dirty = true; 
-                        i2cPlatform.setShadowData(s, idx, buf[idx]); 
-                    }
-                }
-                if (tile_dirty) { if (first_tile == -1) first_tile = t; last_tile = t; page_dirty = true; }
-            }
-            if (page_dirty) { 
-                i2cPlatform.preparePageUpdate(s, p, first_tile, last_tile - first_tile + 1);
-                any_hw_dirty = true; 
-            }
-        }
-    }
-    if (any_hw_dirty) { i2cPlatform.notifyTransmission(); }
-    
-    for (int s = 2; s < 4; s++) {
-        uint8_t* buf = screens[s]->getBufferPtr();
-        for (int p = 0; p < PAGES_PER_SCREEN; p++) {
-            int first_tile = -1, last_tile = -1; bool page_dirty = false;
-            for (int t = 0; t < TILES_PER_PAGE; t++) {
-                bool tile_dirty = false;
-                for (int tx = 0; tx < 8; tx++) {
-                    int idx = p * SCREEN_WIDTH + t * 8 + tx;
-                    if (buf[idx] != i2cPlatform.getShadowData(s, idx)) { 
-                        tile_dirty = true; 
-                        i2cPlatform.setShadowData(s, idx, buf[idx]); 
-                    }
-                }
-                if (tile_dirty) { if (first_tile == -1) first_tile = t; last_tile = t; page_dirty = true; }
-            }
-            if (page_dirty) screens[s]->updateDisplayArea(first_tile, p, last_tile - first_tile + 1, 1);
-        }
-    }
+    display.push();
 }
 
+/**
+ * @brief 엔진의 512x64 비트맵(행 우선·MSB 먼저)을 4화면의 U8g2 페이지 버퍼로 전치한다
+ * @details 전치 규칙은 DeskStreamCore의 ds::canvasToScreenPages() (호스트 테스트 test_canvas)를 쓴다.
+ */
 void mapEngineToBuffers() {
     const uint8_t* current_gen = engine.getCurrentBuffer();
-    
-    for (int s = 0; s < NUM_SCREENS; s++) {
-        uint8_t* u8g2_buf = screens[s]->getBufferPtr();
-        int x_offset = s * 128; 
-        
-        for (int p = 0; p < 8; p++) {
-            for (int x = 0; x < 128; x++) {
-                int global_x = x_offset + x;
-                uint8_t page_data = 0;
-                int byte_idx_base = (global_x >> 3);
-                uint8_t bit_mask = (0x80 >> (global_x & 7));
-                
-                int y_base = p * 8;
-                if (current_gen[(y_base    ) * 64 + byte_idx_base] & bit_mask) page_data |= 0x01;
-                if (current_gen[(y_base + 1) * 64 + byte_idx_base] & bit_mask) page_data |= 0x02;
-                if (current_gen[(y_base + 2) * 64 + byte_idx_base] & bit_mask) page_data |= 0x04;
-                if (current_gen[(y_base + 3) * 64 + byte_idx_base] & bit_mask) page_data |= 0x08;
-                if (current_gen[(y_base + 4) * 64 + byte_idx_base] & bit_mask) page_data |= 0x10;
-                if (current_gen[(y_base + 5) * 64 + byte_idx_base] & bit_mask) page_data |= 0x20;
-                if (current_gen[(y_base + 6) * 64 + byte_idx_base] & bit_mask) page_data |= 0x40;
-                if (current_gen[(y_base + 7) * 64 + byte_idx_base] & bit_mask) page_data |= 0x80;
-                
-                u8g2_buf[p * 128 + x] = page_data;
-            }
-        }
+    for (int s = 0; s < ds::kNumScreens; s++) {
+        ds::canvasToScreenPages(current_gen, GRID_WIDTH, (uint8_t)s, screens[s]->getBufferPtr());
     }
 }
 
@@ -181,39 +103,30 @@ void setup() {
     delay(1000);
     Serial.println("\n[System] Game of Life - Booting...");
 
-    // 버튼 및 부저 초기화
-    pinMode(BTN1_PIN, INPUT_PULLUP);
-    pinMode(BTN2_PIN, INPUT_PULLUP);
-    pinMode(BTN3_PIN, INPUT_PULLUP);
-    pinMode(BTN4_PIN, INPUT_PULLUP);
-    pinMode(BUZZER_PIN, OUTPUT);
-    digitalWrite(BUZZER_PIN, LOW);
+    // 버튼(20ms 안정 디바운스 · 누르는 순간 반응) 및 부저 초기화
+    ds::ButtonTiming timing;
+    timing.stableMs = 20;
+    buttons.begin(timing);
+    buttons.setCallback(0, ds::BUTTON_PRESS, onPress0);
+    buttons.setCallback(1, ds::BUTTON_PRESS, onPress1);
+    buttons.setCallback(2, ds::BUTTON_PRESS, onPress2);
+    buttons.setCallback(3, ds::BUTTON_PRESS, onPress3);
+    buzzer.begin();
 
     // 버튼 전용 백그라운드 태스크 시작
     xTaskCreate(buttonTask, "ButtonTask", 2048, NULL, 5, NULL);
 
-    // I2C 플랫폼 초기화 (병렬 전송 Task 포함)
-    Serial.println("[System] Initializing I2C Platform...");
-    i2cPlatform.begin();
-
-    // HW I2C 디스플레이 콜백 및 주소 설정 (u8g2_1, u8g2_2)
-    u8g2_1.getU8x8()->byte_cb = u8x8_byte_esp32_idf_0;
-    u8g2_2.getU8x8()->byte_cb = u8x8_byte_esp32_idf_1;
-    u8g2_1.setI2CAddress(I2C_ADDR_HW_0 << 1);
-    u8g2_2.setI2CAddress(I2C_ADDR_HW_1 << 1);
-
-    // SW I2C 디스플레이 콜백 및 주소 설정 (u8g2_3, u8g2_4)
-    u8g2_3.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast;
-    u8g2_4.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast;
-    u8g2_3.setI2CAddress(I2C_ADDR_HW_0 << 1);
-    u8g2_4.setI2CAddress(I2C_ADDR_HW_1 << 1);
-
+    // 화면 엔진 초기화 (I2C 버스·병렬 전송 태스크·U8G2 4개)
+    //   엔진 비트맵을 U8g2 버퍼에 **직접** 쓰므로(mapEngineToBuffers) 소프트웨어 회전 없이(R0)
+    //   하드웨어 flip으로 상하를 뒤집는다 — 이전 구성(U8G2_R0 + setFlipMode(1)) 그대로다.
     Serial.println("[System] Initializing Displays...");
+    ds::DisplayConfig cfg;
+    cfg.rotation = U8G2_R0;
+    display.begin(cfg);
+    display.setFlip(true);
+
     const char* splash_texts[4] = {"Conway's", "GAME", "OF", "LIFE"};
-    for (int i = 0; i < NUM_SCREENS; i++) {
-        screens[i]->getU8g2()->tile_buf_ptr = u8g2_buffers[i]; // 독립 버퍼 매핑
-        screens[i]->begin();
-        screens[i]->setFlipMode(1); // 글자 및 화면 상하반전 (Hardware Flip)
+    for (int i = 0; i < ds::kNumScreens; i++) {
         screens[i]->clearBuffer();
         if (i == 0) screens[i]->setFont(u8g2_font_ncenB14_tr);
         else screens[i]->setFont(u8g2_font_logisoso24_tr);
@@ -227,8 +140,8 @@ void setup() {
     }
     pushParallel(); // 병렬 전송으로 4개 화면 동시 출력
     
-    playStartupMelody();
-    delay(2000); // 스플래시 화면 2초 대기
+    buzzer.playMelody(STARTUP_MELODY, sizeof(STARTUP_MELODY) / sizeof(STARTUP_MELODY[0]));
+    delay(2000); // 스플래시 화면 2초 대기 (멜로디는 그동안 백그라운드로 재생된다)
 
     Serial.println("[System] Initializing Game Engine...");
     engine.init();

@@ -385,14 +385,19 @@ chk('font_studio_html이 PROGMEM 상수다',
 // ===================================================================
 console.log('\nA-5: 본문 없는 POST는 400으로 명시적으로 거절한다');
 
-const handleSetConfig = grabFrom(wm, 'void WebManager::handleSetConfig');
-chk('handleSetConfig를 찾는다', handleSetConfig !== null);
+// v1.1.0: 설정 POST 처리는 DeskStreamCore(ds::WebConfigApi)로, 적용 순서는 config_manager.cpp kFields로 옮겨 갔다.
+const cfgC = readFileSync(join(ROOT, 'config_manager.cpp'), 'utf8');
+const webApi = readFileSync(join(ROOT, '..', 'libraries', 'DeskStreamCore', 'src', 'net', 'ds_web_config.cpp'), 'utf8');
+const handlePost = grabFrom(webApi, 'void WebConfigApi::handlePost');
+chk('ds::WebConfigApi::handlePost를 찾는다', handlePost !== null);
+chk('web_manager가 /api/config를 ds::WebConfigApi에 맡긴다',
+    /_configApi\.begin\(server, configManager\.store\(\)/.test(wm));
 // 응답이 없으면 fetch()가 "응답 없음"으로 보고 저장 실패처럼 표시된다.
 chk('본문 없는 POST에 400 Missing body로 답한다',
-    handleSetConfig !== null
-    && /else \{[\s\S]{0,400}send\(400, "text\/plain", "Missing body"\)/.test(handleSetConfig));
+    handlePost !== null
+    && /if \(!_server->hasArg\("plain"\)\) \{[\s\S]{0,300}send\(400, "text\/plain", "Missing body"\)/.test(handlePost));
 chk('본문이 있으면 200 OK를 그대로 답한다',
-    handleSetConfig !== null && /send\(200, "text\/plain", "OK"\)/.test(handleSetConfig));
+    handlePost !== null && /send\(200, "text\/plain", "OK"\)/.test(handlePost));
 
 // ===================================================================
 // B-1 — 슬롯을 바꿔도 배지가 이전 슬롯 것을 물려받는다 (중국어판 §12.9 보고 ③)
@@ -516,10 +521,12 @@ chk('이름표 거부 로그에 실제 길이와 상한이 함께 나온다',
     /Slot name rejected[\s\S]{0,250}len=%u[\s\S]{0,350}FONT_NAME_MAX_LEN/.test(wm));
 
 // 펌웨어 쪽 순서 계약 — 슬롯을 먼저 적용해야 이름표도 그 슬롯에 쓰인다.
-chk('handleSetConfig에서 슬롯을 이름보다 먼저 적용한다',
-    handleSetConfig !== null
-    && handleSetConfig.indexOf('"font_slot"') !== -1
-    && handleSetConfig.indexOf('"font_slot"') < handleSetConfig.indexOf('FONT_JSON_KEY'));
+//   ds::WebConfigApi는 필드 테이블 **순서대로** 적용하므로 kFields에서 font_slot이 font_name보다 앞이어야 한다.
+const kFields = grabFrom(cfgC, 'static const ds::ConfigField kFields[]');
+chk('필드 테이블에서 font_slot이 font_name보다 먼저 온다 (= 웹 POST 적용 순서)',
+    kFields !== null
+    && kFields.indexOf('"font_slot"') !== -1
+    && kFields.indexOf('"font_slot"') < kFields.indexOf('"font_name"'));
 
 // --- A-3/A-4 — 슬롯 이름 캐시와 빈 슬롯 표기 ---
 // setFontSlot이 _slotNames를 갱신하지 않으면 /api/config의 slotNames가 부팅 시점 값으로 멈춘다.

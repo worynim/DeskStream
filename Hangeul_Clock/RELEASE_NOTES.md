@@ -1,5 +1,33 @@
 # Release Notes - Hangeul Clock
 
+## [v2.11.0] - 2026-11-09
+### 🧩 공통 라이브러리 DeskStreamCore로 전환
+
+- **복사본 제거**: 아래 파일을 지우고 `libraries/DeskStreamCore`(v0.2.0)의 같은 기능으로 바꿨다.
+  - `i2c_platform.*`·`sw_i2c_fast.*`·`i2c_retry_policy.h`, `display_manager.cpp`의 diff/전송·FPS 벤치마크 → `ds::DisplayCore`
+  - `input_manager.*` → `ds::Buttons` · `logger.*` → `ds::Logger` · `time_sync.*`·`time_sync_policy.h` → `ds::TimeSync`
+  - `tz_util.*` → `ds::isValidTimezone` · `utf8_len.h` → `ds::utf8CharLen`
+  - `setup()`의 WiFi 비차단 접속·설정 포털 → `ds::WifiService` (WiFi 재접속도 time_sync에서 이쪽으로 옮김)
+- **설정·웹 API를 필드 테이블로**: `config_manager.cpp`의 `kFields` 한 장이 NVS 키·검증 범위·웹 JSON 키·
+  POST 적용 순서를 정한다. 로드·지연 저장은 `ds::ConfigStore`, `GET/POST /api/config`는 `ds::WebConfigApi`.
+  JSON 키와 NVS 키는 그대로라 기존 설정이 유지된다.
+- **동작 변경**:
+  - 시작·시보 멜로디가 **비차단**이 됐다(`ds::Buzzer` 타이머 재생). 예전에는 `tone()+delay()`로
+    시보 0.26초 동안 그 초의 화면 갱신이 늦었다. 박자는 같다.
+  - WiFi 설정 모드 안내 화면을 `sendBuffer()` 대신 셰도 경로(`push()`)로 보낸다 — 셰도와 화면이 어긋나지 않는다.
+  - 저장된 설정값의 범위 검사를 로드 때도 한다 (범위 밖이면 기본값). 예전에는 timezone만 검사했다.
+- **버그 수정**:
+  - HW 명령 패킷 콜백의 버퍼 넘침 플래그가 매 호출마다 초기화돼, 넘친 패킷도 잘린 채 전송될 수 있었다.
+  - NVS 네임스페이스가 없는 첫 부팅에는 방향 마이그레이션 표식(`flip_mig`)이 남지 않아, 신규 기기에서
+    FLIP을 켠 뒤 재부팅하면 꺼지는 경로가 있었다. 이제 첫 저장 때 표식이 함께 남는다.
+- **크기**: 1,292,487 → 1,294,675 B (+2.2KB). 화면 전송 경로와 설정값은 v2.10.0과 같다.
+- **파티션 확장**: 스케치 폴더에 `partitions.csv`(DeskStream 공통 레이아웃 — ENG_Clock·DS_DECK·Smart_Info_Station과 동일)를 추가했다.
+  `default` 스킴(app0 1.25MB)으로는 DeskStreamCore 전환 후 99%에 닿아 있었다.
+  - app0 1.25MB → **2.5MB**(OTA 없음). spiffs는 `default`와 같은 `0x290000` 1.375MB라 **업로드한 폰트가 보존**된다.
+  - 빌드 시 `Partition Scheme`은 **Huge APP**로 고른다(크기 검사 상한용 — 실제 테이블은 `partitions.csv`). 빌드 산출 테이블이 app0 2560K·spiffs `0x290000`인 것을 확인했다.
+- **테스트**: 옮긴 모듈의 호스트 테스트는 `libraries/DeskStreamCore/test/`로 이동했다. JS 하네스는
+  새 위치(`ds_web_config.cpp`의 400 처리, `kFields`의 font_slot→font_name 순서)를 검사하도록 고쳤다.
+
 ## [v2.10.0] - 2026-11-09
 ### ⚡ I2C 전송 속도 향상 — 4화면 풀 프레임 34 → 44.6 fps
 

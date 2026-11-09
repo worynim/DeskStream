@@ -1,8 +1,8 @@
 // worynim@gmail.com
 /**
  * @file config.h
- * @brief 프로젝트 전역 설정 및 하드웨어 핀 맵 정의
- * @details I2C 주소, Wi-Fi 초기 접속 정보, 애니메이션 타이밍 등 시스템 상수를 관리
+ * @brief 프로젝트 전역 설정 (보드 공통 핀·I2C 성능 값은 DeskStreamCore)
+ * @details Wi-Fi 초기 접속 정보, 애니메이션 타이밍 등 시스템 상수를 관리
  * @note [SYNC] 원본: Hangeul_Clock/config.h — [1][3][4][5][8][10][11]은 그대로,
  *       [2] NTP·[7] 폰트·[9] 표시 형식은 영어판에 맞게 변경
  */
@@ -10,63 +10,39 @@
 #define CONFIG_H
 
 #include <Arduino.h>
+#include <DeskStreamCore.h>     // 공통 핀 맵(ds_board.h)·화면 엔진·NTP 감독 등 (libraries/DeskStreamCore)
 
-// === [1] 하드웨어 핀 정의 (ESP32-C3 기반) ===
-#define BTN1_PIN 1
-#define BTN2_PIN 4
-#define BTN3_PIN 10
-#define BTN4_PIN 9
-
-#define HW_SDA_PIN 5
-#define HW_SCL_PIN 6
-#define SW_SDA_PIN 2
-#define SW_SCL_PIN 3
-
-#define BUZZER_PIN 7
+// === [1] 하드웨어 핀 ===
+// 버튼·부저·I2C 핀과 OLED 주소는 DeskStreamCore의 ds_board.h(ds::kButtonPins 등)가 정의한다.
 
 // === [2] NTP 및 시간 설정 ===
 // 영어판은 고정 오프셋 대신 POSIX TZ 문자열을 쓴다 (DST 자동 처리, PLAN §6.6).
 // NTP는 UTC로 수신하고 localtime() 시점에 TZ 환경변수가 적용된다.
-
-// [2026-11-08 사용자 보고] "상시 가동하면 시계가 조금씩 틀어진다" — 이 판에도
-//   같은 구조의 누적 오차가 있다(부팅 1회 동기화 + 백그라운드 재폴링 감독 부재).
-//   ESP32-C3의 시스템 시각은 40MHz 크리스털에서 파생된 free-running 카운터라
-//   (전형 ±10~30ppm = 하루 1~3초) 재동기화가 조용히 끊기면 오차가 그대로 쌓인다.
-//   아래 값들이 time_sync.cpp의 "동기화 감독" 정책이다 — 자세한 근거는 그 파일 주석 참조.
-#define NTP_SERVER1 "kr.pool.ntp.org"   // 국내 풀: RTT가 짧고 도달률이 높다
-#define NTP_SERVER2 "pool.ntp.org"
-#define NTP_SERVER3 "time.nist.gov"     // 보조 (3번째 서버까지 시도)
-
-#define NTP_SNTP_POLL_MS        3600000UL   // SNTP 내부 재요청 주기 (코어 기본 3시간 → 1시간 안전망)
-#define NTP_RESYNC_INTERVAL_MS  21600000UL  // 6시간마다 강제 재동기화 (누적 오차 상한 ≈ 0.2초)
-#define NTP_SYNC_STALE_MS       43200000UL  // 12시간 동안 성공 기록이 없으면 즉시 강제
-#define NTP_RETRY_INTERVAL_MS   30000UL     // 미동기(부팅 직후·실패) 상태 재시도 간격
-#define NTP_MIN_RESYNC_GAP_MS   60000UL     // 연속 재동기화 요청 최소 간격
-#define NTP_WIFI_RETRY_MS       60000UL     // WiFi 끊김 시 재접속 시도 간격
-
+// NTP 서버·재동기화 감독 주기(6h/12h/30s/1분)는 ds::TimeSyncConfig 기본값을 쓴다
+// (근거: libraries/DeskStreamCore/src/net/ds_time_sync.h).
 // 웹에서 시간대를 설정하기 전까지의 폴백 (config_manager가 NVS에 보관)
 #define DEFAULT_TIMEZONE "KST-9"
-#define TIMEZONE_MAX_LEN 48   // SystemSettings.timezone 배열 크기와 일치해야 한다
 
 // === [3] 디스플레이 설정 ===
+// test/js가 이 숫자를 직접 읽으므로 값을 적어 두고, ds_board.h와 같은지 컴파일 때 확인한다.
 #define NUM_SCREENS 4
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
-#define PAGES_PER_SCREEN 8
-#define TILES_PER_PAGE 16
+static_assert(NUM_SCREENS == ds::kNumScreens && SCREEN_WIDTH == ds::kScreenWidth &&
+              SCREEN_HEIGHT == ds::kScreenHeight, "config.h 화면 치수가 ds_board.h와 다르다");
 
 // === [4] I2C 성능 설정 ===
-#define I2C_SPEED_HZ 800000 // 800kHz (주석은 "1MHz"로 잘못 적혀 있었음)
-#define I2C_TX_TIMEOUT_MS 50
-#define I2C_CMD_TIMEOUT_MS 10
-#define I2C_SYNC_TIMEOUT_MS 100
-#define I2C_ERROR_THRESHOLD 50   // 누적 오류 횟수 — 초과 시 recoverBus()로 버스 자가 복구
-#define HW_I2C_BUF_SIZE 256
+// HW 1.1MHz · 페이지 병합 전송 · SW 반주기 100ns 등은 ds::DisplayConfig 기본값을 쓴다
+// (실측 근거: libraries/DeskStreamCore/src/display/ds_display_config.h — 4화면 21.9ms / 45.7fps).
 
-// === [5] RTOS 태스크 설정 ===
-#define HW_TASK_STACK 4096
-#define HW_TASK_PRIO 10
-#define HW_TASK_CORE 0
+/**
+ * 부팅 시 FPS 벤치마크 실행 여부 (1 = 실행).
+ * @details display.begin() 직후, WiFi 연결 전에 한 번 돈다 (ds::DisplayCore::runFpsBenchmark).
+ *          결과는 시리얼(115200)과 화면 0에 표시된다. 기본은 0(끔) — 측정할 때만 1로 켠다.
+ */
+#define FPS_BENCH_ON_BOOT 0
+#define FPS_BENCH_FRAMES 50      // 케이스당 측정 프레임 수
+#define FPS_BENCH_SHOW_MS 8000   // 결과를 화면에 띄워 두는 시간 (ms)
 
 // === [6] 앱 설정 ===
 #define WIFI_SSID_AP "ENG_Clock_Setup"
@@ -131,8 +107,6 @@
 #define DATE_ORDER_MONTH_DAY 1    // "10/2" (월/일)
 
 // === [10] 기타 하드코딩 상수 통합 ===
-#define I2C_ADDR_HW_0 0x3C
-#define I2C_ADDR_HW_1 0x3D
 #define MAX_BITMAP_SIZE 512   // 한글판 512B 폰트도 계속 지원 (숫자 모드)
 #define WEB_PORT 80
 
@@ -156,8 +130,6 @@
  */
 #define FONT_NAME_MAX_LEN 64
 
-#define LONG_PRESS_TIME_MS 1000
-#define DEBOUNCE_TIME_MS 50
 #define WIFI_CONFIG_TIMEOUT 120
 #define DEBUG_MODE 1                             // 1: 디버그 정보 출력 활성화, 0: 비활성화
 

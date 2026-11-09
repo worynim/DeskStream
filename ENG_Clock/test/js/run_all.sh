@@ -20,7 +20,9 @@ mark_fail() { rc=1; printf '\033[31m[FAIL] %s\033[0m\n' "$1"; }
 
 # 프로젝트 경로에 공백이 있으므로 include 경로를 반드시 따옴표로 감싼다.
 # (CXXFLAGS를 통째로 인용하면 -Wall 등이 인자로 전달되어 실패한다)
-CXXFLAGS=(-std=c++11 -Wall -Wextra "-I$ROOT")
+# layout_engine.cpp가 DeskStreamCore의 util/ds_utf8.h를 쓰므로 라이브러리 src도 넘긴다.
+CORE_SRC="$(cd "$ROOT/.." && pwd)/libraries/DeskStreamCore/src"
+CXXFLAGS=(-std=c++11 -Wall -Wextra "-I$ROOT" "-I$CORE_SRC")
 
 # --- 1. 펌웨어 더umper 빌드 (JS가 호출할 실제 C++ 로직) ---
 note "펌웨어 더umper 빌드"

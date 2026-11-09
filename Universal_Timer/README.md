@@ -56,11 +56,11 @@ DeskStream 보드(ESP32-C3)와 가로로 배치된 4개의 SSD1306 OLED 디스�
 ## 📁 프로젝트 파일 구성
 
 - `Universal_Timer.ino`: 메인 루프, 버튼 분기 처리 및 화면 렌더링
-- `DisplayEngine.h / .cpp`: HW/SW I2C 하이브리드 디스플레이 제어 엔진
-- `ButtonManager.h / .cpp`: 4버튼 비차단 디바운스, 롱프레스, 오토 리피트 관리
-- `BuzzerManager.h / .cpp`: 비차단 `millis()` 기반 비프음 및 알람 제어기
 - `TimerLogic.h / .cpp`: 시/분/초 증가 및 카운트다운 비즈니스 로직
-- `config.h`: 핀맵 및 타이머/부저 관련 전역 상수 정의
+- `config.h`: 타이머/버튼 타이밍/부저 관련 전역 상수 정의 (핀맵은 DeskStreamCore `ds_board.h`)
+
+화면 전송(`ds::DisplayCore`)·버튼 자동 반복(`ds::Buttons`)·비차단 비프·알람(`ds::Buzzer`)은
+공통 라이브러리 [DeskStreamCore](../libraries/DeskStreamCore/) — 빌드 전 저장소 루트에서 `bash scripts/link-arduino-lib.sh` 1회를 씁니다 (v1.1.0).
 
 ---
 

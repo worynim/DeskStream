@@ -2,19 +2,15 @@
 /**
  * @file config_manager.h
  * @brief 영속적 설정 관리 클래스 정의
- * @details 사용자 설정값의 저장(Flash), 로드 및 지능형 지연 저장(Lazy Save) 로직을 관리
- * @note [SYNC] ENG_Clock/config_manager.h — timezone 필드 추가
+ * @details 설정 구조체와 필드 테이블만 이 프로젝트가 정의하고, NVS 로드·검증·지연 저장은
+ *          ds::ConfigStore(DeskStreamCore)가 한다. 같은 필드 테이블로 웹 /api/config 도 처리된다.
  */
 #ifndef CONFIG_MANAGER_H
 #define CONFIG_MANAGER_H
 
 #include <Arduino.h>
 #include <string.h>
-#include <Preferences.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/timers.h>
 #include "config.h"
-#include "tz_util.h"
 
 /**
  * @brief 시스템의 모든 비휘발성 설정을 담는 구조체
@@ -32,7 +28,7 @@ struct SystemSettings {
 
     // POSIX TZ 문자열 (예: "KST-9", "EST5EDT,M3.2.0,M11.1.0").
     // setenv("TZ", ...)로 직접 사용되므로 웹 입력 검증이 필수다.
-    char timezone[TIMEZONE_MAX_LEN];
+    char timezone[ds::kTimezoneMaxLen];
 
     // 기본값 설정
     // [2026-11-04] is_flipped 기본값을 true → false로 교정했다.
@@ -40,7 +36,7 @@ struct SystemSettings {
     //   R2가 이미 180°를 적용하므로, setFlipMode(false)(= u8g2 초기 미러 0xa1/0xc8 유지)라야
     //   상쇄되어 정방향이 된다. 같은 보드의 다른 프로젝트(Universal_Timer 등)는 setFlipMode를
     //   아예 부르지 않아 초기값 0xa1/0xc8 그대로 = 정방향이다. 즉 Hangeul_Clock만 true 때문에
-    //   180° 뒤집혀 있었다. 자세한 근거는 config_manager.cpp의 load() 주석 참조.
+    //   180° 뒤집혀 있었다. 자세한 근거는 config_manager.cpp의 afterLoad() 주석 참조.
     SystemSettings() :
         anim_mode(ANIMATION_TYPE_SCROLL_UP),
         display_mode(CLOCK_MODE_HANGUL),
@@ -57,42 +53,31 @@ struct SystemSettings {
 };
 
 /**
- * @brief 설정 로드, 저장 및 지연 저장(Lazy Save)을 관리하는 클래스
+ * @brief 설정 로드·저장·지연 저장 (ds::ConfigStore 위의 얇은 래퍼)
  */
 class ConfigManager {
 public:
-    ConfigManager();
-    
-    // 초기화 및 데이터 로드
+    /** NVS("clock")에서 로드한다. 값 검증 실패 필드는 기본값을 유지한다 */
     void begin();
-    
+
     // 설정 가져오기 (참조 반환)
     SystemSettings& get() { return _settings; }
-    
-    // 변경 사항 알림 (3초 후 자동 저장 예약)
-    void setDirty();
-    
+
+    // 변경 사항 알림 (5초 후 자동 저장 예약 — 그 사이 또 바뀌면 다시 미룬다)
+    void setDirty() { _store.setDirty(); }
+
     // 즉시 저장 (전원 종료 전 등 특수 상황)
-    void saveNow();
-    
+    void saveNow() { _store.saveNow(); }
+
     // 기본값으로 초기화
     void resetToDefaults();
 
+    /** 웹 설정 API(ds::WebConfigApi)가 같은 필드 테이블을 쓰도록 노출한다 */
+    ds::ConfigStore& store() { return _store; }
+
 private:
     SystemSettings _settings;
-    Preferences _prefs;
-    TimerHandle_t _saveTimer;
-    bool _isDirty;
-
-    // 이번 부팅에서 방향 기본값 교정(true → false)이 일어났는가.
-    //   load()에서 세우고 saveNow()가 소비한다 — false로 남은 값과 "아직 마이그레이션 안 된
-    //   옛 기기"를 구분하려면 NVS에 표식(flip_mig)을 남겨야 하므로 저장 시점까지 들고 간다.
-    bool _flipMigrated;
-
-    void load(); // 저장소에서 데이터 로드 (private)
-
-    // 타이머 콜백에서 접근하기 위한 정적 함수
-    static void _timerCallback(TimerHandle_t xTimer);
+    ds::ConfigStore _store;
 };
 
 // 전역 인스턴스

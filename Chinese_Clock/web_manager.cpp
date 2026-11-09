@@ -2,50 +2,44 @@
 /**
  * @file web_manager.cpp
  * @brief 웹 설정 대시보드 및 API 서버 클래스 구현
- * @details 비동기 HTTP 핸들러 및 JSON 설정 데이터 입출력 로직 구현
- * @note [SYNC] 원본: ENG_Clock/web_manager.cpp
- *       변경 1건: `date_order` 제거 (중국어판 첫 화면은 날짜가 아니라 요일/오전오후 — PLAN §6.9).
- *       변경 2건(Step 11): `script_type`을 /api/config에 추가하고 슬롯 연동(PLAN §6.12).
- *       변경 3건(Step 11): handleSetConfig을 값 종류별로 분할 + 본문 없는 POST에 400 응답.
+ * @details 페이지·폰트 업로드·캐시 갱신 핸들러. 설정 JSON 입출력(/api/config)은 ds::WebConfigApi가
+ *          config_manager의 필드 테이블로 처리한다.
  * @note 기하·문자집합은 web_manager가 아니라 test/js가 펌웨어와 대조한다 — 이 파일엔 상수가 없다.
  */
 #include "web_manager.h"
 #include "config.h"          // FONT_SLOT_COUNT
 #include "web_pages.h"
-#include "tz_util.h"
-#include <string.h>   // strlen — JSON 키 파싱 오프셋 계산용
 
 // 전역 객체 정의
 WebServer server(WEB_PORT);
 WebManager webManager;
 
 /**
- * @brief 문자열을 JSON 문자열 리터럴 본문으로 이스케이프한다 (따옴표·역슬래시 없는 형태)
- * @details [리뷰 §1.3] /api/config 응답을 문자열 이어붙이기로 만들기 때문에,
- *          사용자 입력(font_name·slot_names)에 " 또는 \ 가 들어가면 JSON이 깨지고
- *          웹 UI의 res.json()이 예외를 내 "Failed to load settings"로 뭉개진다.
- *          **입력 검증으로는 막을 수 없다** — 슬롯 이름은 폰트 파일 업로드 경로로도
- *          들어오기 때문이다. 출력 지점에서 확실히 이스케이프한다.
- *
- * @note 제어문자(< 0x20)는 \u00XX로, 유니코드(>= 0x80)는 UTF-8 바이트를 그대로 둔다.
- *       JSON은 UTF-8을 원본 그대로 허용하므로 한글 폰트 이름도 보존된다.
+ * @brief POST /api/config 처리 후 — 필드 테이블 밖의 `presentation` 키를 적용하고 즉시 재렌더링
+ * @details 표시 방식(简体 / 繁體 / 數字)은 display_mode·script_type 두 필드를 묶은 계산 값이다.
+ *          검증(한자 모드 진입 시 그릴 글자가 있는가)과 저장은 setPresentation()이 소유하고,
+ *          여기서는 **허용 범위만** 거른다 — 슬롯은 건드리지 않는다.
+ *          필드 테이블(font_slot 포함)이 먼저 적용되므로, 같은 요청의 슬롯 변경 뒤에 판정된다.
  */
-static String jsonEscape(const String& s) {
-    String out;
-    out.reserve(s.length() + 8);
-    for (size_t i = 0; i < s.length(); i++) {
-        const char c = s[i];
-        if (c == '"')       out += "\\\"";
-        else if (c == '\\') out += "\\\\";
-        else if (c < 0x20) {
-            char u[7];
-            snprintf(u, sizeof(u), "\\u%04x", (unsigned char)c);
-            out += u;
-        } else {
-            out += c;   // UTF-8 연속 바이트는 그대로 통과
-        }
+static void afterConfigPost(const char* body) {
+    long v;
+    if (ds::jsonGetInt(body, "presentation", &v) && v >= 0 && v < PRESENTATION_COUNT) {
+        display.setPresentation((uint8_t)v);
     }
-    return out;
+    display.setForceUpdate(true);
+}
+
+/** GET /api/config 응답에 슬롯 이름 목록과 표시 방식을 덧붙인다 */
+static void appendExtraJson(String& json) {
+    json += ",\"slot_names\":[";
+    for (int i = 0; i < FONT_SLOT_COUNT; i++) {
+        if (i) json += ',';
+        json += '"'; json += ds::jsonEscape(display.getSlotName(i)); json += '"';
+    }
+    json += ']';
+    // CONFIG_FIELDS의 presentation 행이 이 키를 폴링해 선택지를 되돌린다
+    json += ",\"presentation\":";
+    json += String((int)display.presentation());
 }
 
 WebManager::WebManager() {}
@@ -54,8 +48,8 @@ void WebManager::begin() {
     server.on("/", HTTP_GET, [this]() { handleRoot(); });
     server.on("/upload", HTTP_POST, [this]() { server.send(200, "text/plain", "OK"); }, [this]() { handleUploadData(); });
     server.on("/api/refresh_cache", HTTP_POST, [this]() { handleRefreshCache(); });
-    server.on("/api/config", HTTP_GET, [this]() { handleGetConfig(); });
-    server.on("/api/config", HTTP_POST, [this]() { handleSetConfig(); });
+    // 설정 GET/POST — config_manager의 필드 테이블(키·검증·적용 순서)로 처리한다
+    _configApi.begin(server, configManager.store(), appendExtraJson, afterConfigPost);
     
     server.begin();
     Serial.println("[WEB] WebManager started");
@@ -208,175 +202,4 @@ void WebManager::handleRefreshCache() {
     display.loadBitmapCache();
     display.setForceUpdate(true);
     server.send(200, "text/plain", "OK");
-}
-
-void WebManager::handleGetConfig() {
-    SystemSettings& s = configManager.get();
-    String slotNames = "[";
-    for (int i = 0; i < FONT_SLOT_COUNT; i++) {
-        slotNames += "\"" + jsonEscape(display.getSlotName(i)) + "\"" + (i < FONT_SLOT_COUNT - 1 ? "," : "");
-    }
-    slotNames += "]";
-
-    // [리뷰 §1.3] font_name은 이스케이프 없이 붙이면 JSON이 깨진다.
-    String json = "{\"anim_mode\":" + String((int)s.anim_mode) +
-                 ",\"hour_format\":" + String((int)s.hour_format) +
-                 ",\"chime_enabled\":" + String(s.chime_enabled ? "true":"false") +
-                 ",\"font_name\":\"" + jsonEscape(s.font_name) +
-                 "\",\"font_slot\":" + String((int)s.font_slot) +
-                 ",\"slot_names\":" + slotNames +
-                 ",\"is_inverted\":" + String(s.is_inverted ? "true":"false") +
-                 ",\"brightness\":" + String((int)s.brightness) +
-                 ",\"is_flipped\":" + String(s.is_flipped ? "true":"false") +
-                 // [2026-10-05] 표시 방식을 **하나의 값**으로 낸다 (简体/繁體/數字).
-                 //   script_type·display_mode를 따로 내면 웹은 조합을 되살려야 하고,
-                 //   펌웨어와 웹에 같은 변환 규칙이 두 벌 생긴다.
-                 //   CONFIG_FIELDS의 presentation 행이 이 키를 폴링해 선택지를 되돌린다.
-                 ",\"presentation\":" + String((int)display.presentation()) +
-                 ",\"timezone\":\"" + s.timezone + "\"}";
-    server.send(200, "application/json", json);
-}
-
-void WebManager::handleSetConfig() {
-    // [결함 수정] 예전엔 hasArg("plain")가 거짓이면 **아무 응답도 보내지 않았다.**
-    //   ESP32 WebServer는 핸들러가 끝나면 대기 중인 클라이언트에 빈 응답을 보낸다 —
-    //   웹 UI의 fetch()는 그걸 "응답 없음"으로 보고 저장 실패처럼 보이거나,
-    //   콘솔에 알 수 없는 네트워크 오류로 남는다. 명시적으로 거절한다.
-    if (!server.hasArg("plain")) {
-        server.send(400, "text/plain", "Missing body");
-        return;
-    }
-
-    const String body = server.arg("plain");
-    applyIntSettings(body);
-    applyBoolSettings(body);
-    applyPresentation(body);
-    applyTimezone(body);
-    applyFontName(body);
-
-    display.setForceUpdate(true);
-    server.send(200, "text/plain", "OK");
-}
-
-/** 정수 설정 — 범위를 벗어나면 **기존 값 유지** (조용히 덮어쓰지 않는다) */
-void WebManager::applyIntSettings(const String& body) {
-    SystemSettings& s = configManager.get();
-
-    const int am = parseVal(body, "anim_mode");
-    if (am >= 0 && am < ANIMATION_TYPE_COUNT && am != s.anim_mode) display.setAnimMode(am);
-
-    const int hf = parseVal(body, "hour_format");
-    if (hf >= 0 && hf <= 1 && hf != s.hour_format) display.setHourFormat(hf);
-
-    const int fs = parseVal(body, "font_slot");
-    if (fs >= 0 && fs < FONT_SLOT_COUNT && fs != s.font_slot) display.setFontSlot(fs);
-
-    const int br = parseVal(body, "brightness");
-    if (br >= 1 && br <= 255 && br != s.brightness) display.setBrightness(br);
-}
-
-/** 불리언 설정 — 키가 **없을 때**는 건드리지 않는다 (false로 초기화하면 안 된다) */
-void WebManager::applyBoolSettings(const String& body) {
-    SystemSettings& s = configManager.get();
-
-    if (body.indexOf("\"chime_enabled\"") != -1) {
-        const bool val = parseBool(body, "chime_enabled");
-        if (val != s.chime_enabled) display.setChime(val);
-    }
-    if (body.indexOf("\"is_flipped\"") != -1) {
-        const bool val = parseBool(body, "is_flipped");
-        if (val != s.is_flipped) display.setFlipDisplay(val);
-    }
-    if (body.indexOf("\"is_inverted\"") != -1) {
-        const bool val = parseBool(body, "is_inverted");
-        if (val != s.is_inverted) display.setInversion(val);
-    }
-}
-
-/**
- * @brief 표시 방식 전환 (简体 / 繁體 / 數字) — **슬롯은 건드리지 않는다**
- * @details 검증(한자 모드 진입 시 그릴 글자가 있는가)과 저장은 setPresentation()이
- *          소유한다. 여기서는 **허용 범위만** 정한다. 이중으로 필터하면 규칙이 두 벌이
- *          되고, 한쪽만 고치면 어느 쪽이 진짜 규칙인지 알 수 없다.
- */
-void WebManager::applyPresentation(const String& body) {
-    const int v = parseVal(body, "presentation");
-    if (v < 0 || v >= PRESENTATION_COUNT) return;  // 파싱 실패(-1)와 범위 밖을 함께 거른다
-    display.setPresentation((uint8_t)v);
-}
-
-/**
- * @brief POSIX TZ 문자열 적용
- * @details setenv("TZ", ...)로 **직접** 들어가므로 화이트리스트 검증을 통과해야 한다.
- *          font_name과 같은 문자열 파싱 패턴을 쓰되, 검증은 tz_util::isValidTimezone()에
- *          위임한다 (PLAN §6.6(f) — NVS 로드와 웹 입력이 같은 검증기를 써야 한다).
- *
- * [bug fix] 파싱 오프셋은 리터럴 실제 길이(strlen)로 계산한다.
- *   이전 코드는 font_name의 오프셋(13)을 복사해 timezone에 썼는데
- *   "\"timezone\":\""는 12자라서 첫 글자가 유실되었다 ("KST-9" → "ST-9").
- *   유실된 값은 어떤 프리셋과도 일치하지 않아 웹 UI가 Custom으로 표시되고,
- *   디바이스 시간도 서울 시간대로 바뀌지 않았다 (bug #2의 두 증상 모두).
- */
-void WebManager::applyTimezone(const String& body) {
-    static const char TZ_JSON_KEY[] = "\"timezone\":\"";
-    SystemSettings& s = configManager.get();
-
-    int tzS = body.indexOf(TZ_JSON_KEY);
-    if (tzS == -1) return;
-    tzS += strlen(TZ_JSON_KEY);
-
-    const int tzE = body.indexOf('"', tzS);
-    if (tzE <= tzS) return;                  // 닫는 따옴표가 없거나 값이 비었다
-
-    const String newTz = body.substring(tzS, tzE);
-    if (!isValidTimezone(newTz.c_str())) {
-        Serial.println("[WEB] Rejected invalid timezone: " + newTz);
-        return;
-    }
-    if (newTz == s.timezone) return;
-
-    strncpy(s.timezone, newTz.c_str(), sizeof(s.timezone) - 1);
-    s.timezone[sizeof(s.timezone) - 1] = '\0';   // NUL 종료 보장
-    configManager.setDirty();
-    display.applyTimezone();
-}
-
-/**
- * @brief 폰트 이름 적용
- * @note timezone과 같은 오프셋 버그가 재발하지 않도록 리터럴 길이를 직접 계산한다.
- */
-void WebManager::applyFontName(const String& body) {
-    static const char FONT_JSON_KEY[] = "\"font_name\":\"";
-
-    int fnS = body.indexOf(FONT_JSON_KEY);
-    if (fnS == -1) return;
-    fnS += strlen(FONT_JSON_KEY);
-
-    const int fnE = body.indexOf('"', fnS);
-    if (fnE == -1) return;
-
-    // [리뷰 §1.3] 길이·문자 검증은 DisplayManager::setFontName() 한 곳에서 한다.
-    //   그곳이 JSON 출력과 파일명 쓰기 **둘 다**의 입구다. 여기서 한 번만 거르면
-    //   나중에 다른 경로로 들어온 값은 검증 없이 통과한다.
-    display.setFontName(body.substring(fnS, fnE));
-}
-
-int WebManager::parseVal(const String& body, const String& key) {
-    int pos = body.indexOf("\"" + key + "\":");
-    if (pos == -1) return -1;
-    int start = pos + key.length() + 2;
-    while (start < body.length() && !isDigit(body[start])) start++;
-    String v = "";
-    while (start < body.length() && isDigit(body[start])) v += body[start++];
-    return v.length() > 0 ? v.toInt() : -1;
-}
-
-bool WebManager::parseBool(const String& body, const String& key) {
-    int pos = body.indexOf("\"" + key + "\"");
-    if (pos == -1) return false;
-    int colon = body.indexOf(':', pos + key.length() + 2);
-    if (colon == -1) return false;
-    int start = colon + 1;
-    while (start < body.length() && (body[start] == ' ' || body[start] == '\t')) start++;
-    return body.startsWith("true", start);
 }

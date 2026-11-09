@@ -1,4 +1,4 @@
-# Chinese Clock (중국어 단어 시계) - v1.0.3
+# Chinese Clock (중국어 단어 시계) - v1.1.0
 
 NTP 서버로부터 시간을 동기화하여 4개의 OLED 디스플레이에 **중국어 한자**로 시·분·초를 표시하는 ESP32-C3 기반 프리미엄 데스크 가젯입니다. `Hangeul_Clock` / `ENG_Clock`의 하드웨어·UI·애니메이션·웹 파이프라인을 그대로 승계하고, **텍스트 생성부만 중국어로 교체**한 포트입니다.
 
@@ -51,7 +51,7 @@ NTP 서버로부터 시간을 동기화하여 4개의 OLED 디스플레이에 **
 
 - **DST 자동 처리**: 고정 오프셋 대신 POSIX TZ 문자열(`CST-8`, `KST-9` 등)을 씁니다.
 - **웹 UI 시간대 선택**: 지역 프리셋 + Custom 직접 입력, NVS(Preferences) 영속 저장.
-- **입력 검증**: `tz_util` 화이트리스트 검증으로 잘못된 설정이 시스템 시간을 망가뜨리지 않습니다.
+- **입력 검증**: `ds::isValidTimezone` 화이트리스트 검증으로 잘못된 설정이 시스템 시간을 망가뜨리지 않습니다.
 - 기본값은 `CST-8`(중국)입니다.
 
 ### 5. Font Studio (브라우저 폰트 스튜디오)
@@ -79,8 +79,7 @@ NTP 서버로부터 시간을 동기화하여 4개의 OLED 디스플레이에 **
 
 ### 7. 모듈형 아키텍처
 
-- **순수 로직 분리**: `chinese_time_core` · `layout_engine` · `renderer_geometry` · `tz_util` · `utf8_len` ·
-  `i2c_retry_policy`를 Arduino 의존 없이 분리해 **호스트에서 단위 테스트**가 가능합니다.
+- **순수 로직 분리**: `chinese_time_core` · `layout_engine` · `renderer_geometry`를 Arduino 의존 없이 분리해 **호스트에서 단위 테스트**가 가능합니다.
 - **HAL**: HW/SW I2C 드라이버를 `I2CPlatform`으로 분리 + `recoverBus()` 자가 복구.
 - **Static Allocation**: 비트맵은 `flatBuffer` 연속 블록에 올려 힙 파편화와 누수를 원천 차단.
 - **1줄 전용 레이아웃 엔진**: `layoutLine()` 한 함수(60~70 LOC)만 규칙을 갖습니다.
@@ -90,8 +89,8 @@ NTP 서버로부터 시간을 동기화하여 4개의 OLED 디스플레이에 **
 ```
 Chinese_Clock/
 ├── Chinese_Clock.ino      메인 엔트리 (Setup / 루프 제어, 4화면 텍스트 조합)
-├── config.h               전역 상수 (핀맵 · 기하 32/48/6 · 애니메이션 · 문자판)
-├── config_manager.h/.cpp  설정 영속화 (NVS) + Lazy Save(5초 지연)
+├── config.h               전역 상수 (기하 32/48/6 · 애니메이션 · 문자판)
+├── config_manager.h/.cpp  설정 필드 테이블 (NVS 키·검증·웹 적용 순서) — 저장은 ds::ConfigStore
 ├── chinese_time.h/.cpp    시간 → 중국어 텍스트 (Arduino String 래퍼)
 ├── chinese_time_core.h/.cpp ★ 시간 → 중국어 텍스트 순수 로직 (네이티브 테스트 대상)
 ├── layout_engine.h/.cpp   ★ 1줄 레이아웃 엔진 (ENG판 2줄 엔진의 대체)
@@ -99,19 +98,17 @@ Chinese_Clock/
 ├── renderer.*             비트맵 렌더러 + 디더/줌/스쿼시 픽셀 연산
 ├── renderer_layout.*      공용 레이아웃 헬퍼
 ├── display_manager.*      4-OLED 병렬 출력, UI 스테이지, 애니메이션, 슬롯/문자판 전환
-├── i2c_platform.*         HW/SW I2C HAL
-├── i2c_retry_policy.h     I2C dirty 마스크 갱신 정책
-├── input_manager.*        4버튼 비차단 입력 (디바운스 · 롱프레스)
-├── web_manager.*          웹 서버 + 폰트 업로드 API + 설정 API
+├── web_manager.*          페이지·폰트 업로드 API + presentation 키 (/api/config는 ds::WebConfigApi)
 ├── web_pages.h            Font Studio 웹 UI (HTML/JS 내장 PROGMEM)
-├── logger.*               구조화 로깅
-├── tz_util.*              POSIX TZ 문자열 검증
-├── utf8_len.h             UTF-8 리딩 바이트 판정 (CJK 3바이트)
 ├── test/                  호스트 단위·교차 검증 (아래 "테스트")
 ├── PLAN.md                설계 문서 + 구현 기록 (정정·결함·실측)
 ├── README.md              본 문서
 └── RELEASE_NOTES.md       변경 이력
 ```
+
+화면 전송(HW 1.1MHz + 고속 SW I2C)·버튼·부저·WiFi·NTP 감독·설정 저장·웹 설정 API·로그·TZ 검증은
+공통 라이브러리 [DeskStreamCore](../libraries/DeskStreamCore/)를 씁니다 (v1.1.0). 빌드 전에 저장소 루트에서
+`bash scripts/link-arduino-lib.sh`를 한 번 실행해 라이브러리를 Arduino 스케치북에 연결하세요.
 
 ## 🔌 하드웨어 (DeskStream 보드)
 
@@ -122,7 +119,7 @@ Chinese_Clock/
 | I2C 주소 | 0x3C / 0x3D (버스별 1개씩) |
 | 버튼 | BTN1=GPIO 1, BTN2=GPIO 4, BTN3=GPIO 10, BTN4=GPIO 9 (`INPUT_PULLUP`) |
 | 버저 | GPIO 7 |
-| 저장 | LittleFS (파티션 `0x160000` ≈ 1.37 MB) + NVS (설정) |
+| 저장 | LittleFS (spiffs `0x290000`, `0x160000` ≈ 1.37 MB) + NVS (설정) — `partitions.csv` 공통 레이아웃, app0 2.5MB |
 
 자세한 핀맵은 상위 [`../hardware.md`](../hardware.md) 참고.
 
@@ -130,7 +127,7 @@ Chinese_Clock/
 
 ```bash
 # 빌드
-arduino-cli compile --fqbn esp32:esp32:nologo_esp32c3_super_mini .
+arduino-cli compile --fqbn esp32:esp32:makergo_c3_supermini:PartitionScheme=huge_app .
 
 # 업로드 (波特率 115200)
 arduino-cli upload  --fqbn esp32:esp32:nologo_esp32c3_super_mini -p /dev/cu.usbmodem* .
@@ -138,6 +135,9 @@ arduino-cli upload  --fqbn esp32:esp32:nologo_esp32c3_super_mini -p /dev/cu.usbm
 # 시리얼 로그
 arduino-cli monitor -p /dev/cu.usbmodem* -c baudrate=115200
 ```
+
+**파티션**: Arduino IDE에서는 `Partition Scheme`을 **Huge APP**로 고른다 (크기 검사 상한용). 실제 테이블은 스케치 폴더의
+`partitions.csv` — DeskStream 공통 레이아웃(app0 2.5MB / spiffs `0x290000`)이라 폰트가 보존된다 (v1.1.0~).
 
 **부팅 팁**: ESP32-C3 native USB는 호스트가 포트를 읽어주지 않으면
 `HWCDC::write()`가 호출당 최대 2초를 블로킹합니다. 시리얼 모니터를 안 열어도 부팅이 멈추지
@@ -151,16 +151,14 @@ arduino-cli monitor -p /dev/cu.usbmodem* -c baudrate=115200
 bash test/run_all.sh      # 전체 (네이티브 C++ + JS 교차검증)
 ```
 
-**현재 상태: 통과 7 / 실패 0** (2026-10-05 실행 확인)
+**현재 상태: 통과 4 / 실패 0** (2026-11-09 실행 확인 — 전용 테스트 3종 + JS 교차검증).
+TZ 검증·UTF-8·I2C 재시도·NTP 정책 테스트는 공통 라이브러리로 옮겼습니다: `bash libraries/DeskStreamCore/test/run_all.sh`
 
 | 스위트 | 단언 | 검증 내용 |
 |:--|--:|:--|
 | `test_chinese_time` | **483** | §3 표현 규칙 전수표 전 항목 (시 24종 × 12H/24H × 2벌, 분/초 60 × 2 × 2, 요일 7 × 2, 오전오후 24 × 2) + 경계값 + 번체 치환 3글자 완전성 |
 | `test_layout` | **69** | 4자 수용 / 5자 잘림, 3바이트 CJK 좌표, `"13 时"`의 공백 셀 4칸, 가로 중앙 정렬. **§3 전수 758개 표현 순회** — 최대 4셀(한계 4, 여유 0) |
-| `test_tz_util` | **43** | POSIX TZ 화이트리스트 |
-| `test_utf8_len` | **29** | `点`(E7 82 B9) = 3바이트 |
 | `test_geometry` | **34** | 288B 매핑, 287·289 거부 |
-| `test_i2c_retry_policy` | **7** | 전송 실패 시 페이지 재시도 |
 | `layout_crosscheck` | **696행** | 배포되는 `web_pages.h`의 JS ↔ 펌웨어 C++ **전수 대조** (불일치 0) |
 | `web_fixes_test` | **92** | 업로드 배선·슬롯 고정·이름표 계약·폴링 가드 |
 
@@ -172,21 +170,16 @@ bash test/run_all.sh      # 전체 (네이티브 C++ + JS 교차검증)
 > **교차검증 하네스는 `/tmp`가 아니라 `test/js/`에 있습니다.** 검증 대상은 미러 스크립트가 아니라
 > **배포되는 `web_pages.h` 자체**입니다 — 심볼이 사라지면 추출이 즉시 실패합니다.
 
-## 📐 메모리 사용량 (2026-10-05 실측)
-
-```
-Sketch uses 1302407 bytes (99%) of program storage space. Maximum is 1310720 bytes.
-Global variables use 50244 bytes (15%) of dynamic memory, leaving 277436 bytes for local variables.
-```
+## 📐 메모리 사용량 (2026-11-09 실측, v1.1.0)
 
 | | 값 | 여유 |
 |:--|--:|--:|
-| Flash | **1,302,407 B (99%)** | **8,313 B** |
-| RAM (전역) | 50,244 B (15%) | 277,436 B |
+| Flash (app0 2.5MB, `partitions.csv`) | **1,307,021 B** | 약 **1.31 MB** |
+| RAM (전역) | 50,932 B (15%) | 276,748 B |
 
-> ⚠ **Flash 여유가 8 KB다.** 이 때문에 **CJK 폴백 폰트를 넣지 않았습니다**(수십 KB 필요).
-> 폴백 폰트가 없는 대신 **커스텀 폰트 업로드가 필수**입니다 — 올리지 않으면 숫자 모드만 표시됩니다.
-> 기능을 추가하기 전에는 `arduino-cli compile`로 여유를 먼저 확인하세요.
+> v1.0.x는 `default` 스킴(app0 1.25MB)이라 Flash 여유가 8 KB였고, 그래서 **CJK 폴백 폰트를 넣지 않았습니다**.
+> v1.1.0부터 app0가 2.5MB라 여유가 생겼지만 폴백 폰트는 아직 없습니다 — **커스텀 폰트 업로드가 필수**이고,
+> 올리지 않으면 숫자 모드만 표시됩니다.
 
 ## 🈴 폰트 업로드 절차
 

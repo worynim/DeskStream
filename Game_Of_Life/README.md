@@ -29,7 +29,7 @@ ESP32-C3 기반 DeskStream 하드웨어를 위한 단독 구동형(Standalone) *
 
 ## 📦 설치 및 빌드 방법
 
-1.  **필수 라이브러리**: Arduino IDE 라이브러리 매니저에서 `U8g2`를 설치하세요.
+1.  **필수 라이브러리**: Arduino IDE 라이브러리 매니저에서 `U8g2`·`WiFiManager`를 설치하고, 공통 라이브러리 [DeskStreamCore](../libraries/DeskStreamCore/) — 빌드 전 저장소 루트에서 `bash scripts/link-arduino-lib.sh` 1회로 연결하세요. 화면 전송·버튼·부저가 이 라이브러리를 씁니다 (v1.1.0).
 2.  **보드 설정**: `ESP32C3 Dev Module`을 선택하세요.
 3.  **컴파일 및 업로드**: `Game_Of_Life.ino` 파일을 열고 업로드하세요.
 

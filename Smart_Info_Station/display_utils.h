@@ -9,7 +9,10 @@
 
 #include <Arduino.h>
 #include <U8g2lib.h>
-#include "driver/gpio.h"
+#include <DeskStreamCore.h>
+
+/** 4-OLED 화면 엔진 (Smart_Info_Station.ino에서 정의) — 그린 뒤 display.push()로 바뀐 타일만 전송한다 */
+extern ds::DisplayCore display;
 
 /**
  * 문자열에 한글(UTF-8) 문자가 포함되어 있는지 확인합니다.
@@ -30,10 +33,5 @@ void u8g2_prepare(U8G2 &u8g2);
  * 업데이트 중일 때 OLED 화면에 안내 메시지를 표시합니다.
  */
 void showUpdateMessage(U8G2 &u8g2, String msg);
-
-/**
- * 🚀 극한의 고속 SW I2C 커스텀 콜백 (Direct Register Access)
- */
-extern "C" uint8_t u8x8_gpio_and_delay_esp32_c3_fast(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr);
 
 #endif

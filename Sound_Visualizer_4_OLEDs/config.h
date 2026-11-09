@@ -8,6 +8,7 @@
 #define CONFIG_H
 
 #include <Arduino.h>
+#include <DeskStreamCore.h>   // 4-OLED 화면 엔진·버튼·부저 (libraries/DeskStreamCore)
 
 // ==========================================
 // [1] 디스플레이 및 I2C 통신 설정
@@ -15,37 +16,25 @@
 #define SCREEN_WIDTH        128         // OLED 개별 화면 가로 해상도
 #define SCREEN_HEIGHT       64          // OLED 개별 화면 세로 해상도
 #define NUM_SCREENS         4           // 총 연결된 OLED 화면 개수
-#define PAGES_PER_SCREEN    (SCREEN_HEIGHT / 8) // 화면당 메모리 페이지 수 (SSD1306은 8행 단위 관리)
-#define TILES_PER_PAGE      (SCREEN_WIDTH / 8)  // 페이지당 가로 타일 수 (8픽셀 단위 Dirty Check용)
 
 #define CANVAS_WIDTH        (SCREEN_WIDTH * NUM_SCREENS) // 전체 가상 캔버스 가로 크기 (512px)
 #define CANVAS_HEIGHT       SCREEN_HEIGHT                // 전체 가상 캔버스 세로 크기 (64px)
 
-#define I2C_SPEED_HZ        1000000     // I2C 통신 클럭 속도 (1MHz 초고속 모드)
-#define I2C_TX_TIMEOUT_MS   50          // 데이터 전송 시 최대 대기 시간 (ms)
-#define I2C_CMD_TIMEOUT_MS  10          // 명령 전송 시 최대 대기 시간 (ms)
-#define I2C_SYNC_TIMEOUT_MS 100         // 하드웨어/소프트웨어 전송 동기화 타임아웃
 
 // I2C 핀 설정 (ESP32-C3 기준)
-#define HW_SDA_PIN          5           // 하드웨어 I2C 전용 SDA 핀 (화면 1, 2)
-#define HW_SCL_PIN          6           // 하드웨어 I2C 전용 SCL 핀 (화면 1, 2)
-#define SW_SDA_PIN          2           // 소프트웨어(Bit-bang) SDA 핀 (화면 3, 4)
-#define SW_SCL_PIN          3           // 소프트웨어(Bit-bang) SCL 핀 (화면 3, 4)
 
 // 그래픽 테마 (비트맵 컬러 방식)
+// 핀·I2C 속도(HW 1.1MHz·고속 SW I2C)는 DeskStreamCore ds_board.h·ds::DisplayConfig가 정한다.
+// 버튼: BTN1(GPIO 1)=화면 플립, BTN2(GPIO 4)=도움말, BTN4(GPIO 9)=모드/캘리브레이션 — ds::kButtonPins[0/1/3]
+#define BTN_IDX_FLIP        0           // BTN1 짧게: 화면 180° 플립
+#define BTN_IDX_HELP        1           // BTN2 길게: 버튼 도움말 표시/숨김
+#define BTN_IDX_CAL         3           // BTN4 짧게: 시각화 모드 / 길게: 노이즈 캘리브레이션
 #define COLOR_WHITE         1           // 픽셀 켜짐 (흰색)
 #define COLOR_BLACK         0           // 픽셀 꺼짐 (검정색)
 
 // 백그라운드 태스크(RTOS) 설정
-#define HW_TASK_PRIO        10          // 하드웨어 전송 태스크 우선순위 (높을수록 우선됨)
-#define HW_TASK_STACK       4096        // 태스크에 할당된 스택 메모리 크기 (바이트)
-#define HW_TASK_CORE        0           // 태스크를 실행할 CPU 코어 (ESP32-C3는 싱글코어지만 명시적 0번 사용)
-#define I2C_GLITCH_FILTER   7           // I2C 신호 잡음 제거 필터 강도 (0~15)
-#define I2C_INTR_PRIO       3           // I2C 인터럽트 우선순위
 
 // 내부 버퍼 사양
-#define SCREEN_BUF_SIZE     1024        // 화면 1개당 픽셀 버퍼 크기 (128x64/8)
-#define HW_I2C_BUF_SIZE     1030        // 하드웨어 I2C 전송 패킷 버퍼 크기 (명령어 오버헤드 포함)
 
 // ==========================================
 // [2] 오디오 분석 및 시각화 설정
@@ -78,10 +67,6 @@
 #define DEFAULT_NOISE_FLOOR 150.0f      // 캘리브레이션 전 기본 노이즈 레벨
 
 #define CAL_ITERATIONS      120         // 캘리브레이션 시 소음을 측정할 횟수
-#define CAL_BUTTON_PIN      9           // 캘리브레이션 실행용 버튼 핀 번호 (GPIO 9)
-#define FLIP_BUTTON_PIN     1           // 화면 플립 토글 버튼 핀 번호 (GPIO 1)
-#define HELP_BUTTON_PIN     4           // 버튼 도움말 표시용 버튼 핀 번호 (GPIO 4)
-#define BUZZER_PIN          7           // 피드백용 부저 핀 번호 (GPIO 7)
 #define BTN_LONG_PRESS_MS   1000        // 버튼을 길게 누르는 판단 시간 (1초)
 
 #define ADC_DMA_BUF_COUNT   4           // ADC DMA 내부 링버퍼 프레임 깊이

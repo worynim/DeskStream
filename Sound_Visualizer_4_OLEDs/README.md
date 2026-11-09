@@ -20,7 +20,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
 ### 3. Zero-Conflict 병렬 전송 엔진 (Smart Flush 2.0)
 *   **Dual-Core 분산 처리**: ESP32-C3의 단일 코어 환경에서도 FreeRTOS 태스크를 활용하여 I2C 전송과 CPU 연산을 효율적으로 분할합니다.
-*   **Direct Protocol (HW OLED 1, 2)**: U8g2 라이브러리의 통신 레이어를 가로채어(Hijacking), ESP-IDF 드라이버를 통해 SSD1306 명령을 직접 쏩니다. 이로 인해 라이브러리 내부의 자원 충돌 없이 백그라운드에서 하드웨어 전송이 가능합니다.
+*   **공통 화면 엔진 (v3.5.0)**: 캔버스 전치·바뀐 타일만 HW(1.1MHz 백그라운드 태스크)·SW(고속 루틴) 병렬 전송을 DeskStreamCore `ds::DisplayCore::pushCanvas()`가 맡습니다.
 *   **True Parallelism**: 하드웨어가 데이터를 쏘는 동안 CPU는 즉시 OLED 3, 4의 비트뱅잉을 개시합니다. 두 개의 I2C 버스가 동시에 데이터를 전송하여 전체 지연 시간을 최소화합니다.
 *   **No-Mixed Data**: 코드 경로의 완전 분리를 통해 화면 간 데이터 혼선과 그래픽 깨짐 문제를 근본적으로 해결했습니다.
 *   **Tile-based Dirty Checking**: **8픽셀(Tile) 단위**로 변화를 감지하여 실제 데이터가 변경된 영역만 선택적으로 전송함으로써 I2C 대역폭 소모를 최소화합니다.
@@ -42,6 +42,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 ## 📦 설치가 필요한 라이브러리
 이 소스 코드를 컴파일하려면 아두이노 라이브러리 매니저에서 다음 라이브러리들을 설치해야 합니다:
 *   **U8g2**: OLED 디스플레이 드라이버 및 폰트 제어
+*   **DeskStreamCore** + **WiFiManager**: 저장소 `libraries/DeskStreamCore` — 4-OLED 전송·버튼·부저 (빌드 전 루트에서 `bash scripts/link-arduino-lib.sh` 1회) (v3.5.0~)
 *   **LovyanGFX**: 고속 그래픽 그리기 및 가상 캔버스 라이브러리
 *   **ESP-DSP**: ESP32-C3 하드웨어 가속 FFT 연산을 위한 내장 라이브러리 (Arduino ESP32 Core 3.0+ 권장)
 

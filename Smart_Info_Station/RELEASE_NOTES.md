@@ -1,5 +1,14 @@
 # 🚀 Release Notes
 
+## [v2.10.0] - 2026-11-09
+### 🧩 공통 라이브러리 DeskStreamCore로 전환
+- **DeskStreamCore 전환**: HW 400kHz 전체 프레임 동기 전송(`sendBuffer`)·자체 SW I2C 콜백·버튼 구조체·부저 타이머·`time_sync.*`(감독 복사본)을 지우고 `ds::DisplayCore`·`ds::Buttons`·`ds::Buzzer`·`ds::WifiService`·`ds::TimeSync`를 쓴다.
+- **화면 전송**: HW I2C 1.1MHz + 페이지 병합, 고속 SW I2C(실효 약 1.15MHz), 바뀐 타일만 HW·SW 버스 **병렬** 전송 (`ds::DisplayCore`).
+- **시간대**: 저장 형식(시간 단위 오프셋 `tz_offset`)과 웹 UI는 그대로다. NTP 감독에는 같은 의미의 POSIX TZ(`"UTC-9"` = UTC+9)로 넘긴다 — 예전 `configTime(offset*3600, 0, …)`과 같은 결과, DST 없음.
+- **WiFi**: 저장된 AP 10초 비차단 시도 → 설정 포털(시간 제한 없음, 예전과 같음). 끊김 재접속은 `ds::WifiService::loop()`.
+- **부저**: 시작 멜로디가 비차단이 됐다. 크기 1,401,603 B.
+- **입력 검증**: 웹 `/set`의 `tz_offset`을 -12~+14 범위만 받는다 (범위 밖은 무시·로그). NVS에서 읽은 값이 범위 밖이면 기본값 +9.
+
 ## [v2.9.3] - 2026-11-08
 ### 🐛 상시 가동 시 시계 위젯이 조금씩 틀어지던 문제 (NTP 재동기화 감독 부재)
 

@@ -13,19 +13,17 @@ set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(dirname "$HERE")"
+CORE_SRC="$(dirname "$ROOT")/libraries/DeskStreamCore/src"   # DeskStreamCore 순수 모듈 헤더
 BUILD="$HERE/.build"
 mkdir -p "$BUILD"
 
 # 테스트 이름 | 링크해야 하는 순수 모듈 .cpp
-# header-only 모듈(utf8_len, i2c_retry_policy)은 .cpp가 없다.
+# TZ 검증·UTF-8·I2C 재시도·NTP 정책 테스트는 공통 라이브러리로 옮겼다 (v1.1.0):
+#   bash libraries/DeskStreamCore/test/run_all.sh
 TESTS=(
-  "test_tz_util|tz_util.cpp"
-  "test_utf8_len|"
-  "test_i2c_retry_policy|"
   "test_chinese_time|chinese_time_core.cpp"
   "test_geometry|renderer_geometry.cpp"
   "test_layout|layout_engine.cpp renderer_geometry.cpp chinese_time_core.cpp"
-  "test_time_sync_policy|"
 )
 
 fail=0
@@ -53,7 +51,7 @@ for entry in "${TESTS[@]}"; do
   done
 
   bin="$BUILD/$name"
-  if ! g++ -std=c++17 -Wall -I"$ROOT" -o "$bin" "${objs[@]}" 2>"$BUILD/$name.log"; then
+  if ! g++ -std=c++17 -Wall -I"$ROOT" -I"$CORE_SRC" -o "$bin" "${objs[@]}" 2>"$BUILD/$name.log"; then
     echo "❌ $name — 컴파일 실패"
     tail -20 "$BUILD/$name.log"
     fail=$((fail + 1))

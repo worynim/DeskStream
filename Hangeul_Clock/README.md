@@ -2,7 +2,7 @@
 
 <img width="879" height="1067" alt="image" src="https://github.com/user-attachments/assets/325bc0a3-bf28-45f6-92ca-6e8ce69a8893" />
 
-# Hangeul Clock (한글 시계) - v2.10.0
+# Hangeul Clock (한글 시계) - v2.11.0
 
 NTP 서버로부터 시간을 동기화하여 4개의 OLED 디스플레이에 고화질 한글 및 숫자로 시, 분, 초를 표시하는 ESP32-C3 기반 프리미엄 데스크 가젯입니다.
 
@@ -65,22 +65,23 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
 ## 📂 프로젝트 파일 구성 및 기능 (Project Structure)
 
-펌웨어는 기능별로 철저히 모듈화되어 있으며, 각 파일의 역할은 다음과 같습니다.
+펌웨어는 기능별로 모듈화되어 있습니다. 화면 전송·버튼·부저·WiFi·NTP 감독·설정 저장·웹 설정 API처럼
+다른 DeskStream 프로젝트와 같은 기능은 공통 라이브러리 [DeskStreamCore](../libraries/DeskStreamCore/)를 쓰고(v2.11.0),
+이 폴더에는 한글 시계 전용 코드만 있습니다.
 
 | 파일명 | 구분 | 주요 기능 및 역할 |
 | :--- | :--- | :--- |
 | **Hangeul_Clock.ino** | **Entry** | 프로그램 진입점. 시스템 초기화(Setup) 및 메인 서비스 루프 관리 |
-| **config.h** | **Config** | 전역 상수, 핀 맵, 하드웨어 타이밍 및 시스템 설정값 정의 |
-| **config_manager.h/cpp** | **Service** | 설정값(JSON)의 Flash 메모리 저장(NVS/LittleFS) 및 지능형 지연 저장(Lazy Save) 관리 |
+| **config.h** | **Config** | 이 프로젝트 전용 상수(WiFi 포털 이름, 애니메이션, 폰트, UI) 정의. 핀·I2C 성능 값은 DeskStreamCore |
+| **config_manager.h/cpp** | **Service** | 설정 구조체와 **필드 테이블**(NVS 키·검증 범위·웹 적용 순서), 방향 기본값 마이그레이션. 로드·지연 저장은 `ds::ConfigStore` |
 | **display_manager.h/cpp** | **Manager** | 고수준 디스플레이 제어, IP 확인/도움말 등 UI 스테이지 및 애니메이션 트리거 관리 |
 | **hangeul_time.h/cpp** | **Logic** | 시간을 한글 텍스트 및 숫자 문자열로 변환하는 비즈니스 로직 (24H/정각 처리 포함) |
-| **i2c_platform.h/cpp** | **HAL** | 하드웨어 I2C 인터페이스 추상화 및 4개 OLED에 대한 고속 병렬 전송 로직 구현 |
-| **sw_i2c_fast.h/cpp** | **HAL** | SW I2C 버스(화면 2·3)용 고속 U8g2 byte 콜백 (레지스터 직접 쓰기 + 보정 NOP 지연, 실효 약 1.19MHz) |
-| **input_manager.h/cpp** | **Service** | 버튼 입력 디바운싱, 짧은/긴 누름 감지 및 인터럽트 안전 콜백 관리 |
-| **logger.h/cpp** | **Service** | 통합 로깅 시스템. OLED 상태 표시와 시erial 모니터(도트 애니메이션 포함) 출력 관리 |
 | **renderer.h/cpp** | **Engine** | 비트맵 캐시 관리 및 고수준 그래픽 렌더링 엔진 (Dither, Zoom, Flip 등). 눈 조립 모드의 픽셀 운동학(해시·도착 시각·중력 궤적)과 분할 플랩 모드의 접힘 기하(축 투영·상하 2등분 밴드)도 이 파일에 있다 |
-| **web_manager.h/cpp** | **Web** | 비동기 웹 서버, JSON API 처리 및 기기-웹 대시보드 간 설정 동기화 관리 |
+| **web_manager.h/cpp** | **Web** | 대시보드 페이지·폰트 업로드·캐시 갱신 경로. `/api/config`는 `ds::WebConfigApi`가 필드 테이블로 처리 |
 | **web_pages.h** | **Resource** | 폰트 스튜디오 및 대시보드용 임베디드 HTML/Javascript/CSS 리소스 |
+
+DeskStreamCore에서 쓰는 모듈: `ds::DisplayCore`(4-OLED 셰도 diff·HW/SW 병렬 전송), `ds::Buttons`, `ds::Buzzer`,
+`ds::WifiService`, `ds::TimeSync`, `ds::ConfigStore`, `ds::WebConfigApi`, `ds::Logger`, `ds::utf8CharLen`.
 
 ## 🛠 하드웨어 구성
 - **MCU**: ESP32-C3 (SuperMini)
@@ -108,9 +109,15 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 3. **설정 초기화**: 부팅 시 버튼(BTN 1)을 길게 누르고 있으면 WiFi 정보 및 시스템 설정이 초기화됩니다.
 
 ## 📚 라이브러리 의존성
+- `DeskStreamCore` (저장소 `libraries/DeskStreamCore` — 빌드 전 `bash scripts/link-arduino-lib.sh` 1회)
 - `U8g2` (고속 그래픽 제어)
 - `WiFiManager` (네트워크 설정 관리)
 - `LittleFS` (비트맵 및 설정 저장)
+
+## 🔧 빌드 설정
+- 빌드 시 `Partition Scheme`은 **Huge APP**를 고른다 (크기 검사 상한용). 실제 파티션은 스케치 폴더의 `partitions.csv` —
+  **DeskStream 공통 레이아웃**(app0 2.5MB / spiffs `0x290000` 1.375MB, OTA 없음)이 항상 우선 적용되고, spiffs 위치가
+  `default` 스킴과 같아 다른 프로젝트와 바꿔 올려도 업로드한 폰트가 보존된다 (v2.11.0~).
 
 ---
 © 2026 DeskStream Project.

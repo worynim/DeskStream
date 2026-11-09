@@ -1,5 +1,35 @@
 # Release Notes - Chinese Clock (중국어 단어 시계)
 
+## [v1.1.0] - 2026-11-09
+### 🧩 공통 라이브러리 DeskStreamCore로 전환
+
+- **복사본 제거**: 아래 파일을 지우고 `libraries/DeskStreamCore`(v0.3.0)의 같은 기능으로 바꿨다.
+  - `i2c_platform.*`·`i2c_retry_policy.h`, `display_manager.cpp`의 diff/전송 → `ds::DisplayCore`
+  - `input_manager.*` → `ds::Buttons` · `logger.*` → `ds::Logger` · `time_sync.*`·`time_sync_policy.h` → `ds::TimeSync`
+  - `tz_util.*` → `ds::isValidTimezone` · `utf8_len.h` → `ds::utf8CharLen`
+  - `setup()`의 WiFi 접속 → `ds::WifiService` (WiFi 재접속도 time_sync에서 이쪽으로 옮김)
+- **설정·웹 API를 필드 테이블로**: `config_manager.cpp`의 `kFields` 한 장이 NVS 키·검증 범위·웹 JSON 키·
+  POST 적용 순서를 정한다. 로드·지연 저장은 `ds::ConfigStore`, `GET/POST /api/config`는 `ds::WebConfigApi`.
+  JSON 키와 NVS 키는 그대로라 기존 설정이 유지된다. 방향 기본값(`is_flipped` = true)도 그대로다.
+- **한글 시계 v2.10의 개선이 자동으로 들어왔다**:
+  - **화면 전송**: HW I2C 800kHz → 1.1MHz + 페이지 병합 전송, SW I2C를 U8g2 기본 루틴 → 고속 루틴(약 1.15MHz).
+    한글 시계 실측 기준 4화면 풀 프레임 29.8ms → **21.9ms (45.7fps)**.
+  - **WiFi 비차단 접속**: `autoConnect()` 반복은 저장된 AP가 없을 때 최대 60초를 블로킹해 부팅 화면이 멈춘 것처럼
+    보였다. 이제 10초 비차단 시도 후 곧바로 설정 포털로 간다.
+- **동작 변경**: 시작·시보 멜로디가 **비차단**(`ds::Buzzer`), WiFi 설정 안내 화면을 셰도 경로(`push()`)로 보냄,
+  저장된 설정값의 범위 검사를 로드 때도 함.
+- **버그 수정**: HW 명령 패킷 콜백의 버퍼 넘침 플래그가 매 호출 초기화되던 문제.
+- **`presentation`(简体/繁體/數字)**: display_mode·script_type은 NVS에만 두고(`FIELD_NO_WEB`), 웹의 `presentation`
+  키는 `afterConfigPost()` 훅이 `setPresentation()`으로 적용한다. 예전처럼 같은 요청의 `font_slot` 변경 뒤에 판정된다
+  (적용 위치가 timezone·font_name 뒤로 옮겨졌지만, 판정은 슬롯만 보므로 결과는 같다).
+- **크기**: 1,307,013 → 1,307,021 B (DeskStreamCore v0.4.0 기준).
+- **파티션 확장**: 스케치 폴더에 `partitions.csv`(DeskStream 공통 레이아웃 — ENG_Clock·DS_DECK·Smart_Info_Station과 동일)를 추가했다.
+  `default` 스킴(app0 1.25MB)으로는 DeskStreamCore 전환 후 99%에 닿아 있었다.
+  - app0 1.25MB → **2.5MB**(OTA 없음). spiffs는 `default`와 같은 `0x290000` 1.375MB라 **업로드한 폰트가 보존**된다.
+  - 빌드 시 `Partition Scheme`은 **Huge APP**로 고른다(크기 검사 상한용 — 실제 테이블은 `partitions.csv`). 빌드 산출 테이블이 app0 2560K·spiffs `0x290000`인 것을 확인했다.
+- **테스트**: 옮긴 모듈의 호스트 테스트 4종은 `libraries/DeskStreamCore/test/`로 이동. `test/run_all.sh`는
+  전용 테스트 3종 + JS 교차검증만 돌린다(`-I libraries/DeskStreamCore/src` 추가).
+
 ## [v1.0.3] - 2026-11-08
 ### 🐛 상시 가동 시 시각이 조금씩 틀어져 십여 초씩 늦어지던 문제 (NTP 재동기화 감독 부재)
 

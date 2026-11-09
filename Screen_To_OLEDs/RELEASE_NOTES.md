@@ -1,5 +1,12 @@
 # Release Notes - Screen_To_OLEDs
 
+## [v2.3.0] - 2026-11-09
+### 🧩 공통 라이브러리 DeskStreamCore로 전환
+- **복사본 제거**: `DisplayEngine.*`·버튼·Ticker 부저를 지우고 DeskStreamCore(`ds::DisplayCore`·`ds::Buttons`·`ds::Buzzer`·`ds::WifiService`)를 쓴다. 호출부의 `display.*` 메서드는 스케치의 어댑터(`CanvasDisplay`)가 그대로 제공한다.
+- **화면 전송**: 512x64 LovyanGFX 캔버스 → 화면별 전치·바뀐 타일만 HW·SW 병렬 전송을 `ds::DisplayCore::pushCanvas()`가 한다 (HW 1.1MHz + 페이지 병합, 고속 SW I2C 약 1.15MHz). 전송 실패 페이지 재시도·버스 자가 복구가 생겼다.
+- **WiFi**: 저장된 AP 10초 비차단 시도 → 설정 포털 120초 → 실패하면 재부팅 (예전 `autoConnect`와 같은 결과).
+- 버튼(BTN1 길게 플립, BTN2 짧게 밝기·길게 도움말)·UDP 프로토콜·NVS("sto_set")는 그대로다.
+
 ## [V2.2.1] - 2026-10-21
 ### 🛠️ 버그 수정
 - **USB CDC 로그 블로킹 방지 (ESP32-C3 수신 펌웨어)**: `Serial.begin()` 직후 `Serial.setTxTimeoutMs(0)`을 적용했습니다. USB CDC(HWCDC) TX 링버퍼(256B)가 가득 찬 상태에서 로그를 출력하면 `HWCDC::write()`가 호출당 최대 2초(`tx_timeout_ms` 100 ms × `max_consec_timeouts` 20회)를 블로킹해 메인 루프(영상 렌더링·버튼)가 멈추는 잠재 위험을 제거했습니다. `ARDUINO_USB_CDC_ON_BOOT` 가드로 CDC 부팅 보드에서만 적용됩니다.

@@ -5,11 +5,45 @@
  * @details 변경 감지(Dirty-Check) 기반 이벤트 렌더링으로 지연 0ms 및 초고속 버튼 반응성 달성
  */
 #include <Arduino.h>
+#include <DeskStreamCore.h>
 #include "config.h"
-#include "DisplayEngine.h"
-#include "ButtonManager.h"
-#include "BuzzerManager.h"
 #include "TimerLogic.h"
+
+// === 공통 서비스 (DeskStreamCore) ===
+static ds::DisplayCore display;   // 4-OLED 화면 엔진 — 바뀐 페이지만 병렬 전송
+static ds::Buttons buttons;       // 짧게/길게/자동 반복
+static ds::Buzzer buzzer;         // 비차단 비프·멜로디·알람
+
+/** 화면 idx(0~3)의 U8G2 — REVERSE_SCREEN_ORDER면 물리 순서를 뒤집는다 */
+static U8G2* screenAt(int idx) {
+#if REVERSE_SCREEN_ORDER
+    return &display.screen(ds::kNumScreens - 1 - idx);
+#else
+    return &display.screen(idx);
+#endif
+}
+
+/** 버튼 idx(0~3)의 이번 루프 이벤트 비트 — REVERSE_BUTTON_ORDER면 물리 순서를 뒤집는다 */
+static uint8_t buttonEvents(int idx) {
+#if REVERSE_BUTTON_ORDER
+    return buttons.events(ds::kNumButtons - 1 - idx);
+#else
+    return buttons.events(idx);
+#endif
+}
+
+// 부팅 멜로디 (음 STARTUP_NOTE_DUR + 쉼 STARTUP_NOTE_PAUSE) — 비차단 재생
+static const ds::Note STARTUP_MELODY[] = {
+    {STARTUP_NOTE_1, STARTUP_NOTE_DUR, STARTUP_NOTE_PAUSE}, {STARTUP_NOTE_2, STARTUP_NOTE_DUR, STARTUP_NOTE_PAUSE},
+    {STARTUP_NOTE_3, STARTUP_NOTE_DUR, STARTUP_NOTE_PAUSE}, {STARTUP_NOTE_4, STARTUP_NOTE_DUR, STARTUP_NOTE_PAUSE},
+};
+// 알람 한 사이클 (울림 ALARM_DURATION_MS + 쉼 ALARM_PAUSE_MS) — stop() 할 때까지 반복
+static const ds::Note ALARM_MELODY[] = {{ALARM_FREQ, ALARM_DURATION_MS, ALARM_PAUSE_MS}};
+
+/** 버튼 클릭 비프 — 알람이 울리는 중에는 무시한다 (알람을 끊지 않게) */
+static void beep() {
+    if (!buzzer.isLooping()) buzzer.beep(BEEP_DURATION_MS, BEEP_FREQ);
+}
 
 // ── 렌더링 헬퍼 함수 선언 ──
 void renderScreen1(U8G2* u8g2); // 시 (00H)
@@ -30,21 +64,27 @@ void setup() {
 
     Serial.println(F("[SYSTEM] DeskStream Universal Timer Starting..."));
 
-    // 1. 하드웨어 디스플레이 엔진 초기화
+    // 1. 화면 엔진 초기화 (U8G2_R2 · setFlipMode 미호출 = 정방향 — 이전 구성과 같다)
     display.begin();
 
-    // 2. 버튼 입력 관리자 초기화
-    btnManager.begin();
+    // 2. 버튼 입력 초기화 (디바운스 30ms · 길게 1000ms · 300ms 후 60ms 간격 자동 반복)
+    ds::ButtonTiming timing;
+    timing.debounceMs = BTN_DEBOUNCE_MS;
+    timing.longPressMs = BTN_LONG_PRESS_MS;
+    timing.repeatDelayMs = BTN_REPEAT_INITIAL_MS;
+    timing.repeatIntervalMs = BTN_REPEAT_FAST_MS;
+    buttons.begin(timing);
 
     // 3. 부저 초기화 및 시작 멜로디 연주
     buzzer.begin();
-    buzzer.playStartupMelody();
+    buzzer.playMelody(STARTUP_MELODY, sizeof(STARTUP_MELODY) / sizeof(STARTUP_MELODY[0]));
 
     // 초기 화면 전체 1회 강제 렌더링
-    renderScreen1(display.getScreen(0)); display.flushScreen(0);
-    renderScreen2(display.getScreen(1)); display.flushScreen(1);
-    renderScreen3(display.getScreen(2)); display.flushScreen(2);
-    renderScreen4(display.getScreen(3)); display.flushScreen(3);
+    renderScreen1(screenAt(0));
+    renderScreen2(screenAt(1));
+    renderScreen3(screenAt(2));
+    renderScreen4(screenAt(3));
+    display.push();
 
     prev_hours   = timer.getHours();
     prev_minutes = timer.getMinutes();
@@ -56,79 +96,78 @@ void setup() {
 
 void loop() {
     // [1] 버튼 및 부저 하드웨어 상태 갱신 (초고속 폴링)
-    btnManager.update();
-    buzzer.update();
+    buttons.update();
 
     // [2] 타이머 카운트다운 틱 처리
     bool timer_finished = timer.update();
     if (timer_finished) {
-        buzzer.startAlarm();
+        buzzer.playMelody(ALARM_MELODY, 1, true);   // 사용자가 끌 때까지 반복
     }
 
     // [3] 버튼 입력 이벤트 처리 (지연 없이 즉각 반응)
     TimerState currentState = timer.getState();
 
     // ── BTN 1 (시 증가) ──
-    ButtonEvent e1 = btnManager.getEvent(0);
-    if (e1 == ButtonEvent::SHORT_PRESS || e1 == ButtonEvent::REPEAT) {
+    const uint8_t e1 = buttonEvents(0);
+    if (e1 & (ds::BUTTON_SHORT | ds::BUTTON_REPEAT)) {
         if (currentState == TimerState::FINISHED) {
-            buzzer.stopAlarm();
+            buzzer.stop();
             timer.dismissAlarm();
-            buzzer.beep();
+            beep();
         } else if (currentState == TimerState::SETTING) {
             timer.increment(0);
-            buzzer.beep();
+            beep();
         }
     }
 
     // ── BTN 2 (분 증가) ──
-    ButtonEvent e2 = btnManager.getEvent(1);
-    if (e2 == ButtonEvent::SHORT_PRESS || e2 == ButtonEvent::REPEAT) {
+    const uint8_t e2 = buttonEvents(1);
+    if (e2 & (ds::BUTTON_SHORT | ds::BUTTON_REPEAT)) {
         if (currentState == TimerState::FINISHED) {
-            buzzer.stopAlarm();
+            buzzer.stop();
             timer.dismissAlarm();
-            buzzer.beep();
+            beep();
         } else if (currentState == TimerState::SETTING) {
             timer.increment(1);
-            buzzer.beep();
+            beep();
         }
     }
 
     // ── BTN 3 (초 증가) ──
-    ButtonEvent e3 = btnManager.getEvent(2);
-    if (e3 == ButtonEvent::SHORT_PRESS || e3 == ButtonEvent::REPEAT) {
+    const uint8_t e3 = buttonEvents(2);
+    if (e3 & (ds::BUTTON_SHORT | ds::BUTTON_REPEAT)) {
         if (currentState == TimerState::FINISHED) {
-            buzzer.stopAlarm();
+            buzzer.stop();
             timer.dismissAlarm();
-            buzzer.beep();
+            beep();
         } else if (currentState == TimerState::SETTING) {
             timer.increment(2);
-            buzzer.beep();
+            beep();
         }
     }
 
     // ── BTN 4 (시작 / 일시정지 / 롱프레스 리셋) ──
-    ButtonEvent e4 = btnManager.getEvent(3);
-    if (e4 == ButtonEvent::LONG_PRESS) {
+    const uint8_t e4 = buttonEvents(3);
+    if (e4 & ds::BUTTON_LONG) {
         // 롱 프레스: 0시 0분 0초 전체 초기화
-        buzzer.stopAlarm();
+        buzzer.stop();
         timer.reset();
-        buzzer.beep();
-    } else if (e4 == ButtonEvent::SHORT_PRESS) {
+        beep();
+    } else if (e4 & ds::BUTTON_SHORT) {
         if (currentState == TimerState::FINISHED) {
             // 알람 해제
-            buzzer.stopAlarm();
+            buzzer.stop();
             timer.dismissAlarm();
-            buzzer.beep();
+            beep();
         } else if (currentState == TimerState::SETTING) {
             // 시작
             if (timer.start()) {
-                buzzer.beep();
+                beep();
             }
         } else if (currentState == TimerState::RUNNING) {
             // 일시 정지
             timer.pause();
-            buzzer.beep();
+            beep();
         }
     }
 
@@ -139,25 +178,27 @@ void loop() {
     uint8_t cur_s = timer.getSeconds();
     int8_t  cur_st = (int8_t)timer.getState();
 
+    bool dirty = false;   // 다시 그린 화면이 있으면 루프 끝에서 한 번 전송한다 (바뀐 페이지만)
+
     // 시(Hour) 변경 감지
     if (cur_h != prev_hours) {
         prev_hours = cur_h;
-        renderScreen1(display.getScreen(0));
-        display.flushScreen(0);
+        renderScreen1(screenAt(0));
+        dirty = true;
     }
 
     // 분(Minute) 변경 감지
     if (cur_m != prev_minutes) {
         prev_minutes = cur_m;
-        renderScreen2(display.getScreen(1));
-        display.flushScreen(1);
+        renderScreen2(screenAt(1));
+        dirty = true;
     }
 
     // 초(Second) 변경 감지
     if (cur_s != prev_seconds) {
         prev_seconds = cur_s;
-        renderScreen3(display.getScreen(2));
-        display.flushScreen(2);
+        renderScreen3(screenAt(2));
+        dirty = true;
     }
 
     // 상태(State) 변경 감지 또는 FINISHED 알람 깜빡임
@@ -171,9 +212,11 @@ void loop() {
 
     if (need_state_update) {
         prev_state = cur_st;
-        renderScreen4(display.getScreen(3));
-        display.flushScreen(3);
+        renderScreen4(screenAt(3));
+        dirty = true;
     }
+
+    if (dirty) display.push();
 }
 
 /**

@@ -5,46 +5,28 @@
  * @details U8g2 및 LovyanGFX를 이용한 디스플레이 초기화, 통신 속도 측정 및 그래픽 출력 테스트 구현
  */
 #include <Arduino.h>
-#include <U8g2lib.h>
-#include <Wire.h>
 #include <LovyanGFX.hpp>
 #include <Ticker.h>
 #include <Preferences.h>
-#include "driver/gpio.h"
+#include <DeskStreamCore.h>   // 4-OLED 화면 엔진·버튼·부저 (libraries/DeskStreamCore)
 
 Preferences prefs;
 
 // --- [1] 하드웨어 설정 ---
-const uint8_t hw_sda_pin = 5;
-const uint8_t hw_scl_pin = 6;
-const uint8_t sw_sda_pin = 2;
-const uint8_t sw_scl_pin = 3;
+// 핀·I2C(HW 1.1MHz·고속 SW I2C)는 DeskStreamCore. BTN1(GPIO 1) = 화면 플립.
+bool is_flipped = true;   // true = 패널 기본 방향(0xA1/0xC8) + 화면 순서 4→1
 
-const int FLIP_BUTTON_PIN = 1;
-const int BUZZER_PIN = 7;
-const int BTN_DEBOUNCE_MS = 50;
-
-bool is_flipped = true; 
-bool flip_btn_last_state = HIGH;
-unsigned long flip_btn_fall_time = 0;
+static ds::DisplayCore display;   // 4화면 전송 엔진 — 캔버스 전치·바뀐 타일만 병렬 전송
+static ds::Buttons buttons;
+static ds::Buzzer buzzer;
 
 // --- [1-1] 프레임 제한 설정 ---
 #define TARGET_FPS 30  // 목표 FPS
 const uint32_t FRAME_TIME_US = 1000000 / TARGET_FPS;
 static uint32_t last_frame_micros = 0;
 
-// 드라이버 객체 (전송용) - 4개의 OLED를 각각 제어
-// HW I2C 버스 (2개) 및 SW I2C 버스 (2개) 사용
-U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2_1(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
-U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2_2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
-U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_3(U8G2_R0, sw_scl_pin, sw_sda_pin, U8X8_PIN_NONE);
-U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_4(U8G2_R0, sw_scl_pin, sw_sda_pin, U8X8_PIN_NONE);
-
-U8G2* screens[4] = { &u8g2_1, &u8g2_2, &u8g2_3, &u8g2_4 };
-
 // --- [2] LovyanGFX 가상 캔버스 설정 (512x64 와이드 화면) ---
 LGFX_Sprite canvas;
-uint8_t shadow_buffer[4][1024]; // 변경 감지용 독립 버퍼 (Dirty Checking)
 
 // --- [2-1] FPS 측정용 인터럽트 변수 ---
 volatile uint32_t frame_counter = 0;
@@ -56,19 +38,9 @@ void onFpsReport() {
 }
 
 // --- [2-2] 부저 및 플립 제어 함수 ---
-void beep(int duration = 50, int freq = 3000) {
-    tone(BUZZER_PIN, freq);
-    delay(duration);
-    noTone(BUZZER_PIN);
-}
-
+// state=true → 0xA1/0xC8 (U8g2 초기값 = setFlip(false)), false → 0xA0/0xC0 (setFlip(true))
 void applyFlipState(bool state) {
-    uint8_t seg = state ? 0xA1 : 0xA0;
-    uint8_t com = state ? 0xC8 : 0xC0;
-    for (int i = 0; i < 4; i++) {
-        screens[i]->sendF("c", seg);
-        screens[i]->sendF("c", com);
-    }
+    display.setFlip(!state);
 }
 
 void toggleFlip() {
@@ -79,44 +51,13 @@ void toggleFlip() {
     prefs.putBool("flip", is_flipped);
     prefs.end();
     
-    beep(50, 3000);
+    buzzer.beep(50, 3000);   // 비차단
     Serial.printf("[SYSTEM] Display Flipped: %s\n", is_flipped ? "180 (ON)" : "Normal (OFF)");
 }
 
+// 버튼 폴링 — BTN1 짧게(> 50ms)는 toggleFlip() 콜백으로 처리된다
 void checkButtons() {
-    bool flip_state = digitalRead(FLIP_BUTTON_PIN);
-    if (flip_btn_last_state == HIGH && flip_state == LOW) {
-        flip_btn_fall_time = millis();
-    } else if (flip_btn_last_state == LOW && flip_state == HIGH) {
-        if (millis() - flip_btn_fall_time > BTN_DEBOUNCE_MS) {
-            toggleFlip();
-        }
-    }
-    flip_btn_last_state = flip_state;
-}
-
-// 고속 SW I2C 콜백
-extern "C" uint8_t u8x8_gpio_and_delay_esp32_c3_fast(u8x8_t* u8x8, uint8_t msg, uint8_t arg_int, void* arg_ptr) {
-    uint8_t pin;
-    switch (msg) {
-        case U8X8_MSG_GPIO_AND_DELAY_INIT:
-            pin = u8x8->pins[U8X8_PIN_I2C_CLOCK];
-            if (pin != U8X8_PIN_NONE) { pinMode(pin, OUTPUT_OPEN_DRAIN); gpio_set_level((gpio_num_t)pin, 1); }
-            pin = u8x8->pins[U8X8_PIN_I2C_DATA];
-            if (pin != U8X8_PIN_NONE) { pinMode(pin, OUTPUT_OPEN_DRAIN); gpio_set_level((gpio_num_t)pin, 1); }
-            break;
-        case U8X8_MSG_DELAY_MILLI: delay(arg_int); break;
-        case U8X8_MSG_GPIO_I2C_CLOCK:
-            if (arg_int) GPIO.out_w1ts.val = (1 << sw_scl_pin);
-            else         GPIO.out_w1tc.val = (1 << sw_scl_pin);
-            break;
-        case U8X8_MSG_GPIO_I2C_DATA:
-            if (arg_int) GPIO.out_w1ts.val = (1 << sw_sda_pin);
-            else         GPIO.out_w1tc.val = (1 << sw_sda_pin);
-            break;
-        default: u8x8_SetGPIOResult(u8x8, 1); break;
-    }
-    return 1;
+    buttons.update();
 }
 
 // --- [4] 와이드 캔버스 전송 엔진 (Smart Flush) ---
@@ -135,42 +76,9 @@ void pushSmartWideCanvas() {
   }
   last_frame_micros = micros();
 
-  frame_counter++; 
-  uint8_t* canvas_ptr = (uint8_t*)canvas.getBuffer();
-  
-    for (int s = 0; s < 4; s++) {
-    uint8_t* u8g2_buf = screens[s]->getBufferPtr();
-    int logical_s = is_flipped ? (3 - s) : s;
-    
-    for (int p = 0; p < 8; p++) {
-      uint8_t page_cache[128];
-      bool page_dirty = false;
-      
-      for (int x = 0; x < 128; x++) {
-        int gx = (logical_s * 128) + x;
-        int byte_idx = gx >> 3;
-        int bit_mask = 0x80 >> (gx & 7);
-        
-        uint8_t out_byte = 0;
-        for (int b = 0; b < 8; b++) {
-          if (canvas_ptr[((p << 3) + b) * 64 + byte_idx] & bit_mask) {
-            out_byte |= (1 << b);
-          }
-        }
-        
-        page_cache[x] = out_byte;
-        if (page_cache[x] != shadow_buffer[s][p * 128 + x]) {
-          page_dirty = true;
-        }
-      }
-
-      if (page_dirty) {
-        memcpy(&shadow_buffer[s][p * 128], page_cache, 128);
-        memcpy(&u8g2_buf[p * 128], page_cache, 128);
-        screens[s]->updateDisplayArea(0, p, 16, 1);
-      }
-    }
-  }
+  frame_counter++;
+  // 512x64 캔버스를 4화면으로 전치하고 바뀐 타일만 병렬 전송 (is_flipped면 화면 순서 4→1)
+  display.pushCanvas((const uint8_t*)canvas.getBuffer(), is_flipped);
 }
 
 // 기존 delay()를 대체하는 스마트 딜레이 (지연 중에도 FPS 유지)
@@ -301,25 +209,13 @@ void setup() {
   Serial.setTxTimeoutMs(0);
 #endif
   
-  Wire.begin(hw_sda_pin, hw_scl_pin);
-  Wire.setClock(800000);
-
-  u8g2_3.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast;
-  u8g2_4.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast;
-
-  // HW I2C 클럭 설정 (U8g2 내부 설정 방식)
-  u8g2_1.setBusClock(800000);
-  u8g2_2.setBusClock(800000);
-
-  u8g2_1.setI2CAddress(0x3C * 2); u8g2_1.begin();
-  u8g2_2.setI2CAddress(0x3D * 2); u8g2_2.begin();
-  u8g2_3.setI2CAddress(0x3C * 2); u8g2_3.begin();
-  u8g2_4.setI2CAddress(0x3D * 2); u8g2_4.begin();
+  // 화면 엔진 초기화 (I2C·HW 전송 태스크·U8G2 4개)
+  display.begin();
 
   // 버튼 및 부저 초기화
-  pinMode(FLIP_BUTTON_PIN, INPUT_PULLUP);
-  pinMode(BUZZER_PIN, OUTPUT);
-  digitalWrite(BUZZER_PIN, LOW);
+  buttons.begin();
+  buttons.setCallbacks(0, toggleFlip, nullptr);
+  buzzer.begin();
 
   // 저장된 설정 로드
   prefs.begin("wide_set", true);
@@ -333,8 +229,7 @@ void setup() {
   // 캔버스 초기화 (512x64, 1비트 컬러)
   canvas.setColorDepth(1);
   canvas.createSprite(512, 64);
-  canvas.setBitmapColor(1, 0); 
-  memset(shadow_buffer, 0, sizeof(shadow_buffer));
+  canvas.setBitmapColor(1, 0);
 
   // 시작 메시지
   canvas.clear();

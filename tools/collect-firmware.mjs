@@ -26,6 +26,9 @@ const projectIdx = argv.indexOf("--project");
 const PROJECT_FILTER = projectIdx >= 0 ? argv[projectIdx + 1] : null;
 
 const SOURCE_EXT = new Set([".ino", ".c", ".cpp", ".cxx", ".h", ".hpp", ".hh"]);
+// 공통 라이브러리 — 이를 include 하는 스케치는 라이브러리 변경도 "소스 최신" 판정에 포함한다
+const CORE_LIB_DIR = path.join(ROOT, "libraries", "DeskStreamCore");
+const CORE_LIB_HEADER = "DeskStreamCore.h";
 const FLASH_MODE = new Set(["qio", "qout", "dio", "dout"]);
 const FLASH_FREQ = new Set(["80m", "40m", "26m", "20m"]);
 
@@ -39,6 +42,24 @@ function sha256(buf) {
 
 function toPosix(p) {
   return p.split(path.sep).join("/");
+}
+
+/** 스케치 폴더 최상위 소스 중 하나라도 공통 라이브러리 헤더를 include 하는가 */
+function usesCoreLib(sketchDir) {
+  let entries = [];
+  try {
+    entries = fs.readdirSync(sketchDir, { withFileTypes: true });
+  } catch {
+    return false;
+  }
+  return entries.some((entry) => {
+    if (!entry.isFile() || !SOURCE_EXT.has(path.extname(entry.name).toLowerCase())) return false;
+    try {
+      return fs.readFileSync(path.join(sketchDir, entry.name), "utf8").includes(CORE_LIB_HEADER);
+    } catch {
+      return false;
+    }
+  });
 }
 
 function newestMtime(dir, predicate, skipDirNames) {
@@ -206,11 +227,14 @@ function collectProject(project) {
   outputImages.sort((a, b) => Number.parseInt(a.offset, 16) - Number.parseInt(b.offset, 16));
 
   const fqbn = readFqbn(set.dir);
-  const sourceNewest = newestMtime(
-    path.join(ROOT, project.sourcePath),
-    (name) => SOURCE_EXT.has(path.extname(name).toLowerCase()),
-    new Set(["build", ".git", "node_modules"]),
-  );
+  const sketchDir = path.join(ROOT, project.sourcePath);
+  const isSource = (name) => SOURCE_EXT.has(path.extname(name).toLowerCase());
+  const skipDirs = new Set(["build", ".git", "node_modules"]);
+  let sourceNewest = newestMtime(sketchDir, isSource, skipDirs);
+  if (usesCoreLib(sketchDir)) {
+    // 라이브러리의 호스트 테스트(test/)는 펌웨어에 들어가지 않으므로 src/ 만 본다
+    sourceNewest = Math.max(sourceNewest, newestMtime(path.join(CORE_LIB_DIR, "src"), isSource, skipDirs));
+  }
   const stale = sourceNewest > set.mtime + 1000;
 
   return {

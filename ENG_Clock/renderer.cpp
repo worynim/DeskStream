@@ -10,7 +10,7 @@
 #include "config_manager.h"
 #include "display_manager.h"
 #include "layout_engine.h"
-#include "logger.h"
+// logger(ds::Logger)는 display_manager.h가 extern 선언한다
 
 Renderer renderer;
 

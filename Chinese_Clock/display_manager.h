@@ -12,13 +12,11 @@
 #define DISPLAY_MANAGER_H
 
 #include <U8g2lib.h>
-#include <Wire.h>
 #include "config.h"
 #include <pgmspace.h>
 #include <vector>
 #include <map>
 #include <utility>
-#include "i2c_platform.h"
 #include "config_manager.h"
 #include "renderer.h"
 #include "layout_engine.h"   // LAYOUT_MAX_CHARS
@@ -60,11 +58,16 @@ struct AnimationState {
 class DisplayManager;
 extern DisplayManager display;
 
+// 앱 전역 서비스 (.ino에서 정의)
+extern ds::Logger logger;
+extern ds::TimeSync timeSync;
+
 class DisplayManager {
 public:
-    U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_1, u8g2_2, u8g2_3, u8g2_4;
-    U8G2* screens[NUM_SCREENS];
-    uint8_t u8g2_buffers[NUM_SCREENS][SCREEN_WIDTH * PAGES_PER_SCREEN];
+    /** 4-OLED 화면 엔진 (U8G2 4개·셰도 diff·HW/SW 병렬 전송) — DeskStreamCore */
+    ds::DisplayCore core;
+    /** core.screens() — 렌더러·그리기 코드가 인덱스로 접근한다 */
+    U8G2** screens;
     String lastTexts[4];
 
     DisplayManager();
@@ -91,7 +94,7 @@ public:
      *          POSIX TZ로 강제 변환해 설정값을 덮어써서 항상 UTC가 된다.
      *
      * @note 입력 검증은 config_manager(로드)와 web_manager(입력)가 이미 수행한다
-     *       (둘 다 tz_util::isValidTimezone). 여기서는 검증된 값만 사용한다.
+     *       (둘 다 ds::isValidTimezone). 여기서는 검증된 값만 사용한다.
      */
     void applyTimezone();
     void setFontName(const String& name);
@@ -124,12 +127,12 @@ public:
     bool isAnimating() const { return _animState.active; }
 
     // 헬퍼 및 유틸리티
-    void pushParallel();
+    void pushParallel() { core.push(); }
     void showLargeIP(IPAddress ip);
     void showButtonHelp();
     void showStatus(const String& msg);
-    void playStartupMelody(); // 시작 멜로디 재생
-    void playChimeMelody(); // 시보 멜로디 재생
+    void playStartupMelody(); // 시작 멜로디 재생 (비차단)
+    void playChimeMelody(); // 시보 멜로디 재생 (비차단)
 
 /**
      * @brief 현재 표시 방식 (简体/繁體/數字 중 하나)
@@ -162,7 +165,7 @@ private:
     bool _needsForceUpdate = false;
     String _slotNames[FONT_SLOT_COUNT];
     void (*on_yield_callback)() = nullptr;
-    TimerHandle_t buzzerTimer = NULL;
+    ds::Buzzer _buzzer;
     AnimationState _animState;
 
     /**

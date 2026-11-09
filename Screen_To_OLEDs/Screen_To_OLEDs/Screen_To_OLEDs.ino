@@ -6,20 +6,21 @@
  */
 
 #include <Arduino.h>
-#include <WiFiManager.h>
+#include <WiFi.h>
 #include <WiFiUdp.h>
 #include <Ticker.h>
 #include <Preferences.h>
+#include <LovyanGFX.hpp>
+#include <DeskStreamCore.h>
 #include "config.h"
-#include "DisplayEngine.h"
 
 // ==========================================
 // [전역 상태 변수]
 // ==========================================
 Preferences prefs;
 
-// 화면 플립 상태 (DisplayEngine.cpp에서 extern으로 참조)
-bool is_flipped = true;  // DeskStream 설치 방향 기본값: 플립 ON
+// 화면 플립 상태 — true = 패널 기본 방향(0xA1/0xC8) + 화면 순서 4→1 (DeskStream 설치 방향 기본값)
+bool is_flipped = true;
 
 // 밝기 (0~255)
 uint8_t brightness_val = 1;
@@ -55,36 +56,52 @@ unsigned long last_packet_time   = 0;
 unsigned long last_discovery_time = 0;
 unsigned long last_wifi_check_time = 0;
 
-// ==========================================
-// [버튼 상태 변수]
-// ==========================================
-// BTN1 (FLIP)
-bool btn1_last_state       = HIGH;
-unsigned long btn1_fall_time = 0;
-bool btn1_long_press_fired = false;
-
-// BTN2 (밝기DOWN / 도움말)
-bool btn2_last_state       = HIGH;
-unsigned long btn2_fall_time = 0;
-bool btn2_long_press_fired = false;
-
-// BTN3, BTN4: 미사용 — 상태 변수 없음 (필요 시 추가 예정)
-
 // 도움말 모드
 bool is_help_mode = false;
 
-Ticker buzzer_ticker;
+// ==========================================
+// [공통 서비스] DeskStreamCore
+// ==========================================
+static ds::Buttons buttons;
+static ds::Buzzer buzzer;
+static ds::WifiService wifi;
 
-void stopBuzzer() {
-    noTone(BUZZER_PIN);
-}
-
+/** 버튼 피드백 비프 (비차단 — ds::Buzzer 타이머) */
 void beepAsync(int duration = 30, int freq = 2000) {
-    tone(BUZZER_PIN, freq);
-    buzzer_ticker.once_ms(duration, stopBuzzer);
+    buzzer.beep(duration, freq);
 }
 
-// [Step 1 정리] updateTone()은 Ticker 방식으로 전환되어 불필요 — 제거됨
+/**
+ * @brief 512x64 캔버스 화면 — LovyanGFX 1bit 스프라이트에 그리고 ds::DisplayCore로 4화면에 보낸다
+ * @details 예전 자체 디스플레이 엔진(I2C·셰도·전치)을 대체한다. 호출부가 쓰는 메서드 이름은 그대로 둔다.
+ */
+class CanvasDisplay {
+public:
+    void begin() {
+        _core.begin();
+        _canvas.setColorDepth(1);
+        _canvas.createSprite(CANVAS_WIDTH, CANVAS_HEIGHT);
+        _canvas.setBitmapColor(COLOR_WHITE, COLOR_BLACK);
+    }
+    LGFX_Sprite& getCanvas() { return _canvas; }
+    void clearCanvas() { _canvas.clear(); }
+    /**
+     * @brief 캔버스를 4화면에 보낸다 (바뀐 타일만, HW·SW 병렬)
+     * @param force_no_flip true면 플립 상태와 무관하게 화면 순서를 1→4로 고정한다 (도움말 화면)
+     */
+    void pushCanvas(bool force_no_flip = false) {
+        _core.pushCanvas((const uint8_t*)_canvas.getBuffer(), is_flipped && !force_no_flip);
+    }
+    ds::DisplayCore& core() { return _core; }
+    void incrementFrameCounter() { _frames++; }
+    uint32_t getFrameCounter() const { return _frames; }
+    void resetFrameCounter() { _frames = 0; }
+private:
+    ds::DisplayCore _core;
+    LGFX_Sprite _canvas;
+    volatile uint32_t _frames = 0;
+};
+CanvasDisplay display;
 
 // ==========================================
 // [화면 제어 함수]
@@ -94,12 +111,8 @@ void beepAsync(int duration = 30, int freq = 2000) {
  * @brief 플립 상태를 모든 OLED 하드웨어에 적용 (SSD1306 세그먼트/COM 반전)
  */
 void applyFlipState(bool state) {
-    uint8_t seg = state ? 0xA1 : 0xA0;
-    uint8_t com = state ? 0xC8 : 0xC0;
-    for (int i = 0; i < NUM_SCREENS; i++) {
-        DisplayEngine::screens[i]->sendF("c", seg);
-        DisplayEngine::screens[i]->sendF("c", com);
-    }
+    // state=true → 0xA1/0xC8 (U8g2 초기값 = setFlip(false)), false → 0xA0/0xC0 (setFlip(true))
+    display.core().setFlip(!state);
 }
 
 /**
@@ -128,9 +141,7 @@ void cycleBrightness() {
     else                           brightness_val = 1;
 
     // 모든 OLED에 밝기 명령 전송 (SSD1306: 0x81 = Set Contrast)
-    for (int i = 0; i < NUM_SCREENS; i++) {
-        DisplayEngine::screens[i]->sendF("ca", 0x81, brightness_val);
-    }
+    display.core().setBrightness(brightness_val);
     if (is_help_mode) drawHelpScreen();
     
     prefs.begin("sto_set", false);
@@ -357,46 +368,29 @@ void processUDP() {
 // [버튼 처리 함수]
 // ==========================================
 
+// BTN1 길게: 화면 플립
+static void onFlipLong() {
+    toggleFlip();
+    beepAsync(20, 2000);
+}
+
+// BTN2 짧게: 밝기 순환
+static void onBrightShort() {
+    cycleBrightness();
+    beepAsync(20, 3000);
+}
+
+// BTN2 길게: 도움말 토글
+static void onHelpLong() {
+    is_help_mode = !is_help_mode;
+    beepAsync(30, 2000);
+    if (is_help_mode) drawHelpScreen();
+    else { display.clearCanvas(); display.pushCanvas(); }
+}
+
+// BTN3, BTN4: 미사용
 void processButtons() {
-    unsigned long now = millis();
-
-    // ── BTN1: Long=화면 플립 ──
-    bool b1 = digitalRead(BTN1_PIN);
-    if (btn1_last_state == HIGH && b1 == LOW) {
-        btn1_fall_time        = now;
-        btn1_long_press_fired = false;
-    } else if (b1 == LOW && !btn1_long_press_fired) {
-        if (now - btn1_fall_time > BTN_LONG_PRESS_MS) {
-            btn1_long_press_fired = true;
-            toggleFlip();
-            beepAsync(20, 2000);
-        }
-    }
-    btn1_last_state = b1;
-
-    // ── BTN2: Short=밝기 순환 / Long=도움말 토글 ──
-    bool b2 = digitalRead(BTN2_PIN);
-    if (btn2_last_state == HIGH && b2 == LOW) {
-        btn2_fall_time        = now;
-        btn2_long_press_fired = false;
-    } else if (b2 == LOW && !btn2_long_press_fired) {
-        if (now - btn2_fall_time > BTN_LONG_PRESS_MS) {
-            btn2_long_press_fired = true;
-            is_help_mode = !is_help_mode;
-            beepAsync(30, 2000);
-            if (is_help_mode) drawHelpScreen();
-            else { display.clearCanvas(); display.pushCanvas(); }
-        }
-    } else if (btn2_last_state == LOW && b2 == HIGH) {
-        // 떼질 때 숏프레스 판정
-        if (!btn2_long_press_fired && (now - btn2_fall_time) > BTN_DEBOUNCE_MS) {
-            cycleBrightness();
-            beepAsync(20, 3000);
-        }
-    }
-    btn2_last_state = b2;
-
-    // ── BTN3, BTN4: 미사용 (핀 초기화는 setup()에서 INPUT_PULLUP으로 유지) ──
+    buttons.update();
 }
 
 // ==========================================
@@ -432,19 +426,17 @@ void setup() {
 
     applyFlipState(is_flipped);
     // 밝기 초기 적용
-    for (int i = 0; i < NUM_SCREENS; i++) {
-        DisplayEngine::screens[i]->sendF("ca", 0x81, brightness_val);
-    }
+    display.core().setBrightness(brightness_val);
 
-    // 버튼 핀 초기화
-    pinMode(BTN1_PIN,   INPUT_PULLUP);
-    pinMode(BTN2_PIN,   INPUT_PULLUP);
-    pinMode(BTN3_PIN,   INPUT_PULLUP);
-    pinMode(BTN4_PIN,   INPUT_PULLUP);
+    // 버튼 초기화 (짧게 > 50ms, 길게 > BTN_LONG_PRESS_MS)
+    ds::ButtonTiming timing;
+    timing.longPressMs = BTN_LONG_PRESS_MS;
+    buttons.begin(timing);
+    buttons.setCallbacks(BTN_IDX_FLIP, nullptr, onFlipLong);
+    buttons.setCallbacks(BTN_IDX_BRIGHT, onBrightShort, onHelpLong);
 
     // 부저 초기화
-    pinMode(BUZZER_PIN, OUTPUT);
-    digitalWrite(BUZZER_PIN, LOW);
+    buzzer.begin();
 
     // FPS 타이머
     fps_ticker.attach(1.0, onFpsReport);
@@ -459,13 +451,12 @@ void setup() {
     canvas.drawCenterString("AP: ESP_SCREEN_OLED", CANVAS_WIDTH / 2, 48);
     display.pushCanvas();
 
-    // WiFi 연결 (WiFiManager: 자동 AP 포털)
-    WiFiManager wm;
-    wm.setConfigPortalTimeout(120);
-    if (!wm.autoConnect("ESP_SCREEN_OLED")) {
-        Serial.println("[WIFI] Connection Failed. Restarting...");
-        ESP.restart();
-    }
+    // WiFi 연결 — 저장된 AP 10초 비차단 시도 → 설정 포털 120초 → 실패하면 재부팅
+    ds::WifiConfig wifiCfg;
+    wifiCfg.apName = "ESP_SCREEN_OLED";
+    wifiCfg.portalTimeoutS = 120;
+    wifiCfg.restartOnFail = true;
+    wifi.begin(wifiCfg);
     WiFi.setSleep(false);
 
     // 연결 성공 후 IP 주소 표시 (함수로 통일)

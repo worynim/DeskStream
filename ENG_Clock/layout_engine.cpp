@@ -6,7 +6,7 @@
  *       원본은 글자 단위 단순 배치였다. 영어 단어(최대 9자)를 위해 어절 단위로 바꾼다.
  */
 #include "layout_engine.h"
-#include "utf8_len.h"   // ENG_Clock와 한글판이 공유하는 UTF-8 리딩 바이트 판정
+#include "util/ds_utf8.h"   // UTF-8 리딩 바이트 판정 (DeskStreamCore — 호스트 테스트는 -I로 src를 넘긴다)
 
 /**
  * 음수에서도 내림으로 나눈다.
@@ -30,12 +30,12 @@ int measureLineInk(const char* text, int start, int count,
     //   카운트를 소모해야 한다. 다만 그려지지 않으므로(폴백 폰트도 빈 글리프)
     //   잉크 상한에는 기여하지 않는다.
     const char* stop = text + start;
-    for (int i = 0; i < count && *stop; i++) stop += utf8CharLen(stop, 1);
+    for (int i = 0; i < count && *stop; i++) stop += ds::utf8CharLen(stop, 1);
 
     int maxInk = 0;
     for (const char* p = text + start; p < stop;) {
         if (*p == ' ') { p++; continue; }
-        const int len = utf8CharLen(p, (int)(stop - p));
+        const int len = ds::utf8CharLen(p, (int)(stop - p));
         const uint8_t w = inkFn(ctx, p, (uint8_t)len);
         if (w > maxInk) maxInk = w;
         p += len;
@@ -50,7 +50,7 @@ int measureLineFloor(const char* text, int start, int count,
     if (!inkFn) return fallback;
 
     const char* stop = text + start;
-    for (int i = 0; i < count && *stop; i++) stop += utf8CharLen(stop, 1);
+    for (int i = 0; i < count && *stop; i++) stop += ds::utf8CharLen(stop, 1);
 
     // 잉크는 래스터 안에서 중앙 정렬 → 두 글자의 빈틈 = pitch − (inkA+inkB)/2.
     //   겹치지 않으려면 pitch ≥ (inkA+inkB)/2. 줄의 하한 = 인접 쌍의 최댓값.
@@ -61,7 +61,7 @@ int measureLineFloor(const char* text, int start, int count,
     bool seen = false;
     for (const char* p = text + start; p < stop;) {
         if (*p == ' ') { p++; continue; }
-        const int len = utf8CharLen(p, (int)(stop - p));
+        const int len = ds::utf8CharLen(p, (int)(stop - p));
         const int w = inkFn(ctx, p, (uint8_t)len);
         if (seen) {
             const int pair = (prevInk + w + 1) / 2;   // 올림 — 정수 픽셀에서 겹침 방지
@@ -156,7 +156,7 @@ bool layoutWrap(const char* text, int textLen,
 
         int wordChars = 0;
         while (i < textLen && text[i] != ' ') {
-            i += utf8CharLen(text + i, textLen - i);
+            i += ds::utf8CharLen(text + i, textLen - i);
             wordChars++;
         }
         if (wordChars == 0) break;
@@ -233,7 +233,7 @@ bool layoutWrap(const char* text, int textLen,
             if (p >= textLen) break;
             if (idx >= outCapacity) { capacityExceeded = true; break; }
 
-            int clen = utf8CharLen(text + p, textLen - p);
+            int clen = ds::utf8CharLen(text + p, textLen - p);
             out[idx].text = text + p;
             out[idx].len = (uint8_t)clen;
             out[idx].line = (uint8_t)ln;

@@ -41,8 +41,15 @@ const constIn = (src, name) => {
 };
 const body = (src, re) => { const m = src.match(re); return m ? m[0] : ''; };
 
-const SCREEN_WIDTH = define('SCREEN_WIDTH');
-const SCREEN_HEIGHT = define('SCREEN_HEIGHT');
+// 화면 치수는 DeskStreamCore ds_board.h가 정의한다 (config.h는 그 값을 노출만 한다)
+const board = readFileSync(join(ROOT, '..', 'libraries', 'DeskStreamCore', 'src', 'ds_board.h'), 'utf8');
+const boardConst = (name) => {
+    const m = board.match(new RegExp(`constexpr\\s+\\w+\\s+${name}\\s*=\\s*(\\d+)`));
+    if (!m) throw new Error(`ds_board.h 에서 ${name} 을 찾지 못했다`);
+    return parseInt(m[1], 10);
+};
+const SCREEN_WIDTH = boardConst('kScreenWidth');
+const SCREEN_HEIGHT = boardConst('kScreenHeight');
 const TEXT_Y_POS = define('TEXT_Y_POS');
 const CELL_W = 32;   // GLYPH_CELL_W = LAYOUT_CELL_W
 const IP_DOT_SIZE = constIn(dm, 'IP_DOT_SIZE');

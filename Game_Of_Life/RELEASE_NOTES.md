@@ -1,5 +1,13 @@
 # Release Notes - DeskStream Game of Life
 
+## [v1.1.0] - 2026-11-09
+### 🧩 공통 라이브러리 DeskStreamCore로 전환
+- **복사본 제거**: `i2c_platform.*`·`config.h` → DeskStreamCore. 회전·하드웨어 flip 구성(U8G2_R0 + flip)은 그대로다.
+- **화면 전송**: HW I2C 1.1MHz + 페이지 병합, 고속 SW I2C(실효 약 1.15MHz), 바뀐 타일만 HW·SW 버스 **병렬** 전송 (`ds::DisplayCore`). 예전 판의 `i2c_platform`은 전송 실패한 페이지를 dirty에서 지워 그 화면이 다음 변경까지 멈추는 결함이 있었다 — 재시도 정책이 있는 엔진으로 바뀌며 해소됐다.
+- **버튼**: 5ms 스캔 태스크는 유지하고 판정만 `ds::Buttons`(20ms 안정 디바운스 + 누르는 순간 `BUTTON_PRESS`)로 바꿨다 — 반응 시점은 같다.
+- **부저**: 시작 멜로디·비프를 `ds::Buzzer`(비차단)로.
+- **전치**: 512x64 엔진 비트맵 → 화면 버퍼 변환을 `ds::canvasToScreenPages()`(호스트 테스트 있음)로 바꿨다 — 같은 규칙. 크기 429,660 B.
+
 ## [v1.0.2] - 2026-10-21
 ### 🛠️ Fixed
 - **USB CDC 로그 블로킹 방지 (ESP32-C3)**: `Serial.begin()` 직후 `Serial.setTxTimeoutMs(0)`을 적용했습니다. USB CDC(HWCDC) TX 링버퍼(256B)가 가득 찬 상태에서 로그를 출력하면 `HWCDC::write()`가 호출당 최대 2초(`tx_timeout_ms` 100 ms × `max_consec_timeouts` 20회)를 블로킹해 메인 루프(시뮬레이션·버튼)가 멈추는 잠재 위험을 제거했습니다. `ARDUINO_USB_CDC_ON_BOOT` 가드로 CDC 부팅 보드에서만 적용됩니다.

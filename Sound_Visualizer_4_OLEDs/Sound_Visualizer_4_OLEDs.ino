@@ -7,27 +7,12 @@
 #include <Arduino.h>
 #include <Ticker.h>
 #include <Preferences.h>
+#include <LovyanGFX.hpp>
+#include <DeskStreamCore.h>
 #include "config.h"
-#include "DisplayEngine.h"
 #include "AudioAnalyzer.h"
 
 Preferences prefs;
-
-// --- [비차단 부저 시스템 타입/상태 선언] (Arduino 자동 전방선언 호환) ---
-struct ToneNote {
-    int freq;
-    int durationMs;
-    int pauseMs;  // 다음 음 전 쉬는 시간 (0이면 즉시 연주)
-};
-
-const int MAX_MELODY_NOTES = 5;
-ToneNote _melodyQueue[MAX_MELODY_NOTES];
-int _melodyLen = 0;
-int _melodyIdx = 0;
-unsigned long _toneEndAt = 0;
-unsigned long _pauseEndAt = 0;
-enum TonePhase { TONE_IDLE, TONE_PLAYING, TONE_PAUSE };
-TonePhase _tonePhase = TONE_IDLE;
 
 // --- [1] 설정 및 객체 생성 ---
 // (상수 및 핀 설정은 각 모듈의 헤더 파일에서 관리함)
@@ -36,29 +21,57 @@ int DEBUG_MODE = 1; // 0: Off, 1: FPS, 2: FPS+Perf, 3: Full (includes DMA Diag)
 AudioAnalyzer analyzer(DEFAULT_SAMPLES, DEFAULT_SAMPLING_FREQ, DEFAULT_NUM_BANDS);
 Ticker fps_ticker;
 
-unsigned long btn_press_start_time = 0;
-bool btn_is_held = false;
-bool cal_long_press_fired = false; // 캘리브레이션 롱프레스 중복 방지
 uint8_t vizMode = 0; // 0: 스펙트럼(막대), 1: 파형(오실로스코프)
-
-bool flip_btn_last_state = HIGH;
-unsigned long flip_btn_fall_time = 0;
-bool is_flipped = true; // 현재 U8G2_R2 설정이므로 초기값은 true
+bool is_flipped = true; // true = 패널 기본 방향(0xA1/0xC8) + 화면 순서 4→1 (기존 기본값)
 
 // --- [도움말 모드] ---
 bool isHelpMode = false;         // 버튼 설명 화면 표시 여부
-bool help_btn_last_state = HIGH; // 도움말 버튼 이전 상태
-unsigned long help_btn_fall_time = 0;
-bool help_long_press_fired = false; // 롱프레스 중복 발동 방지
 
+// --- [공통 서비스] DeskStreamCore ---
+static ds::Buttons buttons;
+static ds::Buzzer buzzer;
+
+/**
+ * @brief 512x64 캔버스 화면 — LovyanGFX 1bit 스프라이트에 그리고 ds::DisplayCore로 4화면에 보낸다
+ * @details 예전 자체 디스플레이 엔진(I2C·셰도·전치)을 대체한다. 그리기 코드가 쓰는 메서드 이름은 그대로 둔다.
+ *          전치·바뀐 타일만 병렬 전송은 ds::DisplayCore::pushCanvas()가 한다.
+ */
+class CanvasDisplay {
+public:
+    void begin() {
+        _core.begin();
+        _canvas.setColorDepth(1);
+        _canvas.createSprite(CANVAS_WIDTH, CANVAS_HEIGHT);
+        _canvas.setBitmapColor(COLOR_WHITE, COLOR_BLACK);
+    }
+    LGFX_Sprite& getCanvas() { return _canvas; }
+    /** 캔버스를 4화면에 보낸다 — is_flipped면 화면 순서를 뒤집는다 (180° 장착) */
+    void pushCanvas() {
+        const uint32_t t0 = micros();
+        _frames++;
+        _core.pushCanvas((const uint8_t*)_canvas.getBuffer(), is_flipped);
+        _lastUs = micros() - t0;
+    }
+    /** ms 동안 전송을 계속하며 기다린다 */
+    void smartDelay(uint32_t ms) {
+        const uint32_t start = millis();
+        while (millis() - start < ms) { pushCanvas(); delay(1); }
+    }
+    ds::DisplayCore& core() { return _core; }
+    uint32_t getLastTransmitTime() const { return _lastUs; }
+    uint32_t getFrameCounter() const { return _frames; }
+    void resetFrameCounter() { _frames = 0; }
+private:
+    ds::DisplayCore _core;
+    LGFX_Sprite _canvas;
+    uint32_t _lastUs = 0;
+    volatile uint32_t _frames = 0;
+};
+CanvasDisplay display;
+
+// 패널 방향: state=true → 0xA1/0xC8 (U8g2 초기값 = setFlip(false)), false → 0xA0/0xC0 (setFlip(true))
 void applyFlipState(bool state) {
-  uint8_t seg = state ? 0xA1 : 0xA0;
-  uint8_t com = state ? 0xC8 : 0xC0;
-  
-  for (int i = 0; i < NUM_SCREENS; i++) {
-    DisplayEngine::screens[i]->sendF("c", seg);
-    DisplayEngine::screens[i]->sendF("c", com);
-  }
+  display.core().setFlip(!state);
 }
 
 void toggleFlip() {
@@ -130,73 +143,7 @@ void onFpsReport() {
 
 
 
-/**
- * @brief 비차단 멜로디 재생 시작 (여러 음을 큐에 등록)
- */
-void playMelodyAsync(const ToneNote* notes, int count) {
-    if (count > MAX_MELODY_NOTES) count = MAX_MELODY_NOTES;
-    for (int i = 0; i < count; i++) _melodyQueue[i] = notes[i];
-    _melodyLen = count;
-    _melodyIdx = 0;
-    tone(BUZZER_PIN, _melodyQueue[0].freq);
-    _toneEndAt = millis() + _melodyQueue[0].durationMs;
-    _tonePhase = TONE_PLAYING;
-}
-
-/**
- * @brief 비차단 단일 부저음 (loop 내 버튼 피드백용)
- * @param duration 소리가 나는 시간 (ms)
- * @param freq 주파수 (Hz) - 기본값 2000Hz
- */
-void beepAsync(int duration = 50, int freq = 2000) {
-    ToneNote n = {freq, duration, 0};
-    playMelodyAsync(&n, 1);
-}
-
-/**
- * @brief 부저 상태 업데이트 — loop()에서 매 사이클 호출 필수
- */
-void updateTone() {
-    if (_tonePhase == TONE_IDLE) return;
-    unsigned long now = millis();
-    
-    if (_tonePhase == TONE_PLAYING && now >= _toneEndAt) {
-        noTone(BUZZER_PIN);
-        int pauseMs = _melodyQueue[_melodyIdx].pauseMs;
-        _melodyIdx++;
-        
-        if (_melodyIdx >= _melodyLen) {
-            _tonePhase = TONE_IDLE;
-        } else if (pauseMs > 0) {
-            _pauseEndAt = now + pauseMs;
-            _tonePhase = TONE_PAUSE;
-        } else {
-            tone(BUZZER_PIN, _melodyQueue[_melodyIdx].freq);
-            _toneEndAt = now + _melodyQueue[_melodyIdx].durationMs;
-        }
-    }
-    
-    if (_tonePhase == TONE_PAUSE && now >= _pauseEndAt) {
-        if (_melodyIdx < _melodyLen) {
-            tone(BUZZER_PIN, _melodyQueue[_melodyIdx].freq);
-            _toneEndAt = now + _melodyQueue[_melodyIdx].durationMs;
-            _tonePhase = TONE_PLAYING;
-        } else {
-            _tonePhase = TONE_IDLE;
-        }
-    }
-}
-
-/**
- * @brief 블로킹 부저음 (캘리브레이션 등 의도적 대기 구간 전용).
- * @param duration 소리가 나는 시간 (ms)
- * @param freq 주파수 (Hz) - 기본값 2000Hz
- */
-void beep(int duration = 50, int freq = 2000) {
-  tone(BUZZER_PIN, freq);
-  delay(duration);
-  noTone(BUZZER_PIN);
-}
+// 부저는 ds::Buzzer가 FreeRTOS 타이머로 비차단 재생한다.
 
 /**
  * @brief 버튼 도움말 화면을 512x64 가상 캔버스에 렌더링
@@ -238,6 +185,51 @@ void drawHelpScreen() {
   Serial.printf("[HELP] Mode: %s\n", isHelpMode ? "ON" : "OFF");
 }
 
+// --- [버튼 콜백] ---
+/** BTN1 짧게: 화면 180° 플립 */
+static void onFlipShort() {
+  toggleFlip();
+  buzzer.beep(50, 3000);
+}
+
+/** BTN2 짧게: (미할당 — 비프음만) */
+static void onHelpShort() {
+  buzzer.beep(50, 3000);
+}
+
+/** BTN2 길게: 도움말 토글 */
+static void onHelpLong() {
+  isHelpMode = !isHelpMode;
+  buzzer.beep(200, 2000);
+  if (isHelpMode) drawHelpScreen();   // 진입 시 1회 렌더링
+}
+
+/** BTN4 짧게: 스펙트럼 ↔ 파형 */
+static void onModeShort() {
+  vizMode = (vizMode + 1) % 2;
+  buzzer.beep(50, 3000);
+  Serial.printf("[VIZ] Mode: %s\n", vizMode == 0 ? "Spectrum" : "Waveform");
+}
+
+/** BTN4 길게: 버튼을 뗀 뒤 1초 기다렸다가 노이즈 캘리브레이션 (버튼 소음 방지) */
+static void onCalibrateLong() {
+  buzzer.beep(200, 2000);
+  LGFX_Sprite& canvas = display.getCanvas();
+  canvas.clear();
+  canvas.setFont(&fonts::FreeSansBold12pt7b);
+  canvas.drawCenterString("RELEASE BUTTON TO START", CANVAS_WIDTH / 2, TEXT_Y_OFFSET);
+  display.pushCanvas();
+
+  while (digitalRead(ds::kButtonPins[BTN_IDX_CAL]) == LOW) vTaskDelay(pdMS_TO_TICKS(10));
+
+  canvas.clear();
+  canvas.drawCenterString("WAIT 1.0 SEC...", CANVAS_WIDTH / 2, TEXT_Y_OFFSET);
+  display.pushCanvas();
+  delay(CAL_START_DELAY_MS);
+
+  runCalibration();
+}
+
 void setup() {
   Serial.begin(115200);
 
@@ -258,14 +250,16 @@ void setup() {
   prefs.end();
   applyFlipState(is_flipped);
 
-  // 버튼 설정
-  pinMode(CAL_BUTTON_PIN, INPUT_PULLUP);
-  pinMode(FLIP_BUTTON_PIN, INPUT_PULLUP);
-  pinMode(HELP_BUTTON_PIN, INPUT_PULLUP);
-  
+  // 버튼 설정 (짧게 > 50ms, 길게 > BTN_LONG_PRESS_MS)
+  ds::ButtonTiming timing;
+  timing.longPressMs = BTN_LONG_PRESS_MS;
+  buttons.begin(timing);
+  buttons.setCallbacks(BTN_IDX_FLIP, onFlipShort, nullptr);
+  buttons.setCallbacks(BTN_IDX_HELP, onHelpShort, onHelpLong);
+  buttons.setCallbacks(BTN_IDX_CAL, onModeShort, onCalibrateLong);
+
   // 부저 초기화
-  pinMode(BUZZER_PIN, OUTPUT);
-  digitalWrite(BUZZER_PIN, LOW);
+  buzzer.begin();
 
   // FPS 타이머 시작
   fps_ticker.attach(1.0, onFpsReport);
@@ -280,81 +274,8 @@ void setup() {
 }
 
 void loop() {
-  // [Step 0] 비차단 부저 상태 업데이트 (매 사이클 필수)
-  updateTone();
-
-  // [Step 1] 캘리브레이션/모드 버튼 체크 (9번 핀, Short/Long 분리)
-  if (digitalRead(CAL_BUTTON_PIN) == LOW) {
-    if (!btn_is_held) {
-      btn_press_start_time = millis();
-      btn_is_held = true;
-      cal_long_press_fired = false;
-    } else if (!cal_long_press_fired && millis() - btn_press_start_time > BTN_LONG_PRESS_MS) {
-      // 롱 프레스: 캘리브레이션 진입
-      cal_long_press_fired = true;
-      beep(200, 2000); // 캘리브레이션 진입이므로 블로킹 OK
-      LGFX_Sprite& canvas = display.getCanvas();
-      canvas.clear();
-      canvas.setFont(&fonts::FreeSansBold12pt7b);
-      canvas.drawCenterString("RELEASE BUTTON TO START", CANVAS_WIDTH / 2, TEXT_Y_OFFSET);
-      display.pushCanvas();
-
-      while(digitalRead(CAL_BUTTON_PIN) == LOW) vTaskDelay(pdMS_TO_TICKS(10));
-      
-      canvas.clear();
-      canvas.drawCenterString("WAIT 1.0 SEC...", CANVAS_WIDTH / 2, TEXT_Y_OFFSET);
-      display.pushCanvas();
-      delay(CAL_START_DELAY_MS); 
-
-      runCalibration();
-      btn_is_held = false;
-    }
-  } else {
-    // 버튼을 떼 때: 롱프레스가 안 터졌으면 숏프레스
-    if (btn_is_held && !cal_long_press_fired) {
-      if (millis() - btn_press_start_time > 50) { // 디바운스 50ms
-        vizMode = (vizMode + 1) % 2;
-        beepAsync(50, 3000);
-        Serial.printf("[VIZ] Mode: %s\n", vizMode == 0 ? "Spectrum" : "Waveform");
-      }
-    }
-    btn_is_held = false;
-  }
-
-  // [Step 0.5] 플립 버튼 체크 (1번 핀, 엣지 감지 방식)
-  bool flip_state = digitalRead(FLIP_BUTTON_PIN);
-  if (flip_btn_last_state == HIGH && flip_state == LOW) { // 눌림
-    flip_btn_fall_time = millis();
-  } else if (flip_btn_last_state == LOW && flip_state == HIGH) { // 떼짐
-    if (millis() - flip_btn_fall_time > 50) { // 디바운싱 50ms
-      toggleFlip();
-      beepAsync(50, 3000); // 비차단 피드백음
-    }
-  }
-  flip_btn_last_state = flip_state;
-
-  // [Step 3] 도움말 버튼 체크 (4번 핀, Short/Long 분리 — GPS_DASH Button 패턴)
-  bool help_state = digitalRead(HELP_BUTTON_PIN);
-  if (help_btn_last_state == HIGH && help_state == LOW) { // 눌림 (Falling Edge)
-    help_btn_fall_time = millis();
-    help_long_press_fired = false;
-  } else if (help_state == LOW) { // 누르고 있는 상태 (Hold)
-    if (!help_long_press_fired && millis() - help_btn_fall_time > BTN_LONG_PRESS_MS) {
-      // 롱 프레스: 도움말 토글
-      help_long_press_fired = true;
-      isHelpMode = !isHelpMode;
-      beepAsync(200, 2000);
-      if (isHelpMode) {
-        drawHelpScreen(); // 진입 시 1회 렌더링
-      }
-    }
-  } else if (help_btn_last_state == LOW && help_state == HIGH) { // 떼짐 (Rising Edge)
-    if (!help_long_press_fired && millis() - help_btn_fall_time > 50) {
-      // 숏 프레스: (현재 미할당 — 비프음만 발생)
-      beepAsync(50, 3000);
-    }
-  }
-  help_btn_last_state = help_state;
+  // [Step 1] 버튼 처리 (콜백: onFlipShort / onHelpShort·onHelpLong / onModeShort·onCalibrateLong)
+  buttons.update();
 
   // [Step 4] 도움말 모드일 때는 비주얼라이저 일시정지 (정적 화면 유지)
   if (isHelpMode) {

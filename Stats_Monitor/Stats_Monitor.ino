@@ -10,41 +10,24 @@
 #include <BLEUtils.h>
 #include <BLE2902.h>
 #include <ArduinoJson.h>
-#include <U8g2lib.h>
-#include <Wire.h>
 #include <Preferences.h>      // 비휘발성 설정 저장용
-#include "driver/gpio.h"      // ESP32 하드웨어 레지스터 직접 제어를 위한 헤더
-#include "soc/gpio_struct.h"  // GPIO 구조체 정의 (고속 GPIO 조작용)
+#include <DeskStreamCore.h>   // 화면 엔진·버튼·부저 (libraries/DeskStreamCore)
 
 /**
  * 🛠 Stats_Monitor: ESP32-C3 기반 4개 OLED 시스템 상태 모니터
  * - 2개의 하드웨어 I2C 및 2개의 소프트웨어 I2C 사용
  * - BLE를 통한 실시간 PC 상태 데이터 수신
- * - 고속 렌더링 최적화 (Dirty Checking 및 Fast GPIO) 적용
+ * - 화면 전송·버튼·부저는 DeskStreamCore (HW 1.1MHz + 고속 SW I2C, 바뀐 타일만 병렬 전송)
  * - 버튼(BTN1)을 통한 180도 화면 회전 및 부저 피드백 추가
  */
 
-// --- [0] 하드웨어 버튼 및 부저 핀 설정 ---
-const int BTN1_PIN = 1;   // OLED 1 / Flip 제어용
-const int BTN2_PIN = 4;   // 기능 확장용
-const int BTN3_PIN = 10;  // 기능 확장용
-const int BTN4_PIN = 9;   // 기능 확장용
-const int BUZZER_PIN = 7; // 부저 피드백용
-
-// --- [1] HW/SW I2C 핀 설정 ---
-const uint8_t hw_sda_pin = 5;
-const uint8_t hw_scl_pin = 6;
-const uint8_t sw_sda_pin = 2;
-const uint8_t sw_scl_pin = 3;
-
-// --- [2] OLED 디스플레이 객체 초기화 ---
-U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2_1(U8G2_R0, U8X8_PIN_NONE);                          // HW I2C (0x3C)
-U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2_2(U8G2_R0, U8X8_PIN_NONE);                          // HW I2C (0x3D)
-U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_3(U8G2_R0, sw_scl_pin, sw_sda_pin, U8X8_PIN_NONE);  // SW I2C (0x3C)
-U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_4(U8G2_R0, sw_scl_pin, sw_sda_pin, U8X8_PIN_NONE);  // SW I2C (0x3D)
-
-U8G2 *screens[4] = { &u8g2_1, &u8g2_2, &u8g2_3, &u8g2_4 };
-uint8_t shadow_buffer[4][1024];  // 변경 감지용 버퍼 (전체 화면 전송 최소화)
+// --- [0]~[2] 핀·OLED ---
+// 핀·OLED 주소는 DeskStreamCore ds_board.h가 정의한다.
+// U8G2_R0 + 패널 방향 명령(setFlip)으로 회전한다 — 아래 updateDisplayFlip() 참조.
+static ds::DisplayCore display;
+U8G2** screens = display.screens();
+static ds::Buttons buttons;
+static ds::Buzzer buzzer;
 
 // --- [3] 시스템 설정 및 상태 변수 ---
 Preferences prefs;
@@ -56,89 +39,23 @@ bool isHelpMode = false;         // 버튼 도움말 표시 여부
 bool _settingsDirty = false;
 unsigned long _lastSettingsChange = 0;
 
-// --- [4] 비차단 부저 시스템 (Tone System) ---
-struct ToneNote {
-  int freq;
-  int durationMs;
-  int pauseMs;
-};
-
-const int MAX_MELODY_NOTES = 5;
-ToneNote _melodyQueue[MAX_MELODY_NOTES];
-int _melodyLen = 0;
-int _melodyIdx = 0;
-unsigned long _toneEndAt = 0;
-unsigned long _pauseEndAt = 0;
-enum TonePhase { TONE_IDLE, TONE_PLAYING, TONE_PAUSE };
-TonePhase _tonePhase = TONE_IDLE;
-
-void playMelodyAsync(const ToneNote* notes, int count) {
-  if (count > MAX_MELODY_NOTES) count = MAX_MELODY_NOTES;
-  for (int i = 0; i < count; i++) _melodyQueue[i] = notes[i];
-  _melodyLen = count;
-  _melodyIdx = 0;
-  tone(BUZZER_PIN, _melodyQueue[0].freq);
-  _toneEndAt = millis() + _melodyQueue[0].durationMs;
-  _tonePhase = TONE_PLAYING;
-}
-
-void beepAsync(int duration = 50, int freq = 3000) {
-  ToneNote n = {freq, duration, 0};
-  playMelodyAsync(&n, 1);
-}
-
-void updateTone() {
-  if (_tonePhase == TONE_IDLE) return;
-  unsigned long now = millis();
-  if (_tonePhase == TONE_PLAYING && now >= _toneEndAt) {
-    noTone(BUZZER_PIN);
-    int pauseMs = _melodyQueue[_melodyIdx].pauseMs;
-    _melodyIdx++;
-    if (_melodyIdx >= _melodyLen) {
-      _tonePhase = TONE_IDLE;
-    } else if (pauseMs > 0) {
-      _pauseEndAt = now + pauseMs;
-      _tonePhase = TONE_PAUSE;
-    } else {
-      tone(BUZZER_PIN, _melodyQueue[_melodyIdx].freq);
-      _toneEndAt = now + _melodyQueue[_melodyIdx].durationMs;
-    }
-  }
-  if (_tonePhase == TONE_PAUSE && now >= _pauseEndAt) {
-    if (_melodyIdx < _melodyLen) {
-      tone(BUZZER_PIN, _melodyQueue[_melodyIdx].freq);
-      _toneEndAt = now + _melodyQueue[_melodyIdx].durationMs;
-      _tonePhase = TONE_PLAYING;
-    } else {
-      _tonePhase = TONE_IDLE;
-    }
-  }
-}
+// --- [4] 부저 — ds::Buzzer가 타이머로 비차단 재생한다 ---
+static const ds::Note BOOT_MELODY[] = {{2093, 80, 30}, {2637, 80, 30}, {3136, 80, 30}, {4186, 200, 0}};
 
 void playBootMelody() {
-  ToneNote notes[] = {{2093, 80, 30}, {2637, 80, 30}, {3136, 80, 30}, {4186, 200, 0}};
-  playMelodyAsync(notes, 4);
+  buzzer.playMelody(BOOT_MELODY, sizeof(BOOT_MELODY) / sizeof(BOOT_MELODY[0]));
 }
 
 // --- [5] 화면 회전 (Flip) 제어 ---
+// 패널 명령: 0도 = 0xA0/0xC0, 180도 = 0xA1/0xC8.
+//   U8g2 setFlipMode(1)이 0xA0/0xC0, setFlipMode(0)이 0xA1/0xC8을 보내므로 0도일 때 setFlip(true)다.
 void updateDisplayFlip() {
-  uint8_t seg, com;
-  if (currentFlipMode == 2) { // 180도 회전 (H+V Flip)
-    seg = 0xA1; com = 0xC8;
-  } else { // 원래 화면
-    seg = 0xA0; com = 0xC0;
-  }
-  for (int i = 0; i < 4; i++) {
-    screens[i]->sendF("c", seg);
-    screens[i]->sendF("c", com);
-  }
+  display.setFlip(currentFlipMode != 2);
 }
 
 // --- [6] 밝기 제어 ---
 void updateBrightness() {
-  for (int i = 0; i < 4; i++) {
-    screens[i]->setContrast(currentBrightness);
-  }
+  display.setBrightness(currentBrightness);
 }
 
 // --- [6] 도움말 화면 (Help Screen) ---
@@ -235,43 +152,17 @@ void checkDeferredSave() {
   }
 }
 
-// --- [7] 하드웨어 버튼 처리 (Button System) ---
-struct Button {
-  int pin;
-  bool lastState;
-  unsigned long fallTime;
-  bool isPressed;
-  bool isLongPressFired;
-  void (*onShortPress)();
-  void (*onLongPress)();
-
-  Button(int p, void (*sp)(), void (*lp)()) : pin(p), lastState(HIGH), fallTime(0), isPressed(false), isLongPressFired(false), onShortPress(sp), onLongPress(lp) {}
-
-  void init() { pinMode(pin, INPUT_PULLUP); }
-
-  void update() {
-    bool currentState = digitalRead(pin);
-    unsigned long now = millis();
-    if (lastState == HIGH && currentState == LOW) {
-      fallTime = now;
-      isPressed = true;
-      isLongPressFired = false;
-    } else if (currentState == LOW) {
-      if (isPressed && !isLongPressFired && (now - fallTime > 1000)) {
-        isLongPressFired = true;
-        beepAsync(200, 2000);
-        if (onLongPress) onLongPress();
-      }
-    } else if (lastState == LOW && currentState == HIGH) {
-      if (isPressed && !isLongPressFired && (now - fallTime > 50)) {
-        beepAsync(50, 3000);
-        if (onShortPress) onShortPress();
-      }
-      isPressed = false;
-    }
-    lastState = currentState;
-  }
-};
+// --- [7] 하드웨어 버튼 처리 — ds::Buttons (짧게 > 50ms, 길게 > 1000ms) ---
+// 짧게: 50ms·3kHz 비프 후 동작 / 길게: 200ms·2kHz 비프만 (길게 동작은 없다)
+void btn1_short();
+void btn2_short();
+void btn3_short();
+void btn4_short();
+static void onShort0() { buzzer.beep(50, 3000); btn1_short(); }
+static void onShort1() { buzzer.beep(50, 3000); btn2_short(); }
+static void onShort2() { buzzer.beep(50, 3000); btn3_short(); }
+static void onShort3() { buzzer.beep(50, 3000); btn4_short(); }
+static void onLong()   { buzzer.beep(200, 2000); }
 
 void btn1_short() {
   currentFlipMode = (currentFlipMode == 0) ? 2 : 0;
@@ -305,62 +196,13 @@ void btn4_short() {
   Serial.printf("[HELP] Help Mode: %s\n", isHelpMode ? "ON" : "OFF");
 }
 
-Button btns[4] = {
-  Button(BTN1_PIN, btn1_short, NULL),
-  Button(BTN2_PIN, btn2_short, NULL),
-  Button(BTN3_PIN, btn3_short, NULL),
-  Button(BTN4_PIN, btn4_short, NULL)
-};
-
-// --- [3] 고속 최적화: ESP32-C3 전용 SW I2C 콜백 ---
-// 표준 digitalWrite보다 훨씬 빠른 레지스터 직접 쓰기 방식 사용
-extern "C" uint8_t u8x8_gpio_and_delay_esp32_c3_fast(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr) {
-  uint8_t pin;
-  switch (msg) {
-    case U8X8_MSG_GPIO_AND_DELAY_INIT:
-      pin = u8x8->pins[U8X8_PIN_I2C_CLOCK];
-      if (pin != U8X8_PIN_NONE) {
-        pinMode(pin, OUTPUT_OPEN_DRAIN);
-        gpio_set_level((gpio_num_t)pin, 1);
-      }
-      pin = u8x8->pins[U8X8_PIN_I2C_DATA];
-      if (pin != U8X8_PIN_NONE) {
-        pinMode(pin, OUTPUT_OPEN_DRAIN);
-        gpio_set_level((gpio_num_t)pin, 1);
-      }
-      break;
-    case U8X8_MSG_DELAY_MILLI: delay(arg_int); break;
-    case U8X8_MSG_GPIO_I2C_CLOCK:
-      pin = u8x8->pins[U8X8_PIN_I2C_CLOCK];
-      if (pin != U8X8_PIN_NONE) {
-        if (arg_int) GPIO.out_w1ts.val = (1 << pin);
-        else GPIO.out_w1tc.val = (1 << pin);
-      }
-      break;
-    case U8X8_MSG_GPIO_I2C_DATA:
-      pin = u8x8->pins[U8X8_PIN_I2C_DATA];
-      if (pin != U8X8_PIN_NONE) {
-        if (arg_int) GPIO.out_w1ts.val = (1 << pin);
-        else GPIO.out_w1tc.val = (1 << pin);
-      }
-      break;
-    default: u8x8_SetGPIOResult(u8x8, 1); break;
-  }
-  return 1;
-}
-
-// --- [4] 고속 최적화: 스마트 데이터 전송 (Dirty Checking) ---
-// 이전 프레임과 비교하여 데이터가 변경된 페이지만 선택적으로 OLED에 전송
+// --- [4] 화면 전송 ---
+// 바뀐 타일만 4화면에 병렬 전송한다 (ds::DisplayCore::push — 셰도 diff는 엔진 안에 있다).
+//   예전엔 화면 하나씩 바뀐 페이지 전체(128px)를 Wire 800kHz로 동기 전송했다.
+//   인자(화면 번호)는 호출부 호환용이다 — push()는 바뀐 화면을 모두 보낸다.
 void smartSendBuffer(int s_idx) {
-  U8G2 *u = screens[s_idx];
-  uint8_t *u8g2_buf = u->getBufferPtr();
-
-  for (int p = 0; p < 8; p++) {
-    if (memcmp(&u8g2_buf[p * 128], &shadow_buffer[s_idx][p * 128], 128) != 0) {
-      memcpy(&shadow_buffer[s_idx][p * 128], &u8g2_buf[p * 128], 128);
-      u->updateDisplayArea(0, p, 16, 1);  // 변경된 1페이지(128px)만 업데이트
-    }
-  }
+  (void)s_idx;
+  display.push();
 }
 
 // --- [5] BLE 서비스 설정 ---
@@ -524,8 +366,7 @@ void setup() {
   //   HWCDC::write()는 호스트가 포트를 읽어주지 않으면(링버퍼 256B가 가득 찬 뒤)
   //   xRingbufferSend(..., tx_timeout_ms=100ms)를 max_consec_timeouts(20)회까지
   //   반복하며 "호출당 최대 2초"를 블로킹한다.
-  //   버튼 핸들러의 Serial.printf() 한 줄이 loop()를 2초 멈추면 updateTone()이
-  //   실행되지 못해 50ms 비프음이 2초 넘게 계속 울리고, 뒤따르는 버튼 동작도 늦어진다.
+  //   버튼 핸들러의 Serial.printf() 한 줄이 loop()를 2초 멈추면 뒤따르는 버튼 동작이 늦어진다.
   //   로그가 ~38B/줄이므로 부팅 로그 + 버튼 5~6회면 256B가 차서 증상이 시작되며,
   //   호스트가 읽지 않는 한 계속 차 있으므로 리셋 전까지 매번 반복된다.
   //
@@ -535,32 +376,18 @@ void setup() {
   Serial.setTxTimeoutMs(0);
 #endif
 
-  // I2C 초기화 및 속도 최적화
-  Wire.begin(hw_sda_pin, hw_scl_pin);
-  Wire.setClock(800000);  // 하드웨어 I2C 800kHz
-
-  // 소프트웨어 I2C 고속 드라이버 할당
-  u8g2_3.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast;
-  u8g2_4.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast;
-  u8g2_1.setBusClock(800000);
-  u8g2_2.setBusClock(800000);
-
-  // 디스플레이 시작
-  u8g2_1.setI2CAddress(0x3C * 2);
-  u8g2_1.begin();
-  u8g2_2.setI2CAddress(0x3D * 2);
-  u8g2_2.begin();
-  u8g2_3.setI2CAddress(0x3C * 2);
-  u8g2_3.begin();
-  u8g2_4.setI2CAddress(0x3D * 2);
-  u8g2_4.begin();
-
-  memset(shadow_buffer, 0, sizeof(shadow_buffer));  // 섀도 버퍼 초기화
+  // 화면 엔진 초기화 (HW I2C 1.1MHz·고속 SW I2C·병렬 전송) — U8G2_R0
+  ds::DisplayConfig cfg;
+  cfg.rotation = U8G2_R0;
+  display.begin(cfg);
 
   // 버튼 및 부저 초기화
-  for (int i = 0; i < 4; i++) btns[i].init();
-  pinMode(BUZZER_PIN, OUTPUT);
-  digitalWrite(BUZZER_PIN, LOW);
+  buttons.begin();
+  buttons.setCallbacks(0, onShort0, onLong);
+  buttons.setCallbacks(1, onShort1, onLong);
+  buttons.setCallbacks(2, onShort2, onLong);
+  buttons.setCallbacks(3, onShort3, onLong);
+  buzzer.begin();
 
   // 설정 로드 (화면 회전 등)
   loadSettings();
@@ -576,18 +403,13 @@ void setup() {
   pServer->getAdvertising()->start();
   Serial.println("[SYSTEM] Stats Monitor Ready.");
 
-  // 부팅 멜로디는 반드시 setup()의 맨 마지막에서 재생한다.
-  // [버그 수정] playMelodyAsync()는 duration=0 톤을 켜기만 하고, 실제 정지는
-  // loop()의 updateTone()에서만 수행된다. 이 호출을 setup() 중간에 두면
-  // (예: BLEDevice::init() 앞) 첫 음이 BLE 초기화가 끝날 때까지 계속 울린 뒤
-  // 나머지 3음이 재생되는 증상이 생긴다. loop() 직전에 시작해야 첫 음 80ms가 지켜진다.
+  // 부팅 멜로디 (ds::Buzzer가 타이머로 재생하므로 loop() 진입 시점과 무관하게 박자가 지켜진다)
   playBootMelody();
 }
 
 void loop() {
   // 1. 하드웨어 업데이트 (버튼, 부저, 설정 저장)
-  for (int i = 0; i < 4; i++) btns[i].update();
-  updateTone();
+  buttons.update();
   checkDeferredSave();
 
   // 2. 화면 매핑 인덱스 계산 (180도 회전 시 4,3,2,1 순서로 반전)

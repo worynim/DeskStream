@@ -1,3 +1,40 @@
+## [v4.18.0] - 2026-11-09
+### 🧩 캔버스 프로젝트 3종 전환 (3단계) · 보안 수정 · 웹 플래셔 배포본 갱신
+- **DeskStreamCore v0.5.0**: 512x64 캔버스 전치 `ds::canvasToScreenPages()`(순수 함수, 호스트 테스트 7건)와 `DisplayCore::pushCanvas()` 추가. 호스트 테스트 7종 통과.
+- **전환**: Sound_Visualizer_4_OLEDs **v3.5.0**, Screen_To_OLEDs **v2.3.0**, OLED_Wide_test **v1.3.0** — 자체 `DisplayEngine`·SW I2C 콜백·버튼·부저 코드를 지우고 라이브러리를 씁니다(LovyanGFX 그리기는 그대로). Game_Of_Life의 엔진 비트맵 전치도 같은 함수로 바꿨습니다. **이로써 12개 프로젝트 전부**가 DeskStreamCore를 씁니다.
+- **보안 수정**: DS_DECK `/upload` 저장 경로를 버튼 번호로만 정하고 파일 제공을 아이콘 4개로 제한, Smart_Info_Station `tz_offset`을 -12~+14로 제한(웹 입력·NVS 로드 모두).
+- **웹 플래셔 배포본 갱신**: 12개 프로젝트를 다시 빌드해 `firmware/`·`manifest.json`·`projects.json`을 갱신했습니다(`--check` 통과). 시계 3종은 공통 파티션 레이아웃(app0 2.5MB)으로 바뀌었고 배포 파티션 테이블에서 app0 2560K를 확인했습니다. 한글 시계 `FPS_BENCH_ON_BOOT`는 0으로 되돌렸습니다.
+  - 버전: Smart_Info_Station 2.10.0 · GPS_DASH 2.7.0 · Sound_Visualizer 3.5.0 · OLED_Wide_test 1.3.0 · Stats_Monitor 1.6.0 · DS_DECK 1.6.0 · Screen_To_OLEDs 2.3.0 · Game_Of_Life 1.1.0 · Hangeul_Clock 2.11.0 · ENG_Clock 1.1.0 · Chinese_Clock 1.1.0 · Universal_Timer 1.1.0
+  - ⚠️ 한글 시계 외에는 실기 확인 전 빌드입니다.
+
+## [v4.17.0] - 2026-11-09
+### 🧩 U8g2 프로젝트 6종 DeskStreamCore 전환 (2단계) · 라이브러리 v0.4.0
+- **전환**: Game_Of_Life **v1.1.0**, Universal_Timer **v1.1.0**, Stats_Monitor **v1.6.0**, GPS_DASH **v2.7.0**, DS_DECK **v1.6.0**, Smart_Info_Station **v2.10.0**.
+  - 화면 전송: 프로젝트마다 달랐던 Wire 400k~1MHz 전체 프레임 동기 전송·자체 SW I2C 콜백을 지우고 `ds::DisplayCore`(HW 1.1MHz·고속 SW I2C·바뀐 타일만 병렬 전송)로 통일했습니다. Game_Of_Life의 전송 실패 페이지 유실 결함도 함께 사라졌습니다.
+  - 버튼·부저: 5가지 변종 버튼 구조체와 `ToneNote` 큐·부저 타이머를 `ds::Buttons`·`ds::Buzzer`로 통일했습니다(부팅 멜로디 비차단). 버튼 판정·비프음·회전/반전 방식은 프로젝트별로 그대로입니다.
+  - DS_DECK·Smart_Info_Station의 WiFi는 `ds::WifiService`, Smart_Info_Station의 NTP 감독은 `ds::TimeSync`(저장 형식인 시간 오프셋은 그대로, `"UTC-9"` 형태로 변환)입니다.
+- **DeskStreamCore v0.4.0**: 버튼 이벤트 비트마스크(Universal_Timer의 LONG/REPEAT 덮어쓰기 해결)·자동 반복·안정 디바운스·누름 즉시 이벤트, 부저 반복 재생(알람)·`stop()`. 호스트 테스트 6종 통과.
+- 보안 점검 메모: DS_DECK `/upload` 파일명 미정제, Smart_Info_Station `/set`의 `tz_offset` 범위 미검사 → v4.18.0에서 수정.
+- **시계 3종 파티션 확장**: `default` 스킴(app0 1.25MB)으로는 ENG 여유 141 B, 한글·중국어도 99%라 세 스케치 폴더에 DeskStream 공통 레이아웃 `partitions.csv`(app0 2.5MB, spiffs `0x290000` 그대로 — 폰트 보존)를 추가했습니다. Export 시 `Partition Scheme`은 **Huge APP**를 선택합니다.
+- **`AI_GUIDE.md` 신설**: 새 프로젝트를 만들 때 AI가 DeskStreamCore를 쓰도록 안내하는 문서(규칙·빌드 환경·보드 상수·템플릿·모듈별 API와 주의점·체크리스트·라이브러리 수정 절차). 문서의 예제 코드는 ESP32-C3 빌드로 확인했습니다.
+- ⚠️ **웹 플래셔 배포본은 아직 이전 버전**입니다. 실기 확인 뒤 Export → `node tools/collect-firmware.mjs`로 함께 갱신합니다.
+
+## [v4.16.0] - 2026-11-09
+### 🧩 DeskStreamCore v0.2.0 · 한글 시계 v2.11.0 전환 (1단계 ①)
+- **`libraries/DeskStreamCore` v0.2.0**: 한글 시계 v2.10.0에서 화면 엔진(`ds::DisplayCore`)·버튼·부저(비차단 멜로디)·WiFi·NTP 감독·설정 저장(필드 테이블)·웹 설정 API·로거를 추출했습니다. 호스트 테스트 6종(151건) 통과.
+- **Hangeul_Clock v2.11.0**: 복사본 15개 파일을 지우고 라이브러리를 사용합니다. 설정 JSON·NVS 키는 그대로라 기존 설정이 유지됩니다. 시작·시보 멜로디가 비차단이 됐고, 신규 기기 FLIP 표식 누락·HW 명령 패킷 넘침 플래그 버그를 고쳤습니다. 앱 크기 1,292,487 → 1,294,675 B (98%).
+- **ENG_Clock v1.1.0 · Chinese_Clock v1.1.0** (DeskStreamCore v0.3.0): 같은 방식으로 복사본 13개 파일을 지우고 라이브러리를 사용합니다. 한글 시계의 화면 전송 개선(HW 1.1MHz·병합 전송·고속 SW I2C — 한글 시계 실측 4화면 45.7fps)과 비차단 WiFi 접속(최대 60초 블로킹 제거)이 함께 들어왔습니다. 방향 기본값·설정 키는 그대로입니다. 크기: ENG 1,310,047 B(여유 673 B), Chinese 1,306,489 B.
+- 한글 시계 실기 확인: 4화면 풀 프레임 21.90ms / **45.7fps** (v2.10.0의 44.6fps보다 소폭 향상), SW 버스 오류 0.
+- ⚠️ **웹 플래셔 배포본은 아직 이전 버전**입니다. 영어·중국어 시계 실기 확인 뒤 세 시계를 Export → `node tools/collect-firmware.mjs`로 함께 갱신합니다.
+
+## [v4.15.0] - 2026-11-09
+### 🧩 공통 라이브러리 DeskStreamCore 신설 (0단계: 기반)
+- **배경**: 화면 전송·버튼·부저·WiFi·NTP·설정 저장 코드를 프로젝트마다 복사(`[SYNC]` 주석)해 쓰다 보니 버전이 서로 어긋났습니다. 이를 Arduino 라이브러리 하나로 모아 모든 스케치가 공유하도록 단계적으로 전환합니다.
+- **`libraries/DeskStreamCore` v0.1.0**: 공통 핀 맵(`ds_board.h`)과 Hangeul_Clock v2.10.0 의 순수 모듈(`ds_tz_util`, `ds_time_sync_policy`, `ds_i2c_retry_policy`, `ds_utf8`)을 `namespace ds`로 옮겼습니다. 로직은 바꾸지 않았습니다. 호스트 테스트 4종(109건) 통과.
+- **`scripts/link-arduino-lib.sh`**: 라이브러리를 Arduino 스케치북 `libraries/`에 심볼릭 링크합니다(PC마다 1회).
+- **`tools/collect-firmware.mjs`**: `DeskStreamCore.h`를 include 하는 스케치는 라이브러리 `src/` 변경도 "소스가 바이너리보다 최신" 판정에 포함합니다.
+- 아직 라이브러리를 사용하는 스케치는 없어 펌웨어·웹 플래셔 배포본 변경은 없습니다.
+
 ## [v4.14.3] - 2026-11-09
 ### ⚡ Performance (Hangeul_Clock v2.10.0) — 4화면 풀 프레임 34 → 44.6 fps
 - **HW I2C(화면 0·1)**: 800kHz → **1.1MHz**. 1.2MHz에서는 화면 0이 NACK를 돌려줘서 1.1MHz로 정했습니다. 실효는 710 → 904kHz입니다.

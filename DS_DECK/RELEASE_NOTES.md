@@ -1,5 +1,13 @@
 # Release Notes - DS DECK
 
+## [v1.6.0] - 2026-11-09
+### 🧩 공통 라이브러리 DeskStreamCore로 전환
+- **DeskStreamCore 전환**: Wire 400kHz 전송·자체 SW I2C 콜백·`pushDirty` diff·버튼 구조체를 지우고 `ds::DisplayCore`·`ds::Buttons`·`ds::Buzzer`·`ds::WifiService`를 쓴다.
+- **화면 전송**: HW I2C 1.1MHz + 페이지 병합, 고속 SW I2C(실효 약 1.15MHz), 바뀐 타일만 HW·SW 버스 **병렬** 전송 (`ds::DisplayCore`). 4화면을 부팅 시 함께 초기화한다(예전엔 1번만 먼저 켰다).
+- **WiFi**: 저장된 AP 10초 비차단 시도 → 설정 포털 60초 → 실패해도 단독(BLE) 모드로 계속 — 예전 `autoConnect` 동작과 같다.
+- 버튼 동작(짧게 매크로·150ms 피드백 복구, BTN4 길게 IP 표시, IP 화면에서 아무 버튼 복귀)과 부저음은 같다. 크기 1,492,689 B.
+- **보안 수정**: `/upload`가 업로드 파일명을 그대로 경로로 써(`"/" + 파일명`) `/config.json` 등을 덮어쓸 수 있었다 → 저장 경로를 `idx`(0~3)로만 정한다(`/icon1.bin`~`/icon4.bin`), 잘못된 idx는 거부, 전송 중단 시 파일 핸들 정리. 파일 내려받기(onNotFound)도 아이콘 4개로 제한했다(예전엔 LittleFS 전체). 웹 UI 동작은 같다.
+
 ## [v1.5.2] - 2026-11-04
 ### 🛠️ Changed
 - **파티션 레이아웃을 DeskStream 공통안으로 통합**: 스케치 폴더에 `partitions.csv`를 추가해 spiffs를 `default` 스킴과 동일한 `0x290000`에 고정했습니다.

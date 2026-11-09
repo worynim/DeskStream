@@ -12,9 +12,8 @@
 #include "LittleFS.h"
 #include <ArduinoJson.h>
 
-#ifndef BUZZER_PIN
-#define BUZZER_PIN 7
-#endif
+#include <DeskStreamCore.h>
+extern ds::Buzzer buzzer;   // DS_DECK.ino에서 정의 (비차단 비프)
 extern WebServer server;
 extern void drawDefaultScreen(int idx);
 
@@ -507,7 +506,7 @@ void initWebHandlers() {
         if(f) { serializeJson(doc, f); f.close(); }
         // 라벨이나 모드가 즉시 반영될 수 있도록 명시적 드로우 실행
         drawDefaultScreen(idx); 
-        tone(BUZZER_PIN, 2000, 100); // 기기 적용 성공 부저음
+        buzzer.beep(100, 2000); // 기기 적용 성공 부저음
         server.send(200, "text/plain", "OK");
     });
     
@@ -518,28 +517,39 @@ void initWebHandlers() {
             String path = "/icon" + String(idx + 1) + ".bin";
             if(LittleFS.exists(path)) LittleFS.remove(path);
             drawDefaultScreen(idx);
-            tone(BUZZER_PIN, 1500, 100); // 아이콘 삭제 성공 부저음
+            buzzer.beep(100, 1500); // 아이콘 삭제 성공 부저음
         }
         server.send(200, "text/plain", "OK");
     });
 
+    // 아이콘 업로드 — 저장 경로는 **클라이언트 파일명이 아니라 idx로** 정한다 (/icon1.bin ~ /icon4.bin).
+    //   [보안] 예전엔 "/" + 업로드 파일명으로 그대로 열어, 파일명만 바꾸면 /config.json 등 임의 파일을
+    //   덮어쓸 수 있었다. 웹 UI는 항상 idx와 iconN.bin을 함께 보내므로 동작은 같다.
     server.on("/upload", HTTP_POST, [](){ server.send(200); }, [](){
         static File fUp;
+        static int upIdx = -1;
         HTTPUpload& up = server.upload();
-        if(up.status == UPLOAD_FILE_START) { fUp = LittleFS.open("/" + up.filename, "w"); }
-        else if(up.status == UPLOAD_FILE_WRITE && fUp) { fUp.write(up.buf, up.currentSize); }
-        else if(up.status == UPLOAD_FILE_END && fUp) { 
-            fUp.close(); 
-            if(server.hasArg("idx")) {
-                int idx = server.arg("idx").toInt();
-                if (idx >= 0 && idx <= 3) drawDefaultScreen(idx);
-            }
+        if(up.status == UPLOAD_FILE_START) {
+            if (fUp) fUp.close();
+            upIdx = server.hasArg("idx") ? server.arg("idx").toInt() : -1;
+            if (upIdx < 0 || upIdx > 3) { upIdx = -1; return; }   // 잘못된 idx — 아무 파일도 열지 않는다
+            fUp = LittleFS.open("/icon" + String(upIdx + 1) + ".bin", "w");
         }
+        else if(up.status == UPLOAD_FILE_WRITE && fUp) { fUp.write(up.buf, up.currentSize); }
+        else if(up.status == UPLOAD_FILE_END && fUp) {
+            fUp.close();
+            drawDefaultScreen(upIdx);
+        }
+        else if(up.status == UPLOAD_FILE_ABORTED && fUp) { fUp.close(); }   // 전송 중단 시 핸들 정리
     });
 
+    // 아이콘 파일만 내려준다 (웹 UI 미리보기: /icon1.bin ~ /icon4.bin).
+    //   [보안] 예전엔 LittleFS의 모든 파일(/config.json 포함)을 경로만 알면 내려받을 수 있었다.
     server.onNotFound([]() {
         String path = server.uri();
-        if(LittleFS.exists(path)){
+        const bool isIcon = path.length() == 10 && path.startsWith("/icon") && path.endsWith(".bin")
+                            && path[5] >= '1' && path[5] <= '4';
+        if(isIcon && LittleFS.exists(path)){
             File f = LittleFS.open(path, "r");
             server.streamFile(f, "application/octet-stream");
             f.close();

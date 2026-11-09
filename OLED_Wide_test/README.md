@@ -12,7 +12,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
 ### 2. 지능형 렌더링 엔진 (Smart Flush)
 *   **Shadow Buffering**: 512x64 가상 캔버스의 내용을 별도의 그림자 버퍼와 비교하여 **바뀐 부분(Dirty Page)만** I2C로 전송합니다.
-*   **LovyanGFX + U8g2 조합**: 고속 그리기 연산은 LovyanGFX가 담당하고, OLED 전송은 최적화된 콜백을 가진 U8g2가 담당하는 하이브리드 구조입니다.
+*   **LovyanGFX + DeskStreamCore 조합**: 그리기는 LovyanGFX가, 전치·바뀐 타일만 4화면 병렬 전송은 DeskStreamCore `ds::DisplayCore::pushCanvas()`가 담당합니다 (v1.3.0).
 
 ### 3. 안정적인 프레임 제어 (Frame Pacing)
 *   **Target FPS (30 FPS)**: 성능이 남을 때 속도를 제어하는 프레임 제한기를 적용하여, 애니메이션이 급격히 빨라지거나 느려지는 현상을 방지했습니다.
@@ -30,6 +30,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 ## 📦 설치가 필요한 라이브러리
 이 소스 코드를 컴파일하려면 아두이노 라이브러리 매니저에서 다음 라이브러리들을 설치해야 합니다:
 *   **U8g2**: OLED 디스플레이 드라이버 및 폰트 제어
+*   **DeskStreamCore** + **WiFiManager**: 저장소 `libraries/DeskStreamCore` — 4-OLED 전송·버튼·부저 (빌드 전 루트에서 `bash scripts/link-arduino-lib.sh` 1회) (v1.3.0~)
 *   **LovyanGFX**: 고속 그리기 및 가상 캔버스 라이브러리
 
 ## 🕹️ 조작 및 버튼 기능 (Interface)

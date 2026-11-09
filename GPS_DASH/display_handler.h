@@ -9,7 +9,7 @@
 #define DISPLAY_HANDLER_H
 
 #include <U8g2lib.h>
-#include <Wire.h>
+#include <DeskStreamCore.h>   // 4-OLED 화면 엔진 (libraries/DeskStreamCore)
 
 /**
  * @brief 대시보드 화면에 필요한 데이터를 한번에 묶어 전달하기 위한 구조체
@@ -48,50 +48,15 @@ enum DisplayMode {
 };
 const int DISPLAY_MODE_COUNT = 8;  // 모드 총 개수 (매직넘버 제거용)
 
-#include "driver/gpio.h"
-#include "soc/gpio_struct.h"    // GPIO 구조체 정의 (GPIO.out_w1ts 사용을 위해 필수)
-#include "soc/gpio_reg.h"       // GPIO 레지스터 정의
-
-// --- I2C 핀 설정 ---
-const uint8_t hw_sda_pin = 5;
-const uint8_t hw_scl_pin = 6;
-const uint8_t sw_sda_pin = 2;
-const uint8_t sw_scl_pin = 3;
-
-// --- OLED 객체 선언 ---
-U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2_1(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
-U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2_2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
-U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_3(U8G2_R0, /* clock=*/ sw_scl_pin, /* data=*/ sw_sda_pin, /* reset=*/ U8X8_PIN_NONE);
-U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_4(U8G2_R0, /* clock=*/ sw_scl_pin, /* data=*/ sw_sda_pin, /* reset=*/ U8X8_PIN_NONE);
+// --- 화면 엔진 ---
+// 핀·OLED 주소는 DeskStreamCore ds_board.h. HW 1.1MHz·고속 SW I2C로 바뀐 타일만 병렬 전송한다.
+//   그리기 함수는 각자 화면을 그린 뒤 display.push()를 부른다 (예전엔 화면마다 전체 프레임을 동기 전송했다).
+ds::DisplayCore display;
 
 // --- 애니메이션용 전역 변수 ---
 float smoothedHeading[4] = {0}; // OLED별 독립 보간 각도
 float smoothedSpeed[4] = {0};   // OLED별 독립 보간 속도
 int currentFlipMode = 2;        // 0:Normal, 1:Mirror H, 2:180(HV), 3:Mirror V(180+H)
-
-// 고속 SW I2C 콜백
-extern "C" uint8_t u8x8_gpio_and_delay_esp32_c3_fast(u8x8_t* u8x8, uint8_t msg, uint8_t arg_int, void* arg_ptr) {
-    uint8_t pin;
-    switch (msg) {
-        case U8X8_MSG_GPIO_AND_DELAY_INIT:
-            pin = u8x8->pins[U8X8_PIN_I2C_CLOCK];
-            if (pin != U8X8_PIN_NONE) { pinMode(pin, OUTPUT_OPEN_DRAIN); gpio_set_level((gpio_num_t)pin, 1); }
-            pin = u8x8->pins[U8X8_PIN_I2C_DATA];
-            if (pin != U8X8_PIN_NONE) { pinMode(pin, OUTPUT_OPEN_DRAIN); gpio_set_level((gpio_num_t)pin, 1); }
-            break;
-        case U8X8_MSG_DELAY_MILLI: delay(arg_int); break;
-        case U8X8_MSG_GPIO_I2C_CLOCK:
-            if (arg_int) GPIO.out_w1ts.val = (1 << sw_scl_pin);
-            else         GPIO.out_w1tc.val = (1 << sw_scl_pin);
-            break;
-        case U8X8_MSG_GPIO_I2C_DATA:
-            if (arg_int) GPIO.out_w1ts.val = (1 << sw_sda_pin);
-            else         GPIO.out_w1tc.val = (1 << sw_sda_pin);
-            break;
-        default: u8x8_SetGPIOResult(u8x8, 1); break;
-    }
-    return 1;
-}
 
 /**
  * @brief 위성 모양 아이콘 그리기
@@ -142,28 +107,21 @@ void updateDisplayFlip() {
         case 3: seg = 0xA0; com = 0xC8; break; // 상하반전 (Mirror V)
         default: seg = 0xA0; com = 0xC0; break; // 원래화면
     }
-    u8g2_1.sendF("c", seg); u8g2_1.sendF("c", com);
-    u8g2_2.sendF("c", seg); u8g2_2.sendF("c", com);
-    u8g2_3.sendF("c", seg); u8g2_3.sendF("c", com);
-    u8g2_4.sendF("c", seg); u8g2_4.sendF("c", com);
+    // 좌우·상하 반전 조합 4종이라 ds::DisplayCore::setFlip(2종) 대신 패널 명령을 직접 보낸다
+    for (int i = 0; i < ds::kNumScreens; i++) {
+        display.screen(i).sendF("c", seg);
+        display.screen(i).sendF("c", com);
+    }
 }
 
 /**
  * @brief 디스플레이 초기화
  */
 void initDisplay() {
-    Wire.begin(hw_sda_pin, hw_scl_pin);
-    Wire.setClock(1000000);
-    
-    // SW I2C 콜백 주입
-    u8g2_3.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast;
-    u8g2_4.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast;
-
-    // 개별 시작
-    u8g2_1.setBusClock(1000000); u8g2_1.setI2CAddress(0x3C * 2); u8g2_1.begin();
-    u8g2_2.setBusClock(1000000); u8g2_2.setI2CAddress(0x3D * 2); u8g2_2.begin();
-    u8g2_3.setI2CAddress(0x3C * 2); u8g2_3.begin();
-    u8g2_4.setI2CAddress(0x3D * 2); u8g2_4.begin();
+    // 회전은 패널 명령(updateDisplayFlip)으로 하므로 소프트웨어 회전 없이 시작한다
+    ds::DisplayConfig cfg;
+    cfg.rotation = U8G2_R0;
+    display.begin(cfg);
 
     // 참고: updateDisplayFlip()은 loadSettings() 내부에서 호출되므로 여기서 중복 호출하지 않음
 }
@@ -172,13 +130,14 @@ void initDisplay() {
  * @brief OTA 진행률 표시
  */
 void displayOTAStatus(int progress) {
-    u8g2_1.clearBuffer();
-    u8g2_1.setFont(u8g2_font_6x10_tf);
-    u8g2_1.drawStr(0, 10, "FIRMWARE UPDATING...");
+    U8G2& u = display.screen(0);
+    u.clearBuffer();
+    u.setFont(u8g2_font_6x10_tf);
+    u.drawStr(0, 10, "FIRMWARE UPDATING...");
     char prog[8];
     snprintf(prog, sizeof(prog), "%d%%", progress);
-    drawCenteredText(u8g2_1, prog, 40, u8g2_font_maniac_tr);
-    u8g2_1.sendBuffer();
+    drawCenteredText(u, prog, 40, u8g2_font_maniac_tr);
+    display.push();
 }
 
 /**
@@ -197,7 +156,7 @@ void drawTime(U8G2 &u8g2, const char* time, int year, int month, int day) {
     snprintf(dateBuf, sizeof(dateBuf), "%d.%02d.%02d", year, month, day);
     drawCenteredText(u8g2, dateBuf, 64, u8g2_font_bpixeldouble_tr);
     
-    u8g2.sendBuffer();
+    display.push();
 }
 
 /**
@@ -264,7 +223,7 @@ void drawSpeedGauge(U8G2 &u8g2, float speed, int dispIdx = 0) {
     u8g2.setFont(u8g2_font_6x10_tf);
     u8g2.drawStr(dsx + dsw + 2, 53, "km/h");
 
-    u8g2.sendBuffer();
+    display.push();
 }
 
 /**
@@ -324,7 +283,7 @@ void drawCompass(U8G2 &u8g2, float course, int dispIdx = 0) {
     u8g2.drawStr(startX, 63, valStr); // 숫자
     u8g2.drawCircle(startX + tw + 3, 42,2);  // 작은 도(°) 기호
     
-    u8g2.sendBuffer();
+    display.push();
 }
 
 /**
@@ -365,7 +324,7 @@ void drawSatellites(U8G2 &u8g2, int usedSats, int visibleSats, const char* hdop,
         drawCenteredText(u8g2, footer, 62);
     }
     
-    u8g2.sendBuffer();
+    display.push();
 }
 
 /**
@@ -386,7 +345,7 @@ void drawLatLon(U8G2 &u8g2, float lat, float lon) {
     snprintf(buf, sizeof(buf), "%c: %.4f", lon >= 0 ? 'E' : 'W', lon >= 0 ? lon : -lon);
     u8g2.drawStr(5, 55, buf);
     
-    u8g2.sendBuffer();
+    display.push();
 }
 
 /**
@@ -418,7 +377,7 @@ void drawAltitude(U8G2 &u8g2, float altitude) {
     u8g2.setFont(u8g2_font_6x10_tf);
     u8g2.drawStr(dsx + dsw + 2, 64, "meters");
     
-    u8g2.sendBuffer();
+    display.push();
 }
 
 /**
@@ -483,7 +442,7 @@ void drawCalendar(U8G2 &u8g2, int year, int month, int day) {
         }
         if (currentDay > daysInMonth) break;
     }
-    u8g2.sendBuffer();
+    display.push();
 }
 
 /**
@@ -515,7 +474,7 @@ void drawTripStats(U8G2 &u8g2, unsigned long seconds, float distance) {
     }
     drawCenteredText(u8g2, distBuf, 62, u8g2_font_bpixeldouble_tr);
 
-    u8g2.sendBuffer();
+    display.push();
 }
 
 /**
@@ -559,7 +518,7 @@ void drawHelpScreen(U8G2 &u8g2, int displayIndex) {
     u8g2.drawStr(10, 35, shortDesc);
     u8g2.drawStr(10, 55, longDesc);
     
-    u8g2.sendBuffer();
+    display.push();
 }
 
 /**
@@ -569,7 +528,7 @@ void updateDashboard(const DashboardData& data, int modes[4]) {
     // 도움말 화면 dirty flag — 정적 콘텐츠이므로 전환 시 1회만 렌더링
     static bool _helpDrawn = false;
     
-    U8G2* displays[4] = {&u8g2_1, &u8g2_2, &u8g2_3, &u8g2_4};
+    U8G2** displays = display.screens();
     
     if (data.showHelp) {
         if (!_helpDrawn) {

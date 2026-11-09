@@ -6,88 +6,36 @@
  */
 #include <Arduino.h>
 #include <U8g2lib.h>
-#include <Wire.h>
-#include "driver/gpio.h"
-#include "soc/gpio_struct.h"
+#include <DeskStreamCore.h>   // 화면 엔진·버튼·부저·WiFi (libraries/DeskStreamCore)
 
 #include "LittleFS.h"
-#include <WiFiManager.h>
+#include <WiFi.h>
 #include <WebServer.h>  // 표준 ESP32 WebServer (기존 프로젝트에서 검증됨)
 #include <ArduinoJson.h>
 #include <HijelHID_BLEKeyboard.h>
 
 #include "web_handlers.h"  // 프리미엄 UI 및 웹 라우팅 분리
 
-// === 물리적 핀 정의 ===
-#define BTN1_PIN 1
-#define BTN2_PIN 4
-#define BTN3_PIN 10
-#define BTN4_PIN 9
-#define HW_SDA_PIN 5
-#define HW_SCL_PIN 6
-#define SW_SDA_PIN 2
-#define SW_SCL_PIN 3
-#define BUZZER_PIN 7
-
-// === 전역 객체 ===
-U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2_1(U8G2_R2, U8X8_PIN_NONE);
-U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2_2(U8G2_R2, U8X8_PIN_NONE);
-U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_3(U8G2_R2, SW_SCL_PIN, SW_SDA_PIN, U8X8_PIN_NONE);
-U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_4(U8G2_R2, SW_SCL_PIN, SW_SDA_PIN, U8X8_PIN_NONE);
-U8G2* displays[] = { &u8g2_1, &u8g2_2, &u8g2_3, &u8g2_4 };
+// === 공통 서비스 (DeskStreamCore) — 핀·OLED 주소는 ds_board.h ===
+static ds::DisplayCore display;          // U8G2_R2 · 바뀐 타일만 HW/SW 병렬 전송
+U8G2** displays = display.screens();
+static ds::Buttons buttons;
+ds::Buzzer buzzer;                       // web_handlers.h도 쓴다 (extern)
+static ds::WifiService wifi;
 HijelHID_BLEKeyboard bleKeyboard("DS DECK", "DeskStream", 100);
 
 WebServer server(80);  // 표준 웹 서버 객체
-uint8_t shadow_buffer[4][1024] = { 0 };
 
 // === 매크로 설정 전역 배열 (web_handlers.h의 정의를 사용) ===
 KeyConfig deckConfigs[4];
 bool isShowingIP = false;
 
-// === 고속 SW I2C 콜백 (레지스터 직접 제어) ===
-extern "C" uint8_t u8x8_gpio_and_delay_esp32_c3_fast(u8x8_t* u8x8, uint8_t msg, uint8_t arg_int, void* arg_ptr) {
-  switch (msg) {
-    case U8X8_MSG_GPIO_AND_DELAY_INIT:
-      pinMode(u8x8->pins[U8X8_PIN_I2C_CLOCK], OUTPUT_OPEN_DRAIN);
-      pinMode(u8x8->pins[U8X8_PIN_I2C_DATA], OUTPUT_OPEN_DRAIN);
-      gpio_pullup_en((gpio_num_t)SW_SCL_PIN);
-      gpio_pullup_en((gpio_num_t)SW_SDA_PIN);
-      break;
-    case U8X8_MSG_GPIO_I2C_CLOCK:
-      if (arg_int) GPIO.out_w1ts.val = (1 << SW_SCL_PIN);
-      else GPIO.out_w1tc.val = (1 << SW_SCL_PIN);
-      break;
-    case U8X8_MSG_GPIO_I2C_DATA:
-      if (arg_int) GPIO.out_w1ts.val = (1 << SW_SDA_PIN);
-      else GPIO.out_w1tc.val = (1 << SW_SDA_PIN);
-      break;
-    default: break;
-  }
-  return 1;
-}
-
-// === OLED 더티 체킹 전송 ===
+// === OLED 전송 ===
+// 바뀐 타일만 4화면에 병렬 전송한다 (ds::DisplayCore::push — 셰도 diff는 엔진 안에 있다).
+//   인자(화면 번호)는 호출부 호환용이다 — push()는 바뀐 화면을 모두 보낸다.
 void pushDirty(int idx) {
-  uint8_t* buf = displays[idx]->getBufferPtr();
-  if (!buf) return;
-  for (int p = 0; p < 8; p++) {
-    int first = -1, last = -1;
-    for (int t = 0; t < 16; t++) {
-      bool dirty = false;
-      for (int tx = 0; tx < 8; tx++) {
-        int i = p * 128 + t * 8 + tx;
-        if (buf[i] != shadow_buffer[idx][i]) {
-          dirty = true;
-          shadow_buffer[idx][i] = buf[i];
-        }
-      }
-      if (dirty) {
-        if (first == -1) first = t;
-        last = t;
-      }
-    }
-    if (first != -1) displays[idx]->updateDisplayArea(first, p, last - first + 1, 1);
-  }
+  (void)idx;
+  display.push();
 }
 
 void loadConfig() {
@@ -147,7 +95,7 @@ void drawDefaultScreen(int idx) {
     if (f) {
       f.read(displays[idx]->getBufferPtr(), 1024);
       f.close();
-      // ★ 중요: 여기서 shadow_buffer 복사 부분을 제거해야 pushDirty가 실제로 이미지를 I2C로 전송합니다
+      // ★ 중요: 여기서 셰도 버퍼를 건드리지 않아야 pushDirty(push)가 실제로 이미지를 I2C로 전송한다
       hasIcon = true;
     }
   }
@@ -287,207 +235,171 @@ uint8_t getHIDFromASCII(uint8_t c) {
   return c;
 }
 
-// === 버튼 피드백 및 논스토핑 로직 ===
-struct Button {
-  int pin;
-  int index;
-  bool lastState = HIGH;
-  unsigned long pressTime = 0;
-  bool active = false;
-  unsigned long feedbackEnd = 0;
-  bool isPressed = false;
-  bool isLongPressFired = false;
+// === 버튼 피드백 및 논스토핑 로직 — ds::Buttons (짧게 > 50ms, 길게 > 1000ms) ===
+static bool feedbackActive[4] = {false, false, false, false};
+static unsigned long feedbackEnd[4] = {0, 0, 0, 0};
 
-  Button(int p, int i)
-    : pin(p), index(i) {}
+/** 길게 누름 — BTN4는 IP 주소 표시 */
+static void onLongPress(int index) {
+  Serial.print("[BTN ");
+  Serial.print(index + 1);
+  Serial.println("] Long Press");
+  if (index == 3 && !isShowingIP) {
+    display_ip_page();
+    buzzer.beep(200, 1500);
+  }
+}
 
-  void init() {
-    pinMode(pin, INPUT_PULLUP);
+/** 짧게 누름 — 매크로 실행 (IP 표시 중이면 원래 화면으로 복구만 한다) */
+static void onShortPress(int index) {
+  if (isShowingIP) {
+    // IP 표시 중 아무 버튼이나 누르면 원래 화면으로 복구
+    isShowingIP = false;
+    for (int i = 0; i < 4; i++) drawDefaultScreen(i);
+    buzzer.beep(50, 2000);
+    return;
   }
 
-  void update() {
-    bool state = digitalRead(pin);
-    unsigned long now = millis();
+  displays[index]->clearBuffer();
+  displays[index]->setFont(u8g2_font_6x10_tf);
+  displays[index]->drawStr(10, 35, "PRESSED!");
+  pushDirty(index);
 
-    // 1. 버튼이 눌리는 순간 (Falling Edge)
-    if (state == LOW && lastState == HIGH) {
-      pressTime = now;
-      isPressed = true;
-      isLongPressFired = false;
-    } 
-    // 2. 버튼이 눌려있는 동안 (Holding)
-    else if (state == LOW) {
-      if (isPressed && !isLongPressFired && (now - pressTime >= 1000)) {
-        isLongPressFired = true;
-        
-        Serial.print("[BTN ");
-        Serial.print(index + 1);
-        Serial.println("] Long Press");
+  Serial.printf("[BTN %d] Action Complete\n", index + 1);
 
-        // BTN4 롱 프레스: IP 주소 표시
-        if (index == 3 && !isShowingIP) {
-          display_ip_page();
-          tone(BUZZER_PIN, 1500, 200);
-        }
-      }
-    }
-    // 3. 버튼을 떼는 순간 (Rising Edge)
-    else if (state == HIGH && lastState == LOW) {
-      isPressed = false;
+  if (bleKeyboard.isConnected()) {
+    if (deckConfigs[index].mode == MODE_STRING) {
+      // 초고속 타이핑 로직 & 자동 한/영 전환 (F19, F20 방식 적용)
+      String s = String(deckConfigs[index].stringVal);
+      int i = 0;
       
-      // 롱 프레스가 실행되지 않았을 때만 숏 프레스 체크 (디바운싱 50ms)
-      if (!isLongPressFired && (now - pressTime > 50)) {
-        if (isShowingIP) {
-          // IP 표시 중 아무 버튼이나 누르면 원래 화면으로 복구
-          isShowingIP = false;
-          for (int i = 0; i < 4; i++) drawDefaultScreen(i);
-          tone(BUZZER_PIN, 2000, 50);
-          lastState = HIGH; // 중복 입력 방지
-          return;
+      while (i < s.length()) {
+        if (s.substring(i).startsWith("[#ENG#]")) {
+          bleKeyboard.press(KEY_RIGHT);
+          delay(20);
+          bleKeyboard.releaseAll();
+          delay(100);
+          bleKeyboard.press(KEY_F19);
+          delay(20);
+          bleKeyboard.releaseAll();
+          delay(40);
+          i += 7;
+        } else if (s.substring(i).startsWith("[#KOR#]")) {
+          bleKeyboard.press(KEY_F20);
+          delay(20);
+          bleKeyboard.releaseAll();
+          delay(40);
+          i += 7;
+        } else if (s.substring(i).startsWith("[#CAPS#]")) {
+          // 기존 토글 기반 호환성 대응
+          bleKeyboard.tap(KEY_SPACE, KEY_MOD_LCTRL);
+          delay(60);
+          i += 8;
+        } else {
+          // 다음 제어 토큰을 찾고, 그 사이 문자들을 출력
+          int nextEng = s.indexOf("[#ENG#]", i);
+          int nextKor = s.indexOf("[#KOR#]", i);
+          int nextCaps = s.indexOf("[#CAPS#]", i);
+          
+          int nextToken = s.length();
+          if (nextEng != -1 && nextEng < nextToken) nextToken = nextEng;
+          if (nextKor != -1 && nextKor < nextToken) nextToken = nextKor;
+          if (nextCaps != -1 && nextCaps < nextToken) nextToken = nextCaps;
+          
+          bleKeyboard.print(s.substring(i, nextToken));
+          i = nextToken;
         }
-
-        displays[index]->clearBuffer();
-        displays[index]->setFont(u8g2_font_6x10_tf);
-        displays[index]->drawStr(10, 35, "PRESSED!");
-        pushDirty(index);
-
-        Serial.printf("[BTN %d] Action Complete\n", index + 1);
-
-        if (bleKeyboard.isConnected()) {
-          if (deckConfigs[index].mode == MODE_STRING) {
-            // 초고속 타이핑 로직 & 자동 한/영 전환 (F19, F20 방식 적용)
-            String s = String(deckConfigs[index].stringVal);
-            int i = 0;
-            
-            while (i < s.length()) {
-              if (s.substring(i).startsWith("[#ENG#]")) {
-                bleKeyboard.press(KEY_RIGHT);
-                delay(20);
-                bleKeyboard.releaseAll();
-                delay(100);
-                bleKeyboard.press(KEY_F19);
-                delay(20);
-                bleKeyboard.releaseAll();
-                delay(40);
-                i += 7;
-              } else if (s.substring(i).startsWith("[#KOR#]")) {
-                bleKeyboard.press(KEY_F20);
-                delay(20);
-                bleKeyboard.releaseAll();
-                delay(40);
-                i += 7;
-              } else if (s.substring(i).startsWith("[#CAPS#]")) {
-                // 기존 토글 기반 호환성 대응
-                bleKeyboard.tap(KEY_SPACE, KEY_MOD_LCTRL);
-                delay(60);
-                i += 8;
-              } else {
-                // 다음 제어 토큰을 찾고, 그 사이 문자들을 출력
-                int nextEng = s.indexOf("[#ENG#]", i);
-                int nextKor = s.indexOf("[#KOR#]", i);
-                int nextCaps = s.indexOf("[#CAPS#]", i);
-                
-                int nextToken = s.length();
-                if (nextEng != -1 && nextEng < nextToken) nextToken = nextEng;
-                if (nextKor != -1 && nextKor < nextToken) nextToken = nextKor;
-                if (nextCaps != -1 && nextCaps < nextToken) nextToken = nextCaps;
-                
-                bleKeyboard.print(s.substring(i, nextToken));
-                i = nextToken;
-              }
-            }
-          } else if (deckConfigs[index].mode == MODE_MEDIA) {
-            uint8_t mk = deckConfigs[index].key;
-            if (mk == 1) bleKeyboard.press(MEDIA_VOLUME_UP);
-            else if (mk == 2) bleKeyboard.press(MEDIA_VOLUME_DOWN);
-            else if (mk == 3) bleKeyboard.press(MEDIA_MUTE);
-            else if (mk == 4) bleKeyboard.press(MEDIA_PLAY_PAUSE);
-            else if (mk == 5) bleKeyboard.press(MEDIA_NEXT_TRACK);
-            else if (mk == 6) bleKeyboard.press(MEDIA_PREV_TRACK);
-            delay(20);  // 미디어 키 인식 시간 단축 (40 -> 20)
-            bleKeyboard.releaseAll();
-          } else if (deckConfigs[index].mode == MODE_BROWSER) {
-            // 유니버설 브라우저 런처 (가장 깔끔한 Spotlight 기본 브라우저 실행 방식)
-            // 1. Spotlight 호출
-            bleKeyboard.press(KEY_LGUI);  // KEY_LGUI == cmd 
-            bleKeyboard.press(KEY_SPACE);
-            delay(50);
-            bleKeyboard.releaseAll();
-            delay(500);  // Spotlight 활성화 대기
-
-            // 기존 타이핑 내용 삭제 (텍스트 전체 선택 상태에서 백스페이스)
-            bleKeyboard.press(KEY_BACKSPACE);
-            delay(50);
-            bleKeyboard.releaseAll();
-            delay(50);
-            
-            // Spotlight에서 영문 URL 압력을 위해 확실한 '영어 모드(F19)'로 전환
-            bleKeyboard.press(KEY_F19);
-            delay(20);
-            bleKeyboard.releaseAll();
-            delay(40);
-
-            // 2. 패시브 타이핑: 기기에 저장된 오염된 한영 전환 신호 태그 완전 무시
-            bleKeyboard.setTapDelay(20);  // 오타 방지를 위한 안정적 타이핑 속도
-
-            String s = String(deckConfigs[index].stringVal);
-            s.replace("[#ENG#]", "");
-            s.replace("[#KOR#]", "");
-            s.replace("[#CAPS#]", "");  // 구형 토큰 무시
-
-            bleKeyboard.print(s);
-
-            delay(2500);  // Mac Spotlight가 주소를 완전히 파싱하고 '웹사이트' 검색 결과를 준비할 시간 부여
-
-            // 3. 브라우저 실행(Return)
-            bleKeyboard.press(KEY_RETURN);    // 확실한 물리적 Enter 키코드 상수(0xB0) 사용
-            delay(50);
-            bleKeyboard.releaseAll();
-
-            bleKeyboard.setTapDelay(1);  // 다시 초고속 모드로 복구
-          } else if (deckConfigs[index].mode == MODE_COMBO) {
-            // 콤보(단축키) 모드
-            
-            // [한글 조합 깨짐 방지] 라이브러리에 정의된 KEY_F19, KEY_F20 사용 시 
-            // 현재 입력 중인 한글이 마쳐지지 않고 덮어씌워지는 것을 방지하기 위해 
-            // 오른쪽 방향키를 한 번 보내 조합을 강제로 완료(Commit)시킵니다.
-            uint8_t configKey = deckConfigs[index].key;
-            uint8_t hidCode = getHIDFromASCII(configKey);
-
-            if (hidCode == KEY_F19 || hidCode == KEY_F20) {
-              bleKeyboard.press(KEY_RIGHT);
-              delay(30);
-              bleKeyboard.releaseAll();
-              delay(30);
-            }
-
-            if (deckConfigs[index].modifiers[0]) bleKeyboard.press((uint8_t)deckConfigs[index].modifiers[0]);
-            if (deckConfigs[index].modifiers[1]) bleKeyboard.press((uint8_t)deckConfigs[index].modifiers[1]);
-            if (deckConfigs[index].modifiers[2]) bleKeyboard.press((uint8_t)deckConfigs[index].modifiers[2]);
-
-            if (hidCode != 0) {
-              bleKeyboard.press(hidCode);
-            }
-            delay(10);  // 단축키 인식 안정성 한계치
-            bleKeyboard.releaseAll();
-          }
-        }
-        active = true;
-        feedbackEnd = now + 150;
-        tone(BUZZER_PIN, 3000, 50);
       }
-    }
-    lastState = state;
+    } else if (deckConfigs[index].mode == MODE_MEDIA) {
+      uint8_t mk = deckConfigs[index].key;
+      if (mk == 1) bleKeyboard.press(MEDIA_VOLUME_UP);
+      else if (mk == 2) bleKeyboard.press(MEDIA_VOLUME_DOWN);
+      else if (mk == 3) bleKeyboard.press(MEDIA_MUTE);
+      else if (mk == 4) bleKeyboard.press(MEDIA_PLAY_PAUSE);
+      else if (mk == 5) bleKeyboard.press(MEDIA_NEXT_TRACK);
+      else if (mk == 6) bleKeyboard.press(MEDIA_PREV_TRACK);
+      delay(20);  // 미디어 키 인식 시간 단축 (40 -> 20)
+      bleKeyboard.releaseAll();
+    } else if (deckConfigs[index].mode == MODE_BROWSER) {
+      // 유니버설 브라우저 런처 (가장 깔끔한 Spotlight 기본 브라우저 실행 방식)
+      // 1. Spotlight 호출
+      bleKeyboard.press(KEY_LGUI);  // KEY_LGUI == cmd 
+      bleKeyboard.press(KEY_SPACE);
+      delay(50);
+      bleKeyboard.releaseAll();
+      delay(500);  // Spotlight 활성화 대기
 
-    // 2. 비동기 화면 복구
-    if (active && now > feedbackEnd) {
-      active = false;
-      drawDefaultScreen(index);
+      // 기존 타이핑 내용 삭제 (텍스트 전체 선택 상태에서 백스페이스)
+      bleKeyboard.press(KEY_BACKSPACE);
+      delay(50);
+      bleKeyboard.releaseAll();
+      delay(50);
+      
+      // Spotlight에서 영문 URL 압력을 위해 확실한 '영어 모드(F19)'로 전환
+      bleKeyboard.press(KEY_F19);
+      delay(20);
+      bleKeyboard.releaseAll();
+      delay(40);
+
+      // 2. 패시브 타이핑: 기기에 저장된 오염된 한영 전환 신호 태그 완전 무시
+      bleKeyboard.setTapDelay(20);  // 오타 방지를 위한 안정적 타이핑 속도
+
+      String s = String(deckConfigs[index].stringVal);
+      s.replace("[#ENG#]", "");
+      s.replace("[#KOR#]", "");
+      s.replace("[#CAPS#]", "");  // 구형 토큰 무시
+
+      bleKeyboard.print(s);
+
+      delay(2500);  // Mac Spotlight가 주소를 완전히 파싱하고 '웹사이트' 검색 결과를 준비할 시간 부여
+
+      // 3. 브라우저 실행(Return)
+      bleKeyboard.press(KEY_RETURN);    // 확실한 물리적 Enter 키코드 상수(0xB0) 사용
+      delay(50);
+      bleKeyboard.releaseAll();
+
+      bleKeyboard.setTapDelay(1);  // 다시 초고속 모드로 복구
+    } else if (deckConfigs[index].mode == MODE_COMBO) {
+      // 콤보(단축키) 모드
+      
+      // [한글 조합 깨짐 방지] 라이브러리에 정의된 KEY_F19, KEY_F20 사용 시 
+      // 현재 입력 중인 한글이 마쳐지지 않고 덮어씌워지는 것을 방지하기 위해 
+      // 오른쪽 방향키를 한 번 보내 조합을 강제로 완료(Commit)시킵니다.
+      uint8_t configKey = deckConfigs[index].key;
+      uint8_t hidCode = getHIDFromASCII(configKey);
+
+      if (hidCode == KEY_F19 || hidCode == KEY_F20) {
+        bleKeyboard.press(KEY_RIGHT);
+        delay(30);
+        bleKeyboard.releaseAll();
+        delay(30);
+      }
+
+      if (deckConfigs[index].modifiers[0]) bleKeyboard.press((uint8_t)deckConfigs[index].modifiers[0]);
+      if (deckConfigs[index].modifiers[1]) bleKeyboard.press((uint8_t)deckConfigs[index].modifiers[1]);
+      if (deckConfigs[index].modifiers[2]) bleKeyboard.press((uint8_t)deckConfigs[index].modifiers[2]);
+
+      if (hidCode != 0) {
+        bleKeyboard.press(hidCode);
+      }
+      delay(10);  // 단축키 인식 안정성 한계치
+      bleKeyboard.releaseAll();
     }
   }
-};
 
-Button btns[4] = { Button(BTN1_PIN, 0), Button(BTN2_PIN, 1), Button(BTN3_PIN, 2), Button(BTN4_PIN, 3) };
+  feedbackActive[index] = true;
+  feedbackEnd[index] = millis() + 150;
+  buzzer.beep(50, 3000);
+}
+
+static void s0() { onShortPress(0); }
+static void s1() { onShortPress(1); }
+static void s2() { onShortPress(2); }
+static void s3() { onShortPress(3); }
+static void l0() { onLongPress(0); }
+static void l1() { onLongPress(1); }
+static void l2() { onLongPress(2); }
+static void l3() { onLongPress(3); }
 
 void setup() {
   Serial.begin(115200);
@@ -500,28 +412,23 @@ void setup() {
 #endif
   Serial.println("\n[SYSTEM] DS DECK Booting...");
 
-  // 1. 하드웨어 및 OLED 초기화 (사용자 피드백용)
-  Wire.begin(HW_SDA_PIN, HW_SCL_PIN);
-  Wire.setClock(400000);
-  
-  // 1번 OLED 우선 기동하여 로그 표시
-  u8g2_1.setI2CAddress(0x3C * 2);
-  u8g2_1.begin();
-  u8g2_1.clearBuffer();
-  u8g2_1.setFont(u8g2_font_6x10_tf);
-  u8g2_1.drawStr(0, 10, "DS DECK SYSTEM");
-  u8g2_1.drawStr(0, 25, "Booting...");
-  pushDirty(0); // sendBuffer() 대신 pushDirty() 사용하여 shadow_buffer 동기화
+  // 1. 화면 엔진 초기화 (4화면 동시) — 1번 OLED에 부팅 로그 표시
+  display.begin();
+  U8G2& log = display.screen(0);
+  log.setFont(u8g2_font_6x10_tf);
+  log.drawStr(0, 10, "DS DECK SYSTEM");
+  log.drawStr(0, 25, "Booting...");
+  pushDirty(0);
 
   // 2. BLE 최우선 시작 (WiFi 이전에 실행하여 검색성 확보)
-  u8g2_1.drawStr(0, 40, "> BLE INIT...");
+  log.drawStr(0, 40, "> BLE INIT...");
   pushDirty(0);
   bleKeyboard.begin();
   bleKeyboard.setTapDelay(1);
   Serial.println("[BLE] Bluetooth Started");
 
   // 3. LittleFS 및 설정 로드
-  u8g2_1.drawStr(0, 55, "> FS MOUNT...");
+  log.drawStr(0, 55, "> FS MOUNT...");
   pushDirty(0);
   if (!LittleFS.begin(true)) {
     Serial.println("[FS] LittleFS Mount Failed");
@@ -529,29 +436,27 @@ void setup() {
     loadConfig();
   }
 
-  // 나머지 하드웨어 및 OLED 초기화
-  for (int i = 0; i < 4; i++) btns[i].init();
-  pinMode(BUZZER_PIN, OUTPUT);
-  digitalWrite(BUZZER_PIN, LOW);
+  // 버튼 및 부저 초기화
+  buttons.begin();
+  buttons.setCallbacks(0, s0, l0);
+  buttons.setCallbacks(1, s1, l1);
+  buttons.setCallbacks(2, s2, l2);
+  buttons.setCallbacks(3, s3, l3);
+  buzzer.begin();
 
-  u8g2_2.setI2CAddress(0x3D * 2);
-  u8g2_2.begin();
-  u8g2_3.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast;
-  u8g2_3.begin();
-  u8g2_4.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast;
-  u8g2_4.setI2CAddress(0x3D * 2);
-  u8g2_4.begin();
-
-  // 4. WiFi 연결 (WiFiManager) - 여기서 블로킹되어도 BLE는 이미 작동 중
-  u8g2_1.clearBuffer();
-  u8g2_1.drawStr(0, 10, "DS DECK SYSTEM");
-  u8g2_1.drawStr(0, 30, "> WiFi Connecting...");
-  u8g2_1.drawStr(0, 45, "(Wait 60s or Setup)");
+  // 4. WiFi 연결 — 저장된 AP 10초 비차단 시도 → 설정 포털 60초 → 실패해도 단독 모드로 계속
+  //   (여기서 기다리는 동안에도 BLE는 이미 작동 중)
+  log.clearBuffer();
+  log.drawStr(0, 10, "DS DECK SYSTEM");
+  log.drawStr(0, 30, "> WiFi Connecting...");
+  log.drawStr(0, 45, "(Wait 60s or Setup)");
   pushDirty(0);
 
-  WiFiManager wm;
-  wm.setConfigPortalTimeout(60);
-  if (wm.autoConnect("DS_DECK_SETUP")) {
+  ds::WifiConfig wifiCfg;
+  wifiCfg.apName = "DS_DECK_SETUP";
+  wifiCfg.portalTimeoutS = 60;
+  wifiCfg.restartOnFail = false;
+  if (wifi.begin(wifiCfg)) {
     Serial.println("[NET] Connected to WiFi");
     initWebHandlers();
   } else {
@@ -564,7 +469,15 @@ void setup() {
 }
 
 void loop() {
-  for (int i = 0; i < 4; i++) btns[i].update();
+  buttons.update();
+
+  // 짧게 누름 피드백("PRESSED!") 150ms 뒤 원래 화면으로 비동기 복구
+  for (int i = 0; i < 4; i++) {
+    if (feedbackActive[i] && millis() > feedbackEnd[i]) {
+      feedbackActive[i] = false;
+      drawDefaultScreen(i);
+    }
+  }
 
   // WebServer 클라이언트 처리
   if (WiFi.status() == WL_CONNECTED) {

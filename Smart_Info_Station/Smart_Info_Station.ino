@@ -6,13 +6,10 @@
  */
 #include <Arduino.h>
 #include <U8g2lib.h>
-#include <WiFiManager.h>
+#include <WiFi.h>
 #include <Preferences.h>
 #include <WebServer.h>
-#include <Wire.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/timers.h>
-#include "driver/gpio.h"  // ESP-IDF 고속 핀 제어 라이브러리 추가
+#include <DeskStreamCore.h>  // 화면 엔진·버튼·부저·WiFi·NTP 감독 (libraries/DeskStreamCore)
 
 // 데이터 수집 로직 포함
 #include "dust.h"
@@ -26,94 +23,27 @@
 #include "display_utils.h"  // 그리기 관련 헬퍼 함수 분리
 #include "widgets_display.h" // 위젯 렌더링 함수 분리
 #include "data_manager.h"   // 데이터 수집 및 관리 로직 분리
-#include "time_sync.h"      // NTP 재동기화 감독 (시각 누적 오차 방지)
 
 
-// OLED 1, 2 (Hardware I2C) -> 표시 갱신 속도가 중요한 시간/마켓 정보 배치에 유리
-U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2_1(U8G2_R2, /* reset=*/U8X8_PIN_NONE);  // 1번 화면 객체
-U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2_2(U8G2_R2, /* reset=*/U8X8_PIN_NONE);  // 2번 화면 객체
-
-// OLED 3, 4 (Software I2C) -> 고정적인 정보 표시에 적합하며 배선 충돌을 방지함
-U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_3(U8G2_R2, /* clock=*/SW_SCL_PIN, /* data=*/SW_SDA_PIN, /* reset=*/U8X8_PIN_NONE);  // 3번 화면 객체
-U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2_4(U8G2_R2, /* clock=*/SW_SCL_PIN, /* data=*/SW_SDA_PIN, /* reset=*/U8X8_PIN_NONE);  // 4번 화면 객체
+// === 공통 서비스 (DeskStreamCore) ===
+// OLED 1·2(HW I2C)·3·4(SW I2C) — U8G2_R2, 바뀐 타일만 병렬 전송. 반전은 패널 명령(updateDisplayFlip)
+ds::DisplayCore display;
+static ds::Buttons buttons;
+static ds::Buzzer buzzer;
+static ds::WifiService wifi;
+ds::TimeSync timeSync;               // web_handlers.cpp도 쓴다 (시간대 변경 시 재적용)
 
 // 물리적 GPIO 핀 번호 설정
 // 루프 상태 저장용 정적 변수
 static bool prev_updating_states[MAX_WIDGET_RECORDS] = {false};
 static unsigned long last_animation_tick[MAX_WIDGET_RECORDS] = {0};
 
-/**
- * @brief 패시브 부저음을 비차단(Non-Blocking) 방식으로 발생시킵니다.
- * @note  FreeRTOS 타이머를 사용하여 loop()의 블로킹(OLED 갱신 등)과 무관하게 정확한 시간에 종료합니다.
- */
-static TimerHandle_t buzzerTimer = NULL;
-
-void buzzerTimerCallback(TimerHandle_t xTimer) {
-    noTone(BUZZER_PIN);
-    digitalWrite(BUZZER_PIN, LOW); // 마그네틱 부저: 잔류 전류 차단
-}
-
-void beep(int duration = 50, int freq = 3000) {
-    if (buzzerTimer == NULL) return;
-    tone(BUZZER_PIN, freq);
-    xTimerChangePeriod(buzzerTimer, pdMS_TO_TICKS(duration), 0);
-    xTimerStart(buzzerTimer, 0);
-}
-
-/**
- * @brief 시작 멜로디를 재생합니다. (띠리리링~)
- * @note  setup() 내에서만 호출. FreeRTOS 태스크 시작 전이므로 delay() 블로킹 허용.
- *        마그네틱 부저를 위해 각 음 이후 명시적 LOW 출력 필수.
- */
+// 시작 멜로디 (띠-리-리-링~ 도미솔도) — ds::Buzzer가 타이머로 비차단 재생한다
+static const ds::Note STARTUP_MELODY[] = {{2093, 80, 30}, {2637, 80, 30}, {3136, 80, 30}, {4186, 220, 0}};
 
 void playStartupMelody() {
-  // 띠 - 리 - 리 - 링~ : 도미솔도 (경쾌한 상승 화음)
-  const int notes[]     = { 2093, 2637, 3136, 4186 };  // Hz
-  const int durations[] = {  80,  80,  80,  220 };  // ms (음 지속 시간)
-  const int gaps[]      = {  30,  30,  30,    0 };  // ms (음간 묵음)
-
-  for (int i = 0; i < 4; i++) {
-    tone(BUZZER_PIN, notes[i]);
-    delay(durations[i]);
-    noTone(BUZZER_PIN);
-    digitalWrite(BUZZER_PIN, LOW);  // 마그네틱 부저: 잔류 전류 차단
-    if (gaps[i] > 0) delay(gaps[i]);
-  }
+  buzzer.playMelody(STARTUP_MELODY, sizeof(STARTUP_MELODY) / sizeof(STARTUP_MELODY[0]));
 }
-
-struct Button {
-    int pin;
-    bool lastState;
-    unsigned long fallTime;
-    bool isPressed;
-    bool isLongPressFired; 
-    void (*onShortPress)();
-    void (*onLongPress)();
-    
-    Button(int p, void (*sp)(), void (*lp)()) : pin(p), lastState(HIGH), fallTime(0), isPressed(false), isLongPressFired(false), onShortPress(sp), onLongPress(lp) {}
-
-    void init() { pinMode(pin, INPUT_PULLUP); }
-    void update() {
-        bool currentState = digitalRead(pin);
-        unsigned long now = millis();
-        if (lastState == HIGH && currentState == LOW) { fallTime = now; isPressed = true; isLongPressFired = false; } 
-        else if (currentState == LOW) {
-            if (isPressed && !isLongPressFired && (now - fallTime > 1000)) {
-                isLongPressFired = true;
-                beep(200,2000); // 롱 프레스는 조금 더 길게
-                if (onLongPress) onLongPress();
-            }
-        } 
-        else if (lastState == LOW && currentState == HIGH) {
-            if (isPressed && !isLongPressFired && (now - fallTime > 50)) { 
-                beep(50,3000); // 숏 프레스는 짧게
-                if (onShortPress) onShortPress(); 
-            }
-            isPressed = false;
-        }
-        lastState = currentState;
-    }
-};
 
 int currentFlipMode = 2; // 0:Normal, 1:Mirror H, 2:180(HV), 3:Mirror V
 int currentBrightnessLevel = 0; // (디폴트 1단계 설정)
@@ -133,10 +63,7 @@ void updateBrightness() {
     case 2:  contrast = 100; break; // 3단계
     default: contrast = 240; break; // 4단계
   }
-  u8g2_1.setContrast(contrast);
-  u8g2_2.setContrast(contrast);
-  u8g2_3.setContrast(contrast);
-  u8g2_4.setContrast(contrast);
+  display.setBrightness(contrast);
 }
 
 /**
@@ -150,10 +77,11 @@ void updateDisplayFlip() {
     case 3:  seg = 0xA0; com = 0xC8; break; 
     default: seg = 0xA0; com = 0xC0; break; 
   }
-  u8g2_1.sendF("c", seg); u8g2_1.sendF("c", com);
-  u8g2_2.sendF("c", seg); u8g2_2.sendF("c", com);
-  u8g2_3.sendF("c", seg); u8g2_3.sendF("c", com);
-  u8g2_4.sendF("c", seg); u8g2_4.sendF("c", com);
+  // 좌우·상하 반전 조합 4종이라 ds::DisplayCore::setFlip(2종) 대신 패널 명령을 직접 보낸다
+  for (int i = 0; i < ds::kNumScreens; i++) {
+    display.screen(i).sendF("c", seg);
+    display.screen(i).sendF("c", com);
+  }
 }
 
 void saveGeneralSettings() {
@@ -197,22 +125,12 @@ WidgetType SCREEN_MAP[MAX_DATA_PAGE * 4] = {
  * @return U8G2 디스플레이 객체 참조
  */
 U8G2 &getScreen(int num) {
-  if (num <= 0) return u8g2_1;
+  if (num <= 0) return display.screen(0);
   int p = (num - 1) % 4; // 페이지와 무관하게 1~4번 중 하나로 매핑
 
-  // Flip Mode 0, 3일 때는 화면 순서를 뒤집음 (4, 3, 2, 1)
-  if (currentFlipMode == 0 || currentFlipMode == 3) {
-    if (p == 0) return u8g2_4;
-    if (p == 1) return u8g2_3;
-    if (p == 2) return u8g2_2;
-    return u8g2_1;
-  } else {
-    // Flip Mode 1, 2일 때는 기본 순서 (1, 2, 3, 4)
-    if (p == 0) return u8g2_1;
-    if (p == 1) return u8g2_2;
-    if (p == 2) return u8g2_3;
-    return u8g2_4;
-  }
+  // Flip Mode 0, 3일 때는 화면 순서를 뒤집음 (4, 3, 2, 1), 1·2일 때는 기본 순서 (1, 2, 3, 4)
+  if (currentFlipMode == 0 || currentFlipMode == 3) return display.screen(3 - p);
+  return display.screen(p);
 }
 
 
@@ -230,15 +148,26 @@ WebServer server(80);               // 설정용 웹 페이지를 제공하는 �
 /**
  * 와이파이 설정 모드(Access Point)로 진입했을 때 OLED에 정보를 표시하는 콜백
  */
-void configModeCallback(WiFiManager *myWiFiManager) {
+static void onWifiPortal(const char* apName) {
   U8G2 &main_screen = getScreen(1);
   main_screen.clearBuffer();
   main_screen.setFont(u8g2_font_6x10_tf);
   main_screen.drawStr(0, 10, "WiFi Config Mode");
   main_screen.drawStr(0, 25, "Connect to SSID:");
-  main_screen.drawStr(0, 35, myWiFiManager->getConfigPortalSSID().c_str());
+  main_screen.drawStr(0, 35, apName);
   main_screen.drawStr(0, 50, "IP: 192.168.4.1");
-  main_screen.sendBuffer();
+  display.push();
+}
+
+/**
+ * NTP 감독이 적용할 시간대 — 이 판은 웹에서 **시간 단위 오프셋**(tz_offset, 예: 9)을 저장한다.
+ * @details 예전 configTime(offset*3600, 0, ...)과 같은 동작을 POSIX TZ로 표현한다: "UTC-9" = UTC+9
+ *          (POSIX는 부호가 반대). DST 규칙은 없다 — 저장 형식·웹 UI는 그대로다.
+ */
+static const char* currentTimezone() {
+  static char tz[16];
+  snprintf(tz, sizeof(tz), "UTC%d", -timezone_offset);
+  return tz;
 }
 
 
@@ -265,11 +194,8 @@ void btn1_short() {
   saveGeneralSettings();
   Serial.printf("[BUTTON] BTN1 Short -> Flip Mode %d\n", currentFlipMode);
   
-  // 잔상이 남지 않도록 모든 화면의 버퍼를 초기화 후 전송
-  u8g2_1.clearBuffer(); u8g2_1.sendBuffer();
-  u8g2_2.clearBuffer(); u8g2_2.sendBuffer();
-  u8g2_3.clearBuffer(); u8g2_3.sendBuffer();
-  u8g2_4.clearBuffer(); u8g2_4.sendBuffer();
+  // 잔상이 남지 않도록 모든 화면을 지우고 강제 전송
+  display.clearAll();
   
   // 바뀐 화면 순서 기반으로 현재 페이지 전체 재렌더링
   redraw_current_page();
@@ -296,25 +222,21 @@ void btn3_long() {
   if (current_page == 5) redraw_current_page();
 }
 
-// 버튼 객체 정의
-Button btns[4] = {
-  Button(BTN1_PIN, btn1_short, btn1_long),
-  Button(BTN2_PIN, btn2_short, btn2_long),
-  Button(BTN3_PIN, btn3_short, btn3_long),
-  Button(BTN4_PIN, btn4_short, btn4_long)
-};
+// 버튼 — ds::Buttons (짧게 > 50ms: 50ms·3kHz 비프 후 동작 / 길게 > 1000ms: 200ms·2kHz 비프 후 동작)
+static void s0() { buzzer.beep(50, 3000); btn1_short(); }
+static void s1() { buzzer.beep(50, 3000); btn2_short(); }
+static void s2() { buzzer.beep(50, 3000); btn3_short(); }
+static void s3() { buzzer.beep(50, 3000); btn4_short(); }
+static void l0() { buzzer.beep(200, 2000); btn1_long(); }
+static void l1() { buzzer.beep(200, 2000); btn2_long(); }
+static void l2() { buzzer.beep(200, 2000); btn3_long(); }
+static void l3() { buzzer.beep(200, 2000); btn4_long(); }
 
 // 4번째 페이지: 버튼 기능 안내 (Short/Long Press 설명)
 void display_button_help_page() {
   for (int i = 1; i <= 4; i++) {
     // Flip Mode(역방향 매핑) 속성을 무시하고, 버튼 설정 가이드는 항상 기존 물리 순서(1,2,3,4)대로 표시
-    U8G2 *p_u8g2;
-    if (i == 1) p_u8g2 = &u8g2_1;
-    else if (i == 2) p_u8g2 = &u8g2_2;
-    else if (i == 3) p_u8g2 = &u8g2_3;
-    else p_u8g2 = &u8g2_4;
-    
-    U8G2 &u8g2 = *p_u8g2;
+    U8G2 &u8g2 = display.screen(i - 1);
     u8g2.clearBuffer();
     u8g2_prepare(u8g2);
     
@@ -366,7 +288,7 @@ void display_button_help_page() {
       u8g2.drawStr(5, 45, "LONG:  - RESERVED -");
     }
     
-    u8g2.sendBuffer();
+    display.push();
   }
 }
 
@@ -394,7 +316,7 @@ void display_ip_page() {
       u8g2.drawStr(115, 28, ".");
     }
     
-    u8g2.sendBuffer();
+    display.push();
   }
 }
 
@@ -421,7 +343,7 @@ void redraw_current_page() {
     if (type == W_NONE) {
       U8G2 &u8g2 = getScreen(slot_num);
       u8g2.clearBuffer();
-      u8g2.sendBuffer();
+      display.push();
       continue;
     }
 
@@ -460,53 +382,33 @@ void setup() {
   Serial.setTxTimeoutMs(0);
 #endif
 
-  // 1. 버튼 및 부저 핀 초기화
-  for (int i = 0; i < 4; i++) btns[i].init();
-  pinMode(BUZZER_PIN, OUTPUT);
-  digitalWrite(BUZZER_PIN, LOW);
-  
-  // 부저 종료용 소프트웨어 타이머 생성 (루프 블로킹 방지)
-  buzzerTimer = xTimerCreate("BuzzerTimer", pdMS_TO_TICKS(50), pdFALSE, (void*)0, buzzerTimerCallback);
+  // 1. 버튼 및 부저 초기화
+  buttons.begin();
+  buttons.setCallbacks(0, s0, l0);
+  buttons.setCallbacks(1, s1, l1);
+  buttons.setCallbacks(2, s2, l2);
+  buttons.setCallbacks(3, s3, l3);
+  buzzer.begin();
 
   // 2. 부팅 시 BTN1 눌림 감지 (WiFi 초기화 기능)
-  bool should_reset_wifi = (digitalRead(BTN1_PIN) == LOW);
+  bool should_reset_wifi = (digitalRead(ds::kButtonPins[0]) == LOW);
 
-  // 3. 하드웨어 I2C 초기화 (핀 5, 6)
-  Wire.begin(HW_SDA_PIN, HW_SCL_PIN);
-  Wire.setClock(400000);
-
-  // OLED 초기화 전 SW I2C 콜백 가로채기(Injection)
-  u8g2_3.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast;
-  u8g2_4.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast;
-
-  // OLED 통신 시작
-  u8g2_1.setI2CAddress(0x3C * 2); u8g2_1.begin();
-  u8g2_2.setI2CAddress(0x3D * 2); u8g2_2.begin();
-  u8g2_3.setI2CAddress(0x3C * 2); u8g2_3.begin();
-  u8g2_4.setI2CAddress(0x3D * 2); u8g2_4.begin();
-
-  // 모든 화면 초기 지우기
-  u8g2_1.clearBuffer(); u8g2_1.sendBuffer();
-  u8g2_2.clearBuffer(); u8g2_2.sendBuffer();
-  u8g2_3.clearBuffer(); u8g2_3.sendBuffer();
-  u8g2_4.clearBuffer(); u8g2_4.sendBuffer();
+  // 3. 화면 엔진 초기화 (HW I2C 1.1MHz·고속 SW I2C·병렬 전송, 4화면 지움)
+  display.begin();
 
   // 4. WiFi 초기화 실행 및 피드백
   if (should_reset_wifi) {
-    tone(BUZZER_PIN, 1000,500); // 길고 낮은 소리로 경고
+    buzzer.beep(500, 1000); // 길고 낮은 소리로 경고
     U8G2 &main_screen = getScreen(1);
     main_screen.setFont(u8g2_font_6x10_tf);
     main_screen.drawStr(0, 10, "!!! WiFi RESET !!!");
     main_screen.drawStr(0, 25, "Clearing SSID/PW...");
     main_screen.drawStr(0, 45, "Starting Config...");
-    main_screen.sendBuffer();
-    
-    WiFiManager wifiManager;
-    wifiManager.resetSettings(); // 저장된 세팅 삭제
-    
+    display.push();
+
+    ds::WifiService::resetSettings(); // 저장된 세팅 삭제
+
     delay(500);
-    noTone(BUZZER_PIN);
-    digitalWrite(BUZZER_PIN, LOW);
   } else {
     // 일반 부팅 시 시작 멜로디 재생 (띠리리링~)
     playStartupMelody();
@@ -519,11 +421,15 @@ void setup() {
   main_screen.drawStr(0, 10, "WiFi Connecting...");
   main_screen.drawStr(0, 25, "SSID: Smart_Info_Station");
   main_screen.drawStr(0, 35, "IP: 192.168.4.1");
-  main_screen.sendBuffer();
+  display.push();
 
-  WiFiManager wifiManager;
-  wifiManager.setAPCallback(configModeCallback);
-  wifiManager.autoConnect("Smart_Info_Station");
+  // 저장된 AP 10초 비차단 시도 → 설정 포털(시간 제한 없음 — 예전 autoConnect와 같다)
+  ds::WifiConfig wifiCfg;
+  wifiCfg.apName = "Smart_Info_Station";
+  wifiCfg.portalTimeoutS = 0;
+  wifiCfg.restartOnFail = false;
+  wifiCfg.onPortal = onWifiPortal;
+  wifi.begin(wifiCfg);
 
   // 기본 설정 및 OLED 배치 정보 읽기
   preferences.begin("settings", true);
@@ -531,6 +437,7 @@ void setup() {
   dust_location = preferences.getString("dust_loc", "가산동");
   weather_location_code = preferences.getString("weather_code", "1154551000");
   timezone_offset = preferences.getInt("tz_offset", 9);
+  if (timezone_offset < -12 || timezone_offset > 14) timezone_offset = 9;   // 범위 밖 저장값 → 기본값 (UTC+9)
   currentFlipMode = preferences.getInt("flip", 2);
   currentBrightnessLevel = preferences.getInt("bright", 0);
   isLoopingMode = preferences.getBool("loop", false);
@@ -550,7 +457,12 @@ void setup() {
   // [2026-11-08] 시각 동기화 감독 시작 + 최초 동기화.
   //   시간대(오프셋) 적용·SNTP 시작은 timeSync.applyTimezone() 한 경로로만 일어난다
   //   (웹에서 시간대를 바꿀 때도 같은 경로 — web_handlers.cpp).
-  timeSync.begin();
+  ds::TimeSyncConfig timeCfg;
+  timeCfg.servers[0] = NTP_SERVER1;
+  timeCfg.servers[1] = NTP_SERVER2;
+  timeCfg.servers[2] = nullptr;
+  timeCfg.tzProvider = currentTimezone;
+  timeSync.begin(timeCfg);
   timeSync.applyTimezone();
 
   server.on("/", HTTP_GET, handleRoot);
@@ -563,13 +475,14 @@ void setup() {
 
 void loop() {
   server.handleClient();
+  wifi.loop();       // WiFi 끊김 시 60초마다 재접속 시도
   timeSync.loop();   // NTP 재동기화 감독: 주기·WiFi 복구·실패 재시도
   unsigned long now_ms = millis();
 
   // [입력] 버튼 처리
-  for (int i = 0; i < 4; i++) btns[i].update();
+  buttons.update();
 
-  // [부저] 비차단 부저 처리는 이제 FreeRTOS 타이머가 백그라운드에서 수행합니다.
+  // [부저] 비차단 부저 처리는 ds::Buzzer의 FreeRTOS 타이머가 백그라운드에서 수행한다.
 
   // [루핑 모드] 페이지 자동 전환 처리 (1~3페이지 순환)
   if (isLoopingMode) {

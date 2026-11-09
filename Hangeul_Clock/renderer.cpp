@@ -8,8 +8,7 @@
 #include "renderer_layout.h"   // layoutCharX() — 좌표 계산 단위 테스트 대상
 #include "LittleFS.h"
 #include "display_manager.h"
-#include "logger.h"
-#include "utf8_len.h"   // ENG_Clock와 한글판이 공유하는 UTF-8 리딩 바이트 판정
+// logger(ds::Logger)는 display_manager.h가 extern 선언한다. UTF-8 판정은 ds::utf8CharLen (DeskStreamCore)
 #include "config_manager.h"
 
 Renderer renderer;
@@ -572,7 +571,7 @@ void Renderer::getCharData(const String& text, CharData outChars[LAYOUT_MAX_CHAR
     if (text == "") return;
     int i = 0;
     while (i < text.length() && count < LAYOUT_MAX_CHARS) {
-        int len = utf8CharLen(text.c_str() + i, text.length() - i);
+        int len = ds::utf8CharLen(text.c_str() + i, text.length() - i);
         outChars[count].c = text.substring(i, i + len);
         i += len; count++;
     }

@@ -1,0 +1,9 @@
+# Name,   Type, SubType, Offset,  Size, Flags
+# DeskStream 공통 레이아웃 — spiffs를 default 스킴과 동일한 0x290000에 고정한다.
+# app0 2.5MB(OTA 없음) / spiffs 1.375MB. 업로드한 폰트(/f0~/f4)가 프로젝트 전환 시에도 보존된다.
+# (default 스킴의 app0 1.25MB가 DeskStreamCore 전환 후 99%에 닿아 넓혔다 — Chinese_Clock v1.1.0)
+nvs,      data, nvs,     0x9000,  0x5000,
+otadata,  data, ota,     0xe000,  0x2000,
+app0,     app,  ota_0,   0x10000, 0x280000,
+spiffs,   data, spiffs,  0x290000,0x160000,
+coredump, data, coredump,0x3F0000,0x10000,

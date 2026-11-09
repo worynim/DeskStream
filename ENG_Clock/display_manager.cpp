@@ -8,17 +8,12 @@
  */
 #include "display_manager.h"
 #include "config.h"          // FONT_SLOT_COUNT
-#include "time_sync.h"       // applyTimezone()의 실제 SNTP/TZ 적용 (감독 서비스와 단일 경로)
 #include "LittleFS.h"
-#include <freertos/FreeRTOS.h>
-#include <freertos/timers.h>
 
 DisplayManager display;
 
 // 시보 표시용 종 모양 아이콘 (8x8)
 static const uint8_t bell_icon[] = { 0x18, 0x3C, 0x3C, 0x3C, 0xFF, 0xDB, 0x18, 0x00 };
-
-// 하위 레벨 I2C 콜백 및 설정은 i2c_platform.cpp로 이관됨
 
 // === 화면 판정 규칙 (단일 진실원) ===
 // [리뷰 §1.1/§2.2] 아래 두 식이 display_manager.cpp 안에서 7번 복제돼 있었고,
@@ -68,28 +63,12 @@ static Band bandFor(int baseY) {
     return { oneLine ? 0 : baseY, oneLine ? SCREEN_HEIGHT : LINE_HEIGHT };
 }
 
-static void buzzerTimerCallback(TimerHandle_t xTimer) {
-    noTone(BUZZER_PIN);
-    digitalWrite(BUZZER_PIN, LOW);
-}
-
 // DisplayManager 메서드 구현
-DisplayManager::DisplayManager() : 
-    u8g2_1(U8G2_R2, 255, 255, U8X8_PIN_NONE), u8g2_2(U8G2_R2, 255, 255, U8X8_PIN_NONE),
-    u8g2_3(U8G2_R2, SW_SCL_PIN, SW_SDA_PIN, U8X8_PIN_NONE), u8g2_4(U8G2_R2, SW_SCL_PIN, SW_SDA_PIN, U8X8_PIN_NONE) {
-    screens[0] = &u8g2_1; screens[1] = &u8g2_2; screens[2] = &u8g2_3; screens[3] = &u8g2_4;
-}
+DisplayManager::DisplayManager() : screens(core.screens()) {}
 
 void DisplayManager::begin() {
-    for (int i = 0; i < NUM_SCREENS; i++) screens[i]->getU8g2()->tile_buf_ptr = u8g2_buffers[i];
-    
-    // 1. I2C 플랫폼 초기화
-    i2cPlatform.begin();
-    
-    u8g2_1.getU8x8()->byte_cb = u8x8_byte_esp32_idf_0; u8g2_1.begin();
-    u8g2_2.getU8x8()->byte_cb = u8x8_byte_esp32_idf_1; u8g2_2.setI2CAddress(I2C_ADDR_HW_1 * 2); u8g2_2.begin();
-    u8g2_3.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast; u8g2_3.begin();
-    u8g2_4.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast; u8g2_4.setI2CAddress(I2C_ADDR_HW_1 * 2); u8g2_4.begin();
+    // 1. 화면 엔진 (I2C 버스·HW 태스크·U8G2 4개) — 기본값 = HW 1.1MHz·병합 전송·SW 100ns, U8G2_R2
+    core.begin();
     
     // 2. 렌더러 초기화
     renderer.setScreens(screens);
@@ -98,18 +77,16 @@ void DisplayManager::begin() {
     configManager.begin();
     
     for (int i = 0; i < 4; i++) {
-        screens[i]->setFlipMode(configManager.get().is_flipped);
-        screens[i]->sendF("c", configManager.get().is_inverted ? 0xA7 : 0xA6);
-        screens[i]->setContrast(configManager.get().brightness);
         screens[i]->setBitmapMode(1);
         screens[i]->clearBuffer();
         lastTexts[i] = "";
     }
+    core.setFlip(configManager.get().is_flipped);
+    core.setInversion(configManager.get().is_inverted);
+    core.setBrightness(configManager.get().brightness);
     pushParallel();
 
-    pinMode(BUZZER_PIN, OUTPUT);
-    digitalWrite(BUZZER_PIN, LOW);
-    buzzerTimer = xTimerCreate("BuzzerTimer", pdMS_TO_TICKS(50), pdFALSE, (void*)0, buzzerTimerCallback);
+    _buzzer.begin();
 
     // 슬롯 이름 초기 캐싱
     for (int i = 0; i < FONT_SLOT_COUNT; i++) {
@@ -129,9 +106,7 @@ void DisplayManager::begin() {
 void DisplayManager::setFlipDisplay(bool flip) {
     configManager.get().is_flipped = flip;
     configManager.setDirty();
-    for (int i = 0; i < 4; i++) {
-        screens[i]->setFlipMode(flip);
-    }
+    core.setFlip(flip);
     setForceUpdate(true);
 }
 
@@ -296,18 +271,14 @@ void DisplayManager::refreshNow() {
 void DisplayManager::setInversion(bool invert) {
     configManager.get().is_inverted = invert;
     configManager.setDirty();
-    for (int i = 0; i < 4; i++) {
-        screens[i]->sendF("c", invert ? 0xA7 : 0xA6);
-    }
+    core.setInversion(invert);
     setForceUpdate(true);
 }
 
 void DisplayManager::setBrightness(uint8_t brightness) {
     configManager.get().brightness = brightness;
     configManager.setDirty();
-    for (int i = 0; i < 4; i++) {
-        screens[i]->setContrast(brightness);
-    }
+    core.setBrightness(brightness);
 }
 
 // saveConfig()은 ConfigManager로 대체됨
@@ -319,25 +290,12 @@ void DisplayManager::loadBitmapCache() {
 // findChar, getHexKey 로직은 Renderer로 이동됨
 
 void DisplayManager::clearAll() {
-    u8g2_1.clearBuffer();
-    u8g2_2.clearBuffer();
-    u8g2_3.clearBuffer();
-    u8g2_4.clearBuffer();
-    
-    // 섀도우 버퍼를 무효화하여 pushParallel()이 모든 0픽셀을 강제로 전송하게 함
-    for(int i=0; i<NUM_SCREENS; i++) {
-        i2cPlatform.invalidateShadow(i);
-    }
-    
-    pushParallel(); // 비동기 전송으로 경합 방지
-    setForceUpdate(true); // 즉시 다음 프레임 그리기 예약
+    core.clearAll();       // 버퍼 지우기 + 셰도 무효화 → 모든 0픽셀 강제 전송 (잔상 제거)
+    setForceUpdate(true);  // 즉시 다음 프레임 그리기 예약
 }
 
 void DisplayManager::beep(int duration, int freq) {
-    if (buzzerTimer == NULL) return;
-    tone(BUZZER_PIN, freq);
-    xTimerChangePeriod(buzzerTimer, pdMS_TO_TICKS(duration), 0);
-    xTimerStart(buzzerTimer, 0);
+    _buzzer.beep(duration, freq);
 }
 
 void DisplayManager::setYieldCallback(void (*cb)()) {
@@ -575,87 +533,21 @@ void DisplayManager::renderAnimFrame(int i, int step) {
     if (isTitleScreenOf(i) && configManager.get().chime_enabled) screens[i]->drawXBM(0, 0, 8, 8, bell_icon);
 }
 
-/**
- * @brief 한 화면의 U8g2 버퍼를 셰도 버퍼와 비교해, 바뀐 페이지 구간만 콜백에 넘긴다
- * @details [리뷰 §2.1] 이 함수는 HW 버스(0·1)와 SW 버스(2·3)가 **똑같이** 도는 부분이다.
- *          이전엔 15줄짜리 블록이 두 번 복제돼 있어서, 한쪽만 고치면
- *          화면 0·1과 화면 2·3의 전송 범위가 어긋나는 형태였다.
- *          diff는 순수 계산이고 전송은 버스마다 다르므로, 여기서는 diff만 하고
- *          실제 전송은 onPageDirty에 위임한다 (side effect를 경계에 격리).
- * @param onPageDirty (screen, screenIdx, page, firstTile, tileCount) — 해당 페이지가 더러울 때 한 번 호출
- * @note 셰도 버퍼는 **비교 직후** 갱신한다. 전송은 HW 태스크가 나중에 하므로,
- *      여기서 갱신하지 않으면 같은 프레임이 두 번 전송된다.
- * @note screen를 넘기는 이유: 이 함수들은 파일 스코프 정적 함수라 DisplayManager의
- *      private 멤버 `screens`에 접근할 수 없다. 대상 포인터를 넘겨야 SW 콜백이
- *      updateDisplayArea()를 부를 수 있다.
- */
-static void diffAndForEachPage(int screenIdx, U8G2* screen,
-                               void (*onPageDirty)(U8G2* screen, int screenIdx, int page, int firstTile, int tileCount)) {
-    uint8_t* buf = screen->getBufferPtr();
-    for (int p = 0; p < PAGES_PER_SCREEN; p++) {
-        bool page_dirty = false;
-        int first_tile = -1, last_tile = -1;
-        for (int t = 0; t < TILES_PER_PAGE; t++) {
-            bool tile_dirty = false;
-            for (int tx = 0; tx < 8; tx++) {
-                int idx = p * SCREEN_WIDTH + t * 8 + tx;
-                if (buf[idx] != i2cPlatform.getShadowData(screenIdx, idx)) {
-                    tile_dirty = true;
-                    i2cPlatform.setShadowData(screenIdx, idx, buf[idx]);
-                }
-            }
-            if (tile_dirty) { if (first_tile == -1) first_tile = t; last_tile = t; page_dirty = true; }
-        }
-        if (page_dirty) onPageDirty(screen, screenIdx, p, first_tile, last_tile - first_tile + 1);
-    }
-}
-
-static bool g_any_hw_dirty = false;   // HW 전송 알림 여부 — onHwPageDirty()가 갱신한다
-
-static void onHwPageDirty(U8G2* screen, int screenIdx, int page, int firstTile, int tileCount) {
-    (void)screen;   // HW는 I2C 태스크로 미룬다 — U8G2 포인터가 필요 없다
-    i2cPlatform.preparePageUpdate(screenIdx, page, firstTile, tileCount);
-    g_any_hw_dirty = true;
-}
-
-static void onSwPageDirty(U8G2* screen, int screenIdx, int page, int firstTile, int tileCount) {
-    (void)screenIdx;
-    screen->updateDisplayArea(firstTile, page, tileCount, 1);
-}
-
-void DisplayManager::pushParallel() {
-    i2cPlatform.waitForSync(I2C_SYNC_TIMEOUT_MS);
-
-    g_any_hw_dirty = false;
-    for (int s = 0; s < 2; s++) diffAndForEachPage(s, screens[s], onHwPageDirty);
-    // 새 diff뿐 아니라 **이전 회차에 전송에 실패해 남은 페이지**가 있어도 알린다.
-    //   실패한 페이지는 셰도 버퍼가 이미 갱신된 상태라 위 diff가 잡지 못하므로,
-    //   이 조건이 없으면 남은 dirty 비트가 다음 글자 변경 때까지 방치된다.
-    if (g_any_hw_dirty || i2cPlatform.hasPendingHwUpdate()) { i2cPlatform.notifyTransmission(); }
-
-    for (int s = 2; s < 4; s++) diffAndForEachPage(s, screens[s], onSwPageDirty);
-}
-
-// i2c_hw_task 구현은 i2c_platform.cpp로 이관됨
+// 멜로디는 ds::Buzzer가 타이머로 재생한다 — 예전 tone()+delay()처럼 메인 루프를 막지 않는다.
+//   각 음 = {주파수, 소리 길이, 다음 음까지 쉼} — 예전 delay 간격과 같은 박자다.
+static const ds::Note STARTUP_MELODY[] = {   // Do-Mi-Sol-Do
+    {2093, 100, 20}, {2637, 100, 20}, {3136, 100, 20}, {4186, 100, 20},
+};
+static const ds::Note CHIME_MELODY[] = {     // 경쾌한 '띠링~' (C7 → G7)
+    {2093, 80, 20}, {3136, 150, 10},
+};
 
 void DisplayManager::playStartupMelody() {
-    int melody[] = {2093, 2637, 3136, 4186}; // Do-Mi-Sol-Do
-    for (int i = 0; i < 4; i++) {
-        tone(BUZZER_PIN, melody[i], 100);
-        delay(120);
-    }
-    noTone(BUZZER_PIN);
-    digitalWrite(BUZZER_PIN, LOW); 
+    _buzzer.playMelody(STARTUP_MELODY, sizeof(STARTUP_MELODY) / sizeof(STARTUP_MELODY[0]));
 }
 
 void DisplayManager::playChimeMelody() {
-    // 경쾌한 '띠링~' 소리 (C7 -> G7)
-    tone(BUZZER_PIN, 2093, 80);  // 도 (C7)
-    delay(100);
-    tone(BUZZER_PIN, 3136, 150); // 솔 (G7)
-    delay(160);
-    noTone(BUZZER_PIN);
-    digitalWrite(BUZZER_PIN, LOW);
+    _buzzer.playMelody(CHIME_MELODY, sizeof(CHIME_MELODY) / sizeof(CHIME_MELODY[0]));
 }
 
 
@@ -754,4 +646,3 @@ void DisplayManager::showStatus(const String& msg) {
     u8g2->drawStr(0, 10, msg.c_str()); pushParallel();
 }
 
-// 하위 레벨 I2C 전송 콜백은 i2c_platform.cpp로 이관됨

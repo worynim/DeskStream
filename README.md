@@ -18,7 +18,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 ## 📁 주요 프로젝트 (Sub-Projects)
 본 저장소는 DeskStream 보드용으로 개발된 12가지 주요 프로그램을 포함하고 있습니다.
 
-### 1. [Smart_Info_Station: 스마트 정보 스테이션 (v2.9.3)](./Smart_Info_Station/)
+### 1. [Smart_Info_Station: 스마트 정보 스테이션 (v2.10.0)](./Smart_Info_Station/)
 - **기능**: 시계, 날씨, 미세먼지, 유튜브 구독자 수, 증시 지수, 가상화폐 가격, 환율 실시간 모니터링.
 - **특징**: **전면 모듈화 아키텍처**, 웹 대시보드 실시간 설정, 비동기 데이터 갱신(FreeRTOS), 네이티브 HAL 기반 고속 SW I2C.
 - **버튼 동작**: 버튼 1을 사용하여 HUD 반전 모드 순환, 버튼 4를 사용하여 페이지를 전환합니다.
@@ -39,16 +39,16 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 - **기능**: PC/Mac의 CPU, GPU, RAM, SSD 상태 및 온도, 네트워크 트래픽 실시간 표시.
 - **특징**: 외부 클라이언트 연동, 하드웨어 통계 가젯 모드, 시스템 생체 정보 가시화.
 
-### 6. [DS_DECK: 프로그래머블 매크로 패드 (v1.5.2)](./DS_DECK/)
+### 6. [DS_DECK: 프로그래머블 매크로 패드 (v1.6.0)](./DS_DECK/)
 - **기능**: 4개의 버튼에 텍스트 매크로(한/영 지원), 단축키(Combo), 미디어 컨트롤, **웹 브라우저 런처(Browser)** 할당.
 - **특징**: **macOS 프리미엄 런처 지원**(Spotlight 자동화), 초고속 BLE HID 엔진, 웹 기반 실시간 매크로 설정, F1~F12 포함 모든 특수키 지원.
 
-### 7. [Screen_To_OLEDs: 실시간 화면 스트리머 (v2.2.1)](./Screen_To_OLEDs/)
+### 7. [Screen_To_OLEDs: 실시간 화면 스트리머 (v2.3.0)](./Screen_To_OLEDs/)
 - **기능**: Mac의 화면 일부를 실시간 캡처하여 DeskStream 4-OLED 매트릭스(512x64)에 무선 전송.
 - **특징**: 지능형 캡처 엔진(Full 대응), Numba JIT 가속, 6종 디더링 알고리즘, 실시간 설정 변경.
 - **버튼 동작**: 버튼 2를 눌러 밝기를 조절하고, 버튼 1을 롱프레스하여 화면을 180도 회전(플립)합니다.
 
-### 8. [Hangeul_Clock: 고화질 폰트 한글 시계 (v2.10.0)](./Hangeul_Clock/)
+### 8. [Hangeul_Clock: 고화질 폰트 한글 시계 (v2.11.0)](./Hangeul_Clock/)
 - **기능**: NTP 동기화 기반의 고화질 한글 시계 및 하이엔드 폰트 렌더링 시스템.
 - **특징**: 
     - **제로-스터터(Zero-Stutter) 웹 API**: 폰트 슬롯 이름 메모리 캐싱으로 웹 대시보드 호출 시 시스템 멈춤 현상 근본 해결.
@@ -65,7 +65,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 - **기능**: Conway의 생명 게임(Game of Life) 시뮬레이션을 512x64 대화면에서 무한 루프로 실행.
 - **특징**: 1-bit 메모리 최적화(총 8KB 사용), 4개 버튼을 통한 **재생/일시정지, 수동 단계 진행, 속도 조절(5/10/20 FPS), 패턴 리셋** 지원.
 
-### 10. [ENG_Clock: 고화질 폰트 영어 시계 (v1.0.5)](./ENG_Clock/)
+### 10. [ENG_Clock: 고화질 폰트 영어 시계 (v1.1.0)](./ENG_Clock/)
 - **기능**: NTP 동기화 기반의 고화질 영어 단어 시계. `Hangeul_Clock`의 아키텍처와 품질을 유지하며 텍스트만 영어로 포트.
 - **특징**: 
     - **2-Line Word Layout**: 영어 최장 단어(`SEVENTEEN`, 9자)를 수용하는 어절 단위 2줄 레이아웃.
@@ -73,7 +73,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
     - **Font Studio**: 브라우저에서 TTF를 잉크 중앙 정렬 64px 비트맵으로 래스터화해 직접 업로드.
     - **호스트 테스트 인프라**: 네이티브 C++ 단위 테스트 + 웹↔펌웨어 교차 검증(`bash test/js/run_all.sh`).
 
-### 11. [Chinese_Clock: 고화질 폰트 중국어 시계 (v1.0.3)](./Chinese_Clock/)
+### 11. [Chinese_Clock: 고화질 폰트 중국어 시계 (v1.1.0)](./Chinese_Clock/)
 - **기능**: NTP 동기화 기반의 중국어 한자 단어 시계. `Hangeul_Clock` / `ENG_Clock`의 하드웨어·UI·애니메이션·웹 파이프라인을 승계하고 텍스트 생성부만 중국어로 포트.
 - **특징**: 
     - **4화면 32×32 셀 레이아웃**: 최장 표현이 4자(`四十五分`)라 줄바꿈 없이 화면당 정사각형 셀 4개에 표시.
@@ -82,7 +82,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
     - **POSIX TZ 시간대 시스템**: DST 자동 처리, 기본값 `CST-8`, 웹 UI 프리셋 + Custom 입력.
     - **Font Studio**: 브라우저에서 TTF를 37자(간체 ∪ 번체) 48×48 비트맵으로 구워 5개 폰트 슬롯에 업로드.
 
-### 12. [Universal_Timer: 4-OLED 범용 타이머 (v1.0.0)](./Universal_Timer/)
+### 12. [Universal_Timer: 4-OLED 범용 타이머 (v1.1.0)](./Universal_Timer/)
 - **기능**: 4개의 OLED에 시·분·초를 각각 표시 및 조절하고 카운트다운을 수행하는 하드웨어 타이머.
 - **특징**: 
     - **4분할 인터랙티브 레이아웃**: OLED 1(시 / 00H), OLED 2(분 / 00M), OLED 3(초 / 00S), OLED 4(START / PAUSE / RESET).
@@ -94,6 +94,24 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 - **하이브리드 I2C 아키텍처**: 하드웨어 I2C와 레지스터 직접 제어 기반 고속 소프트웨어 I2C를 병렬로 사용하여 4개의 화면을 끊김 없이 제어합니다.
 - **성능 최적화**: 부드러운 애니메이션 구현을 위한 Dirty Page 체크 및 그래픽 가속 기법이 적용되었습니다.
 - **문서화 표준화**: 전 프로젝트 소스 코드에 Doxygen 스타일 헤더 및 작성자 정보를 도입하여 유지보수성을 극대화했습니다.
+
+## 🧩 공통 라이브러리 (DeskStreamCore)
+
+여러 프로젝트가 함께 쓰는 기능(화면 엔진, 버튼, 부저, WiFi, NTP, 설정 저장, 웹 설정 엔진)을
+Arduino 라이브러리 [`libraries/DeskStreamCore`](./libraries/DeskStreamCore/)로 모으고 있습니다.
+**12개 프로젝트 전부**가 이 라이브러리를 씁니다 (화면 전송 HW 1.1MHz + 고속 SW I2C, 바뀐 타일만 병렬 전송 — 한글 시계 실측 4화면 45.7fps).
+
+### 최초 설정 (PC마다 1회)
+
+스케치를 빌드하기 전에 라이브러리를 Arduino 스케치북에 링크합니다.
+
+```bash
+bash scripts/link-arduino-lib.sh
+```
+
+- 스케치북 경로는 `arduino-cli config get directories.user` → `~/Documents/Arduino` 순으로 찾습니다. 다른 경로면 인자로 넘깁니다.
+- 라이브러리 호스트 테스트: `bash libraries/DeskStreamCore/test/run_all.sh`
+- **AI로 새 프로젝트를 만들 때**: [`AI_GUIDE.md`](./AI_GUIDE.md)를 먼저 읽게 하세요 — 라이브러리 사용 규칙·모듈별 API·템플릿·체크리스트.
 
 ## 🌐 웹 플래셔 (Web Flasher)
 

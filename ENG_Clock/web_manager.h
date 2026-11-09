@@ -30,12 +30,8 @@ private:
     
     // API 핸들러
     void handleRefreshCache();
-    void handleGetConfig();
-    void handleSetConfig();
 
-    // 헬퍼 메서드
-    int parseVal(const String& body, const String& key);
-    bool parseBool(const String& body, const String& key);
+    ds::WebConfigApi _configApi;   // GET/POST /api/config
 };
 
 extern WebManager webManager;

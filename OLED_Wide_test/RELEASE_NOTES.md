@@ -1,5 +1,11 @@
 # Release Notes - OLED Wide Test
 
+## [v1.3.0] - 2026-11-09
+### 🧩 공통 라이브러리 DeskStreamCore로 전환
+- **DeskStreamCore 전환**: Wire 800kHz U8g2 전송·자체 SW I2C 콜백·셰도 버퍼·페이지 단위 전송을 지우고 `ds::DisplayCore::pushCanvas()`를 쓴다.
+- **화면 전송**: 512x64 LovyanGFX 캔버스 → 화면별 전치·바뀐 타일만 HW·SW 병렬 전송을 `ds::DisplayCore::pushCanvas()`가 한다 (HW 1.1MHz + 페이지 병합, 고속 SW I2C 약 1.15MHz). 전송 실패 페이지 재시도·버스 자가 복구가 생겼다. 예전엔 바뀐 페이지를 통째로(128px) 동기 전송했다.
+- **버튼·부저**: BTN1 짧게 플립(`ds::Buttons`), 비프는 비차단(`ds::Buzzer`). 30fps 상한·테스트 장면·NVS("wide_set")는 그대로.
+
 ## [v1.2.1] - 2026-10-21
 ### 🛠️ Fixed
 - **USB CDC 로그 블로킹 방지 (ESP32-C3)**: `Serial.begin()` 직후 `Serial.setTxTimeoutMs(0)`을 적용했습니다. USB CDC(HWCDC) TX 링버퍼(256B)가 가득 찬 상태에서 로그를 출력하면 `HWCDC::write()`가 호출당 최대 2초(`tx_timeout_ms` 100 ms × `max_consec_timeouts` 20회)를 블로킹해 메인 루프(렌더링·버튼)가 멈추는 잠재 위험을 제거했습니다. `ARDUINO_USB_CDC_ON_BOOT` 가드로 CDC 부팅 보드에서만 적용됩니다.

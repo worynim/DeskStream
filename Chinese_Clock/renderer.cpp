@@ -9,7 +9,7 @@
 #include "LittleFS.h"
 #include "config_manager.h"
 #include "layout_engine.h"   // LAYOUT_SCREEN_HEIGHT / LAYOUT_LINE_HEIGHT (static_assert용)
-#include "logger.h"
+#include "display_manager.h"   // logger(ds::Logger) extern 선언
 
 Renderer renderer;
 

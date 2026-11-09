@@ -1,5 +1,12 @@
 # Release Notes - Universal Timer
 
+## [v1.1.0] - 2026-11-09
+### 🧩 공통 라이브러리 DeskStreamCore로 전환
+- **복사본 제거**: `DisplayEngine.*`·`ButtonManager.*`·`BuzzerManager.*` → DeskStreamCore. 화면·버튼 순서 반전 옵션(`REVERSE_*`)은 `config.h`에 그대로 있다.
+- **화면 전송**: HW I2C 1.1MHz + 페이지 병합, 고속 SW I2C(실효 약 1.15MHz), 바뀐 타일만 HW·SW 버스 **병렬** 전송 (`ds::DisplayCore`). 예전엔 바뀐 화면을 8페이지 전부 동기 전송했다.
+- **버튼 수정**: 1000ms 시점에 REPEAT 이벤트가 LONG을 덮어써 BTN4 길게(리셋)가 가끔 씹히던 문제 — 이벤트를 비트마스크로 받아 둘 다 전달된다. 디바운스 30ms·300ms 후 60ms 자동 반복은 같다.
+- **부저**: 비프·시작 멜로디·알람(끌 때까지 반복)을 `ds::Buzzer`로. 시작 멜로디가 비차단이 됐다. 크기 430,634 B.
+
 ## [v1.0.0] - 2026-11-04
 ### ✨ Initial Release (신규 프로젝트 생성)
 - **4-OLED 인터랙티브 범용 카운트다운 타이머**:

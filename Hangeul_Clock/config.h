@@ -1,119 +1,45 @@
 // worynim@gmail.com
 /**
  * @file config.h
- * @brief 프로젝트 전역 설정 및 하드웨어 핀 맵 정의
- * @details I2C 주소, Wi-Fi 초기 접속 정보, 애니메이션 타이밍 등 시스템 상수를 관리
+ * @brief 프로젝트 전역 설정
+ * @details Wi-Fi 포털 정보, 애니메이션 타이밍, 폰트 등 이 프로젝트 전용 상수를 관리
+ *          (보드 공통 핀·I2C 성능 값은 DeskStreamCore)
  */
 #ifndef CONFIG_H
 #define CONFIG_H
 
 #include <Arduino.h>
+#include <DeskStreamCore.h>     // 공통 핀 맵(ds_board.h)·화면 엔진·NTP 감독 등 (libraries/DeskStreamCore)
 #include "renderer_layout.h"   // 배치 상수의 정의처 (GLYPH_CELL_W·RIGHT_COL_X·LAYOUT_MAX_CHARS 유래)
 
-// === [1] 하드웨어 핀 정의 (ESP32-C3 기반) ===
-#define BTN1_PIN 1
-#define BTN2_PIN 4
-#define BTN3_PIN 10
-#define BTN4_PIN 9
-
-#define HW_SDA_PIN 5
-#define HW_SCL_PIN 6
-#define SW_SDA_PIN 2
-#define SW_SCL_PIN 3
-
-#define BUZZER_PIN 7
+// === [1] 하드웨어 핀 ===
+// 버튼·부저·I2C 핀과 OLED 주소는 DeskStreamCore의 ds_board.h(ds::kButtonPins 등)가 정의한다.
 
 // === [2] NTP 및 시간 설정 ===
 // 고정 오프셋 대신 POSIX TZ 문자열을 쓴다 (웹에서 설정, DST 자동 처리).
-// NTP는 UTC로 수신하고 localtime() 시점에 TZ 환경변수가 적용된다.
-//
-// [2026-11-07 사용자 보고] "상시 가동하면 시계가 조금씩 틀어져 십여 초 차이가 난다."
-//   ESP32-C3의 시스템 시각은 40MHz 크리스털에서 파생된 free-running 카운터다
-//   (전형 ±10~30ppm = 하루 1~3초). 부팅 때 NTP 1회 동기화만 믿거나, SNTP의 백그라운드
-//   재폴링이 조용히 끊기면(WiFi 재접속·DNS 실패 등) 오차가 그대로 누적된다.
-//   아래 값들이 time_sync.cpp의 "동기화 감독" 정책이다 — 자세한 근거는 그 파일 주석 참조.
-#define NTP_SERVER1 "kr.pool.ntp.org"   // 국내 풀: RTT가 짧고 도달률이 높다
-#define NTP_SERVER2 "pool.ntp.org"
-#define NTP_SERVER3 "time.nist.gov"     // 보조 (3번째 서버까지 시도)
-
-#define NTP_SNTP_POLL_MS        3600000UL   // SNTP 내부 재요청 주기 (코어 기본 3시간 → 1시간 안전망)
-#define NTP_RESYNC_INTERVAL_MS  21600000UL  // 6시간마다 강제 재동기화 (누적 오차 상한 ≈ 0.2초)
-#define NTP_SYNC_STALE_MS       43200000UL  // 12시간 동안 성공 기록이 없으면 즉시 강제
-#define NTP_RETRY_INTERVAL_MS   30000UL     // 미동기(부팅 직후·실패) 상태 재시도 간격
-#define NTP_MIN_RESYNC_GAP_MS   60000UL     // 연속 재동기화 요청 최소 간격
-#define NTP_WIFI_RETRY_MS       60000UL     // WiFi 끊김 시 재접속 시도 간격
-
+// NTP 서버·재동기화 감독 주기(6h/12h/30s/1분)는 ds::TimeSyncConfig 기본값을 쓴다
+// (근거: libraries/DeskStreamCore/src/net/ds_time_sync.h).
 // 웹에서 시간대를 설정하기 전까지의 폴백 (config_manager가 NVS에 보관)
 #define DEFAULT_TIMEZONE "KST-9"
-#define TIMEZONE_MAX_LEN 48   // SystemSettings.timezone 배열 크기와 일치해야 한다
 
 // === [3] 디스플레이 설정 ===
-#define NUM_SCREENS 4
-#define SCREEN_WIDTH 128
-#define SCREEN_HEIGHT 64
-#define PAGES_PER_SCREEN 8
-#define TILES_PER_PAGE 16
+// 화면 치수는 ds_board.h 값을 그대로 노출한다 (렌더러·레이아웃 코드가 이 이름을 쓴다).
+#define NUM_SCREENS   ds::kNumScreens
+#define SCREEN_WIDTH  ds::kScreenWidth
+#define SCREEN_HEIGHT ds::kScreenHeight
 
 // === [4] I2C 성능 설정 ===
-/**
- * HW I2C(화면 0·1) SCL 설정 주파수.
- * @details 실효값은 설정보다 약 18% 낮게 나온다. C3 HW I2C는 SCL이 실제 HIGH가 된 뒤부터
- *          HIGH 구간을 세므로 풀업 상승 시간만큼 비트가 길어진다 (트랜잭션 비용은 회당 ~27us로 작다).
- *          C3 HW I2C 보증은 800kHz까지 — 그 이상은 규격 밖이지만 OLED 쪽은 1MHz+도 받는다.
- *          오류·노이즈가 보이면 낮춘다. 실측 (FPS_BENCH_ON_BOOT, HW 1화면 풀 프레임):
- *            800000  → 실효 710kHz, 14.3ms (v2.9.9)
- *            1000000 → 실효 826kHz, 12.35ms (4화면 25.16ms / 39.8fps, SW 150ns와 함께)
- *            1100000 → 실효 881kHz, 11.62ms (4화면 22.84ms / 43.8fps, SW 100ns와 함께)
- *                      + HW_MERGED_PAGE_TX → 실효 904kHz, 11.40ms (4화면 22.40ms / 44.6fps) ← 채택
- *            1200000 → ✗ 화면 0 CMD Error 0x103 (NACK) — 패널이 못 따라옴
- *          더 올리려면 GPIO 5·6에 외부 풀업(2.2kΩ 정도)을 달아 상승 시간을 줄여야 한다.
- */
-#define I2C_SPEED_HZ 1100000
-#define I2C_TX_TIMEOUT_MS 50
-#define I2C_CMD_TIMEOUT_MS 10
-#define I2C_SYNC_TIMEOUT_MS 100
-#define I2C_ERROR_THRESHOLD 50   // 누적 오류 횟수 — 초과 시 recoverBus()로 버스 자가 복구
-#define HW_I2C_BUF_SIZE 256
-/**
- * HW 버스 페이지 전송을 한 트랜잭션으로 합친다 (1 = 합침, 0 = 명령/데이터 2회 — v2.9.9 방식).
- * @details SSD1306 제어 바이트 Co 비트: [0x80,B0|p, 0x80,col_lo, 0x80,0x10|col_hi, 0x40, data…].
- *          화면당 트랜잭션 16 → 8회. 실측 HW 1화면 버스 11.07 → 10.85ms (회당 ~27us 절약).
- *          화면이 깨지거나 엉뚱한 위치에 그려지면 0으로 되돌린다.
- */
-#define HW_MERGED_PAGE_TX 1
+// HW 1.1MHz · 페이지 병합 전송 · SW 반주기 100ns 등은 ds::DisplayConfig 기본값을 쓴다
+// (실측 근거: libraries/DeskStreamCore/src/display/ds_display_config.h — 4화면 22.4ms / 44.6fps).
 
 /**
- * SW I2C(화면 2·3) 반주기 지연 (ns). U8g2 u8x8_byte_sw_i2c 대신 전용 고속 루틴(sw_i2c_fast)을 쓴다.
- * @details U8g2 SW I2C는 비트 엣지마다 콜백을 호출해 CPU 한계로 실효 763kHz에 묶여 있었다.
- *          전용 루틴은 레지스터 직접 쓰기 + 부팅 시 보정한 NOP 지연으로 돈다.
- *          SCL은 매 비트 실제 HIGH가 될 때까지 기다린다 (풀업 RC 상승 — 생략하면 동작 안 함).
- *          0 = 지연 없음(최대 속도). 화면이 깨지거나 노이즈가 생기면 키운다 (BitBang 판 기준
- *          150ns ≈ 1.17MHz, 250ns ≈ 850kHz).
- *          실측 (SW 1화면 풀 프레임):
- *            150 → 실효 1044kHz, 11.39ms (4화면에선 HW 태스크 간섭으로 915kHz) — 오류·노이즈 없음
- *            100 → 실효 1189kHz, 9.07ms 1화면 (4화면 1037kHz)
- */
-#define SW_I2C_HALF_BIT_NS 100
-#define SW_I2C_SCL_SPIN_MAX 32          // SCL 상승을 레지스터로 다시 읽는 횟수 (넘으면 micros() 경로)
-#define SW_I2C_STRETCH_TIMEOUT_US 100   // SCL이 이 시간 넘게 LOW면 트랜잭션 중단 (stuck)
-
-/**
- * 부팅 시 FPS 벤치마크 실행 여부 (1 = 실행). Hangeul_Clock_bitbang_i2c와 같은 방식이다.
- * @details display.begin() 직후, WiFi 연결 전에 한 번 돈다. 매 프레임 모든 바이트가
- *          바뀌는 패턴을 그려 **풀 프레임 전송**을 강제하고 pushParallel() 시간을 잰다.
- *            · 케이스 A: 4화면 풀 프레임 (HW 2화면 + SW 2화면 병렬)
- *            · 케이스 B: 화면 0만 (HW 버스 1화면)
- *            · 케이스 C: 화면 2만 (SW 버스 1화면)
+ * 부팅 시 FPS 벤치마크 실행 여부 (1 = 실행).
+ * @details display.begin() 직후, WiFi 연결 전에 한 번 돈다 (ds::DisplayCore::runFpsBenchmark).
  *          결과는 시리얼(115200)과 화면 0에 표시된다. 기본은 0(끔) — 측정할 때만 1로 켠다.
  */
 #define FPS_BENCH_ON_BOOT 0
 #define FPS_BENCH_FRAMES 50      // 케이스당 측정 프레임 수
 #define FPS_BENCH_SHOW_MS 8000   // 결과를 화면에 띄워 두는 시간 (ms)
-
-// === [5] RTOS 태스크 설정 ===
-#define HW_TASK_STACK 4096
-#define HW_TASK_PRIO 10
-#define HW_TASK_CORE 0
 
 // === [6] 앱 설정 ===
 #define WIFI_SSID_AP "Hangeul_Clock_Setup"
@@ -157,8 +83,6 @@
 #define HOUR_FORMAT_24H 1
 
 // === [10] 기타 하드코딩 상수 통합 ===
-#define I2C_ADDR_HW_0 0x3C
-#define I2C_ADDR_HW_1 0x3D
 #define MAX_BITMAP_SIZE 512
 #define WEB_PORT 80
 
@@ -182,8 +106,6 @@
  */
 #define FONT_NAME_MAX_LEN 64
 
-#define LONG_PRESS_TIME_MS 1000
-#define DEBOUNCE_TIME_MS 50
 #define WIFI_CONFIG_TIMEOUT 120
 #define DEBUG_MODE 1                             // 1: 디버그 정보 출력 활성화, 0: 비활성화
 

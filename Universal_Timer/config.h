@@ -8,43 +8,17 @@
 #define CONFIG_H
 
 #include <Arduino.h>
+#include <DeskStreamCore.h>
 
 // ==========================================
-// [1] 디스플레이 및 I2C 통신 설정
+// [1] 디스플레이 / 버튼 / 부저
 // ==========================================
-#define SCREEN_WIDTH        128         // OLED 개별 화면 가로 해상도
-#define SCREEN_HEIGHT       64          // OLED 개별 화면 세로 해상도
-#define NUM_SCREENS         4           // 총 연결된 OLED 화면 개수
-#define PAGES_PER_SCREEN    8           // 화면당 페이지 수 (64 / 8)
+// 핀·OLED 주소·화면 치수는 DeskStreamCore ds_board.h, I2C 속도(HW 1.1MHz·고속 SW I2C)는
+// ds::DisplayConfig 기본값을 쓴다 (libraries/DeskStreamCore).
 
-// 디스플레이 및 버튼 물리적 방향 (0: 정순 1, 2, 3, 4)
+// 디스플레이 및 버튼 물리적 방향 (0: 정순 1, 2, 3, 4 / 1: 역순 4, 3, 2, 1)
 #define REVERSE_SCREEN_ORDER 0
 #define REVERSE_BUTTON_ORDER 0
-
-#define I2C_SPEED_HZ        1000000     // I2C 통신 클럭 속도 (1MHz)
-#define I2C_TX_TIMEOUT_MS   50          // 데이터 전송 최대 대기 시간 (ms)
-#define I2C_CMD_TIMEOUT_MS  10          // 명령 전송 최대 대기 시간 (ms)
-#define I2C_GLITCH_FILTER   7           // I2C 신호 잡음 제거 필터 강도
-#define I2C_INTR_PRIO       3           // I2C 인터럽트 우선순위
-
-// I2C 핀 설정 (DeskStream 보드 - ESP32-C3)
-#define HW_SDA_PIN          5           // 하드웨어 I2C SDA (OLED 1, 2)
-#define HW_SCL_PIN          6           // 하드웨어 I2C SCL (OLED 1, 2)
-#define SW_SDA_PIN          2           // 소프트웨어 I2C SDA (OLED 3, 4)
-#define SW_SCL_PIN          3           // 소프트웨어 I2C SCL (OLED 3, 4)
-
-// ==========================================
-// [2] 버튼 핀 설정
-// ==========================================
-#define BTN1_PIN            1           // BTN 1: 시(Hour) 조절
-#define BTN2_PIN            4           // BTN 2: 분(Minute) 조절
-#define BTN3_PIN            10          // BTN 3: 초(Second) 조절
-#define BTN4_PIN            9           // BTN 4: 시작/리셋
-
-// ==========================================
-// [3] 부저 설정
-// ==========================================
-#define BUZZER_PIN          7           // 패시브 부저 핀
 
 // ==========================================
 // [4] 버튼 동작 타이밍 (ms)

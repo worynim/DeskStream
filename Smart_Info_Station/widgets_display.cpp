@@ -31,7 +31,7 @@ void display_clock_oled(U8G2 &u8g2) {
   u8g2.setFont(u8g2_font_6x10_tf);
   u8g2.drawStr(10, 56, "Set: ");
   u8g2.drawStr(35, 56, WiFi.localIP().toString().c_str());
-  u8g2.sendBuffer();
+  display.push();
 }
 
 void display_calendar_oled(U8G2 &u8g2) {
@@ -101,7 +101,7 @@ void display_calendar_oled(U8G2 &u8g2) {
       }
       if (currentDay > daysInMonth) break;
   }
-  u8g2.sendBuffer();
+  display.push();
 }
 
 void display_weather_oled(U8G2 &u8g2) {
@@ -132,7 +132,7 @@ void display_weather_oled(U8G2 &u8g2) {
     u8g2.write(0xB0);
     u8g2.print("C");
   }
-  u8g2.sendBuffer();
+  display.push();
 }
 
 void display_dust_oled(U8G2 &u8g2) {
@@ -153,7 +153,7 @@ void display_dust_oled(U8G2 &u8g2) {
   u8g2.setFont(MAIN_NUM_FONT);
   u8g2.drawStr(60, 14, String(dust_10_num).c_str());
   u8g2.drawStr(60, 40, String(dust_2_5_num).c_str());
-  u8g2.sendBuffer();
+  display.push();
 }
 
 void display_youtube_oled(U8G2 &u8g2) {
@@ -166,7 +166,7 @@ void display_youtube_oled(U8G2 &u8g2) {
   drawCenteredText(u8g2, "YouTube Subscribers", 20);
   u8g2.setFont(MAIN_NUM_FONT);
   drawCenteredText(u8g2, subscribe_num, 33);
-  u8g2.sendBuffer();
+  display.push();
 }
 
 void display_market_oled(U8G2 &u8g2, const String &title, const String &price, const String &change, const String &percent) {
@@ -179,7 +179,7 @@ void display_market_oled(U8G2 &u8g2, const String &title, const String &price, c
   u8g2.setFont(u8g2_font_6x10_tf);
   String changeStr = change + " (" + percent + ")";
   drawCenteredText(u8g2, changeStr, 56);
-  u8g2.sendBuffer();
+  display.push();
 }
 
 void display_kospi_oled(U8G2 &u8g2) {

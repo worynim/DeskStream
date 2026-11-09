@@ -1,4 +1,4 @@
-# ENG Clock (English Language Clock) - v1.0.5
+# ENG Clock (English Language Clock) - v1.1.0
 
 NTP 서버로부터 시간을 동기화하여 4개의 OLED 디스플레이에 **영어 단어**로 시, 분, 초를 표시하는 ESP32-C3 기반 프리미엄 데스크 가젯입니다. `Hangeul_Clock` v2.6.0의 기능·품질을 100% 유지하면서 텍스트만 영어로 교체한 포트입니다.
 
@@ -14,11 +14,11 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 ### 2. POSIX TZ Timezone System (시간대 시스템)
 - **DST 자동 처리**: 고정 오프셋 대신 POSIX TZ 문자열(`KST-9`, `EST5EDT,...` 등)을 사용해 서머타임이 자동으로 적용됩니다.
 - **웹 UI 시간대 선택**: 12개 지역 프리셋 + Custom 직접 입력. 설정값은 NVS(Preferences)에 영속 저장됩니다.
-- **입력 검증**: TZ 문자열 화이트리스트 검증(`tz_util`)으로 잘못된 설정이 시스템 시간을 망가뜨리지 않습니다.
+- **입력 검증**: TZ 문자열 화이트리스트 검증(`ds::isValidTimezone`)으로 잘못된 설정이 시스템 시간을 망가뜨리지 않습니다.
 
 ### 3. Modular Architecture (모듈형 아키텍처) — 한글판과 동일
 - **H/CPP separation**: 펌웨어 로직을 클래스별 모듈(.h/.cpp)로 완전 분리.
-- **순수 로직 분리 (Native-Testable)**: 시간 변환(`english_time_core`), TZ 검증(`tz_util`), 레이아웃(`layout_engine` + `renderer_geometry`)을 Arduino 의존 없는 순수 C++로 분리해 **호스트에서 단위 테스트**가 가능합니다.
+- **순수 로직 분리 (Native-Testable)**: 시간 변환(`english_time_core`), 레이아웃(`layout_engine` + `renderer_geometry`)을 Arduino 의존 없는 순수 C++로 분리해 **호스트에서 단위 테스트**가 가능합니다.
 - **Hardware Abstraction Layer (HAL)**: 하드웨어 종속 I2C 드라이버 로직을 `I2CPlatform` 클래스로 분리.
 - **Flat Buffer & Static Allocation**: 힙 파편화와 메모리 누수를 원천 차단하는 Flat Buffer 전략.
 
@@ -38,36 +38,41 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
 ### 6. Hardware Self-Healing & Test Infrastructure
 - **I2C Recovery System**: 버스 에러 감지 시 자동 재초기화 및 주소 재할당.
-- **호스트 테스트 인프라**: 네이티브 C++ 단위 테스트 4종 + 웹↔펌웨어 교차 검증 6종 (`test/` 참고 — `bash test/js/run_all.sh` 한 번에 전체 검증).
+- **호스트 테스트 인프라**: 네이티브 C++ 단위 테스트 3종 + 웹↔펌웨어 교차 검증 6종 (공통 모듈 테스트는 DeskStreamCore) (`test/` 참고 — `bash test/js/run_all.sh` 한 번에 전체 검증).
 
 ## 📁 디렉터리 구조
 
 ```
 ENG_Clock/
 ├── ENG_Clock.ino        메인 엔트리 (Setup / 루프 제어)
-├── config.h / config_manager.*   전역 상수 / 설정 영속화 (NVS)
+├── config.h / config_manager.*   전역 상수 / 설정 필드 테이블 (NVS 키·검증·웹 적용 순서)
 ├── english_time.*       시간 → 영어 텍스트 변환 (Arduino String 인터페이스)
 ├── english_time_core.*  순수 시간 변환 로직 (네이티브 테스트 대상)
-├── tz_util.*            POSIX TZ 문자열 검증
 ├── layout_engine.*      어절 단위 2줄 레이아웃 엔진
 ├── renderer_geometry.*  글자 기하 판별 (192B/384B)
 ├── renderer.*           U8g2 렌더러 (밴드 클립, 겹침 렌더링)
 ├── display_manager.*    4-OLED 병렬 출력, 시간대 적용, 애니메이션
-├── input_manager.*      4버튼 비차단 입력
-├── i2c_platform.*       HW/SW I2C HAL
-├── web_manager.*        웹 서버 엔진
+├── web_manager.*        페이지·폰트 업로드 (/api/config는 ds::WebConfigApi)
 ├── web_pages.h          Font Studio 웹 UI (HTML/JS 내장)
-├── logger.*             로깅
 ├── PLAN.md              설계 문서
 ├── 수정할 사항.md        버그/개선 추적
 └── test/                호스트 단위·교차 검증 (test/README.md)
 ```
 
+화면 전송(HW 1.1MHz + 고속 SW I2C)·버튼·부저·WiFi·NTP 감독·설정 저장·웹 설정 API·로그·TZ 검증은
+공통 라이브러리 [DeskStreamCore](../libraries/DeskStreamCore/)를 씁니다 (v1.1.0). 빌드 전에 저장소 루트에서
+`bash scripts/link-arduino-lib.sh`를 한 번 실행해 라이브러리를 Arduino 스케치북에 연결하세요.
+
 ## 🚀 빌드
 
 ```bash
-arduino-cli compile --fqbn esp32:esp32:nologo_esp32c3_super_mini .
+arduino-cli compile --fqbn esp32:esp32:makergo_c3_supermini:PartitionScheme=huge_app .
 ```
+
+- Arduino IDE에서는 `Partition Scheme`을 **`Huge APP`**로 선택한다 (크기 검사 상한을 넓히기 위해서다).
+- 실제 파티션은 스케치 폴더의 `partitions.csv` — **DeskStream 공통 레이아웃**(app0 2.5MB / spiffs `0x290000` 1.375MB, OTA 없음)이
+  항상 우선 적용된다. spiffs 위치가 `default` 스킴과 같아서 다른 프로젝트와 바꿔 올려도 업로드한 폰트가 보존된다.
+- v1.1.0부터다 — `default` 스킴(app0 1.25MB)은 DeskStreamCore 전환 후 여유가 141 B뿐이었다.
 
 ## 🧪 테스트
 

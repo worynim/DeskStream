@@ -11,7 +11,7 @@
     {
       "id": "Smart_Info_Station",
       "name": "스마트 정보 스테이션",
-      "version": "2.9.3",
+      "version": "2.10.0",
       "icon": "🌤️",
       "order": 1,
       "sourcePath": "Smart_Info_Station",
@@ -24,7 +24,7 @@
     {
       "id": "GPS_DASH",
       "name": "GPS 대시보드",
-      "version": "2.6.1",
+      "version": "2.7.0",
       "icon": "🛰️",
       "order": 2,
       "sourcePath": "GPS_DASH",
@@ -37,7 +37,7 @@
     {
       "id": "Sound_Visualizer_4_OLEDs",
       "name": "사운드 비주얼라이저",
-      "version": "3.4.1",
+      "version": "3.5.0",
       "icon": "🎵",
       "order": 3,
       "sourcePath": "Sound_Visualizer_4_OLEDs",
@@ -50,7 +50,7 @@
     {
       "id": "OLED_Wide_test",
       "name": "초광폭 OLED 테스트",
-      "version": "1.2.1",
+      "version": "1.3.0",
       "icon": "🧪",
       "order": 4,
       "sourcePath": "OLED_Wide_test",
@@ -63,7 +63,7 @@
     {
       "id": "Stats_Monitor",
       "name": "시스템 상태 모니터",
-      "version": "1.5.1",
+      "version": "1.6.0",
       "icon": "📈",
       "order": 5,
       "sourcePath": "Stats_Monitor",
@@ -76,7 +76,7 @@
     {
       "id": "DS_DECK",
       "name": "DS DECK 매크로 패드",
-      "version": "1.5.2",
+      "version": "1.6.0",
       "icon": "⌨️",
       "order": 6,
       "sourcePath": "DS_DECK",
@@ -89,7 +89,7 @@
     {
       "id": "Screen_To_OLEDs",
       "name": "화면 스트리머 (수신 펌웨어)",
-      "version": "2.2.1",
+      "version": "2.3.0",
       "icon": "🖥️",
       "order": 7,
       "sourcePath": "Screen_To_OLEDs/Screen_To_OLEDs",
@@ -102,7 +102,7 @@
     {
       "id": "Game_Of_Life",
       "name": "게임 오브 라이프",
-      "version": "1.0.2",
+      "version": "1.1.0",
       "icon": "🧬",
       "order": 8,
       "sourcePath": "Game_Of_Life",
@@ -115,46 +115,46 @@
     {
       "id": "Hangeul_Clock",
       "name": "한글 시계",
-      "version": "2.10.0",
+      "version": "2.11.0",
       "icon": "🕒",
       "order": 9,
       "sourcePath": "Hangeul_Clock",
       "description": "NTP 동기화 기반 고화질 한글 단어 시계. 웹 대시보드·폰트 스튜디오 지원",
-      "note": "WiFi·표시 설정은 NVS에 저장됩니다. 재플래시해도 유지됩니다.",
+      "note": "WiFi·표시 설정은 NVS에 저장됩니다. 파티션은 DeskStream 공통 레이아웃(app0 2.5MB OTA 없음 / spiffs 1.375MB)이고, spiffs가 default와 같은 0x290000에 있어 업로드한 폰트가 재플래시·프로젝트 전환 후에도 유지됩니다.",
       "nameEn": "Hangeul Clock",
       "descriptionEn": "High-quality Korean word clock synced over NTP, with a web dashboard and font studio",
-      "noteEn": "WiFi and display settings are stored in NVS and preserved across reflashes."
+      "noteEn": "WiFi and display settings are stored in NVS. Uses the shared DeskStream partition layout (app0 2.5MB, no OTA / spiffs 1.375MB); spiffs sits at 0x290000 like the default scheme, so uploaded fonts survive reflashes and project switches."
     },
     {
       "id": "ENG_Clock",
       "name": "영어 시계",
-      "version": "1.0.5",
+      "version": "1.1.0",
       "icon": "🔤",
       "order": 10,
       "sourcePath": "ENG_Clock",
       "description": "NTP 기반 영어 단어 시계. 2줄 레이아웃·POS 시간대·폰트 스튜디오 지원",
-      "note": "WiFi·표시 설정은 NVS에 저장됩니다. 재플래시해도 유지됩니다.",
+      "note": "WiFi·표시 설정은 NVS에 저장됩니다. 파티션은 DeskStream 공통 레이아웃(app0 2.5MB OTA 없음 / spiffs 1.375MB)이고, spiffs가 default와 같은 0x290000에 있어 업로드한 폰트가 재플래시·프로젝트 전환 후에도 유지됩니다.",
       "nameEn": "English Clock",
       "descriptionEn": "English word clock synced over NTP with a two-line layout, POS time zones, and font studio",
-      "noteEn": "WiFi and display settings are stored in NVS and preserved across reflashes."
+      "noteEn": "WiFi and display settings are stored in NVS. Uses the shared DeskStream partition layout (app0 2.5MB, no OTA / spiffs 1.375MB); spiffs sits at 0x290000 like the default scheme, so uploaded fonts survive reflashes and project switches."
     },
     {
       "id": "Chinese_Clock",
       "name": "중국어 시계",
-      "version": "1.0.3",
+      "version": "1.1.0",
       "icon": "🀄",
       "order": 11,
       "sourcePath": "Chinese_Clock",
       "description": "NTP 기반 중국어 한자 시계. 한글·영어판과 동일한 4화면 32×32 셀 레이아웃",
-      "note": "WiFi·표시 설정은 NVS에 저장됩니다. 재플래시해도 유지됩니다.",
+      "note": "WiFi·표시 설정은 NVS에 저장됩니다. 파티션은 DeskStream 공통 레이아웃(app0 2.5MB OTA 없음 / spiffs 1.375MB)이고, spiffs가 default와 같은 0x290000에 있어 업로드한 폰트가 재플래시·프로젝트 전환 후에도 유지됩니다.",
       "nameEn": "Chinese Clock",
       "descriptionEn": "Chinese word clock synced over NTP with the same four-screen 32×32 cell layout",
-      "noteEn": "WiFi and display settings are stored in NVS and preserved across reflashes."
+      "noteEn": "WiFi and display settings are stored in NVS. Uses the shared DeskStream partition layout (app0 2.5MB, no OTA / spiffs 1.375MB); spiffs sits at 0x290000 like the default scheme, so uploaded fonts survive reflashes and project switches."
     },
     {
       "id": "Universal_Timer",
       "name": "범용 타이머",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "icon": "⏱️",
       "order": 12,
       "sourcePath": "Universal_Timer",

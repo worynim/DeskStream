@@ -1,5 +1,12 @@
 # Release Notes - Sound Visualizer
 
+## [v3.5.0] - 2026-11-09
+### 🧩 공통 라이브러리 DeskStreamCore로 전환
+- **복사본 제거**: `DisplayEngine.*`(자체 I2C·셰도·전치)과 버튼·부저 코드를 지우고 DeskStreamCore(`ds::DisplayCore`·`ds::Buttons`·`ds::Buzzer`)를 쓴다. 그리기 코드가 쓰는 `display.getCanvas()/pushCanvas()/smartDelay()`는 스케치의 작은 어댑터(`CanvasDisplay`)가 그대로 제공한다.
+- **화면 전송**: 512x64 LovyanGFX 캔버스 → 화면별 전치·바뀐 타일만 HW·SW 병렬 전송을 `ds::DisplayCore::pushCanvas()`가 한다 (HW 1.1MHz + 페이지 병합, 고속 SW I2C 약 1.15MHz). 전송 실패 페이지 재시도·버스 자가 복구가 생겼다. 예전 HW 1MHz·SW U8g2 기본 루틴(지연 제거)보다 SW 버스가 빨라졌다.
+- **버튼**: BTN1 짧게 플립, BTN2 길게 도움말, BTN4 짧게 모드 / 길게 캘리브레이션 — 동작은 같다. BTN1을 1초 넘게 누르면 이제 플립되지 않는다(길게 판정).
+- **부저**: 캘리브레이션 진입음이 비차단이 됐다. 플립·밝기·화면 순서 설정(NVS "viz_set")은 그대로.
+
 ## [v3.4.1] - 2026-10-21
 ### 🛠️ Fixed
 - **USB CDC 로그 블로킹 방지 (ESP32-C3)**: `Serial.begin()` 직후 `Serial.setTxTimeoutMs(0)`을 적용했습니다. USB CDC(HWCDC) TX 링버퍼(256B)가 가득 찬 상태에서 로그를 출력하면 `HWCDC::write()`가 호출당 최대 2초(`tx_timeout_ms` 100 ms × `max_consec_timeouts` 20회)를 블로킹해 메인 루프(ADC DMA·FFT·렌더링)가 멈추는 잠재 위험을 제거했습니다. `ARDUINO_USB_CDC_ON_BOOT` 가드로 CDC 부팅 보드에서만 적용됩니다.

@@ -1,5 +1,12 @@
 # 📝 Release Notes - Stats_Monitor
 
+## [v1.6.0] - 2026-11-09
+### 🧩 공통 라이브러리 DeskStreamCore로 전환
+- **DeskStreamCore 전환**: Wire 800kHz 동기 전송·자체 SW I2C 콜백·버튼 구조체·`ToneNote` 큐를 지우고 `ds::DisplayCore`·`ds::Buttons`·`ds::Buzzer`를 쓴다.
+- **화면 전송**: HW I2C 1.1MHz + 페이지 병합, 고속 SW I2C(실효 약 1.15MHz), 바뀐 타일만 HW·SW 버스 **병렬** 전송 (`ds::DisplayCore`). 0도/180도 회전은 같은 패널 명령(0xA0/0xC0 ↔ 0xA1/0xC8)이다.
+- 설정 저장(NVS "stats_mon", int 키)은 기존 형식 그대로 둔다 — 키 타입을 바꾸면 저장된 값이 사라진다.
+- **부저**: 부팅 멜로디를 setup() 끝에 둬야 했던 제약(첫 음이 BLE 초기화 내내 울림)이 사라졌다 — 타이머가 박자를 지킨다. 크기 763,475 B.
+
 ## [v1.5.1] - 2026-10-21
 ### 🛠 Fixed
 - **버튼 비프음이 2초 이상 길게 울리고 버튼 반응이 지연되는 문제 수정**: 이 보드는 `CDCOnBoot=Enabled`라 `Serial`이 USB Serial/JTAG(HWCDC)에 매핑되는데, 호스트가 포트를 읽지 않아 TX 링버퍼(256 B)가 포화되면 `HWCDC::write()`가 호출당 최대 2초(`tx_timeout_ms` 100 ms × `max_consec_timeouts` 20회)를 블로킹했습니다. 버튼 핸들러의 `Serial.printf()`가 `loop()`를 멈추는 동안 `updateTone()`이 `noTone()`을 호출하지 못해 50 ms 비프음이 2초 이상 지속되고, 그 사이 버튼 입력도 폴링되지 않아 동작이 늦게 반응했습니다.

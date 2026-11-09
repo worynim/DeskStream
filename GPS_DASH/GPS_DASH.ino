@@ -18,12 +18,9 @@ Preferences prefs;             // 비휘발성 설정 저장용 객체
 bool isDemoMode = false;       // 현재 데모 모드 여부
 bool isHelpMode = false;       // 현재 버튼 정보 도움말 표시 여부
 
-// 버튼 핀 정의
-const int BTN1_PIN = 1;  // OLED 1 제어용
-const int BTN2_PIN = 4;  // OLED 2 제어용
-const int BTN3_PIN = 10; // OLED 3 제어용
-const int BTN4_PIN = 9;  // OLED 4 제어용
-const int BUZZER_PIN = 7; // 부저 제어용
+// 버튼(BTN1~4 = OLED 1~4 제어)·부저 — 핀은 DeskStreamCore ds_board.h
+static ds::Buttons buttons;
+static ds::Buzzer buzzer;
 
 // 각 OLED(1~4번)에 어떤 모드(Time, Speed, 등)를 띄울지 저장하는 배열
 int currentDisplayModes[4] = {MODE_TIME, MODE_SPEED, MODE_COMPASS, MODE_SATS};
@@ -33,169 +30,14 @@ unsigned long tripTimeSec = 0;      // 총 주행 시간 (초)
 float tripDistanceKm = 0.0;         // 총 주행 거리 (km)
 unsigned long lastStatsUpdate = 0;  // 통계 업데이트용 타이머
 
-// --- [비차단 부저 시스템 타입 선언] (Arduino 자동 전방선언 호환) ---
-struct ToneNote {
-    int freq;
-    int durationMs;
-    int pauseMs;  // 다음 음 전 쉬는 시간 (0이면 즉시 연주)
-};
+// --- [부저] ds::Buzzer가 타이머로 비차단 재생한다 (GPS 프레임 유실 방지) ---
+static const ds::Note BOOT_MELODY[]   = {{2093, 80, 30}, {2637, 80, 30}, {3136, 80, 30}, {4186, 200, 0}};   // 띠리리링~
+static const ds::Note LOCK_MELODY[]   = {{2093, 100, 50}, {3136, 150, 0}};   // Fix Acquired
+static const ds::Note UNLOCK_MELODY[] = {{1047, 150, 50}, {1047, 100, 0}};   // Fix Lost
 
-const int MAX_MELODY_NOTES = 5;
-ToneNote _melodyQueue[MAX_MELODY_NOTES];
-int _melodyLen = 0;
-int _melodyIdx = 0;
-unsigned long _toneEndAt = 0;
-unsigned long _pauseEndAt = 0;
-enum TonePhase { TONE_IDLE, TONE_PLAYING, TONE_PAUSE };
-TonePhase _tonePhase = TONE_IDLE;
-
-/**
- * @brief 패시브 부저음을 발생시킵니다 (펄스 생성).
- * @param duration 소리가 나는 시간 (ms)
- * @param freq 주파수 (Hz) - 기본값 2000Hz
- */
-void beep(int duration = 50, int freq = 2000) {
-  tone(BUZZER_PIN, freq);
-  delay(duration);
-  noTone(BUZZER_PIN);
-}
-
-/**
- * @brief 시스템 시작 멜로디를 재생합니다 (띠리리링~).
- */
-void playBootMelody() {
-    beep(80, 2093);
-    delay(30);
-    beep(80, 2637);
-    delay(30);
-    beep(80, 3136);
-    delay(30);
-    beep(200, 4186);
-}
-
-// --- [비차단 부저 함수 정의] (loop 내 사용 — GPS 프레임 유실 방지) ---
-
-/**
- * @brief 비차단 멜로디 재생 시작 (여러 음을 큐에 등록)
- */
-void playMelodyAsync(const ToneNote* notes, int count) {
-    if (count > MAX_MELODY_NOTES) count = MAX_MELODY_NOTES;
-    for (int i = 0; i < count; i++) _melodyQueue[i] = notes[i];
-    _melodyLen = count;
-    _melodyIdx = 0;
-    tone(BUZZER_PIN, _melodyQueue[0].freq);
-    _toneEndAt = millis() + _melodyQueue[0].durationMs;
-    _tonePhase = TONE_PLAYING;
-}
-
-/**
- * @brief 비차단 단일 부저음 (loop 내 버튼 피드백용)
- */
-void beepAsync(int duration = 50, int freq = 2000) {
-    ToneNote n = {freq, duration, 0};
-    playMelodyAsync(&n, 1);
-}
-
-/**
- * @brief 부저 상태 업데이트 — loop()에서 매번 호출 필수
- */
-void updateTone() {
-    if (_tonePhase == TONE_IDLE) return;
-    unsigned long now = millis();
-    
-    if (_tonePhase == TONE_PLAYING && now >= _toneEndAt) {
-        noTone(BUZZER_PIN);
-        int pauseMs = _melodyQueue[_melodyIdx].pauseMs;
-        _melodyIdx++;
-        
-        if (_melodyIdx >= _melodyLen) {
-            _tonePhase = TONE_IDLE;
-        } else if (pauseMs > 0) {
-            _pauseEndAt = now + pauseMs;
-            _tonePhase = TONE_PAUSE;
-        } else {
-            tone(BUZZER_PIN, _melodyQueue[_melodyIdx].freq);
-            _toneEndAt = now + _melodyQueue[_melodyIdx].durationMs;
-        }
-    }
-    
-    if (_tonePhase == TONE_PAUSE && now >= _pauseEndAt) {
-        if (_melodyIdx < _melodyLen) {
-            tone(BUZZER_PIN, _melodyQueue[_melodyIdx].freq);
-            _toneEndAt = now + _melodyQueue[_melodyIdx].durationMs;
-            _tonePhase = TONE_PLAYING;
-        } else {
-            _tonePhase = TONE_IDLE;
-        }
-    }
-}
-
-/**
- * @brief GPS Lock 시 재생할 멜로디 — 비차단 (Fix Acquired)
- */
-void playLockMelody() {
-    static const ToneNote notes[] = {{2093, 100, 50}, {3136, 150, 0}};
-    playMelodyAsync(notes, 2);
-}
-
-/**
- * @brief GPS Unlock 시 재생할 멜로디 — 비차단 (Fix Lost)
- */
-void playUnlockMelody() {
-    static const ToneNote notes[] = {{1047, 150, 50}, {1047, 100, 0}};
-    playMelodyAsync(notes, 2);
-}
-
-/**
- * @brief 하드웨어 버튼의 Short/Long Press를 관리하는 구조체
- */
-struct Button {
-    int pin;
-    bool lastState;
-    unsigned long fallTime;
-    bool isPressed;
-    bool isLongPressFired; // 롱 프레스 즉시 실행을 위한 락(Lock) 플래그 막기
-    
-    void (*onShortPress)();
-    void (*onLongPress)();
-    
-    Button(int p, void (*sp)(), void (*lp)()) : pin(p), lastState(HIGH), fallTime(0), isPressed(false), isLongPressFired(false), onShortPress(sp), onLongPress(lp) {}
-
-    void init() {
-        pinMode(pin, INPUT_PULLUP);
-    }
-
-    void update() {
-        bool currentState = digitalRead(pin);
-        unsigned long now = millis();
-        
-        if (lastState == HIGH && currentState == LOW) { // 눌림 (Falling Edge)
-            fallTime = now;
-            isPressed = true;
-            isLongPressFired = false;
-        } 
-        else if (currentState == LOW) { // 계속 누르고 있는 상태 (Hold)
-            if (isPressed && !isLongPressFired) {
-                if (now - fallTime > 1000) { // 1s가 지난 순간 손을 떼지 않아도 즉시 롱 프레스 발동!
-                    isLongPressFired = true; // 한 번 눌린 것으로 처리하여 중복/연사 방지
-                    beepAsync(200, 2000); // 롱 프레스 부저음 (비차단)
-                    if (onLongPress) onLongPress();
-                }
-            }
-        } 
-        else if (lastState == LOW && currentState == HIGH) { // 떼짐 (Rising Edge)
-            if (isPressed && !isLongPressFired) { // 롱 프레스가 안터진 경우에만 숏 프레스 발동
-                unsigned long duration = now - fallTime;
-                if (duration > 50) { // Short Press (Debounce 50ms)
-                    beepAsync(50, 3000); // 숏 프레스 부저음 (비차단)
-                    if (onShortPress) onShortPress();
-                }
-            }
-            isPressed = false;
-        }
-        lastState = currentState;
-    }
-};
+void playBootMelody()   { buzzer.playMelody(BOOT_MELODY, 4); }
+void playLockMelody()   { buzzer.playMelody(LOCK_MELODY, 2); }
+void playUnlockMelody() { buzzer.playMelody(UNLOCK_MELODY, 2); }
 
 // --- [버튼 동작 정의] ---
 
@@ -292,13 +134,16 @@ void btn4_long()  {
     Serial.printf("[DEMO] Mode: %s\n", isDemoMode ? "ON" : "OFF");
 }
 
-// 4개의 버튼을 관리하는 배열
-Button btns[4] = {
-    Button(BTN1_PIN, btn1_short, btn1_long),
-    Button(BTN2_PIN, btn2_short, btn2_long),
-    Button(BTN3_PIN, btn3_short, btn3_long),
-    Button(BTN4_PIN, btn4_short, btn4_long)
-};
+// --- [버튼] ds::Buttons (짧게 > 50ms, 길게 > 1000ms) ---
+// 짧게: 50ms·3kHz 비프 후 동작 / 길게: 200ms·2kHz 비프 후 동작
+static void s0() { buzzer.beep(50, 3000); btn1_short(); }
+static void s1() { buzzer.beep(50, 3000); btn2_short(); }
+static void s2() { buzzer.beep(50, 3000); btn3_short(); }
+static void s3() { buzzer.beep(50, 3000); btn4_short(); }
+static void l0() { buzzer.beep(200, 2000); btn1_long(); }
+static void l1() { buzzer.beep(200, 2000); btn2_long(); }
+static void l2() { buzzer.beep(200, 2000); btn3_long(); }
+static void l3() { buzzer.beep(200, 2000); btn4_long(); }
 
 void setup() {
     Serial.begin(115200);
@@ -310,16 +155,15 @@ void setup() {
     Serial.setTxTimeoutMs(0);
 #endif
     
-    // 버튼 핀 초기화
-    for (int i = 0; i < 4; i++) {
-        btns[i].init();
-    }
-    
-    // 부저 초기화
-    pinMode(BUZZER_PIN, OUTPUT);
-    digitalWrite(BUZZER_PIN, LOW);
-    
-    // 시작 멜로디 재생
+    // 버튼 초기화
+    buttons.begin();
+    buttons.setCallbacks(0, s0, l0);
+    buttons.setCallbacks(1, s1, l1);
+    buttons.setCallbacks(2, s2, l2);
+    buttons.setCallbacks(3, s3, l3);
+
+    // 부저 초기화 및 시작 멜로디 재생 (비차단)
+    buzzer.begin();
     playBootMelody();
     
     // 모듈별 초기화
@@ -344,8 +188,7 @@ void loop() {
     // 1. 시스템 태스크 처리 (OTA 등)
     handleOTA();
 
-    // 2. 비차단 부저 및 NVS 지연 저장 업데이트
-    updateTone();
+    // 2. NVS 지연 저장 업데이트 (부저는 ds::Buzzer 타이머가 처리)
     checkDeferredSave();
 
     // 3. OTA 진행 중일 경우 디스플레이 전유
@@ -359,9 +202,7 @@ void loop() {
     }
 
     // 4. 하드웨어 버튼 입력 처리 (Short/Long 프레스)
-    for (int i = 0; i < 4; i++) {
-        btns[i].update();
-    }
+    buttons.update();
 
     // 5. [중요] GPS 데이터 수신 처리 (타이머 없이 루프마다 실행)
     // 데이터 소스가 5Hz이더라도 수신은 최대한 자주 호출해야 시리얼 버퍼가 넘치지 않습니다.

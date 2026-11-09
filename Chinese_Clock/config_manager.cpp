@@ -1,123 +1,70 @@
 // worynim@gmail.com
 /**
  * @file config_manager.cpp
- * @brief 영속적 설정 관리 클래스 구현
- * @details Preferences(NVS)를 이용한 설정값 저장·로드 및 지능형 지연 저장
- * @note [SYNC] 원본: ENG_Clock/config_manager.cpp — dord 제거, script_type 추가·검증
+ * @brief 설정 필드 테이블
+ * @details 필드 테이블 한 장이 (1) NVS 키·검증 규칙 (2) 웹 /api/config 의 JSON 키·적용 순서를
+ *          함께 정한다. 로드·지연 저장·웹 파싱은 DeskStreamCore(ds::ConfigStore·ds::WebConfigApi).
  */
 #include "config_manager.h"
+#include "display_manager.h"   // 웹에서 값이 바뀔 때 화면에 반영하는 setter
 #include <string.h>
 
 ConfigManager configManager;
 
-ConfigManager::ConfigManager() : _isDirty(false) {
-    // 5,000ms 지연 저장용 소프트웨어 타이머 (Lazy Save)
-    _saveTimer = xTimerCreate("SaveTimer", pdMS_TO_TICKS(5000), pdFALSE, (void*)this, _timerCallback);
+// === 웹 변경 시 적용 함수 ===
+// 값 쓰기·setDirty·화면 반영은 DisplayManager의 setter가 한다 (버튼 경로와 같은 함수).
+static void onAnim(const void* v)     { display.setAnimMode(*(const uint8_t*)v); }
+static void onFormat(const void* v)   { display.setHourFormat(*(const uint8_t*)v); }
+static void onSlot(const void* v)     { display.setFontSlot(*(const uint8_t*)v); }
+static void onBright(const void* v)   { display.setBrightness(*(const uint8_t*)v); }
+static void onChime(const void* v)    { display.setChime(*(const bool*)v); }
+static void onFlip(const void* v)     { display.setFlipDisplay(*(const bool*)v); }
+static void onInvert(const void* v)   { display.setInversion(*(const bool*)v); }
+static void onFontName(const void* v) { display.setFontName(String((const char*)v)); }   // 길이·문자 검증은 setSlotName()
+static void onTimezone(const void* v) {
+    // 검증(ds::isValidTimezone)은 저장소가 이미 했다. TZ 적용·SNTP 재시작은 time_sync 단일 경로.
+    SystemSettings& s = configManager.get();
+    strncpy(s.timezone, (const char*)v, sizeof(s.timezone) - 1);
+    s.timezone[sizeof(s.timezone) - 1] = '\0';
+    configManager.setDirty();
+    display.applyTimezone();
 }
+
+/**
+ * 필드 테이블 — **순서가 웹 POST 적용 순서다.**
+ * @note font_slot은 font_name보다 먼저 와야 한다. 폰트 업로드 후 웹 UI가
+ *       `{font_slot, font_name}`을 함께 보내는데, 슬롯을 먼저 옮겨야 이름표가 그 슬롯에 붙는다.
+ * @note display_mode·script_type은 웹에 따로 내지 않는다(FIELD_NO_WEB). 웹은 둘을 묶은
+ *       `presentation`(简体/繁體/數字) 하나로 다루고, 그 키는 web_manager가 setPresentation()으로 처리한다.
+ *       따로 내면 웹이 조합을 되살려야 하고, 펌웨어와 웹에 같은 변환 규칙이 두 벌 생긴다.
+ * @note font_name 최대 길이 128은 NVS·JSON 파싱 상한이다. 입력 이름표 상한(FONT_NAME_MAX_LEN 64)은
+ *       setSlotName()이 검사한다.
+ * @note is_flipped 기본값은 true다(SystemSettings 생성자) — 중국어판은 한글판의 방향 마이그레이션을 받지 않았다.
+ */
+static const ds::ConfigField kFields[] = {
+    DS_CFG_U8(SystemSettings, anim_mode, "anim_mode", "anim", 0, ANIMATION_TYPE_COUNT - 1, onAnim),
+    DS_CFG_U8(SystemSettings, hour_format, "hour_format", "format", HOUR_FORMAT_12H, HOUR_FORMAT_24H, onFormat),
+    DS_CFG_U8(SystemSettings, font_slot, "font_slot", "slot", 0, FONT_SLOT_COUNT - 1, onSlot),
+    DS_CFG_U8(SystemSettings, brightness, "brightness", "bright", 1, 255, onBright),
+    DS_CFG_BOOL(SystemSettings, chime_enabled, "chime_enabled", "chime", onChime),
+    DS_CFG_BOOL(SystemSettings, is_flipped, "is_flipped", "flip", onFlip),
+    DS_CFG_BOOL(SystemSettings, is_inverted, "is_inverted", "inv", onInvert),
+    DS_CFG_U8_F(SystemSettings, display_mode, "display_mode", "mode", CLOCK_MODE_WORD, CLOCK_MODE_NUMERIC, nullptr, ds::FIELD_NO_WEB),
+    // 문자판 (0=간체 简体, 1=번체 繁體) — 범위 밖 NVS 값은 로드 때 간체로 되돌아간다
+    DS_CFG_U8_F(SystemSettings, script_type, "script_type", "script", SCRIPT_SIMPLIFIED, SCRIPT_TRADITIONAL, nullptr, ds::FIELD_NO_WEB),
+    DS_CFG_CSTR(SystemSettings, timezone, "timezone", "tz", ds::isValidTimezone, onTimezone),
+    DS_CFG_STR(SystemSettings, font_name, "font_name", "font_name", 128, nullptr, onFontName, ds::FIELD_APPLY_ALWAYS),
+};
 
 void ConfigManager::begin() {
     Serial.println("[CONFIG] Initializing ConfigManager...");
-    load();
-}
-
-void ConfigManager::load() {
-    if (!_prefs.begin("clock", true)) {   // 읽기 전용으로 로드
-        Serial.println("[CONFIG] Failed to open Preferences in RO mode, using defaults.");
-        return;
-    }
-
-    _settings.anim_mode     = _prefs.getUChar("anim", ANIMATION_TYPE_SCROLL_UP);
-    _settings.display_mode  = _prefs.getUChar("mode", CLOCK_MODE_WORD);
-    _settings.hour_format   = _prefs.getUChar("format", HOUR_FORMAT_12H);
-    _settings.is_flipped    = _prefs.getBool("flip", true);
-    _settings.chime_enabled = _prefs.getBool("chime", false);
-    _settings.is_inverted   = _prefs.getBool("inv", false);
-    _settings.font_name     = _prefs.getString("font_name", "System Default");
-    _settings.font_slot     = _prefs.getUChar("slot", 0);
-    _settings.brightness    = _prefs.getUChar("bright", 1);
-    _settings.script_type   = _prefs.getUChar("script", SCRIPT_SIMPLIFIED);
-
-    // 값이 2개뿐인 enum이라 범위를 벗어나면 기본값으로 되돌린다 (NVS 수동 편집 대비).
-    //   chinese_time의 toScript()도 방어적으로 정규화하지만, 여기서 한 번 막아두면
-    //   NVS가 손상된 상태가 다음 저장에서 정상값으로 덮여써진다.
-    if (_settings.script_type != SCRIPT_SIMPLIFIED && _settings.script_type != SCRIPT_TRADITIONAL) {
-        Serial.printf("[CONFIG] Invalid script_type %u, falling back to Simplified.\n",
-                      (unsigned)_settings.script_type);
-        _settings.script_type = SCRIPT_SIMPLIFIED;
-    }
-
-    // NVS에 저장된 값도 신뢰하지 않는다. 스프라이스/수동 편집된 NVS일 수 있다.
-    char tz[TIMEZONE_MAX_LEN];
-    strncpy(tz, _prefs.getString("tz", DEFAULT_TIMEZONE).c_str(), sizeof(tz) - 1);
-    tz[sizeof(tz) - 1] = '\0';
-    if (isValidTimezone(tz)) {
-        strncpy(_settings.timezone, tz, sizeof(_settings.timezone) - 1);
-        _settings.timezone[sizeof(_settings.timezone) - 1] = '\0';
-    } else {
-        Serial.println("[CONFIG] Stored timezone invalid, falling back to default.");
-        strncpy(_settings.timezone, DEFAULT_TIMEZONE, sizeof(_settings.timezone) - 1);
-        _settings.timezone[sizeof(_settings.timezone) - 1] = '\0';
-    }
-
-    _prefs.end();
+    _store.begin("clock", &_settings, kFields, sizeof(kFields) / sizeof(kFields[0]));
     Serial.printf("[CONFIG] Loaded. TZ=%s Script=%s\n", _settings.timezone,
                   _settings.script_type == SCRIPT_TRADITIONAL ? "Traditional" : "Simplified");
-}
-
-void ConfigManager::setDirty() {
-    _isDirty = true;
-    if (_saveTimer != NULL) {
-        xTimerReset(_saveTimer, 0);
-        Serial.println("[CONFIG] Save requested (Lazy save in 5s...)");
-    }
-}
-
-void ConfigManager::saveNow() {
-    if (!_isDirty) return;
-
-    // [ENG 리뷰 §1.4 계승] 검증은 **한 개라도 실패하면 전체를 건너뛴다.**
-    //   일부만 새 값인 상태가 남으면 사용자는 "다른 설정은 반영됐는데 시간대만 옛 값인"
-    //   상황을 만난다. 전체를 건너뛰고 _isDirty를 유지하므로 다음 setDirty()에서 재시도된다.
-    if (!isValidTimezone(_settings.timezone)) {
-        Serial.println("[CONFIG] Refusing to persist: invalid timezone. Settings left unchanged.");
-        return;
-    }
-    if (_settings.script_type != SCRIPT_SIMPLIFIED && _settings.script_type != SCRIPT_TRADITIONAL) {
-        Serial.println("[CONFIG] Refusing to persist: invalid script_type. Settings left unchanged.");
-        return;
-    }
-
-    if (!_prefs.begin("clock", false)) {   // 읽기-쓰기 모드
-        Serial.println("[CONFIG] Error: Could not open Preferences for writing!");
-        return;
-    }
-
-    _prefs.putUChar("anim", _settings.anim_mode);
-    _prefs.putUChar("mode", _settings.display_mode);
-    _prefs.putUChar("format", _settings.hour_format);
-    _prefs.putBool("flip", _settings.is_flipped);
-    _prefs.putBool("chime", _settings.chime_enabled);
-    _prefs.putBool("inv", _settings.is_inverted);
-    _prefs.putString("font_name", _settings.font_name);
-    _prefs.putUChar("slot", _settings.font_slot);
-    _prefs.putUChar("bright", _settings.brightness);
-    _prefs.putUChar("script", _settings.script_type);
-    _prefs.putString("tz", _settings.timezone);
-
-    _prefs.end();
-    _isDirty = false;
-    Serial.println("[CONFIG] All settings committed to Flash memory.");
 }
 
 void ConfigManager::resetToDefaults() {
     _settings = SystemSettings();   // 기본 생성자 호출
     setDirty();
     Serial.println("[CONFIG] Settings reset to default values.");
-}
-
-void ConfigManager::_timerCallback(TimerHandle_t xTimer) {
-    ConfigManager* instance = (ConfigManager*)pvTimerGetTimerID(xTimer);
-    if (instance != nullptr) {
-        instance->saveNow();
-    }
 }

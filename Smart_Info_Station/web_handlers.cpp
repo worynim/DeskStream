@@ -10,7 +10,8 @@
 #include "youtube.h"
 #include "dust.h"
 #include "weather.h"
-#include "time_sync.h"
+#include <DeskStreamCore.h>
+extern ds::TimeSync timeSync;   // Smart_Info_Station.ino에서 정의 (NTP 재동기화 감독)
 
 void handleRoot() {
   String html;
@@ -102,9 +103,15 @@ void handleSet() {
     changed = true;
   }
   if (server.hasArg("tz_offset") && server.arg("tz_offset").length() > 0) {
-    timezone_offset = server.arg("tz_offset").toInt();
-    changed = true;
-    tz_changed = true;
+    // [보안] 범위 검사 — 실제 시간대는 UTC-12 ~ UTC+14다. 범위 밖 값은 무시하고 기존 값을 유지한다.
+    const int tz = server.arg("tz_offset").toInt();
+    if (tz >= -12 && tz <= 14) {
+      timezone_offset = tz;
+      changed = true;
+      tz_changed = true;
+    } else {
+      Serial.printf("[WEB] Rejected tz_offset=%d (allowed -12..14)\n", tz);
+    }
   }
   if (server.hasArg("loop_mode")) {
     bool new_loop = server.arg("loop_mode").toInt() == 1;

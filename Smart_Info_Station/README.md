@@ -37,9 +37,9 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
 ---
 > 💡 상세한 업데이트 내역 및 버전별 수정 사항은 [RELEASE_NOTES.md](./RELEASE_NOTES.md)에서 확인하실 수 있습니다.
-7.  **Direct Register Access를 통한 SW I2C 극한 가속**
-    - 기본 U8g2 라이브러리의 무거운 아두이노 함수 통신 오버헤드를 우회하기 위해 **ESP32-C3 전용 네이티브 HAL 기반 커스텀 콜백 함수**(`u8x8_gpio_and_delay_esp32_c3_fast`)를 자체 구현했습니다.
-    - 통신 속도를 **22kHz에서 약 360kHz(Fast Mode 규격 근접)까지 무려 15배 이상 폭발적으로 향상**시켰습니다.
+7.  **공통 화면 엔진 (DeskStreamCore, v2.10.0)**
+    - 화면 전송·버튼·부저·WiFi·NTP 감독은 공통 라이브러리 [DeskStreamCore](../libraries/DeskStreamCore/) — 빌드 전 저장소 루트에서 `bash scripts/link-arduino-lib.sh` 1회를 씁니다.
+    - HW I2C 1.1MHz + 레지스터 직접 제어 고속 SW I2C(실효 약 1.15MHz)로 바뀐 타일만 4화면에 병렬 전송합니다 (예전: HW 400kHz 전체 프레임 동기 전송).
 
 ## 🛠 하드웨어 구성 요소
 
@@ -58,13 +58,14 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 ### 필수 라이브러리 목록
 - `U8g2` (강력한 그래픽 및 OLED 폰트 라이브러리)
 - `WiFiManager` (AP 모드를 통한 공유기 연결)
+- `DeskStreamCore` (저장소 `libraries/DeskStreamCore` — 빌드 전 `bash scripts/link-arduino-lib.sh` 1회)
 - `UrlEncode` (HTTP 웹 요청 URL 변환 라이브러리)
 
 ## 📁 위젯별 파일 구조 분석
 
 - `Smart_Info_Station.ino` : 4버튼 이벤트 핸들링, 페이지 전환 로직, 메인 `setup()`, `loop()` 코어 모듈. (가벼운 메인 프레임워크 유지)
 - `config.h` : 전역 데이터 타입(`WidgetType`), 업데이트 상태를 담은 `WidgetUpdateInfo`, 기타 글로벌 핀/상수 정의를 담당하는 기초 설정 파일.
-- `display_utils.h / .cpp` : 텍스트 중앙 정렬, 업데이트 상태 점(`.`) 애니메이션, U8g2 고속 SW I2C 콜백 등 공통 그래픽 출력 헬퍼 함수 모음.
+- `display_utils.h / .cpp` : 텍스트 중앙 정렬, 업데이트 상태 점(`.`) 애니메이션 등 공통 그래픽 출력 헬퍼 함수 모음 (화면 전송은 `ds::DisplayCore`).
 - `widgets_display.h / .cpp` : 시계, 달력, 마크, 코인, 증시 등 실제 각 위젯들을 OLED 화면에 아름답게 `render()` 해주는 독립 렌더링 로직.
 - `data_manager.h / .cpp` : 날씨, 미세먼지, 주식, 코인 등의 네트워크 파싱 함수를 담은 헤더를 관리하며, 백그라운드 `dataTask`를 통해 데이터를 수집하고 상태(`update_flag`)를 관장하는 메인 수집 엔진.
 - `web_handlers.h / .cpp` : 와이파이 접속 후 접근 가능한 내부 설정 웹 서버 페이지 UI 생성 및 입력받은 환경 변수(채널, 지역 등) 플래시 저장(`handleRoot`, `handleSet`) 전담 유닛.

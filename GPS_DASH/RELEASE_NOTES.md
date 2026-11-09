@@ -1,5 +1,12 @@
 # 🚀 Release Notes - GPS OLED4 Dashboard
 
+## [v2.7.0] - 2026-11-09
+### 🧩 공통 라이브러리 DeskStreamCore로 전환
+- **DeskStreamCore 전환**: Wire 1MHz 전체 프레임 동기 전송(`sendBuffer`)·자체 SW I2C 콜백·버튼 구조체·`ToneNote` 큐를 지우고 `ds::DisplayCore`·`ds::Buttons`·`ds::Buzzer`를 쓴다.
+- **화면 전송**: HW I2C 1.1MHz + 페이지 병합, 고속 SW I2C(실효 약 1.15MHz), 바뀐 타일만 HW·SW 버스 **병렬** 전송 (`ds::DisplayCore`). 반전 4종(Normal/Mirror H/180/Mirror V)은 패널 명령을 그대로 보낸다.
+- **부저**: 부팅 멜로디가 비차단이 됐다(예전엔 delay로 약 0.5초 블로킹). Fix/Lost 멜로디·버튼 비프는 같은 음.
+- OTA·WiFi AP·웹 로그는 그대로다 (공통화 범위 밖). 크기 1,116,253 B.
+
 ## [v2.6.1] - 2026-10-21
 ### 🛠️ Fixed
 - **USB CDC 로그 블로킹 방지 (ESP32-C3)**: `Serial.begin()` 직후 `Serial.setTxTimeoutMs(0)`을 적용했습니다. USB CDC(HWCDC) TX 링버퍼(256B)가 가득 찬 상태에서 로그를 출력하면 `HWCDC::write()`가 호출당 최대 2초(`tx_timeout_ms` 100 ms × `max_consec_timeouts` 20회)를 블로킹해 메인 루프(GPS 파싱·버튼·부저)가 멈추는 잠재 위험을 제거했습니다. `ARDUINO_USB_CDC_ON_BOOT` 가드로 CDC 부팅 보드에서만 적용됩니다.

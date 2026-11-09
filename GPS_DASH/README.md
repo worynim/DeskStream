@@ -47,6 +47,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 1.  **필수 라이브러리**:
     - `U8g2`
     - `Adafruit GPS Library` (GPS 파싱용)
+    - `WiFiManager` + 공통 라이브러리 [DeskStreamCore](../libraries/DeskStreamCore/) — 빌드 전 저장소 루트에서 `bash scripts/link-arduino-lib.sh` 1회 (화면 전송·버튼·부저, v2.7.0)
 2.  **보드 설정**:
     - Board: `ESP32C3 Dev Module`
     - USB CDC On Boot: `Enabled` (디버그 로그 확인용)

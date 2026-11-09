@@ -2,40 +2,54 @@
 /**
  * @file Hangeul_Clock.ino
  * @brief 한글 시계 메인 엔트리 포인트
- * @details 시스템 초기화(Setup), 메인 서비스 루프 제어 및 전역 서비스 통합 관리
- * @note [SYNC] ENG_Clock/ENG_Clock.ino — 고정 오프셋 NTP를 POSIX TZ 기반
- *       DisplayManager::applyTimezone()로 교체
+ * @details 시스템 초기화(Setup), 메인 서비스 루프 제어 및 전역 서비스 통합 관리.
+ *          버튼·WiFi·NTP 감독·로그는 DeskStreamCore(ds::) 서비스를 쓴다.
  */
 #include <Arduino.h>
-#include <WiFiManager.h>
+#include <WiFi.h>      // WiFi.localIP() — IP 화면
 #include <time.h>
 #include "LittleFS.h"
+#include <DeskStreamCore.h>
 #include "config.h"
 #include "display_manager.h"
 #include "hangeul_time.h"
 #include <WebServer.h>
 #include "web_manager.h"
-#include "input_manager.h"
-#include "logger.h"
-#include "time_sync.h"
+
+// === 앱 전역 서비스 (display_manager.h가 logger·timeSync를 extern 선언한다) ===
+ds::Logger logger;
+ds::TimeSync timeSync;
+static ds::Buttons buttons;
+static ds::WifiService wifi;
 
 /**
- * @brief WiFi 설정 모드(AP) 진입 시 호출되는 콜백
+ * @brief WiFi 설정 모드(AP) 진입 시 호출 — 화면 0에 AP 이름과 접속 주소를 안내한다
+ * @details SSID를 라벨과 값으로 나눠 4줄로 그린다. 한 줄에 "SSID: Hangeul_Clock_Setup"(25자)을
+ *          넣으면 6x10 폰트에서 150px라 128px 화면을 넘긴다(2026-11-04 사용자 보고).
+ *          셰도 버퍼를 우회하는 sendBuffer() 대신 push()로 보낸다 — 셰도와 화면이 어긋나지 않게.
  */
-void configModeCallback(WiFiManager *myWiFiManager) {
-    Serial.println("[WIFI] Config Mode Entered");
-    // [2026-11-04] SSID를 라벨과 값으로 나눠 4줄로 그린다.
-    //   한 줄에 "SSID: Hangeul_Clock_Setup"(25자)을 넣으면 6x10 폰트에서 150px라
-    //   128px 화면을 넘겨 "S"까지만 보인다(사용자 보고). 이름만 따로 그리면 114px로 들어간다.
-    //   문자열은 config.h의 WIFI_SSID_AP를 쓴다 — 리터럴을 중복 기재하면 AP 이름을 바꿀 때
-    //   실제 AP와 화면 표시가 어긋난다.
-    display.u8g2_1.clearBuffer();
-    display.u8g2_1.setFont(u8g2_font_6x10_tf);
-    display.u8g2_1.drawStr(0, 10, "WiFi Config Mode");
-    display.u8g2_1.drawStr(0, 25, "SSID:");
-    display.u8g2_1.drawStr(0, 40, WIFI_SSID_AP);
-    display.u8g2_1.drawStr(0, 55, "IP: 192.168.4.1");
-    display.u8g2_1.sendBuffer();
+static void onWifiPortal(const char* apName) {
+    logger.addLog("AP Mode");
+    U8G2& u = display.core.screen(0);
+    u.clearBuffer();
+    u.setFont(STATUS_FONT);
+    u.drawStr(0, 10, "WiFi Config Mode");
+    u.drawStr(0, 25, "SSID:");
+    u.drawStr(0, 40, apName);
+    u.drawStr(0, 55, "IP: 192.168.4.1");
+    display.pushParallel();
+}
+
+/** @brief 저장된 AP 접속 대기 중 500ms마다 — 진행 점 애니메이션 */
+static void onWifiConnecting(uint32_t tick) {
+    String dots = "WiFi Connecting";
+    for (uint32_t j = 0; j <= tick % 5; j++) dots += ".";
+    logger.updateLastLog(dots);
+}
+
+/** @brief NTP 감독이 적용할 TZ — config_manager가 로드·웹 입력 시 이미 검증한 값 */
+static const char* currentTimezone() {
+    return configManager.get().timezone;
 }
 
 int uiStage = 0; // 0: Clock, 1: IP, 2: Button Help
@@ -119,7 +133,7 @@ void btn4_long() {
  */
 void on_yield() {
     webManager.handleClient();
-    inputManager.update();
+    buttons.update();
 }
 
 void setup() {
@@ -133,11 +147,12 @@ void setup() {
 #endif
     
     // 1. 시스템 공장 초기화 감지 (최우선 순위)
-    pinMode(BTN1_PIN, INPUT_PULLUP);
+    pinMode(ds::kButtonPins[0], INPUT_PULLUP);
     delay(300); // 핀 및 하드웨어 안정화 대기
     
-    if (digitalRead(BTN1_PIN) == LOW) {
+    if (digitalRead(ds::kButtonPins[0]) == LOW) {
         display.begin(); // OLED 피드백을 위해 먼저 초기화
+        logger.attachDisplay(&display.core, 0, STATUS_FONT);
         display.showStatus("System Resetting...");
         logger.addLog("!!! FACTORY RESET !!!");
         
@@ -153,8 +168,7 @@ void setup() {
         LittleFS.end();
         
         logger.addLog("WiFi Resetting...");
-        WiFiManager wm; // 로컬 객체로 생성하여 초기화
-        wm.resetSettings();
+        ds::WifiService::resetSettings();
         
         logger.addLog("Reset Complete!");
         delay(2000);
@@ -164,17 +178,18 @@ void setup() {
     // 2. 일반 부팅 시퀀스
     if (!LittleFS.begin(true)) Serial.println("[SYSTEM] LittleFS Mount Failed");
 
-    // 입력 및 로깅 시스템 초기화
-    inputManager.begin();
-    inputManager.setCallbacks(0, btn1_short, btn1_long);
-    inputManager.setCallbacks(1, btn2_short, btn2_long);
-    inputManager.setCallbacks(2, btn3_short, btn3_long);
-    inputManager.setCallbacks(3, btn4_short, btn4_long);
+    // 입력 시스템 초기화 (짧게 > 50ms, 길게 > 1000ms — ds::ButtonTiming 기본값)
+    buttons.begin();
+    buttons.setCallbacks(0, btn1_short, btn1_long);
+    buttons.setCallbacks(1, btn2_short, btn2_long);
+    buttons.setCallbacks(2, btn3_short, btn3_long);
+    buttons.setCallbacks(3, btn4_short, btn4_long);
 
     // 디스플레이 초기화 및 시작 피드백
     display.begin();
+    logger.attachDisplay(&display.core, 0, STATUS_FONT);   // 부팅 로그를 화면 0에 4줄로
 #if FPS_BENCH_ON_BOOT
-    display.runFpsBenchmark();   // 풀 프레임 전송 FPS 측정 (config.h FPS_BENCH_ON_BOOT)
+    display.core.runFpsBenchmark(FPS_BENCH_FRAMES, FPS_BENCH_SHOW_MS);   // 풀 프레임 전송 FPS 측정
 #endif
     display.playStartupMelody();
     
@@ -185,44 +200,17 @@ void setup() {
     display.loadBitmapCache();
     display.setYieldCallback(on_yield);
 
-    // WiFi 연결 시퀀스
-    // [2026-11-04] autoConnect()를 쓰지 않는다 — STA 연결을 **비차단**으로 직접 시도한다.
-    //   왜: autoConnect()는 내부에서 waitForConnectResult()를 부르는데, _connectTimeout이
-    //   0이면 ESP32 코어 기본값 60000ms를 그대로 기다린다(블로킹). 그 동안 loop()가 돌지
-    //   않으므로 OLED 도트도 멈춰 기기가 죽은 것처럼 보였고, 사용자가 관찰한 "1분"이 바로
-    //   이 60초다. 예전 바깥 while 루프(10회 × 500ms = 5초)는 autoConnect가 반환한 뒤에야
-    //   delay를 실행하는 구조라 아무 의미가 없었다.
-    //   대신 WiFi.begin()(무인자)은 드라이버/NVS에 저장된 AP로 연결만 걸고 즉시 반환한다
-    //   (STA.cpp의 connect() → esp_wifi_get_config()). WiFiManager가 저장 시 자격증명을
-    //   NVS에 기록하므로(WiFiManager.cpp의 wifiConnectNew) 찾을 수 있다.
-    WiFiManager wm;
-    wm.setAPCallback(configModeCallback);
-    wm.setConfigPortalTimeout(WIFI_CONFIG_TIMEOUT);
-
+    // WiFi 연결 시퀀스 — 저장된 AP에 비차단으로 10초 시도 → 실패 시 곧바로 설정 포털(120초)
+    //   → 그래도 실패하면 재부팅. autoConnect()의 60초 블로킹을 피하는 이유는 ds_wifi.h 참조.
     logger.addLog("WiFi Connecting");
-
-    const unsigned long WIFI_CONNECT_TIMEOUT_MS = 10000;   // 10초 안에 못 붙으면 AP 모드로
-    WiFi.begin();
-    unsigned long wifiStart = millis();
-    int dotCount = 0;
-    while (WiFi.status() != WL_CONNECTED && (millis() - wifiStart) < WIFI_CONNECT_TIMEOUT_MS) {
-        String dots = "WiFi Connecting";
-        for (int j = 0; j <= dotCount % 5; j++) dots += ".";
-        logger.updateLastLog(dots);
-        delay(500);
-        dotCount++;
-    }
-
-    // 10초 내 미연결 → 저장된 SSID를 건너뛰고 **곧바로** AP(설정) 모드로.
-    //   startConfigPortal()은 autoConnect()와 달리 STA 재시도를 하지 않는다.
-    //   setAPCallback이 살아 있어 configModeCallback이 호출되고, 블로킹 모드이므로
-    //   setConfigPortalTimeout(WIFI_CONFIG_TIMEOUT)도 그대로 적용된다.
-    if (WiFi.status() != WL_CONNECTED) {
-        logger.addLog("AP Mode");
-        wm.startConfigPortal(WIFI_SSID_AP);
-    }
-
-    if (WiFi.status() != WL_CONNECTED) ESP.restart();
+    ds::WifiConfig wifiCfg;
+    wifiCfg.apName = WIFI_SSID_AP;
+    wifiCfg.connectTimeoutMs = 10000;
+    wifiCfg.portalTimeoutS = WIFI_CONFIG_TIMEOUT;
+    wifiCfg.restartOnFail = true;
+    wifiCfg.onConnecting = onWifiConnecting;
+    wifiCfg.onPortal = onWifiPortal;
+    wifi.begin(wifiCfg);
 
     logger.addLog("WiFi Connected!");
     webManager.begin();
@@ -231,9 +219,11 @@ void setup() {
     // configManager.begin()이 display.begin() 내부에서 이미 끝났으므로
     // 이 시점의 configManager.get().timezone은 NVS에서 로드·검증된 값이다.
     //   [2026-11-07] timeSync.begin()이 SNTP 내부 재폴링 주기를 1시간으로 낮추고
-    //   재동기화 감독을 시작한다. TZ 적용·SNTP 시작은 display.applyTimezone()
-    //   → timeSync.applyTimezone() 한 경로로만 일어난다.
-    timeSync.begin();
+    //   재동기화 감독을 시작한다(서버·주기는 ds::TimeSyncConfig 기본값). TZ 적용·SNTP 시작은
+    //   display.applyTimezone() → timeSync.applyTimezone() 한 경로로만 일어난다.
+    ds::TimeSyncConfig timeCfg;
+    timeCfg.tzProvider = currentTimezone;
+    timeSync.begin(timeCfg);
     display.applyTimezone();
     logger.addLog("Syncing Time");
     
@@ -295,12 +285,13 @@ void handleClockUpdate(const struct tm& timeinfo, bool force = false) {
 void loop() {
     on_yield(); 
     display.updateTick(); 
+    wifi.loop();       // WiFi 끊김 시 60초마다 재접속 시도
     timeSync.loop();   // NTP 재동기화 감독: 주기·WiFi 복구·실패 재시도
 
     // [2026-11-07] 1초 갱신 트리거를 millis() 1000ms 주기에서 **초 경계(epoch 초) 감지**로
     //   교체했다. 이전 방식은 실제 초 경계와 위상이 어긋나 (1) 화면이 최대 1초 늦게
     //   바뀌고 (2) 렌더 시점이 매초 흔들려 초 표시가 건너뛰거나 겹쳐 보였다.
-    //   초 경계는 시스템 시각이 유일한 기준이다. 판정 규칙은 time_sync_policy.h의
+    //   초 경계는 시스템 시각이 유일한 기준이다. 판정 규칙은 ds_time_sync_policy.h의
     //   clockRenderDue()/secondTickDue() (호스트 단위 테스트 대상).
     //
     //   매 loop마다 읽는 것은 time()(epoch 초)뿐이다 — 비차단이고 저비용이다.
@@ -311,8 +302,8 @@ void loop() {
     static unsigned long lastFallbackMs = 0;
 
     const time_t epochNow = time(nullptr);
-    const bool timeValid = localTimeIsValid((int64_t)epochNow);
-    const bool secondChanged = timeValid && secondTickDue(lastEpochSec, (int64_t)epochNow);
+    const bool timeValid = ds::localTimeIsValid((int64_t)epochNow);
+    const bool secondChanged = timeValid && ds::secondTickDue(lastEpochSec, (int64_t)epochNow);
     if (timeValid) lastEpochSec = (int64_t)epochNow;
 
     const unsigned long now = millis();
@@ -321,7 +312,7 @@ void loop() {
     //   갱신 요청을 잃지 않기 위해서다 (이전에는 매 루프에서 무조건 소비됐다).
     const bool forceUpdate = (uiStage == 0) && display.checkForceUpdate();
 
-    if (uiStage == 0 && clockRenderDue(forceUpdate, timeValid, secondChanged, fallbackDue)) {
+    if (uiStage == 0 && ds::clockRenderDue(forceUpdate, timeValid, secondChanged, fallbackDue)) {
         lastFallbackMs = now;
         if (timeValid) {
             struct tm timeinfo;

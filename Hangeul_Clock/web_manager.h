@@ -2,7 +2,8 @@
 /**
  * @file web_manager.h
  * @brief 웹 설정 대시보드 및 API 서버 클래스 정의
- * @details 비동기 웹 서버를 통한 기기 설정 제어, 폰트 업로드 API 및 실시간 상태 동기화 관리
+ * @details 설정 GET/POST(/api/config)는 ds::WebConfigApi가 config_manager의 필드 테이블로 처리하고,
+ *          여기서는 페이지·폰트 업로드·캐시 갱신 같은 이 프로젝트 전용 경로만 담당한다.
  */
 #ifndef WEB_MANAGER_H
 #define WEB_MANAGER_H
@@ -30,12 +31,8 @@ private:
     
     // API 핸들러
     void handleRefreshCache();
-    void handleGetConfig();
-    void handleSetConfig();
 
-    // 헬퍼 메서드
-    int parseVal(const String& body, const String& key);
-    bool parseBool(const String& body, const String& key);
+    ds::WebConfigApi _configApi;   // GET/POST /api/config
 };
 
 extern WebManager webManager;

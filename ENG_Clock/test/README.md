@@ -10,14 +10,14 @@ bash test/js/run_all.sh
 
 # 네이티브 C++ 단위 테스트 (개별)
 cd test
-g++ -std=c++11 -I.. test_english_time.cpp ../english_time_core.cpp -o /tmp/test_english_time && /tmp/test_english_time
-g++ -std=c++11 -I.. test_layout.cpp ../layout_engine.cpp ../renderer_geometry.cpp ../english_time_core.cpp -o /tmp/test_layout && /tmp/test_layout
-g++ -std=c++11 -I.. test_tz_util.cpp ../tz_util.cpp -o /tmp/test_tz_util && /tmp/test_tz_util
-g++ -std=c++11 -I.. test_geometry.cpp ../renderer_geometry.cpp -o /tmp/test_geometry && /tmp/test_geometry
-g++ -std=c++11 -I.. test_i2c_retry_policy.cpp -o /tmp/test_i2c_retry_policy && /tmp/test_i2c_retry_policy
-g++ -std=c++11 -I.. test_utf8_len.cpp -o /tmp/test_utf8_len && /tmp/test_utf8_len
-g++ -std=c++11 -I.. test_time_sync_policy.cpp -o /tmp/test_time_sync_policy && /tmp/test_time_sync_policy
+L=../../libraries/DeskStreamCore/src   # layout_engine.cpp가 util/ds_utf8.h를 쓴다
+g++ -std=c++11 -I.. -I$L test_english_time.cpp ../english_time_core.cpp -o /tmp/test_english_time && /tmp/test_english_time
+g++ -std=c++11 -I.. -I$L test_layout.cpp ../layout_engine.cpp ../renderer_geometry.cpp ../english_time_core.cpp -o /tmp/test_layout && /tmp/test_layout
+g++ -std=c++11 -I.. -I$L test_geometry.cpp ../renderer_geometry.cpp -o /tmp/test_geometry && /tmp/test_geometry
 ```
+
+> v1.1.0부터 TZ 검증·I2C 재시도·UTF-8·NTP 정책 테스트는 공통 라이브러리로 옮겼다:
+> `bash libraries/DeskStreamCore/test/run_all.sh` (저장소 루트에서).
 
 ## 파일 안내
 
@@ -25,11 +25,7 @@ g++ -std=c++11 -I.. test_time_sync_policy.cpp -o /tmp/test_time_sync_policy && /
 |:--|:--|
 | `test_english_time.cpp` | 순수 시간 변환기(`english_time_core`) 단위 테스트 |
 | `test_layout.cpp` | 어절 단위 2줄 레이아웃 단위 테스트 |
-| `test_tz_util.cpp` | POSIX TZ 문자열 검증 단위 테스트 |
 | `test_geometry.cpp` | 글자 기하(192B/384B) 판별 단위 테스트 |
-| `test_i2c_retry_policy.cpp` | I2C dirty 마스크 갱신 정책 회귀 테스트 (전송 실패 시 페이지 재시도) |
-| `test_utf8_len.cpp` | UTF-8 리딩 바이트 판정 회귀 테스트 (한글판의 4바이트 오판정 버그) |
-| `test_time_sync_policy.cpp` | NTP 재동기화 시점 정책(주기 6h · 오래됨 12h · 미동기 30s 재시도 · WiFi 복구)과 1초 렌더 트리거(초 경계) 회귀 테스트 |
 | `js/` | 웹 페이지 JS ↔ 펌웨어 C++ 교차 검증 (아래 표) |
 
 ## js/ — 교차 검증 스크립트
