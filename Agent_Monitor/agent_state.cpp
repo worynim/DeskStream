@@ -68,7 +68,6 @@ ParseResult applyLine(Model& m, const char* line, uint32_t nowMs) {
     if (!ds::jsonGetString(line, "t", type, sizeof(type))) return r;
 
     if (strcmp(type, "hb") == 0) {
-        m.quiet = getIntOr(line, "quiet", 0) != 0;
         r.type = MsgType::Heartbeat;
     } else if (strcmp(type, "slot") == 0 || strcmp(type, "alert") == 0) {
         long i;

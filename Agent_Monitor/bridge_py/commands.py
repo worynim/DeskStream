@@ -1,7 +1,7 @@
 # worynim@gmail.com
 """
 @file commands.py
-@brief 사용자 설정 파일(~/.deskstream/agent_monitor.toml) — 버튼 길게 누르기 PC 명령과 무음 시간대
+@brief 사용자 설정 파일(~/.deskstream/agent_monitor.toml) — 버튼 길게 누르기 PC 명령
 @details 보안 원칙
          - 장치는 버튼 번호만 보낸다. 실행할 내용은 오직 이 설정 파일에서 온다 (장치·네트워크에서 명령 문자열을 받지 않음).
          - 설정 파일이 다른 사용자도 쓸 수 있는 권한(group/other write)이면 명령을 실행하지 않는다 (macOS·Linux).
@@ -18,7 +18,6 @@ import sys
 import threading
 import tomllib
 from dataclasses import dataclass
-from datetime import datetime, time as dtime
 from pathlib import Path
 
 CONFIG_PATH = Path.home() / ".deskstream" / "agent_monitor.toml"
@@ -51,15 +50,6 @@ class Command:
 @dataclass
 class Config:
     commands: dict       # button(1~4) → Command
-    quiet: tuple | None  # (시작, 끝) datetime.time — 자정을 넘을 수 있다
-
-
-def _parse_hhmm(value, where) -> dtime:
-    try:
-        h, m = str(value).split(":")
-        return dtime(int(h), int(m))
-    except (ValueError, TypeError):
-        raise ConfigError(f"{where}: 시간은 \"HH:MM\" 형식이어야 합니다 ({value!r})")
 
 
 def parse_config(data: dict) -> Config:
@@ -90,17 +80,13 @@ def parse_config(data: dict) -> Config:
             if not all(32 <= ord(ch) < 127 for ch in cmd.text):
                 raise ConfigError(f"{where}: text 는 영문·숫자·기호(ASCII)만 됩니다")
         commands[b] = cmd
-    quiet = None
-    if "quiet" in data:
-        q = data["quiet"]
-        quiet = (_parse_hhmm(q.get("start"), "quiet.start"), _parse_hhmm(q.get("end"), "quiet.end"))
-    return Config(commands, quiet)
+    return Config(commands)
 
 
 def load_config(path: Path = CONFIG_PATH) -> Config:
     """설정 파일을 읽는다. 파일이 없으면 빈 설정. 문법·값 오류는 ConfigError."""
     if not path.exists():
-        return Config({}, None)
+        return Config({})
     # Windows 는 권한을 ACL 로 관리해 st_mode 가 늘 0o666 으로 보이므로 검사하지 않는다 (사용자 프로필 폴더 보호에 맡김)
     if os.name != "nt" and path.stat().st_mode & (stat.S_IWGRP | stat.S_IWOTH):
         raise ConfigError(f"{path} 를 다른 사용자도 쓸 수 있습니다 — chmod 600 후 다시 시도하세요")
@@ -109,13 +95,6 @@ def load_config(path: Path = CONFIG_PATH) -> Config:
     except tomllib.TOMLDecodeError as e:
         raise ConfigError(f"{path.name} 문법 오류: {e}")
     return parse_config(data)
-
-
-def in_quiet(now: datetime, quiet) -> bool:
-    if not quiet:
-        return False
-    start, end, t = quiet[0], quiet[1], now.time()
-    return start <= t < end if start <= end else (t >= start or t < end)
 
 
 def _applescript_str(s: str) -> str:

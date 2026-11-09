@@ -72,7 +72,6 @@ struct Model {
     Perm perm;
     Detail detail;
     CmdToast toasts[kSlots];
-    bool quiet = false;      ///< 데몬 설정의 무음 시간대 (하트비트로 받음)
     uint32_t lastRxMs = 0;   ///< 마지막으로 유효한 메시지를 받은 시각
     bool everRx = false;
 };

@@ -5,7 +5,7 @@
  * @details PC 데몬(bridge_py/agent_bridge.py)이 USB 시리얼로 보내는 세션 상태(JSON Lines)를
  *          OLED 4장(세션 슬롯 4개)에 표시하고, 상태 변화 알림을 부저로 낸다.
  *          - 개요 화면: 버튼 i 짧게 = 슬롯 i 상세 화면(+완료 확인), 길게 = PC 명령 i+1 (데몬 설정 파일).
- *          - 상세 화면: BTN1 개요로 · BTN2 음소거 켜기/끄기(NVS 저장) · BTN3 이전 세션 · BTN4 다음 세션.
+ *          - 상세 화면: BTN1 개요로 · BTN2 음소거 켜기/끄기(NVS 저장, 켜면 버튼음·알림음 모두 끔) · BTN3 이전 · BTN4 다음 세션.
  *            AM_DETAIL_IDLE_MS 동안 입력이 없거나 세션이 끝나면 개요로 돌아간다.
  *          - 승인 화면(권한 요청 대기 중): BTN1 승인 · BTN2 다음 요청 · BTN3 거절 · BTN4 나중에(터미널에 맡김).
  *            새 요청이 뜬 직후 AM_PERM_GUARD_MS 동안은 버튼을 무시한다.
@@ -47,8 +47,13 @@ static const ds::Note MELODY_ATTN[] = {{2637, 70, 50}, {2637, 70, 50}, {2637, 70
 static const ds::Note MELODY_ERROR[] = {{880, 200, 60}, {659, 300, 0}};
 static const ds::Note MELODY_START[] = {{2093, 60, 20}, {2637, 60, 20}, {3136, 60, 0}};
 
+/** 버튼 클릭음 — 음소거면 내지 않는다 */
+static void click(uint16_t ms, uint16_t hz) {
+    if (!settings.muted) buzzer.beep(ms, hz);
+}
+
 static void playAlert(am::State kind) {
-    if (settings.muted) return;   // 무음 시간대는 데몬이 알림을 보내지 않는다
+    if (settings.muted) return;
     switch (kind) {
         case am::State::Done:    buzzer.playMelody(MELODY_DONE, 2); break;
         case am::State::Approve:
@@ -155,7 +160,7 @@ static void onApprovalButton(uint8_t i, uint32_t now) {
     const am::Perm& p = model.perm;
     if (now - p.shownMs < AM_PERM_GUARD_MS) return;   // 방금 뜬 요청 — 다른 걸 누르려던 입력일 수 있다
     if (i == 1 && p.q < 2) return;                     // 다음 요청 없음
-    buzzer.beep(AM_BEEP_MS, AM_BEEP_HZ);
+    click(AM_BEEP_MS, AM_BEEP_HZ);
     sendDecision(p.id, acts[i]);
 }
 
@@ -180,7 +185,12 @@ static void onDetailButton(uint8_t i, uint32_t now) {
     detailTouchMs = now;
     switch (i) {
         case 0: detailSlot = -1; break;
-        case 1: settings.muted = !settings.muted; store.setDirty(); break;
+        case 1:   // 음소거 켜기/끄기 — 켤 때는 소리 없이(진행 중인 소리도 멈춤), 끌 때는 확인음
+            settings.muted = !settings.muted;
+            store.setDirty();
+            if (settings.muted) buzzer.stop();
+            else buzzer.beep(AM_BEEP_MS, AM_BEEP_HZ);
+            break;
         case 2: openDetail(nextOnSlot(detailSlot, -1), now); break;
         default: openDetail(nextOnSlot(detailSlot, +1), now); break;
     }
@@ -196,12 +206,12 @@ static void pollButtons() {
             continue;
         }
         if (ev & ds::BUTTON_SHORT) {
-            buzzer.beep(AM_BEEP_MS, AM_BEEP_HZ);
+            if (!(detailSlot >= 0 && i == 1)) click(AM_BEEP_MS, AM_BEEP_HZ);   // 음소거 버튼은 자체 확인음
             if (detailSlot >= 0) onDetailButton(i, now);
             else if (model.slots[i].on) openDetail(i, now);
         }
         if (ev & ds::BUTTON_LONG) {
-            buzzer.beep(AM_BEEP_MS * 3, AM_BEEP_HZ / 2);
+            click(AM_BEEP_MS * 3, AM_BEEP_HZ / 2);
             sendButton(i, "long");
         }
     }
@@ -238,7 +248,7 @@ static void render(uint32_t now) {
             if (detailSlot >= 0) am::drawDetail(u, i, detailFor(detailSlot), settings.muted, now);
             else am::drawSlot(u, model.slots[i], i, now);
             am::drawToast(u, model.toasts[i], now);
-            if (detailSlot < 0 && i == ds::kNumScreens - 1 && (settings.muted || model.quiet)) am::drawMuteIcon(u);
+            if (detailSlot < 0 && i == ds::kNumScreens - 1 && settings.muted) am::drawMuteIcon(u);
         }
     }
     display.push();   // 바뀐 타일만 전송
@@ -255,7 +265,7 @@ void setup() {
     store.begin("agentmon", &settings, kFields, sizeof(kFields) / sizeof(kFields[0]));
     am::authBegin();
     am::bleBegin(AM_BLE_NAME);
-    buzzer.playMelody(MELODY_START, 3);
+    if (!settings.muted) buzzer.playMelody(MELODY_START, 3);
     sendHello();
 }
 

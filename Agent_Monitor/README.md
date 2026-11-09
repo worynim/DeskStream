@@ -1,4 +1,4 @@
-# 🤖 Agent_Monitor — AI 개발 에이전트 모니터 (v0.4.0)
+# 🤖 Agent_Monitor — AI 개발 에이전트 모니터 (v0.4.1)
 
 Claude Code 세션의 작업 상태를 DeskStream 4-OLED에 실시간으로 보여주는 책상 위 모니터입니다.
 OLED 한 장이 세션 하나를 맡아 **생각 중 / 실행 중(도구·명령) / 승인 대기 / 입력 대기 / 완료 / 오류**를 표시하고,
@@ -70,7 +70,7 @@ BLE 는 근처 누구나 접속할 수 있어, 같은 이름의 **가짜 장치*
 
 - 60초 동안 버튼을 누르지 않거나 세션이 끝나면 개요로 돌아갑니다.
 - PC 명령 결과는 해당 버튼 화면 아래에 `RUN …` → `OK … exit 0` / `FAIL … exit 2` 띠로 4초간 보입니다.
-- 음소거 중이거나 무음 시간대면 개요의 OLED 4 오른쪽 위에 스피커+X 아이콘이 보입니다.
+- 음소거 중에는 개요의 OLED 4 오른쪽 위에 스피커+X 아이콘이 보이고, 버튼음·알림음·부팅음이 모두 꺼집니다.
 
 ## 버튼
 
@@ -78,7 +78,7 @@ BLE 는 근처 누구나 접속할 수 있어, 같은 이름의 **가짜 장치*
 |:--|:--|:--|
 | 개요 | BTN i 짧게 | 슬롯 i 상세 화면 (완료 표시도 확인 처리 → IDLE) |
 | 개요·상세 | BTN i 길게 | 설정 파일의 PC 명령 i 실행 |
-| 상세 | BTN1 / BTN2 | 개요로 / 음소거 켜기·끄기 (보드에 저장) |
+| 상세 | BTN1 / BTN2 | 개요로 / 음소거 켜기·끄기 (보드에 저장 — 켤 때 무음, 끌 때 확인음) |
 | 상세 | BTN3 / BTN4 | 이전 / 다음 세션 |
 | 승인 | BTN1 | **승인** — 도구가 바로 실행됨 |
 | 승인 | BTN2 | 다음 대기 요청 보기 (대기 2개 이상일 때만) |
@@ -128,17 +128,13 @@ python3 agent_bridge.py install-hooks
 python3 agent_bridge.py uninstall-hooks   # 추가한 항목만 제거
 ```
 
-### 4. PC 명령 · 무음 시간대 설정 (선택)
+### 4. PC 명령 설정 (선택)
 
 ```bash
 python3 agent_bridge.py init-config     # 예시 → ~/.deskstream/agent_monitor.toml (권한 600)
 ```
 
 ```toml
-[quiet]                 # 이 시간에는 알림음을 보내지 않음 (자정 넘김 가능)
-start = "23:00"
-end = "08:00"
-
 [[commands]]            # 버튼 길게 누르기 — button = 1~4
 button = 2
 label = "npm test"
@@ -180,7 +176,7 @@ python3 demo_hooks.py --end
 | `bridge_py/agent_bridge.py` | 데몬 (훅 서버 · 송신 루프 · 훅 설정 명령) |
 | `bridge_py/sessions.py` | 훅 이벤트 → 세션 상태 · 슬롯 배정 |
 | `bridge_py/approvals.py` | 권한 요청 대기열 (결정 · 다음 · 터미널 선결정 정리) |
-| `bridge_py/commands.py` | 사용자 설정 파일 · PC 명령 실행 · 무음 시간대 |
+| `bridge_py/commands.py` | 사용자 설정 파일 · PC 명령 실행 |
 | `bridge_py/agent_monitor.example.toml` | 설정 예시 |
 | `bridge_py/protocol.py` | 시리얼 메시지 형식 (프로토콜 설명 포함) |
 | `bridge_py/transport.py` | USB 시리얼 · BLE(bleak) · USB 우선 자동 선택 |

@@ -15,7 +15,7 @@ PC → 장치
   {"t":"detail","i":0,"on":1,"name":"web-app","st":"run","mode":"default","el":12,"err":0,"sub":0,
    "msg":"마지막 답변","h0":"+Bash npm test","h1":">Edit app.py","h2":"","h3":""}             상세 화면 (h: '>' 실행 중 '+' 성공 '!' 실패)
   {"t":"cmd","b":1,"st":"run","label":"npm test","msg":""}      PC 명령 진행 (st = run | ok | fail, b = 버튼 0~3)
-  {"t":"hb","quiet":1}                                          quiet = 무음 시간대 (없으면 0)
+  {"t":"hb"}                                                    하트비트 (2초)
   {"t":"who"}                                                   USB 연결 시 — 장치가 hello 로 답한다
   {"t":"setkey","key":"<64 hex>"} / {"t":"nonce","n":"<hex>"}    서명 키 등록(USB 만) / BLE 연결마다 nonce (security.py)
 장치 → PC
@@ -34,6 +34,7 @@ MSG_MAX = 120        # 펌웨어 Detail::msg[121]
 HIST_MAX = 21        # 펌웨어 Detail::h[4][22] — 상세 화면 한 줄
 CMD_MSG_MAX = 12     # 펌웨어 CmdToast::msg[13]
 PERM_NONE = '{"t":"perm","id":0}'
+HEARTBEAT = '{"t":"hb"}'
 WHO = '{"t":"who"}'
 
 
@@ -91,10 +92,6 @@ def detail_msg(i: int, d) -> str:
 def cmd_msg(b: int, state: str, label: str, result: str) -> str:
     return encode({"t": "cmd", "b": b, "st": state, "label": clean(label, NAME_MAX),
                    "msg": clean(result, CMD_MSG_MAX)})
-
-
-def heartbeat_msg(quiet: bool) -> str:
-    return encode({"t": "hb", "quiet": 1 if quiet else 0})
 
 
 def alert_msg(kind: str, i: int) -> str:

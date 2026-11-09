@@ -85,7 +85,7 @@ static void testPerm() {
     CHECK(applyLine(m, "{\"t\":\"perm\",\"id\":-1}", 0).type == MsgType::Invalid);
 }
 
-static void testDetailCmdQuiet() {
+static void testDetailCmd() {
     Model m;
     auto r = applyLine(m,
                        "{\"t\":\"detail\",\"i\":2,\"on\":1,\"name\":\"api\",\"st\":\"done\",\"mode\":\"plan\",\"el\":5,"
@@ -104,11 +104,6 @@ static void testDetailCmdQuiet() {
     CHECK(strcmp(m.toasts[1].msg, "exit 1") == 0 && m.toasts[1].rxMs == 70);
     CHECK(applyLine(m, "{\"t\":\"cmd\",\"b\":1,\"st\":\"zz\"}", 0).type == MsgType::Invalid);
     CHECK(applyLine(m, "{\"t\":\"cmd\",\"b\":4,\"st\":\"ok\"}", 0).type == MsgType::Invalid);
-
-    applyLine(m, "{\"t\":\"hb\",\"quiet\":1}", 80);
-    CHECK(m.quiet);
-    applyLine(m, "{\"t\":\"hb\"}", 90);
-    CHECK(!m.quiet);
 }
 
 static void testFormat() {
@@ -127,7 +122,7 @@ int main() {
     testRejects();
     testAlertAndHeartbeat();
     testPerm();
-    testDetailCmdQuiet();
+    testDetailCmd();
     testFormat();
     printf(fails ? "❌ %d failed\n" : "✅ all passed\n", fails);
     return fails ? 1 : 0;

@@ -9,7 +9,6 @@
            터미널 대화상자는 기다리는 동안에도 함께 떠 있다 (P0 확인 — 먼저 답한 쪽이 이김).
          - 슬롯·승인·상세 화면이 바뀌면 바로, 그 밖에는 HEARTBEAT_SEC 마다 하트비트를 보낸다.
          - 장치 버튼: 짧게 = 그 슬롯 상세 보기(+완료 확인), 길게 = 설정 파일의 PC 명령 (commands.py).
-         - 설정 파일의 무음 시간대에는 알림음 메시지(alert)를 보내지 않는다.
          - 연결: USB 우선, 없으면 BLE (transport.AutoLink). USB 로 연결되면 장치에 서명 키를 등록하고,
            BLE 로 온 버튼·승인 신호는 서명·카운터가 맞을 때만 받는다 (security.py).
 
@@ -26,7 +25,6 @@ import shutil
 import sys
 import threading
 import time
-from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -42,7 +40,6 @@ HEARTBEAT_SEC = 2
 HOLD_SEC = hooks_config.PERMISSION_TIMEOUT_SEC - 10   # 훅 timeout 전에 스스로 pass 로 끝낸다
 CLEAR_SESSION_EVENTS = ("UserPromptSubmit", "Stop", "StopFailure", "SessionEnd")
 CLEAR_TOOL_EVENTS = ("PostToolUse", "PostToolUseFailure")
-QUIET_RELOAD_SEC = 30   # 무음 시간대 설정을 다시 읽는 주기
 SIGNED_TYPES = ("decide", "btn")   # BLE 로 올 때 서명이 필요한 장치 메시지
 
 
@@ -65,7 +62,6 @@ class Bridge:
         self.verbose = verbose
         self.hold_sec = hold_sec
         self.config_path = config_path
-        self._quiet = (None, 0.0)                     # (설정의 무음 시간대, 읽은 시각)
         self.runner = commands.CommandRunner(self._on_cmd_status, log, config_path, executor)
         self.auth = auth or DeviceAuth()
         self.link = link_factory(self.on_device_line, self.on_connect)
@@ -83,10 +79,8 @@ class Bridge:
             elif event in CLEAR_TOOL_EVENTS:
                 self._log_cleared(self.approvals.clear_tool(sid, payload.get("tool_name", ""),
                                                             payload.get("tool_input")))
-            quiet = self.quiet_now()
             for kind, slot in self.table.apply(event, payload, time.time()):
-                if not quiet:
-                    self.outbox.append(protocol.alert_msg(kind, slot))
+                self.outbox.append(protocol.alert_msg(kind, slot))
         if self.verbose:
             log(f"[hook] {event:<18} {sid[:8]} {payload.get('tool_name', '')}")
         self.dirty.set()
@@ -109,18 +103,6 @@ class Bridge:
             self.dirty.set()
         log(f"[perm] #{p.id} {p.tool} {p.summary[:40]!r} → {p.decision}")
         return protocol.permission_response(p.decision)
-
-    def quiet_now(self) -> bool:
-        """지금이 설정 파일의 무음 시간대인지 (설정은 QUIET_RELOAD_SEC 마다 다시 읽는다)."""
-        quiet, read_at = self._quiet
-        if time.time() - read_at > QUIET_RELOAD_SEC:
-            try:
-                quiet = commands.load_config(self.config_path).quiet
-            except commands.ConfigError as e:
-                log(f"[config] {e}")
-                quiet = None
-            self._quiet = (quiet, time.time())
-        return commands.in_quiet(datetime.now(), quiet)
 
     def _on_cmd_status(self, button: int, state: str, label: str, result: str):
         with self.lock:
@@ -224,7 +206,7 @@ class Bridge:
                     self.link.send(protocol.detail_msg(self.watch, detail))
             if now - last_hb >= HEARTBEAT_SEC:
                 last_hb = now
-                self.link.send(protocol.heartbeat_msg(self.quiet_now()))
+                self.link.send(protocol.HEARTBEAT)
 
 
 def make_handler(bridge: Bridge):
@@ -316,7 +298,7 @@ def main():
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(commands.EXAMPLE_PATH, dst)
             dst.chmod(0o600)
-            print(f"생성: {dst} — 버튼 명령과 무음 시간대를 편집하세요")
+            print(f"생성: {dst} — 버튼 명령을 편집하세요")
     elif args.cmd == "uninstall-hooks":
         removed, backup = hooks_config.uninstall(args.file, args.http_port)
         print(f"제거한 훅 {removed}개: {args.file}" + (f" (백업: {backup})" if backup else ""))

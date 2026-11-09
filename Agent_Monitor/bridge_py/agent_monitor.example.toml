@@ -2,11 +2,6 @@
 # 설치: python3 agent_bridge.py init-config   →  ~/.deskstream/agent_monitor.toml (권한 600)
 # 버튼을 누를 때마다 다시 읽으므로 데몬을 재시작할 필요가 없습니다.
 
-# 무음 시간대 — 이 시간에는 장치 알림음을 보내지 않습니다 (자정을 넘어도 됩니다)
-[quiet]
-start = "23:00"
-end = "08:00"
-
 # 버튼 길게 누르기(1초) → PC 명령. button = 1~4 (BTN1~BTN4)
 # type = "focus" : app 을 앞으로
 # type = "shell" : command 실행 (cwd, timeout 초 선택) → 장치에 exit 코드 표시

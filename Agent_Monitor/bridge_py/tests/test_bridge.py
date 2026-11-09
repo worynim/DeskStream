@@ -12,7 +12,6 @@ import tempfile
 import threading
 import time
 import unittest
-from datetime import datetime
 from pathlib import Path
 
 HERE = Path(__file__).parent
@@ -316,16 +315,11 @@ class TestDetail(unittest.TestCase):
 class TestCommands(unittest.TestCase):
     def test_parse_valid(self):
         c = commands.parse_config({
-            "quiet": {"start": "23:00", "end": "08:00"},
             "commands": [{"button": 1, "type": "focus", "app": "Terminal"},
                          {"button": 2, "type": "shell", "command": "true", "label": "T"},
                          {"button": 3, "type": "keys", "text": "continue", "key": "return"}]})
         self.assertEqual(sorted(c.commands), [1, 2, 3])
         self.assertEqual(c.commands[1].label, "focus")     # label 없으면 type
-        self.assertTrue(commands.in_quiet(datetime(2026, 1, 1, 23, 30), c.quiet))
-        self.assertTrue(commands.in_quiet(datetime(2026, 1, 1, 7, 59), c.quiet))
-        self.assertFalse(commands.in_quiet(datetime(2026, 1, 1, 8, 0), c.quiet))
-        self.assertFalse(commands.in_quiet(datetime(2026, 1, 1, 12, 0), None))
 
     def test_parse_errors(self):
         bad = [
@@ -337,7 +331,6 @@ class TestCommands(unittest.TestCase):
             {"commands": [{"button": 1, "type": "keys", "key": "f13"}]},
             {"commands": [{"button": 1, "type": "keys", "text": "계속"}]},
             {"commands": [{"button": 1, "type": "focus", "app": "a"}, {"button": 1, "type": "focus", "app": "b"}]},
-            {"quiet": {"start": "25", "end": "08:00"}},
         ]
         for data in bad:
             with self.assertRaises(commands.ConfigError, msg=str(data)):
@@ -422,14 +415,9 @@ class TestBridgeButtons(unittest.TestCase):
         self.bridge.on_device_line('{"t":"btn","b":9,"press":"short"}')  # 범위 밖 무시
         self.assertEqual(self.bridge.watch, 0)
 
-    def test_quiet_hours_suppress_alerts(self):
-        self.cfg.write_text('[quiet]\nstart = "00:00"\nend = "23:59"\n')
-        self.cfg.chmod(0o600)
-        self.bridge._quiet = (None, 0.0)          # 다시 읽게
-        if not self.bridge.quiet_now():
-            self.skipTest("23:59 경계")
+    def test_alert_sent_on_done(self):
         self.bridge.on_hook("Stop", ev())
-        self.assertEqual(self.bridge.outbox, [])
+        self.assertEqual(json.loads(self.bridge.outbox[-1]), {"t": "alert", "kind": "done", "i": 0})
 
 
 def sign(auth: DeviceAuth, body: str) -> str:
