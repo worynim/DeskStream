@@ -1,3 +1,11 @@
+## [v4.14.3] - 2026-11-09
+### ⚡ Performance (Hangeul_Clock v2.10.0) — 4화면 풀 프레임 34 → 44.6 fps
+- **HW I2C(화면 0·1)**: 800kHz → **1.1MHz**. 1.2MHz에서는 화면 0이 NACK를 돌려줘서 1.1MHz로 정했습니다. 실효는 710 → 904kHz입니다.
+- **HW 페이지 전송 합치기**: SSD1306 Co 비트로 명령과 데이터를 한 트랜잭션에 보냅니다. 화면당 16 → 8회이고, `HW_MERGED_PAGE_TX 0`이면 이전 방식으로 돌아갑니다.
+- **SW I2C(화면 2·3)**: U8g2 `u8x8_byte_sw_i2c`를 전용 고속 루틴(`sw_i2c_fast`)으로 교체했습니다. 레지스터를 직접 쓰고, 보정한 NOP 지연을 쓰며, 매 비트 SCL HIGH를 기다립니다. 실효는 763 → 1188kHz입니다.
+- **실측**: 4화면 29.8ms → **22.4ms**, 오류·노이즈 없음. 자세한 단계별 측정은 `Hangeul_Clock/RELEASE_NOTES.md`에 있습니다.
+- **웹 플래셔 배포본 갱신**: 한글 시계 바이너리와 `firmware/manifest.json`·`firmware/projects.json` 버전(2.10.0)을 갱신했습니다. `node tools/collect-firmware.mjs --check` 통과(12개 프로젝트).
+
 ## [v4.14.2] - 2026-11-08
 ### 🐛 Bug Fix (Hangeul_Clock · ENG_Clock · Chinese_Clock · Smart_Info_Station) — 상시 가동 시 누적 시각 오차
 - **증상**: 시계·정보 스테이션을 계속 켜 두면 실제 시각과의 차이가 조금씩 벌어져 수일~수주 뒤 **십여 초**가 됩니다. 전원을 껐다 켜면 다시 맞습니다(부팅 때 NTP로 한 번 맞추므로).

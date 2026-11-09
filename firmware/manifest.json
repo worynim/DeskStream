@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-07T15:49:26.330Z",
+  "generatedAt": "2026-11-09T08:46:33.196Z",
   "chip": "ESP32-C3",
   "board": "DeskStream (ESP32-C3 SuperMini · 4× OLED)",
   "flashDefaults": {
@@ -396,7 +396,7 @@
     {
       "id": "Hangeul_Clock",
       "name": "한글 시계",
-      "version": "2.9.8",
+      "version": "2.10.0",
       "icon": "🕒",
       "order": 9,
       "description": "NTP 동기화 기반 고화질 한글 단어 시계. 웹 대시보드·폰트 스튜디오 지원",
@@ -411,9 +411,9 @@
         "freq": "80m",
         "size": "4MB"
       },
-      "exportedAt": "2026-11-07T15:47:38.069Z",
+      "exportedAt": "2026-11-09T08:46:32.820Z",
       "sourcePath": "Hangeul_Clock",
-      "sourceCommit": "836a2664fc579514c242514569e8fc2f2530ac4a",
+      "sourceCommit": "7c01dfc28a6596d1867c8986a3b568c494065765",
       "images": [
         {
           "offset": "0x0",
@@ -436,8 +436,8 @@
         {
           "offset": "0x10000",
           "path": "firmware/Hangeul_Clock/Hangeul_Clock.ino.bin",
-          "size": 1290864,
-          "sha256": "66e6d5ce247ae205d72fec62a92462394f03d2fdd968f4a20a74b69ca804e776"
+          "size": 1292640,
+          "sha256": "22c9d7c550b47bdd2276af3360dc3e3ebf46811a7e790b7700284fc6634d185b"
         }
       ]
     },
