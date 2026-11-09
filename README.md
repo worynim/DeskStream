@@ -48,7 +48,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 - **특징**: 지능형 캡처 엔진(Full 대응), Numba JIT 가속, 6종 디더링 알고리즘, 실시간 설정 변경.
 - **버튼 동작**: 버튼 2를 눌러 밝기를 조절하고, 버튼 1을 롱프레스하여 화면을 180도 회전(플립)합니다.
 
-### 8. [Hangeul_Clock: 고화질 폰트 한글 시계 (v2.9.8)](./Hangeul_Clock/)
+### 8. [Hangeul_Clock: 고화질 폰트 한글 시계 (v2.10.0)](./Hangeul_Clock/)
 - **기능**: NTP 동기화 기반의 고화질 한글 시계 및 하이엔드 폰트 렌더링 시스템.
 - **특징**: 
     - **제로-스터터(Zero-Stutter) 웹 API**: 폰트 슬롯 이름 메모리 캐싱으로 웹 대시보드 호출 시 시스템 멈춤 현상 근본 해결.

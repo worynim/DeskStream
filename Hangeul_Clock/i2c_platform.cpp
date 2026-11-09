@@ -114,6 +114,25 @@ static bool transmitPage(i2c_master_dev_handle_t dev, uint8_t screenIdx, uint8_t
                          const uint8_t* shadow, uint8_t firstTile, uint8_t tileCount) {
     const uint8_t col = firstTile * 8;
     const uint8_t len = tileCount * 8;
+#if HW_MERGED_PAGE_TX
+    // [FPS] 명령과 데이터를 **한 트랜잭션**으로 보낸다 (SSD1306 제어 바이트의 Co 비트).
+    //   0x80 = "Co=1, D/C#=0" → 다음 1바이트는 명령이고 그 뒤에 또 제어 바이트가 온다.
+    //   0x40 = "Co=0, D/C#=1" → 이후 STOP까지 전부 GDDRAM 데이터.
+    //   트랜잭션이 화면당 16회 → 8회로 줄어 드라이버 시작 비용(실측 회당 ~27us)과
+    //   START/주소/STOP 비트가 절반이 된다.
+    uint8_t tx[7 + 128];
+    tx[0] = 0x80; tx[1] = (uint8_t)(0xB0 | page);          // 페이지 주소
+    tx[2] = 0x80; tx[3] = (uint8_t)(col & 0x0F);           // 열 하위 니블
+    tx[4] = 0x80; tx[5] = (uint8_t)(0x10 | (col >> 4));    // 열 상위 니블
+    tx[6] = 0x40;
+    memcpy(&tx[7], &shadow[page * SCREEN_WIDTH + col], len);
+    const esp_err_t err = i2c_master_transmit(dev, tx, 7 + len, pdMS_TO_TICKS(I2C_TX_TIMEOUT_MS));
+    if (err != ESP_OK) {
+        Serial.printf("[I2C] PAGE Error: 0x%X (S:%d, P:%d)\n", err, screenIdx, page);
+        return false;
+    }
+    return true;
+#else
     uint8_t cmd[] = {0x00, (uint8_t)(0xB0 | page), (uint8_t)(col & 0x0F), (uint8_t)(0x10 | (col >> 4))};
 
     // 1. Page/Column 설정 명령
@@ -133,6 +152,7 @@ static bool transmitPage(i2c_master_dev_handle_t dev, uint8_t screenIdx, uint8_t
         return false;
     }
     return true;
+#endif
 }
 
 void I2CPlatform::i2c_hw_task(void* arg) {
@@ -156,10 +176,16 @@ void I2CPlatform::i2c_hw_task(void* arg) {
                                           plt->_hw_first_tile[s][p], plt->_hw_tile_count[s][p]) ? 1 : 0;
                 if (!page_ok[p]) has_error = true;
                 else {
-                    // 통계: CMD(주소+4바이트) + DATA(주소+0x40+len) 두 트랜잭션
                     const uint32_t len = (uint32_t)plt->_hw_tile_count[s][p] * 8u;
+#if HW_MERGED_PAGE_TX
+                    // 통계: 주소 + 명령 3쌍(6바이트) + 0x40 + len — 한 트랜잭션
+                    plt->_statHwBits += 2u + 9u * (1u + 7u + len);
+                    plt->_statHwTx += 1;
+#else
+                    // 통계: CMD(주소+4바이트) + DATA(주소+0x40+len) 두 트랜잭션
                     plt->_statHwBits += (2u + 9u * (1u + 4u)) + (2u + 9u * (1u + 1u + len));
                     plt->_statHwTx += 2;
+#endif
                 }
             }
             plt->_hw_dirty_mask[s] = dirtyMaskAfterSend(mask, page_ok, PAGES_PER_SCREEN);

@@ -9,6 +9,7 @@
 #include "config.h"          // FONT_SLOT_COUNT
 #include "renderer_layout.h" // layoutIsDayText() — 제목 화면의 우측 정렬 판정
 #include "time_sync.h"       // applyTimezone()의 실제 SNTP/TZ 적용 (감독 서비스와 단일 경로)
+#include "sw_i2c_fast.h"     // SW 버스(화면 2·3) 고속 byte 콜백
 #include "LittleFS.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/timers.h>
@@ -52,8 +53,11 @@ void DisplayManager::begin() {
     
     u8g2_1.getU8x8()->byte_cb = u8x8_byte_esp32_idf_0; u8g2_1.begin();
     u8g2_2.getU8x8()->byte_cb = u8x8_byte_esp32_idf_1; u8g2_2.setI2CAddress(I2C_ADDR_HW_1 * 2); u8g2_2.begin();
-    u8g2_3.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast; u8g2_3.begin();
-    u8g2_4.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast; u8g2_4.setI2CAddress(I2C_ADDR_HW_1 * 2); u8g2_4.begin();
+    // SW 버스: U8g2 u8x8_byte_sw_i2c(실효 763kHz, CPU 한계) 대신 전용 고속 루틴 (SW_I2C_HALF_BIT_NS)
+    u8g2_3.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast;
+    u8g2_3.getU8x8()->byte_cb = u8x8_byte_sw_i2c_fast; u8g2_3.begin();
+    u8g2_4.getU8x8()->gpio_and_delay_cb = u8x8_gpio_and_delay_esp32_c3_fast;
+    u8g2_4.getU8x8()->byte_cb = u8x8_byte_sw_i2c_fast; u8g2_4.setI2CAddress(I2C_ADDR_HW_1 * 2); u8g2_4.begin();
     
     // 2. 렌더러 초기화
     renderer.setScreens(screens);
@@ -747,12 +751,13 @@ void DisplayManager::showStatus(const String& msg) {
 // SW 버스 통계 — 벤치마크 동안만 화면 2·3의 byte_cb를 이 래퍼로 바꿔 끼운다.
 static uint64_t g_swBits = 0, g_swUs = 0;
 static uint32_t g_swTx = 0, g_swT0 = 0, g_swCur = 0;
+static u8x8_msg_cb g_swInner = nullptr;   // 감싸는 실제 SW byte_cb (u8x8_byte_sw_i2c_fast)
 
-/** U8g2 SW I2C byte_cb를 감싸 트랜잭션별 바이트 수·시간을 센다 */
+/** SW I2C byte_cb를 감싸 트랜잭션별 바이트 수·시간을 센다 */
 static uint8_t benchSwByteCb(u8x8_t* u8x8, uint8_t msg, uint8_t arg_int, void* arg_ptr) {
     if (msg == U8X8_MSG_BYTE_START_TRANSFER) { g_swT0 = micros(); g_swCur = 0; }
     else if (msg == U8X8_MSG_BYTE_SEND)      { g_swCur += arg_int; }
-    const uint8_t r = u8x8_byte_sw_i2c(u8x8, msg, arg_int, arg_ptr);
+    const uint8_t r = g_swInner(u8x8, msg, arg_int, arg_ptr);
     if (msg == U8X8_MSG_BYTE_END_TRANSFER) {
         g_swUs   += (uint32_t)(micros() - g_swT0);
         g_swBits += 2u + 9u * (1u + g_swCur);   // START + (주소+페이로드)×9 + STOP
@@ -822,12 +827,15 @@ static void fpsBenchPrint(const char* name, const FpsBenchResult& r) {
 }
 
 void DisplayManager::runFpsBenchmark() {
-    Serial.printf("[FPS] 벤치마크 시작 (원본 HW+SW) — HW %d Hz, CPU %u MHz\n",
-                  (int)I2C_SPEED_HZ, (unsigned)getCpuFrequencyMhz());
+    Serial.printf("[FPS] 벤치마크 시작 (원본 HW+SW) — HW %d Hz, SW 반주기 %d ns(실측 %u), CPU %u MHz\n",
+                  (int)I2C_SPEED_HZ, (int)SW_I2C_HALF_BIT_NS, (unsigned)swI2cFastMeasuredNs(),
+                  (unsigned)getCpuFrequencyMhz());
+    const uint32_t swErr0 = swI2cFastErrorCount();
 
     // SW 버스 통계용 래퍼를 끼운다 (벤치마크가 끝나면 원래 콜백으로 되돌린다)
     u8x8_msg_cb swCb2 = u8g2_3.getU8x8()->byte_cb;
     u8x8_msg_cb swCb3 = u8g2_4.getU8x8()->byte_cb;
+    g_swInner = swCb2;   // 화면 2·3은 같은 콜백을 쓴다
     u8g2_3.getU8x8()->byte_cb = benchSwByteCb;
     u8g2_4.getU8x8()->byte_cb = benchSwByteCb;
 
@@ -841,6 +849,8 @@ void DisplayManager::runFpsBenchmark() {
     fpsBenchPrint("A) 4화면 풀 프레임 (HW 2 + SW 2 병렬)", a);
     fpsBenchPrint("B) 화면 0만 (HW 1화면)", b);
     fpsBenchPrint("C) 화면 2만 (SW 1화면)", c);
+    const uint32_t swErr = swI2cFastErrorCount() - swErr0;
+    Serial.printf("[FPS] SW 버스 오류(SCL stuck): %u\n", (unsigned)swErr);
 
     // 화면에도 띄운다 — USB CDC는 포트를 늦게 열면 부팅 로그를 놓친다
     auto fpsOf = [](const FpsBenchResult& r) { return r.totalUs ? 1e6f * r.frames / r.totalUs : 0.0f; };
@@ -853,8 +863,8 @@ void DisplayManager::runFpsBenchmark() {
     snprintf(line, sizeof(line), "4scr %.1fms %.0ffps", msOf(a), fpsOf(a)); u->drawStr(0, 24, line);
     snprintf(line, sizeof(line), "HW1 %.1fms %.0ffps", msOf(b), fpsOf(b));  u->drawStr(0, 36, line);
     snprintf(line, sizeof(line), "SW1 %.1fms %.0ffps", msOf(c), fpsOf(c));  u->drawStr(0, 48, line);
-    snprintf(line, sizeof(line), "HW%.0f SW%.0f kHz",
-             benchKHz(a.hwBits, a.hwUs), benchKHz(a.swBits, a.swUs));        u->drawStr(0, 60, line);
+    snprintf(line, sizeof(line), "HW%.0f SW%.0f e%u",
+             benchKHz(a.hwBits, a.hwUs), benchKHz(a.swBits, a.swUs), (unsigned)swErr);        u->drawStr(0, 60, line);
     pushParallel();
     i2cPlatform.waitForSync(I2C_SYNC_TIMEOUT_MS);
     delay(FPS_BENCH_SHOW_MS);

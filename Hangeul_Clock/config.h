@@ -55,12 +55,47 @@
 #define TILES_PER_PAGE 16
 
 // === [4] I2C 성능 설정 ===
-#define I2C_SPEED_HZ 800000 // 800kHz (주석은 "1MHz"로 잘못 적혀 있었음)
+/**
+ * HW I2C(화면 0·1) SCL 설정 주파수.
+ * @details 실효값은 설정보다 약 18% 낮게 나온다. C3 HW I2C는 SCL이 실제 HIGH가 된 뒤부터
+ *          HIGH 구간을 세므로 풀업 상승 시간만큼 비트가 길어진다 (트랜잭션 비용은 회당 ~27us로 작다).
+ *          C3 HW I2C 보증은 800kHz까지 — 그 이상은 규격 밖이지만 OLED 쪽은 1MHz+도 받는다.
+ *          오류·노이즈가 보이면 낮춘다. 실측 (FPS_BENCH_ON_BOOT, HW 1화면 풀 프레임):
+ *            800000  → 실효 710kHz, 14.3ms (v2.9.9)
+ *            1000000 → 실효 826kHz, 12.35ms (4화면 25.16ms / 39.8fps, SW 150ns와 함께)
+ *            1100000 → 실효 881kHz, 11.62ms (4화면 22.84ms / 43.8fps, SW 100ns와 함께)
+ *                      + HW_MERGED_PAGE_TX → 실효 904kHz, 11.40ms (4화면 22.40ms / 44.6fps) ← 채택
+ *            1200000 → ✗ 화면 0 CMD Error 0x103 (NACK) — 패널이 못 따라옴
+ *          더 올리려면 GPIO 5·6에 외부 풀업(2.2kΩ 정도)을 달아 상승 시간을 줄여야 한다.
+ */
+#define I2C_SPEED_HZ 1100000
 #define I2C_TX_TIMEOUT_MS 50
 #define I2C_CMD_TIMEOUT_MS 10
 #define I2C_SYNC_TIMEOUT_MS 100
 #define I2C_ERROR_THRESHOLD 50   // 누적 오류 횟수 — 초과 시 recoverBus()로 버스 자가 복구
 #define HW_I2C_BUF_SIZE 256
+/**
+ * HW 버스 페이지 전송을 한 트랜잭션으로 합친다 (1 = 합침, 0 = 명령/데이터 2회 — v2.9.9 방식).
+ * @details SSD1306 제어 바이트 Co 비트: [0x80,B0|p, 0x80,col_lo, 0x80,0x10|col_hi, 0x40, data…].
+ *          화면당 트랜잭션 16 → 8회. 실측 HW 1화면 버스 11.07 → 10.85ms (회당 ~27us 절약).
+ *          화면이 깨지거나 엉뚱한 위치에 그려지면 0으로 되돌린다.
+ */
+#define HW_MERGED_PAGE_TX 1
+
+/**
+ * SW I2C(화면 2·3) 반주기 지연 (ns). U8g2 u8x8_byte_sw_i2c 대신 전용 고속 루틴(sw_i2c_fast)을 쓴다.
+ * @details U8g2 SW I2C는 비트 엣지마다 콜백을 호출해 CPU 한계로 실효 763kHz에 묶여 있었다.
+ *          전용 루틴은 레지스터 직접 쓰기 + 부팅 시 보정한 NOP 지연으로 돈다.
+ *          SCL은 매 비트 실제 HIGH가 될 때까지 기다린다 (풀업 RC 상승 — 생략하면 동작 안 함).
+ *          0 = 지연 없음(최대 속도). 화면이 깨지거나 노이즈가 생기면 키운다 (BitBang 판 기준
+ *          150ns ≈ 1.17MHz, 250ns ≈ 850kHz).
+ *          실측 (SW 1화면 풀 프레임):
+ *            150 → 실효 1044kHz, 11.39ms (4화면에선 HW 태스크 간섭으로 915kHz) — 오류·노이즈 없음
+ *            100 → 실효 1189kHz, 9.07ms 1화면 (4화면 1037kHz)
+ */
+#define SW_I2C_HALF_BIT_NS 100
+#define SW_I2C_SCL_SPIN_MAX 32          // SCL 상승을 레지스터로 다시 읽는 횟수 (넘으면 micros() 경로)
+#define SW_I2C_STRETCH_TIMEOUT_US 100   // SCL이 이 시간 넘게 LOW면 트랜잭션 중단 (stuck)
 
 /**
  * 부팅 시 FPS 벤치마크 실행 여부 (1 = 실행). Hangeul_Clock_bitbang_i2c와 같은 방식이다.

@@ -2,7 +2,7 @@
 
 <img width="879" height="1067" alt="image" src="https://github.com/user-attachments/assets/325bc0a3-bf28-45f6-92ca-6e8ce69a8893" />
 
-# Hangeul Clock (한글 시계) - v2.9.8
+# Hangeul Clock (한글 시계) - v2.10.0
 
 NTP 서버로부터 시간을 동기화하여 4개의 OLED 디스플레이에 고화질 한글 및 숫자로 시, 분, 초를 표시하는 ESP32-C3 기반 프리미엄 데스크 가젯입니다.
 
@@ -75,6 +75,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 | **display_manager.h/cpp** | **Manager** | 고수준 디스플레이 제어, IP 확인/도움말 등 UI 스테이지 및 애니메이션 트리거 관리 |
 | **hangeul_time.h/cpp** | **Logic** | 시간을 한글 텍스트 및 숫자 문자열로 변환하는 비즈니스 로직 (24H/정각 처리 포함) |
 | **i2c_platform.h/cpp** | **HAL** | 하드웨어 I2C 인터페이스 추상화 및 4개 OLED에 대한 고속 병렬 전송 로직 구현 |
+| **sw_i2c_fast.h/cpp** | **HAL** | SW I2C 버스(화면 2·3)용 고속 U8g2 byte 콜백 (레지스터 직접 쓰기 + 보정 NOP 지연, 실효 약 1.19MHz) |
 | **input_manager.h/cpp** | **Service** | 버튼 입력 디바운싱, 짧은/긴 누름 감지 및 인터럽트 안전 콜백 관리 |
 | **logger.h/cpp** | **Service** | 통합 로깅 시스템. OLED 상태 표시와 시erial 모니터(도트 애니메이션 포함) 출력 관리 |
 | **renderer.h/cpp** | **Engine** | 비트맵 캐시 관리 및 고수준 그래픽 렌더링 엔진 (Dither, Zoom, Flip 등). 눈 조립 모드의 픽셀 운동학(해시·도착 시각·중력 궤적)과 분할 플랩 모드의 접힘 기하(축 투영·상하 2등분 밴드)도 이 파일에 있다 |
@@ -83,7 +84,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
 ## 🛠 하드웨어 구성
 - **MCU**: ESP32-C3 (SuperMini)
-- **Display**: 4x SSD1306 OLED (128x64) - I2C 고속 연결
+- **Display**: 4x SSD1306 OLED (128x64) - I2C 고속 연결. HW I2C 1.1MHz(화면 0·1)와 고속 SW I2C(화면 2·3)를 병렬로 써서 4화면 풀 프레임 22.4ms / 44.6fps (v2.10.0)
 - **Input**: 1x Reset/Function Button (GPIO 1)
 - **Output**: Passive Buzzer (GPIO 7) - 고정밀 비차단 부저 로직
 
