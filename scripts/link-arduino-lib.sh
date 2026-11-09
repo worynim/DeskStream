@@ -24,7 +24,10 @@ mkdir -p "$SKETCHBOOK/libraries"
 
 if [ -L "$DEST" ]; then
   current="$(readlink "$DEST")"
-  if [ "$current" = "$LIB_SRC" ]; then
+  # 경로 문자열이 아니라 **같은 폴더인지**(장치·inode, -ef)로 비교한다.
+  #   macOS는 한글 경로("내 드라이브")를 NFD(자모 분리)로 돌려줄 때가 있어, 화면에는 같아 보여도
+  #   문자열 비교(=)는 다르다고 판단해 멀쩡한 링크를 매번 지우고 다시 만들었다.
+  if [ "$DEST" -ef "$LIB_SRC" ]; then
     echo "✅ 이미 연결됨: $DEST → $LIB_SRC"
     exit 0
   fi

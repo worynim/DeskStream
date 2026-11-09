@@ -103,13 +103,56 @@ Arduino 라이브러리 [`libraries/DeskStreamCore`](./libraries/DeskStreamCore/
 
 ### 최초 설정 (PC마다 1회)
 
-스케치를 빌드하기 전에 라이브러리를 Arduino 스케치북에 링크합니다.
+Arduino IDE는 `#include <DeskStreamCore.h>`를 **스케치 폴더**와 **스케치북의 `libraries/` 폴더**에서만 찾습니다.
+라이브러리 원본은 저장소의 `libraries/DeskStreamCore/`에 있으므로, 스케치북 `libraries/` 안에 이 폴더를 가리키는
+**링크(바로가기)**를 한 번 만들어 둡니다. 복사가 아니라 링크라서 저장소에서 라이브러리를 고치거나 `git pull`하면
+모든 스케치에 바로 반영됩니다.
+
+```
+<스케치북>/libraries/DeskStreamCore   ──(링크)──▶   DeskStream/libraries/DeskStreamCore
+```
+
+**1. 스케치북 위치 확인** — Arduino IDE **Settings(환경설정) → Sketchbook location**.
+기본값은 macOS `~/Documents/Arduino`, Windows `C:\Users\<사용자>\Documents\Arduino` 입니다.
+
+**2-A. macOS / Linux** — 저장소 루트(DeskStream 폴더)에서 실행합니다.
 
 ```bash
 bash scripts/link-arduino-lib.sh
 ```
 
-- 스케치북 경로는 `arduino-cli config get directories.user` → `~/Documents/Arduino` 순으로 찾습니다. 다른 경로면 인자로 넘깁니다.
+- 스케치북 경로는 인자 → `arduino-cli config get directories.user` → `~/Documents/Arduino` 순으로 찾습니다.
+  기본 위치가 아니면 인자로 넘깁니다: `bash scripts/link-arduino-lib.sh "/경로/스케치북"`
+- 성공하면 `✅ 연결 완료`, 이미 연결돼 있으면 `✅ 이미 연결됨`이 나옵니다 (여러 번 실행해도 안전).
+- 저장소를 옮겨 링크가 다른 곳을 가리키면 새 위치로 교체합니다. 링크가 아닌 **진짜 폴더**가 이미 있으면
+  덮어쓰지 않고 멈추므로, 내용을 확인해 옮기거나 지운 뒤 다시 실행합니다.
+
+**2-B. Windows** — `scripts/link-arduino-lib.sh`는 bash용이므로 **명령 프롬프트(cmd)**에서 디렉터리 정션을 만듭니다
+(관리자 권한 불필요). 아래 두 경로를 자기 PC에 맞게 바꿉니다.
+
+```bat
+mkdir "%USERPROFILE%\Documents\Arduino\libraries"
+mklink /J "%USERPROFILE%\Documents\Arduino\libraries\DeskStreamCore" "C:\경로\DeskStream\libraries\DeskStreamCore"
+```
+
+- 첫 줄은 `libraries` 폴더가 없을 때만 필요합니다 (이미 있으면 "이미 있습니다" 메시지가 나와도 괜찮습니다).
+- 성공하면 `...에 대한 교차점을 만들었습니다` (영문: `Junction created for ...`)가 나옵니다.
+- PowerShell을 쓴다면: `New-Item -ItemType Junction -Path "$env:USERPROFILE\Documents\Arduino\libraries\DeskStreamCore" -Target "C:\경로\DeskStream\libraries\DeskStreamCore"`
+- Git Bash의 `ln -s`는 설정에 따라 링크 대신 **복사**를 만들 수 있으므로 쓰지 않습니다.
+- 저장소를 옮긴 경우: `rmdir "%USERPROFILE%\Documents\Arduino\libraries\DeskStreamCore"`로 정션만 지우고
+  (`rmdir`은 정션만 지우고 원본 폴더는 건드리지 않습니다) 다시 만듭니다.
+
+**3. 외부 라이브러리 설치** — Arduino IDE 라이브러리 매니저에서 **U8g2**, **WiFiManager**(tzapu)를 설치합니다.
+DeskStreamCore의 모든 `.cpp`가 함께 컴파일되므로 WiFi를 쓰지 않는 프로젝트도 WiFiManager가 필요합니다.
+캔버스 프로젝트(Sound_Visualizer·Screen_To_OLEDs·OLED_Wide_test)는 **LovyanGFX**도 필요합니다.
+
+**4. 확인** — Arduino IDE를 **완전히 껐다 켠 뒤**(시작할 때 라이브러리 목록을 읽습니다) 아무 프로젝트(예: `Game_Of_Life`)를
+열어 **Verify(✓)**합니다. `DeskStreamCore.h: No such file or directory`가 나오면 링크가 1번의 스케치북 위치에 있는지 확인합니다.
+
+- 터미널 확인: macOS `ls -l ~/Documents/Arduino/libraries | grep DeskStreamCore` (화살표 `->`가 보이면 정상),
+  Windows `dir "%USERPROFILE%\Documents\Arduino\libraries"` (`<JUNCTION>`으로 표시되면 정상)
+- 링크는 PC의 실제 경로를 가리키므로 **PC마다** 한 번씩 만듭니다 (저장소가 Google Drive 등으로 동기화돼도 링크는 따라가지 않습니다).
+- 시계 3종을 빌드·Export할 때는 `Partition Scheme = Huge APP`도 골라야 합니다 (각 프로젝트 README 참조).
 - 라이브러리 호스트 테스트: `bash libraries/DeskStreamCore/test/run_all.sh`
 - **AI로 새 프로젝트를 만들 때**: [`AI_GUIDE.md`](./AI_GUIDE.md)를 먼저 읽게 하세요 — 라이브러리 사용 규칙·모듈별 API·템플릿·체크리스트.
 

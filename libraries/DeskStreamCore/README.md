@@ -11,6 +11,7 @@ bash scripts/link-arduino-lib.sh
 
 저장소의 `libraries/DeskStreamCore`를 Arduino 스케치북의 `libraries/` 폴더(기본 `~/Documents/Arduino/libraries`)에
 심볼릭 링크로 연결합니다. Arduino IDE / arduino-cli 모두 이 링크를 통해 라이브러리를 찾습니다.
+Windows(`mklink /J` 정션)·외부 라이브러리 설치·확인 방법은 루트 [README의 "최초 설정"](../../README.md#최초-설정-pc마다-1회)을 참고하세요.
 
 ## 사용
 
