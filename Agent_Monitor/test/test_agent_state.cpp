@@ -66,6 +66,25 @@ static void testAlertAndHeartbeat() {
     CHECK(r.type == MsgType::Heartbeat && m.lastRxMs == 20);
 }
 
+static void testPerm() {
+    Model m;
+    auto r = applyLine(m,
+                       "{\"t\":\"perm\",\"id\":7,\"slot\":2,\"name\":\"web-app\",\"tool\":\"Bash\","
+                       "\"sum\":\"rm -rf build\",\"n\":1,\"q\":2}",
+                       100);
+    CHECK(r.type == MsgType::Perm && r.newPerm);
+    CHECK(m.perm.id == 7 && m.perm.slot == 2 && m.perm.n == 1 && m.perm.q == 2);
+    CHECK(strcmp(m.perm.sum, "rm -rf build") == 0 && m.perm.shownMs == 100);
+    // 같은 요청이 다시 오면(대기 개수만 바뀜) 처음 본 시각을 유지 — 오조작 방지 시간이 다시 시작되지 않게
+    r = applyLine(m, "{\"t\":\"perm\",\"id\":7,\"slot\":2,\"name\":\"web-app\",\"tool\":\"Bash\",\"sum\":\"x\",\"n\":1,\"q\":1}",
+                  900);
+    CHECK(!r.newPerm && m.perm.shownMs == 100 && m.perm.q == 1);
+    r = applyLine(m, "{\"t\":\"perm\",\"id\":0}", 1000);
+    CHECK(r.type == MsgType::Perm && m.perm.id == 0);
+    CHECK(applyLine(m, "{\"t\":\"perm\"}", 0).type == MsgType::Invalid);          // id 없음
+    CHECK(applyLine(m, "{\"t\":\"perm\",\"id\":-1}", 0).type == MsgType::Invalid);
+}
+
 static void testFormat() {
     char b[12];
     formatElapsed(0, b, sizeof(b));
@@ -81,6 +100,7 @@ int main() {
     testSlot();
     testRejects();
     testAlertAndHeartbeat();
+    testPerm();
     testFormat();
     printf(fails ? "❌ %d failed\n" : "✅ all passed\n", fails);
     return fails ? 1 : 0;

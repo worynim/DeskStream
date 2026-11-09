@@ -30,18 +30,32 @@ struct Slot {
     uint8_t sub = 0;
 };
 
+/** 장치 버튼 결정을 기다리는 권한 요청 (id == 0 이면 없음 → 승인 화면 닫힘) */
+struct Perm {
+    uint32_t id = 0;
+    int8_t slot = -1;
+    char name[21] = "";
+    char tool[21] = "";
+    char sum[121] = "";      ///< 명령 요약 — 승인 화면 4화면 × 2줄(줄당 21자)에 나눠 표시
+    uint8_t n = 0;           ///< 보이는 요청 번호 (1부터)
+    uint8_t q = 0;           ///< 대기 중인 요청 수
+    uint32_t shownMs = 0;    ///< 이 id 를 처음 받은 시각 — 오조작 방지·대기 시간 표시용
+};
+
 struct Model {
     Slot slots[kSlots];
+    Perm perm;
     uint32_t lastRxMs = 0;   ///< 마지막으로 유효한 메시지를 받은 시각
     bool everRx = false;
 };
 
-enum class MsgType : uint8_t { Invalid, Slot, Alert, Heartbeat };
+enum class MsgType : uint8_t { Invalid, Slot, Alert, Heartbeat, Perm };
 
 struct ParseResult {
     MsgType type = MsgType::Invalid;
     int slot = -1;
     State alert = State::Idle;   ///< type == Alert 일 때 알림 종류 (Approve/Input/Done/Error)
+    bool newPerm = false;        ///< type == Perm 이고 새 요청이 보이기 시작함
 };
 
 /** "idle"·"run" 등 → State. 모르는 값이면 false */

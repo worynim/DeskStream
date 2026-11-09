@@ -110,6 +110,12 @@ class SessionTable:
         s.state, s.since = "idle", now
         return True
 
+    def set_state(self, sid: str, state: str, now: float):
+        """장치에서 승인(→ run)·거절(→ think)했을 때처럼 훅 없이 상태를 바꾼다."""
+        s = self.sessions.get(sid)
+        if s is not None and s.state != state:
+            s.state, s.since = state, now
+
     def remove(self, sid: str):
         s = self.sessions.pop(sid, None)
         if s is not None and s.slot >= 0:

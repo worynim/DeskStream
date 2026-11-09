@@ -1,5 +1,14 @@
 # Release Notes - Agent_Monitor
 
+## [v0.2.0] - 2026-11-10
+### ✨ P2 — 장치 버튼으로 권한 승인/거절
+- **승인 화면**: 권한 요청이 오면 4화면이 한 장의 승인 화면으로 바뀐다 — 머리줄(APPROVE? · 세션 · 도구 · n/q + 대기 시간, 반전 깜빡임), 명령 요약 2줄, 버튼 라벨. BTN1 승인 · BTN2 다음 요청 · BTN3 거절 · BTN4 나중에(터미널에 맡김). 새 요청 직후 0.7초는 버튼 무시.
+- **데몬 `approvals.py`**: 권한 요청 대기열. PermissionRequest 응답을 최대 290초(훅 timeout 300초) 붙잡고 장치 결정을 기다린다. 장치 미연결·시간 초과·나중에 → 빈 응답(터미널 결정). 자동 허용·자동 거절 없음.
+- **터미널 선결정 정리**: 같은 세션의 PostToolUse(같은 도구·입력) 또는 UserPromptSubmit·Stop·StopFailure·SessionEnd 가 오면 장치 승인 화면을 닫는다.
+- 프로토콜: `perm`(데몬→장치), `decide`(장치→데몬) 추가. 시리얼 줄 버퍼 256 → 512 B.
+- 크기: 427,896 B (32%). 테스트: 데몬 27건(승인 대기열·결정·시간 초과·선결정 정리), 펌웨어 perm 해석.
+- 실기 확인: 실제 Claude Code 세션에서 APPROVE(실행됨) · DENY(실행 안 됨) · LATER(터미널 대화상자로) 3가지.
+
 ## [v0.1.0] - 2026-11-10
 ### ✨ 첫 버전 — P1 상태 표시
 - **PC 데몬 `bridge_py/agent_bridge.py`**: Claude Code HTTP 훅(127.0.0.1:9230)을 받아 세션 상태를 USB 시리얼(JSON Lines)로 DeskStream에 보낸다. 모든 훅에 즉시 빈 응답 → 데몬·장치가 꺼져 있어도 Claude Code 동작에 영향 없음.

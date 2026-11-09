@@ -4,7 +4,9 @@
  * @brief AI 개발 에이전트(Claude Code) 상태 모니터 — DeskStream 4-OLED
  * @details PC 데몬(bridge_py/agent_bridge.py)이 USB 시리얼로 보내는 세션 상태(JSON Lines)를
  *          OLED 4장(세션 슬롯 4개)에 표시하고, 상태 변화 알림을 부저로 낸다.
- *          버튼 i 짧게 = 슬롯 i 의 완료 표시 확인, 길게 = 데몬에 전달(PC 명령은 P3).
+ *          - 개요 화면: 버튼 i 짧게 = 슬롯 i 의 완료 표시 확인, 길게 = 데몬에 전달(PC 명령은 P3).
+ *          - 승인 화면(권한 요청 대기 중): BTN1 승인 · BTN2 다음 요청 · BTN3 거절 · BTN4 나중에(터미널에 맡김).
+ *            새 요청이 뜬 직후 AM_PERM_GUARD_MS 동안은 버튼을 무시한다.
  *          프로토콜: bridge_py/protocol.py 참조.
  */
 #include <Arduino.h>
@@ -40,6 +42,16 @@ static void sendButton(uint8_t b, const char* press) {
     Serial.printf("{\"t\":\"btn\",\"b\":%u,\"press\":\"%s\"}\n", b, press);
 }
 
+/** 승인 화면 결정을 데몬에 보낸다 (act = allow | next | deny | pass) */
+static void sendDecision(uint32_t id, const char* act) {
+    Serial.printf("{\"t\":\"decide\",\"id\":%lu,\"act\":\"%s\"}\n", (unsigned long)id, act);
+}
+
+/** 승인 화면이 떠 있는지 (데몬 연결 중 + 대기 요청 있음) */
+static bool approvalActive(uint32_t now) {
+    return model.perm.id != 0 && am::linkAlive(model, now, AM_LINK_TIMEOUT_MS);
+}
+
 /** 시리얼에서 줄을 모아 하나씩 모델에 반영한다 */
 static void pollSerial() {
     static char line[AM_LINE_MAX];
@@ -63,10 +75,25 @@ static void pollSerial() {
     }
 }
 
+/** 승인 화면의 버튼 i 짧게 누름 */
+static void onApprovalButton(uint8_t i, uint32_t now) {
+    static const char* const acts[4] = {"allow", "next", "deny", "pass"};
+    const am::Perm& p = model.perm;
+    if (now - p.shownMs < AM_PERM_GUARD_MS) return;   // 방금 뜬 요청 — 다른 걸 누르려던 입력일 수 있다
+    if (i == 1 && p.q < 2) return;                     // 다음 요청 없음
+    buzzer.beep(AM_BEEP_MS, AM_BEEP_HZ);
+    sendDecision(p.id, acts[i]);
+}
+
 static void pollButtons() {
     buttons.update();
+    uint32_t now = millis();
     for (uint8_t i = 0; i < ds::kNumButtons; i++) {
         uint8_t ev = buttons.events(i);
+        if (approvalActive(now)) {
+            if (ev & ds::BUTTON_SHORT) onApprovalButton(i, now);
+            continue;
+        }
         if (ev & ds::BUTTON_SHORT) {
             buzzer.beep(AM_BEEP_MS, AM_BEEP_HZ);
             sendButton(i, "short");
@@ -80,8 +107,10 @@ static void pollButtons() {
 
 static void render(uint32_t now) {
     bool alive = am::linkAlive(model, now, AM_LINK_TIMEOUT_MS);
+    bool approval = approvalActive(now);
     for (uint8_t i = 0; i < ds::kNumScreens; i++) {
-        if (alive) am::drawSlot(display.screen(i), model.slots[i], i, now);
+        if (approval) am::drawApproval(display.screen(i), i, model.perm, now);
+        else if (alive) am::drawSlot(display.screen(i), model.slots[i], i, now);
         else am::drawOffline(display.screen(i), i, model.everRx, now);
     }
     display.push();   // 바뀐 타일만 전송

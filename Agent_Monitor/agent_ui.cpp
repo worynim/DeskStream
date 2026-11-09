@@ -19,7 +19,8 @@ namespace am {
 
 namespace {
 
-constexpr int kCols = 21;   // 6x10 글꼴 한 줄 글자 수
+constexpr int kCols = 21;            // 6x10 글꼴 한 줄 글자 수
+constexpr int kNumScreensWide = 4;   // 승인 화면 본문 한 줄이 이어지는 화면 수
 
 /** 상태 아이콘 (중심 cx, cy, 반지름 6 영역) */
 void drawIcon(U8G2& u, State st, int cx, int cy, uint32_t nowMs) {
@@ -128,6 +129,45 @@ void drawSlot(U8G2& u, const Slot& s, uint8_t idx, uint32_t nowMs) {
         u.drawBox(0, 0, 128, 64);
         u.setDrawColor(1);
     }
+}
+
+void drawApproval(U8G2& u, uint8_t idx, const Perm& p, uint32_t nowMs) {
+    u.clearBuffer();
+    u.setFontMode(1);
+
+    // 머리줄 — 반전 바, 깜빡일 때는 테두리만
+    bool solid = (nowMs / AM_BLINK_MS) % 2 == 0;
+    u.setDrawColor(1);
+    if (solid) u.drawBox(0, 0, 128, 14);
+    else u.drawFrame(0, 0, 128, 14);
+    u.setDrawColor(solid ? 0 : 1);
+    u.setFont(u8g2_font_7x13B_tf);
+    char head[24];
+    switch (idx) {
+        case 0: snprintf(head, sizeof(head), "APPROVE?"); break;
+        case 1: snprintf(head, sizeof(head), "%s", p.name); break;
+        case 2: snprintf(head, sizeof(head), "%s", p.tool); break;
+        default: {
+            char wait[12];
+            formatElapsed((uint32_t)(nowMs - p.shownMs) / 1000, wait, sizeof(wait));
+            snprintf(head, sizeof(head), "%u/%u %s", p.n, p.q, wait);
+        }
+    }
+    u.drawStr(2, 11, head);
+    u.setDrawColor(1);
+
+    // 본문 — 요약을 화면 0→3 순서로 21자씩 이어서 2줄
+    u.setFont(u8g2_font_6x10_tf);
+    drawCols(u, 28, p.sum, idx * kCols);
+    drawCols(u, 40, p.sum, (kNumScreensWide + idx) * kCols);
+
+    // 버튼 라벨 (각 화면 아래 = 그 화면 밑의 버튼)
+    static const char* const labels[4] = {"APPROVE", "NEXT >", "DENY", "LATER"};
+    if (idx == 1 && p.q < 2) return;   // 대기 요청이 하나면 NEXT 없음
+    int w = u.getStrWidth(labels[idx]) + 10;
+    int x = 64 - w / 2;
+    u.drawRFrame(x, 49, w, 15, 3);
+    u.drawStr(x + 5, 60, labels[idx]);
 }
 
 void drawOffline(U8G2& u, uint8_t idx, bool everConnected, uint32_t nowMs) {

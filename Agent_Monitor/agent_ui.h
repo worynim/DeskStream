@@ -18,6 +18,14 @@ namespace am {
 /** 슬롯 하나를 화면에 그린다 (버퍼만 — 전송은 display.push()) */
 void drawSlot(U8G2& u, const Slot& s, uint8_t idx, uint32_t nowMs);
 
+/**
+ * @brief 승인 화면 중 화면 idx 부분을 그린다 (4화면이 한 장처럼 이어짐)
+ * @details 머리줄(반전 깜빡임): APPROVE? · 세션 이름 · 도구 · n/q + 대기 시간
+ *          본문: 명령 요약을 화면당 21자씩 이어서 2줄
+ *          아래: 각 버튼 위 라벨 — APPROVE · NEXT(대기 2개 이상) · DENY · LATER
+ */
+void drawApproval(U8G2& u, uint8_t idx, const Perm& p, uint32_t nowMs);
+
 /** PC 데몬과 연결되지 않았을 때 화면 idx 의 안내 */
 void drawOffline(U8G2& u, uint8_t idx, bool everConnected, uint32_t nowMs);
 

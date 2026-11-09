@@ -4,6 +4,7 @@
 @brief Claude Code 훅 설정 생성 · 설치 · 제거
 @details - SessionStart 는 http 훅을 실행하지 않으므로(P0 발견 3) curl command 훅으로 보낸다.
          - 나머지는 http 훅, 짧은 timeout → 데몬이 꺼져 있어도 Claude Code 작업에 영향 없음.
+           PermissionRequest 만 장치 결정을 기다리므로 timeout 이 길다.
          - 설치는 기존 사용자 훅을 보존하고 우리 항목만 추가한다. 쓰기 전 백업 파일을 만든다.
          - 우리 항목 판별: url/command 에 "127.0.0.1:<port>/hooks/" 가 들어 있는지.
 """
@@ -16,6 +17,7 @@ DEFAULT_SETTINGS = Path.home() / ".claude" / "settings.json"
 HTTP_EVENTS = ("SessionEnd", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure",
                "PermissionRequest", "Notification", "Stop", "StopFailure", "SubagentStart", "SubagentStop")
 HTTP_TIMEOUT_SEC = 5
+PERMISSION_TIMEOUT_SEC = 300   # 장치 버튼 결정 대기 (터미널 대화상자는 그동안에도 함께 떠 있다 — P0)
 
 
 def marker(port: int) -> str:
@@ -29,7 +31,8 @@ def build_hooks(port: int) -> dict:
         "command": f"curl -s -m 2 -o /dev/null -H 'Content-Type: application/json' "
                    f"--data-binary @- {base}SessionStart || true"}]}]}
     for event in HTTP_EVENTS:
-        hooks[event] = [{"hooks": [{"type": "http", "url": base + event, "timeout": HTTP_TIMEOUT_SEC}]}]
+        timeout = PERMISSION_TIMEOUT_SEC if event == "PermissionRequest" else HTTP_TIMEOUT_SEC
+        hooks[event] = [{"hooks": [{"type": "http", "url": base + event, "timeout": timeout}]}]
     return hooks
 
 

@@ -95,6 +95,24 @@ ParseResult applyLine(Model& m, const char* line, uint32_t nowMs) {
             m.slots[i] = tmp;
             r.type = MsgType::Slot;
         }
+    } else if (strcmp(type, "perm") == 0) {
+        long id;
+        if (!ds::jsonGetInt(line, "id", &id) || id < 0) return r;
+        Perm tmp;
+        if (id != 0) {
+            if (!getStr(line, "name", tmp.name, sizeof(tmp.name)) ||
+                !getStr(line, "tool", tmp.tool, sizeof(tmp.tool)) ||
+                !getStr(line, "sum", tmp.sum, sizeof(tmp.sum))) return r;
+            tmp.id = (uint32_t)id;
+            long slot = getIntOr(line, "slot", -1);
+            tmp.slot = (slot >= 0 && slot < kSlots) ? (int8_t)slot : -1;
+            tmp.n = clampU8(getIntOr(line, "n", 1));
+            tmp.q = clampU8(getIntOr(line, "q", 1));
+            r.newPerm = tmp.id != m.perm.id;
+            tmp.shownMs = r.newPerm ? nowMs : m.perm.shownMs;
+        }
+        m.perm = tmp;
+        r.type = MsgType::Perm;
     } else {
         return r;
     }
