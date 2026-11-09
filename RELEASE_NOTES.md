@@ -1,3 +1,9 @@
+## [v4.21.0] - 2026-11-10
+### 🤖 Agent_Monitor v0.1.0 신규 — AI 개발 에이전트 모니터 (P1 상태 표시)
+- Claude Code 세션 상태를 4-OLED에 세션별로 표시하고 상태 변화를 부저로 알립니다. PC 데몬(`Agent_Monitor/bridge_py`)이 Claude Code 훅을 받아 USB 시리얼로 보냅니다.
+- P0 훅 동작 검증(`Agent_Monitor/p0_spike`): 권한 요청 훅은 터미널 대화상자와 동시에 대기하고 먼저 답한 쪽이 이김, SessionStart 는 command 훅만 실행 등.
+- 실기 확인: 데모 세션 4개 화면·버튼, 실제 Claude Code 세션. 웹 플래셔 배포본에는 아직 넣지 않았습니다.
+
 ## [v4.20.0] - 2026-11-10
 ### 📦 웹 플래셔 배포본 갱신 — DeskStreamCore v0.6.0 (12종 전체 재빌드)
 - **WiFi 설정 포털 교체(6종)**: Hangeul_Clock 2.11.1 · ENG_Clock 1.1.1 · Chinese_Clock 1.1.1 · DS_DECK 1.6.1 · Smart_Info_Station 2.10.1 · Screen_To_OLEDs 2.3.1 — WiFiManager 대신 자체 포털, 각각 약 71~74KB 감소. 저장된 WiFi 정보는 그대로 씁니다.

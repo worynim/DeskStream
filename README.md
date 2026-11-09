@@ -16,7 +16,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 - 상세 정보: [hardware.md](./hardware.md) 참조
 
 ## 📁 주요 프로젝트 (Sub-Projects)
-본 저장소는 DeskStream 보드용으로 개발된 12가지 주요 프로그램을 포함하고 있습니다.
+본 저장소는 DeskStream 보드용으로 개발된 13가지 주요 프로그램을 포함하고 있습니다.
 
 ### 1. [Smart_Info_Station: 스마트 정보 스테이션 (v2.10.1)](./Smart_Info_Station/)
 - **기능**: 시계, 날씨, 미세먼지, 유튜브 구독자 수, 증시 지수, 가상화폐 가격, 환율 실시간 모니터링.
@@ -90,6 +90,10 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
     - **타임아웃 자동 복원 메모리**: 카운트다운 종료 알람 시 아무 버튼이나 누르면 직전에 설정했던 시간으로 자동 복원.
     - **이벤트 기반 더티 체킹**: 변경된 화면만 선별 전송하여 지연 없는 즉각적 반응성 및 정확한 30ms 비프음 제공.
 
+### 13. [Agent_Monitor: AI 개발 에이전트 모니터 (v0.1.0)](./Agent_Monitor/)
+- **기능**: Claude Code 세션 상태(생각 중 / 실행 중 / 승인 대기 / 입력 대기 / 완료 / 오류)를 OLED 한 장에 세션 하나씩 실시간 표시하고 부저로 알림.
+- **특징**: Claude Code 훅 → PC 데몬(Python) → USB 시리얼. 데몬이 꺼져 있어도 Claude Code 동작에 영향 없음. 버튼 승인/거절은 다음 단계(P2) 예정.
+
 ## 🚀 주요 기술적 특징
 - **하이브리드 I2C 아키텍처**: 하드웨어 I2C와 레지스터 직접 제어 기반 고속 소프트웨어 I2C를 병렬로 사용하여 4개의 화면을 끊김 없이 제어합니다.
 - **성능 최적화**: 부드러운 애니메이션 구현을 위한 Dirty Page 체크 및 그래픽 가속 기법이 적용되었습니다.
@@ -99,7 +103,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
 여러 프로젝트가 함께 쓰는 기능(화면 엔진, 버튼, 부저, WiFi, NTP, 설정 저장, 웹 설정 엔진)을
 Arduino 라이브러리 [`libraries/DeskStreamCore`](./libraries/DeskStreamCore/)로 모으고 있습니다.
-**12개 프로젝트 전부**가 이 라이브러리를 씁니다 (화면 전송 HW 1.1MHz + 고속 SW I2C, 바뀐 타일만 병렬 전송 — 한글 시계 실측 4화면 45.7fps).
+**13개 프로젝트 전부**가 이 라이브러리를 씁니다 (화면 전송 HW 1.1MHz + 고속 SW I2C, 바뀐 타일만 병렬 전송 — 한글 시계 실측 4화면 45.7fps).
 
 ### 최초 설정 (PC마다 1회)
 

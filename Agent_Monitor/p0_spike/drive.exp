@@ -1,0 +1,36 @@
+#!/usr/bin/expect -f
+# worynim@gmail.com
+# @file drive.exp
+# @brief P0 스파이크 — 대화형 claude 를 자동 조작해 PermissionRequest 시나리오 4종을 재현한다.
+# @details hook_logger.py --seq allow,deny,pass,timeout 와 함께 쓴다. sandbox/ 에서 실행.
+#          화면 출력은 sandbox/expect.log 에 남는다.
+#   S1 touch s1.txt → 훅 allow   S2 touch s2.txt → 훅 deny
+#   S3 touch s3.txt → 훅 pass(빈 응답) → 20초 뒤 터미널 대화상자에서 Esc
+#   S4 touch s4.txt → 훅 45초 보류(timeout 35초 초과) → 55초 뒤 Esc
+#   마지막에 70초 대기(idle_prompt 알림 확인) 후 /exit
+
+set timeout -1
+log_file -a expect.log
+spawn claude --settings ../hooks.settings.json --permission-mode manual
+
+proc say {text} {
+    send -- $text
+    sleep 0.7
+    send -- "\r"
+}
+
+sleep 10
+say "Run exactly this bash command and nothing else: touch s1.txt"
+sleep 25
+say "Run exactly this bash command and nothing else: touch s2.txt"
+sleep 25
+say "Run exactly this bash command and nothing else: touch s3.txt"
+sleep 20
+send -- "\033"
+sleep 10
+say "Run exactly this bash command and nothing else: touch s4.txt"
+sleep 55
+send -- "\033"
+sleep 70
+say "/exit"
+sleep 5
