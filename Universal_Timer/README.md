@@ -2,6 +2,8 @@
 
 DeskStream 보드(ESP32-C3)와 가로로 배치된 4개의 SSD1306 OLED 디스플레이, 그리고 하단 버튼을 활용한 직관적인 4채널 하드웨어 범용 카운트다운 타이머입니다.
 
+https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
+
 ---
 
 ## 📌 주요 특징

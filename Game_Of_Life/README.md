@@ -2,6 +2,8 @@
 
 ESP32-C3 기반 DeskStream 하드웨어를 위한 단독 구동형(Standalone) **Conway's Game of Life** 펌웨어입니다. 4개의 OLED 디스플레이를 하나로 통합하여 512x64 해상도의 거대한 캔버스에서 생태계 시뮬레이션을 즐길 수 있습니다.
 
+https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
+
 ## 🚀 주요 특징
 
 - **대화면 시뮬레이션**: 128x64 OLED 4개를 병렬 제어하여 512x64 해상도 구현.

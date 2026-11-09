@@ -2,6 +2,8 @@
 
 NTP 서버로부터 시간을 동기화하여 4개의 OLED 디스플레이에 **중국어 한자**로 시·분·초를 표시하는 ESP32-C3 기반 프리미엄 데스크 가젯입니다. `Hangeul_Clock` / `ENG_Clock`의 하드웨어·UI·애니메이션·웹 파이프라인을 그대로 승계하고, **텍스트 생성부만 중국어로 교체**한 포트입니다.
 
+https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
+
 설계 근거와 구현 기록(계획 정정·가정·결함)은 [`PLAN.md`](./PLAN.md)에 있습니다. 이 문서는 **다루는 방법**만 담습니다.
 
 ## ✨ 핵심 기능 (Major Features)

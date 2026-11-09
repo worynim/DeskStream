@@ -3,6 +3,8 @@
 DeskStream 보드(ESP32-C3 + SSD1306 128x64 × 4) 서브 프로젝트들이 함께 쓰는 공통 모듈 Arduino 라이브러리입니다.
 프로젝트마다 복사해 쓰던 코드(`[SYNC]` 주석으로 관리)를 이 라이브러리 한 곳으로 모읍니다.
 
+https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
+
 ## 설치 (PC마다 1회)
 
 ```bash
