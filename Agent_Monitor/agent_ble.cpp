@@ -25,19 +25,16 @@ NimBLECharacteristic* tx = nullptr;
 StreamBufferHandle_t rxBuf = nullptr;
 volatile bool connected = false;
 
-// 연결 직후 요청하는 연결 파라미터 — Windows 는 그대로 두면 연결 간격이 길어 2KB 상세 답변이 약 2.5초 걸린다.
-// 단위: 간격 1.25ms, 감독 시간 10ms. 15~30ms 간격 · 지연 0 · 4초 감독 (Windows·macOS 가 받아들이는 범위)
-constexpr uint16_t kConnIntervalMin = 12;
-constexpr uint16_t kConnIntervalMax = 24;
-constexpr uint16_t kConnLatency = 0;
-constexpr uint16_t kConnTimeout = 400;
-constexpr uint16_t kDataLenOctets = 251;   // LE 데이터 길이 확장 — 한 패킷에 더 많이 (지원하지 않으면 무시됨)
+// 연결 직후 LE 데이터 길이 확장을 요청한다 — 한 무선 패킷에 더 많이 실어 2KB 상세 답변을 빨리 보낸다 (지원하지 않으면 무시).
+// 연결 간격(updateConnParams)은 요청하지 않는다: Windows 는 장치가 요청한 값을 레지스트리
+// (BTHPORT\Parameters\Devices\<주소>\LERemoteConnParams*)에 저장해 다음 연결부터 처음부터 적용하는데,
+// 15~30ms 로 요청했더니 노트북 내장 Bluetooth 에서 새 연결의 서비스 탐색이 끝나지 않고 BT 마우스까지 멈췄다 (0.6.1).
+constexpr uint16_t kDataLenOctets = 251;
 
 class ServerCb : public NimBLEServerCallbacks {
     void onConnect(NimBLEServer* s, NimBLEConnInfo& info) override {
         connected = true;
         s->setDataLen(info.getConnHandle(), kDataLenOctets);
-        s->updateConnParams(info.getConnHandle(), kConnIntervalMin, kConnIntervalMax, kConnLatency, kConnTimeout);
     }
     void onDisconnect(NimBLEServer*, NimBLEConnInfo&, int) override {
         connected = false;

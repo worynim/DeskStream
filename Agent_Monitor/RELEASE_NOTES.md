@@ -1,5 +1,13 @@
 # Release Notes - Agent_Monitor
 
+## [펌웨어 0.6.2] - 2026-11-11
+### 🩹 BLE 연결 간격 요청 제거 — Windows 노트북에서 연결 실패 · BT 마우스 멈춤 (PC 클라이언트는 0.6.2 그대로)
+- **버그 수정**: 펌웨어 0.6.1 이 연결 직후 요청한 연결 간격 15~30ms 를 Windows 가 레지스트리(`HKLM\SYSTEM\CurrentControlSet\Services\BTHPORT\Parameters\Devices\<주소>\LERemoteConnParams*`)에 저장해 다음 연결부터 처음부터 적용했다. 노트북 내장 Bluetooth 에서는 이 값으로 새 연결의 서비스 탐색이 끝나지 않아(연결 시간 초과) 트레이가 회색으로 남았고, 연결을 시도하는 동안 BT 마우스가 멈췄다. 장치를 0.6.0 으로 되돌려도·Bluetooth 를 껐다 켜도 저장된 값 때문에 계속 실패했다.
+- 연결 간격 요청(`updateConnParams`)을 빼고 **데이터 길이 확장(251)만** 요청한다 (Windows 는 이 값을 저장하지 않는다).
+- **0.6.1 을 쓴 Windows PC 복구**: 관리자 PowerShell 에서 저장된 값을 지우고 재부팅한다 —
+  `Remove-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\BTHPORT\Parameters\Devices\<장치 주소 소문자 12자리>' -Name LERemoteConnParamsIntervalMin,LERemoteConnParamsIntervalMax,LERemoteConnParamsLatency,LERemoteConnParamsLSTO`
+- 실기(Windows 11 노트북 내장 BT): 연결 반복해도 레지스트리에 연결 파라미터가 저장되지 않음, 트레이 BLE 연결·BT 마우스 정상. 2KB 상세 줄 전송(같은 부팅) 0.6.0 4.9초 → 0.6.2 **2.7초**. 크기 905,519 B (69%). 웹 플래셔 배포본 0.6.2 갱신.
+
 ## [v0.6.2] - 2026-11-11
 ### 🔑 BLE 모드에서도 키 자동 등록 · Windows BLE 속도 (펌웨어 0.6.1)
 - **버그 수정 — 새 PC 에서 상세 화면 답변이 안 뜨던 문제**: 데몬 기본이 BLE 전용(0.6.0~)이라 USB 가 꽂혀 있어도 키를 등록할 기회가 없었고, 키가 다른 장치의 BLE 버튼 신호(상세 화면 열기·승인·PC 명령)는 모두 거부됐다. 이제 BLE 로 받은 hello 의 키가 다르면 데몬이 **USB 포트를 잠깐 열어 키만 등록하고 바로 닫는다** (`transport.register_key_via_usb`). USB 가 없거나 포트가 사용 중이면 30초마다 다시 시도해 나중에 케이블을 꽂아도 등록된다. 장치가 새 kid 로 hello 를 보내면 성공.
