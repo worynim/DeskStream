@@ -50,7 +50,7 @@ class SerialLink:
             if self._ser is None:
                 return
             try:
-                self._ser.write((line + "\n").encode("ascii"))
+                self._ser.write((line + "\n").encode("utf-8"))
             except (serial.SerialException, OSError) as e:
                 self.log(f"[serial] 쓰기 실패: {e}")
                 self._close_locked()
@@ -105,7 +105,7 @@ class BleLink:
         client, loop = self._client, self._loop
         if client is None or loop is None:
             return
-        fut = asyncio.run_coroutine_threadsafe(self._write(client, (line + "\n").encode("ascii")), loop)
+        fut = asyncio.run_coroutine_threadsafe(self._write(client, (line + "\n").encode("utf-8")), loop)
         try:
             fut.result(timeout=3)
         except Exception as e:      # 연결 끊김·시간 초과 — session 이 정리한다

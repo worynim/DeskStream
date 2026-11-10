@@ -6,21 +6,29 @@
  *   y 0~13  : 상태 아이콘(12x12) + 세션(프로젝트) 이름
  *   y 15    : 구분선
  *   y 17~29 : 상태 이름 + 경과 시간(오른쪽)
- *   y 31~63 : 도구 이름 · 요약 2줄 (6x10 글꼴, 줄당 21자)
+ *   y 31~63 : 도구 이름 · 요약 2줄 (갈무리7 글꼴, 줄 폭 128px — 한글 약 18자 · 영문 약 21자)
+ * @details 글꼴은 갈무리7 하나(영문·한글). 제목은 글자마다 1px 어긋나게 두 번 그리고 간격을 넓혀 굵게 보이게 한다.
  */
+// 갈무리7 한글 글꼴은 64KB 를 넘어 U8g2 가 큰 글꼴 지원을 켜야 한다 — U8g2lib.h 보다 먼저 정의
+#ifndef U8G2_USE_LARGE_FONTS
+#define U8G2_USE_LARGE_FONTS
+#endif
 #include "agent_ui.h"
 
+#include <DeskStreamCore.h>
 #include <stdio.h>
 #include <string.h>
 
 #include "config.h"
+#include "u8g2_font_galmuri7_kr.h"
 
 namespace am {
 
 namespace {
 
-constexpr int kCols = 21;            // 6x10 글꼴 한 줄 글자 수
-constexpr int kNumScreensWide = 4;   // 승인 화면 본문 한 줄이 이어지는 화면 수
+constexpr int kLineW = 128;          // 화면 한 줄 폭(px)
+constexpr int kNumScreensWide = 4;   // 승인 화면 본문이 줄 단위로 이어지는 화면 수
+constexpr int kPageLines = 9;        // 상세 화면 마지막 답변 한 페이지 = 화면 2 장(4줄 + 5줄)
 
 /** 상태 아이콘 (중심 cx, cy, 반지름 6 영역) */
 void drawIcon(U8G2& u, State st, int cx, int cy, uint32_t nowMs) {
@@ -43,8 +51,8 @@ void drawIcon(U8G2& u, State st, int cx, int cy, uint32_t nowMs) {
         case State::Input:
             u.drawDisc(cx, cy, 6);
             u.setDrawColor(0);
-            u.setFont(u8g2_font_6x10_tf);
-            u.drawStr(cx - 2, cy + 4, st == State::Approve ? "!" : "?");
+            u.setFont(u8g2_font_galmuri7_kr);
+            u.drawUTF8(cx - 2, cy + 4, st == State::Approve ? "!" : "?");
             u.setDrawColor(1);
             break;
         case State::Done:
@@ -62,14 +70,94 @@ void drawIcon(U8G2& u, State st, int cx, int cy, uint32_t nowMs) {
     }
 }
 
-/** text 를 off 위치부터 최대 kCols 글자 그린다 (줄바꿈용) */
-void drawCols(U8G2& u, int y, const char* text, size_t off) {
-    char line[kCols + 1];
+constexpr int kBoldGap = 2;   // 굵은 글씨 글자 간격 추가(px) — 겹쳐 그리면 획이 1px 굵어져 보통 간격으로는 붙어 보인다
+
+/** 제목용 굵은 글씨 — 글자마다 1px 어긋나게 두 번 그리고, 붙어 보이지 않게 글자 간격을 kBoldGap 만큼 넓힌다 */
+void drawBold(U8G2& u, int x, int y, const char* text) {
     size_t n = strlen(text);
-    if (off >= n) return;
-    strncpy(line, text + off, kCols);
-    line[kCols] = '\0';
-    u.drawStr(0, y, line);
+    for (size_t i = 0; i < n;) {
+        uint8_t len = ds::utf8CharLen(text + i, (int)(n - i));
+        char ch[5] = {};
+        memcpy(ch, text + i, len);
+        u.drawUTF8(x, y, ch);
+        u.drawUTF8(x + 1, y, ch);
+        x += u.getUTF8Width(ch) + kBoldGap;
+        i += len;
+    }
+}
+
+/** off 앞의 공백(줄바꿈 자리)을 건너뛴 위치 */
+size_t skipSpaces(const char* text, size_t off) {
+    while (text[off] == ' ') off++;
+    return off;
+}
+
+/** off 부터 한 줄(kLineW px)에 들어가는 만큼의 끝 위치 — UTF-8 글자 단위로 자른다 */
+size_t lineEnd(U8G2& u, const char* text, size_t off) {
+    size_t n = strlen(text), i = off;
+    int w = 0;
+    while (i < n) {
+        uint8_t len = ds::utf8CharLen(text + i, (int)(n - i));
+        char ch[5] = {};
+        memcpy(ch, text + i, len);
+        w += u.getUTF8Width(ch);
+        if (w > kLineW) break;
+        i += len;
+    }
+    return i;
+}
+
+/** text 의 off 위치부터 한 줄 그리고 다음 줄 시작 위치를 돌려준다 (줄바꿈용) */
+size_t drawLine(U8G2& u, int y, const char* text, size_t off) {
+    off = skipSpaces(text, off);
+    size_t end = lineEnd(u, text, off);
+    char line[kLineW + 1];   // 글자 폭이 최소 2px 이므로 한 줄은 64바이트를 넘지 않는다
+    size_t len = end - off < sizeof(line) - 1 ? end - off : sizeof(line) - 1;
+    memcpy(line, text + off, len);
+    line[len] = '\0';
+    u.drawUTF8(0, y, line);
+    return end;
+}
+
+/** text 의 from 위치부터 한 줄씩 n 줄 건너뛴 위치 */
+size_t skipLines(U8G2& u, const char* text, size_t from, int n) {
+    size_t off = from;
+    while (n-- > 0 && text[off]) off = lineEnd(u, text, skipSpaces(text, off));
+    return off;
+}
+
+/** 마지막 답변의 페이지 나눔 — 줄 계산이 무거워서(글자마다 폭 조회) 답변이 바뀔 때만 다시 계산한다 */
+struct PageLayout {
+    bool valid = false;
+    int8_t slot = -1;
+    uint32_t rxMs = 0;
+    size_t len = 0;
+    uint8_t pages = 1;
+    size_t start[kMaxMsgPages] = {};   // 페이지별 시작 바이트 위치
+};
+PageLayout layout;
+
+void layoutPages(U8G2& u, const Detail& d) {
+    size_t len = strlen(d.msg);
+    if (layout.valid && layout.slot == d.slot && layout.rxMs == d.rxMs && layout.len == len) return;
+    layout.valid = true;
+    layout.slot = d.slot;
+    layout.rxMs = d.rxMs;
+    layout.len = len;
+    layout.pages = 1;
+    layout.start[0] = 0;
+    u.setFont(u8g2_font_galmuri7_kr);
+    size_t off = 0;
+    for (int lines = 1;; lines++) {
+        off = skipSpaces(d.msg, off);
+        size_t end = d.msg[off] ? lineEnd(u, d.msg, off) : off;
+        if (end == off) break;                       // 끝 (또는 진행 불가)
+        off = end;
+        if (lines % kPageLines == 0 && d.msg[skipSpaces(d.msg, off)]) {
+            if (layout.pages >= kMaxMsgPages) break;   // 4 페이지를 넘는 뒷부분은 보여주지 않는다
+            layout.start[layout.pages++] = off;
+        }
+    }
 }
 
 }  // namespace
@@ -81,25 +169,25 @@ bool isAnimated(State st) {
 /** 빈 슬롯 — 버튼 idx 를 길게 누르면 하는 일 */
 static void drawEmptySlot(U8G2& u, uint8_t idx, const CmdInfo& cmd) {
     char buf[24];
-    u.setFont(u8g2_font_6x10_tf);
+    u.setFont(u8g2_font_galmuri7_kr);
     snprintf(buf, sizeof(buf), "SLOT %u  empty", idx + 1);
-    u.drawStr(0, 10, buf);
+    u.drawUTF8(0, 10, buf);
     u.drawHLine(0, 13, 128);
     snprintf(buf, sizeof(buf), "HOLD BTN%u:", idx + 1);
-    u.drawStr(0, 26, buf);
+    u.drawUTF8(0, 26, buf);
     if (!cmd.label[0]) {
-        u.drawStr(0, 42, "(not set)");
-        u.drawStr(0, 58, "agent_monitor.toml");
+        u.drawUTF8(0, 42, "(not set)");
+        u.drawUTF8(0, 58, "agent_monitor.toml");
         return;
     }
-    u.setFont(u8g2_font_7x13B_tf);
-    u.drawStr(0, 43, cmd.label);
-    u.setFont(u8g2_font_6x10_tf);
+    u.setFont(u8g2_font_galmuri7_kr);
+    drawBold(u, 0, 43, cmd.label);
+    u.setFont(u8g2_font_galmuri7_kr);
     const char* what = strcmp(cmd.kind, "focus") == 0 ? "open app"
                      : strcmp(cmd.kind, "shell") == 0 ? "run command"
                      : strcmp(cmd.kind, "keys") == 0  ? "send keys"
                                                       : "check config";
-    u.drawStr(0, 58, what);
+    u.drawUTF8(0, 58, what);
 }
 
 void drawSlot(U8G2& u, const Slot& s, uint8_t idx, const CmdInfo& cmd, uint32_t nowMs) {
@@ -114,30 +202,30 @@ void drawSlot(U8G2& u, const Slot& s, uint8_t idx, const CmdInfo& cmd, uint32_t 
 
     // 머리줄: 아이콘 + 이름
     drawIcon(u, s.st, 6, 6, nowMs);
-    u.setFont(u8g2_font_7x13B_tf);
-    u.drawStr(16, 11, s.name);
+    u.setFont(u8g2_font_galmuri7_kr);
+    drawBold(u, 16, 11, s.name);
     u.drawHLine(0, 15, 128);
 
     // 상태 + 경과 시간
     char el[12];
     formatElapsed(elapsedS(s, nowMs), el, sizeof(el));
-    u.drawStr(0, 29, stateLabel(s.st));
-    u.setFont(u8g2_font_6x10_tf);
-    u.drawStr(128 - u.getStrWidth(el), 28, el);
+    drawBold(u, 0, 29, stateLabel(s.st));
+    u.setFont(u8g2_font_galmuri7_kr);
+    u.drawUTF8(128 - u.getUTF8Width(el), 28, el);
 
     // 도구 + 요약 (완료 상태면 요약 = 마지막 답변)
     int y = 41;
     if (s.tool[0]) {
-        u.drawStr(0, y, s.tool);
+        u.drawUTF8(0, y, s.tool);
         if (s.err) {
             char e[8];
             snprintf(e, sizeof(e), "E%u", s.err);
-            u.drawStr(128 - u.getStrWidth(e), y, e);
+            u.drawUTF8(128 - u.getUTF8Width(e), y, e);
         }
         y += 11;
     }
-    drawCols(u, y, s.sum, 0);
-    if (y + 11 <= 63) drawCols(u, y + 11, s.sum, kCols);
+    size_t off = drawLine(u, y, s.sum, 0);
+    if (y + 11 <= 63) drawLine(u, y + 11, s.sum, off);
 
     // 강조 표시
     if (s.st == State::Done) {
@@ -161,7 +249,7 @@ void drawApproval(U8G2& u, uint8_t idx, const Perm& p, uint32_t nowMs) {
     if (solid) u.drawBox(0, 0, 128, 14);
     else u.drawFrame(0, 0, 128, 14);
     u.setDrawColor(solid ? 0 : 1);
-    u.setFont(u8g2_font_7x13B_tf);
+    u.setFont(u8g2_font_galmuri7_kr);
     char head[24];
     switch (idx) {
         case 0: snprintf(head, sizeof(head), "APPROVE?"); break;
@@ -173,75 +261,85 @@ void drawApproval(U8G2& u, uint8_t idx, const Perm& p, uint32_t nowMs) {
             snprintf(head, sizeof(head), "%u/%u %s", p.n, p.q, wait);
         }
     }
-    u.drawStr(2, 11, head);
+    drawBold(u, 2, 11, head);
     u.setDrawColor(1);
 
-    // 본문 — 요약을 화면 0→3 순서로 21자씩 이어서 2줄
-    u.setFont(u8g2_font_6x10_tf);
-    drawCols(u, 28, p.sum, idx * kCols);
-    drawCols(u, 40, p.sum, (kNumScreensWide + idx) * kCols);
+    // 본문 — 요약을 한 줄(128px)씩 화면 0→3 순서로 이어서 2줄
+    u.setFont(u8g2_font_galmuri7_kr);
+    drawLine(u, 28, p.sum, skipLines(u, p.sum, 0, idx));
+    drawLine(u, 40, p.sum, skipLines(u, p.sum, 0, kNumScreensWide + idx));
 
     // 버튼 라벨 (각 화면 아래 = 그 화면 밑의 버튼)
     static const char* const labels[4] = {"APPROVE", "NEXT >", "DENY", "LATER"};
     if (idx == 1 && p.q < 2) return;   // 대기 요청이 하나면 NEXT 없음
-    int w = u.getStrWidth(labels[idx]) + 10;
+    int w = u.getUTF8Width(labels[idx]) + 10;
     int x = 64 - w / 2;
     u.drawRFrame(x, 49, w, 15, 3);
-    u.drawStr(x + 5, 60, labels[idx]);
+    u.drawUTF8(x + 5, 60, labels[idx]);
 }
 
-void drawDetail(U8G2& u, uint8_t idx, const Detail& d, uint32_t nowMs) {
+uint8_t detailPageCount() { return layout.pages; }
+
+void drawDetail(U8G2& u, uint8_t idx, const Detail& d, uint8_t page, uint32_t nowMs) {
     u.clearBuffer();
     u.setDrawColor(1);
     u.setFontMode(1);
-    u.setFont(u8g2_font_6x10_tf);
+    u.setFont(u8g2_font_galmuri7_kr);
+    layoutPages(u, d);
+    if (page >= layout.pages) page = layout.pages - 1;
     char buf[24];
 
     switch (idx) {
         case 0: {
-            u.setFont(u8g2_font_7x13B_tf);
-            u.drawStr(0, 11, d.name);
+            drawBold(u, 0, 11, d.name);
             u.drawHLine(0, 14, 128);
-            u.setFont(u8g2_font_6x10_tf);
             char el[12];
             formatElapsed(d.elS + (uint32_t)(nowMs - d.rxMs) / 1000, el, sizeof(el));
-            u.drawStr(0, 25, stateLabel(d.st));
-            u.drawStr(128 - u.getStrWidth(el), 25, el);
+            u.drawUTF8(0, 25, stateLabel(d.st));
+            u.drawUTF8(128 - u.getUTF8Width(el), 25, el);
             snprintf(buf, sizeof(buf), "mode %s", d.mode[0] ? d.mode : "-");
-            u.drawStr(0, 36, buf);
+            u.drawUTF8(0, 36, buf);
             snprintf(buf, sizeof(buf), "sub %u  err %u", d.sub, d.err);
-            u.drawStr(0, 47, buf);
+            u.drawUTF8(0, 47, buf);
             break;
         }
         case 1:
-            u.drawStr(0, 9, "RECENT TOOLS");
-            for (int k = 0; k < 4; k++) u.drawStr(0, 20 + k * 10, d.h[k]);
+            u.drawUTF8(0, 9, "RECENT TOOLS");
+            for (int k = 0; k < 4; k++) u.drawUTF8(0, 20 + k * 10, d.h[k]);
             break;
-        case 2:
-            u.drawStr(0, 9, "LAST MESSAGE");
-            for (int k = 0; k < 4; k++) drawCols(u, 20 + k * 10, d.msg, k * kCols);
+        case 2: {
+            u.drawUTF8(0, 9, "LAST MESSAGE");
+            if (layout.pages > 1) {
+                snprintf(buf, sizeof(buf), "%u/%u", page + 1, layout.pages);
+                u.drawUTF8(128 - u.getUTF8Width(buf), 9, buf);
+            }
+            size_t off = layout.start[page];
+            for (int k = 0; k < 4; k++) off = drawLine(u, 20 + k * 10, d.msg, off);
             break;
-        default:   // 화면 2 의 4줄 뒤를 이어 5줄
-            for (int k = 0; k < 5; k++) drawCols(u, 9 + k * 10, d.msg, (4 + k) * kCols);
+        }
+        default: {   // 같은 페이지의 뒤 5줄
+            size_t off = skipLines(u, d.msg, layout.start[page], 4);
+            for (int k = 0; k < 5; k++) off = drawLine(u, 9 + k * 10, d.msg, off);
+        }
     }
 
+    // 아래 라벨 — 화면 2·3 은 페이지를 넘길 수 있을 때만 (BTN3 = 이전 페이지, BTN4 = 다음 페이지)
     static const char* const labels[4] = {"BACK", "CLOSE", "< PREV", "NEXT >"};
+    if (idx == 2 && page == 0) return;
+    if (idx == 3 && page + 1 >= layout.pages) return;
     const char* label = labels[idx];
-    int w = u.getStrWidth(label) + 10;
+    int w = u.getUTF8Width(label) + 10;
     int x = 64 - w / 2;
     u.drawRFrame(x, 51, w, 13, 3);
-    u.drawStr(x + 5, 61, label);
+    u.drawUTF8(x + 5, 61, label);
 }
 
 void drawNotice(U8G2& u, const char* text) {
-    char buf[kCols + 1];
-    strncpy(buf, text, kCols);
-    buf[kCols] = '\0';
     u.setDrawColor(1);
     u.drawBox(0, 50, 128, 14);
     u.setDrawColor(0);
-    u.setFont(u8g2_font_6x10_tf);
-    u.drawStr(1, 61, buf);
+    u.setFont(u8g2_font_galmuri7_kr);
+    drawLine(u, 61, text, 0);
     u.setDrawColor(1);
 }
 
@@ -268,19 +366,19 @@ void drawMuteIcon(U8G2& u) {
 void drawOffline(U8G2& u, uint8_t idx, bool everConnected, uint32_t nowMs) {
     u.clearBuffer();
     u.setDrawColor(1);
-    u.setFont(u8g2_font_6x10_tf);
+    u.setFont(u8g2_font_galmuri7_kr);
     if (idx == 0) {
-        u.setFont(u8g2_font_7x13B_tf);
-        u.drawStr(0, 14, "Agent Monitor");
-        u.setFont(u8g2_font_6x10_tf);
-        u.drawStr(0, 28, "v" AM_FW_VERSION);
-        u.drawStr(0, 46, everConnected ? "PC link lost" : "Waiting for PC");
+        u.setFont(u8g2_font_galmuri7_kr);
+        drawBold(u, 0, 14, "Agent Monitor");
+        u.setFont(u8g2_font_galmuri7_kr);
+        u.drawUTF8(0, 28, "v" AM_FW_VERSION);
+        u.drawUTF8(0, 46, everConnected ? "PC link lost" : "Waiting for PC");
         uint8_t dots = (nowMs / 400) % 4;
-        for (uint8_t k = 0; k < dots; k++) u.drawStr(everConnected ? 72 + k * 6 : 84 + k * 6, 46, ".");
+        for (uint8_t k = 0; k < dots; k++) u.drawUTF8(everConnected ? 72 + k * 6 : 84 + k * 6, 46, ".");
     } else if (idx == 1) {
-        u.drawStr(0, 14, "Run on PC:");
-        u.drawStr(0, 30, "python3 agent_bridge");
-        u.drawStr(0, 42, "  .py run");
+        u.drawUTF8(0, 14, "Run on PC:");
+        u.drawUTF8(0, 30, "python3 agent_bridge");
+        u.drawUTF8(0, 42, "  .py run");
     }
 }
 

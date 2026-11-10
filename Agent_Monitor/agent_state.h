@@ -23,7 +23,7 @@ struct Slot {
     char name[21] = "";
     State st = State::Idle;
     char tool[21] = "";
-    char sum[64] = "";
+    char sum[97] = "";       ///< 요약 — 개요 화면 2줄(한글 약 18자 × 2)
     uint32_t elS = 0;      ///< 메시지를 받은 시점의 경과 초
     uint32_t rxMs = 0;     ///< 메시지를 받은 시각 (millis) — 이후 경과는 장치가 직접 센다
     uint8_t err = 0;
@@ -36,7 +36,7 @@ struct Perm {
     int8_t slot = -1;
     char name[21] = "";
     char tool[21] = "";
-    char sum[121] = "";      ///< 명령 요약 — 승인 화면 4화면 × 2줄(줄당 21자)에 나눠 표시
+    char sum[241] = "";      ///< 명령 요약 — 승인 화면 4화면 × 2줄(줄당 128px)에 나눠 표시
     uint8_t n = 0;           ///< 보이는 요청 번호 (1부터)
     uint8_t q = 0;           ///< 대기 중인 요청 수
     uint32_t shownMs = 0;    ///< 이 id 를 처음 받은 시각 — 오조작 방지·대기 시간 표시용
@@ -53,7 +53,7 @@ struct Detail {
     uint32_t rxMs = 0;
     uint8_t err = 0;
     uint8_t sub = 0;
-    char msg[121] = "";      ///< 마지막 답변
+    char msg[1729] = "";     ///< 마지막 답변 — 상세 화면 4페이지 · 한글 576자 = 1728바이트 (BTN3/4 로 페이지 넘김)
     char h[4][22] = {};      ///< 최근 도구 — 첫 글자 '>' 실행 중 '+' 성공 '!' 실패
 };
 

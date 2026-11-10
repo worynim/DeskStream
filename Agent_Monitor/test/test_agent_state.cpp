@@ -8,6 +8,7 @@
  *       $L/util/ds_json_lite.cpp -o /tmp/test_agent_state && /tmp/test_agent_state
  */
 #include <stdio.h>
+#include <string>
 #include <string.h>
 
 #include "agent_state.h"
@@ -99,6 +100,17 @@ static void testDetailCmd() {
     r = applyLine(m, "{\"t\":\"detail\",\"i\":2,\"on\":0}", 60);
     CHECK(r.type == MsgType::Detail && !m.detail.on);
 
+    {   // 긴 상세 답변(4페이지 = 1728바이트)이 통째로 해석된다
+        std::string big = "{\"t\":\"detail\",\"i\":1,\"on\":1,\"name\":\"p\",\"st\":\"done\",\"mode\":\"plan\",\"el\":1,\"err\":0,\"sub\":0,\"msg\":\"";
+        for (int k = 0; k < 576; k++) big += "한";
+        big += "\",\"h0\":\"\",\"h1\":\"\",\"h2\":\"\",\"h3\":\"\"}";
+        r = applyLine(m, big.c_str(), 200);
+        CHECK(r.type == MsgType::Detail && strlen(m.detail.msg) == 1728);
+        std::string over = big;
+        over.insert(over.find("\",\"h0\""), "가");   // 1731바이트 — 버퍼(1729)를 넘으면 통째로 버린다
+        r = applyLine(m, over.c_str(), 201);
+        CHECK(r.type == MsgType::Invalid && strlen(m.detail.msg) == 1728);
+    }
     r = applyLine(m, "{\"t\":\"cmd\",\"b\":1,\"st\":\"fail\",\"label\":\"npm test\",\"msg\":\"exit 1\"}", 70);
     CHECK(r.type == MsgType::Cmd && m.toasts[1].st == CmdState::Fail);
     CHECK(strcmp(m.toasts[1].msg, "exit 1") == 0 && m.toasts[1].rxMs == 70);

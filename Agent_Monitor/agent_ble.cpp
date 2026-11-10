@@ -18,7 +18,7 @@ namespace {
 const char* const kServiceUuid = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E";
 const char* const kRxUuid = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E";   // PC → 장치 (write)
 const char* const kTxUuid = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E";   // 장치 → PC (notify)
-constexpr size_t kRxBufBytes = 2048;
+constexpr size_t kRxBufBytes = 4096;   // 상세 답변이 든 줄(약 2KB)이 통째로 들어간다
 constexpr size_t kNotifyChunk = 20;   // 기본 MTU(23) 에서도 되는 크기
 
 NimBLECharacteristic* tx = nullptr;

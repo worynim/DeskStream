@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-10T10:18:47.185Z",
+  "generatedAt": "2026-11-10T13:33:49.334Z",
   "chip": "ESP32-C3",
   "board": "DeskStream (ESP32-C3 SuperMini · 4× OLED)",
   "flashDefaults": {
@@ -588,14 +588,14 @@
     {
       "id": "Agent_Monitor",
       "name": "AI 에이전트 모니터",
-      "version": "0.5.0",
+      "version": "0.6.0",
       "icon": "🤖",
       "order": 13,
       "description": "Claude Code 세션 상태를 4개 OLED에 표시하고, 권한 요청을 장치 버튼으로 승인·거절하는 AI 개발 에이전트 모니터",
-      "note": "PC에서 데몬(Agent_Monitor/bridge_py, Python 3.11+)을 실행해야 동작합니다. USB 또는 BLE(\"DeskStream Agent\")로 연결되며, BLE로 승인하려면 먼저 USB로 한 번 연결해 서명 키를 등록하세요.",
+      "note": "PC에서 데몬(Agent_Monitor/bridge_py, Python 3.11+)을 실행해야 동작합니다. 기본은 BLE(\"DeskStream Agent\") 연결이며, 처음 한 번은 USB로 연결(--transport usb)해 서명 키를 등록하세요. 한글 표시(갈무리7).",
       "nameEn": "AI Agent Monitor",
       "descriptionEn": "Shows Claude Code session status on four OLEDs and approves or denies permission requests with the device buttons",
-      "noteEn": "Requires the PC daemon (Agent_Monitor/bridge_py, Python 3.11+). Connects over USB or BLE (\"DeskStream Agent\"); connect once over USB to register the signing key before approving over BLE.",
+      "noteEn": "Requires the PC daemon (Agent_Monitor/bridge_py, Python 3.11+). Connects over BLE (\"DeskStream Agent\") by default; connect once over USB (--transport usb) to register the signing key. Korean text (Galmuri7 font).",
       "fqbn": "esp32:esp32:makergo_c3_supermini:CDCOnBoot=default,CPUFreq=160,PartitionScheme=default",
       "partitionScheme": "default",
       "flash": {
@@ -603,9 +603,9 @@
         "freq": "80m",
         "size": "4MB"
       },
-      "exportedAt": "2026-11-10T10:18:46.947Z",
+      "exportedAt": "2026-11-10T13:33:49.195Z",
       "sourcePath": "Agent_Monitor",
-      "sourceCommit": "1975108381527823364b184e727810255ed74fd1",
+      "sourceCommit": "af817e801631bf6c2ffe9f87013c79bef8a9f36c",
       "images": [
         {
           "offset": "0x0",
@@ -628,8 +628,8 @@
         {
           "offset": "0x10000",
           "path": "firmware/Agent_Monitor/Agent_Monitor.ino.bin",
-          "size": 736768,
-          "sha256": "596c72f1d6966ff0dac6465927d7bfed24de088bac33a069149081049874979a"
+          "size": 906160,
+          "sha256": "65595be9f4ab064a2c88e59654148d490041a4032b3962de20fca9767eea48ae"
         }
       ]
     }

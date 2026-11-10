@@ -42,6 +42,7 @@ static const ds::ConfigField kFields[] = {
 
 // 화면 모드 — 승인 화면이 오면 그것이 우선한다
 static int8_t detailSlot = -1;       // 상세 화면으로 보는 슬롯 (-1 = 개요)
+static uint8_t detailPage = 0;       // 상세 화면 마지막 답변 페이지 (0부터)
 static uint32_t detailTouchMs = 0;   // 상세 화면에서 마지막으로 버튼을 누른 시각
 
 // 알림음 (재생이 끝날 때까지 살아 있어야 하므로 static const)
@@ -84,7 +85,7 @@ static void writeLine(const char* line) {
 
 /** 버튼·승인 신호 — 카운터와 서명을 붙여 보낸다 */
 static void sendSigned(const char* body) {
-    char out[AM_LINE_MAX];
+    char out[256];   // btn·decide 본문 + 카운터 + 서명 (스택 절약 — AM_LINE_MAX 는 수신 줄 한계)
     writeLine(am::authSignLine(body, out, sizeof(out)));
 }
 
@@ -181,20 +182,12 @@ static void onApprovalButton(uint8_t i, uint32_t now) {
 /** 상세 화면으로 slot 을 연다 — 데몬에 알려 그 세션의 상세 정보를 받는다 (완료 확인도 함께) */
 static void openDetail(int8_t slot, uint32_t now) {
     detailSlot = slot;
+    detailPage = 0;
     detailTouchMs = now;
     sendButton(slot, "short");
 }
 
-/** from 에서 dir(+1/-1) 방향으로 세션이 있는 다음 슬롯 (없으면 from) */
-static int8_t nextOnSlot(int8_t from, int dir) {
-    for (int k = 1; k <= am::kSlots; k++) {
-        int8_t s = (int8_t)((from + dir * k + am::kSlots * 2) % am::kSlots);
-        if (model.slots[s].on) return s;
-    }
-    return from;
-}
-
-/** 상세 화면의 버튼 i 짧게 누름 */
+/** 상세 화면의 버튼 i 짧게 누름 — BACK · CLOSE · 이전 페이지 · 다음 페이지 */
 static void onDetailButton(uint8_t i, uint32_t now) {
     detailTouchMs = now;
     switch (i) {
@@ -203,8 +196,12 @@ static void onDetailButton(uint8_t i, uint32_t now) {
             sendButton(detailSlot, "close");
             detailSlot = -1;
             break;
-        case 2: openDetail(nextOnSlot(detailSlot, -1), now); break;
-        default: openDetail(nextOnSlot(detailSlot, +1), now); break;
+        case 2:   // 마지막 답변 이전 페이지
+            if (detailPage > 0) detailPage--;
+            break;
+        default:  // 다음 페이지
+            if (detailPage + 1 < am::detailPageCount()) detailPage++;
+            break;
     }
 }
 
@@ -257,7 +254,7 @@ static void render(uint32_t now) {
         } else if (!alive) {
             am::drawOffline(u, i, model.everRx, now);
         } else {
-            if (detailSlot >= 0) am::drawDetail(u, i, detailFor(detailSlot), now);
+            if (detailSlot >= 0) am::drawDetail(u, i, detailFor(detailSlot), detailPage, now);
             else am::drawSlot(u, model.slots[i], i, model.cmds[i], now);
             am::drawToast(u, model.toasts[i], now);
             if (detailSlot < 0 && i == ds::kNumScreens - 1 && settings.muted) am::drawMuteIcon(u);
@@ -267,6 +264,7 @@ static void render(uint32_t now) {
 }
 
 void setup() {
+    Serial.setRxBufferSize(4096);   // 긴 줄(상세 답변 약 2KB)이 와도 loop 가 읽기 전에 넘치지 않게 — begin 보다 먼저
     Serial.begin(AM_SERIAL_BAUD);
 #if ARDUINO_USB_CDC_ON_BOOT
     Serial.setTxTimeoutMs(0);   // PC 가 포트를 열지 않아도 loop() 가 멈추지 않게

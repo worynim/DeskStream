@@ -39,7 +39,7 @@ static inline uint8_t utf8CharLen(const char* p, int remaining) {
     else if ((c & 0xF8) == 0xF0)           len = 4;
     else                                   len = 1;   // 컨티뉴레이션 바이트 등 잘못된 선행 바이트
 
-    if (len > (uint8_t)remaining) len = (uint8_t)remaining;   // 잘린 멀티바이트 방지
+    if (remaining < (int)len) len = (uint8_t)remaining;   // 잘린 멀티바이트 방지 (int 로 비교 — uint8_t 로 자르면 256 이 0 이 된다)
     return len;
 }
 

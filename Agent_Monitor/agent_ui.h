@@ -15,6 +15,8 @@
 
 namespace am {
 
+constexpr int kMaxMsgPages = 4;   ///< 상세 화면 마지막 답변 최대 페이지 수 (한 페이지 = 9줄)
+
 /**
  * @brief 슬롯 하나를 화면에 그린다 (버퍼만 — 전송은 display.push())
  * @details 빈 슬롯이면 그 화면 밑 버튼을 길게 눌렀을 때 실행되는 PC 명령(cmd)을 보여준다.
@@ -24,7 +26,7 @@ void drawSlot(U8G2& u, const Slot& s, uint8_t idx, const CmdInfo& cmd, uint32_t 
 /**
  * @brief 승인 화면 중 화면 idx 부분을 그린다 (4화면이 한 장처럼 이어짐)
  * @details 머리줄(반전 깜빡임): APPROVE? · 세션 이름 · 도구 · n/q + 대기 시간
- *          본문: 명령 요약을 화면당 21자씩 이어서 2줄
+ *          본문: 명령 요약을 화면당 한 줄(128px)씩 이어서 2줄
  *          아래: 각 버튼 위 라벨 — APPROVE · NEXT(대기 2개 이상) · DENY · LATER
  */
 void drawApproval(U8G2& u, uint8_t idx, const Perm& p, uint32_t nowMs);
@@ -33,9 +35,13 @@ void drawApproval(U8G2& u, uint8_t idx, const Perm& p, uint32_t nowMs);
  * @brief 상세 화면 중 화면 idx 부분을 그린다
  * @details 화면 0: 이름 · 상태 · 경과 · 권한 모드 · 하위 에이전트/오류 수
  *          화면 1: 최근 도구 4개 / 화면 2~3: 마지막 답변
- *          아래 라벨: BACK · CLOSE(세션 닫기) · < PREV · NEXT >
+ *          아래 라벨: BACK · CLOSE(세션 닫기) · < PREV · NEXT > (마지막 답변 이전/다음 페이지 — 넘길 수 있을 때만)
+ * @param page 마지막 답변 페이지 (0부터, 범위를 넘으면 마지막 페이지로 맞춘다)
  */
-void drawDetail(U8G2& u, uint8_t idx, const Detail& d, uint32_t nowMs);
+void drawDetail(U8G2& u, uint8_t idx, const Detail& d, uint8_t page, uint32_t nowMs);
+
+/** 마지막으로 그린 상세 화면의 마지막 답변 페이지 수 (1~kMaxMsgPages) — 버튼으로 넘길 수 있는 범위 */
+uint8_t detailPageCount();
 
 /** PC 명령 진행·결과 띠를 화면 아래에 덧그린다 (표시할 것이 없으면 아무것도 안 함) */
 void drawToast(U8G2& u, const CmdToast& t, uint32_t nowMs);

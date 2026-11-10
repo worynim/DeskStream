@@ -97,6 +97,16 @@ int main() {
     expectLen("remaining=0 → 무한 루프 방지", 0xEA, 0, 1);
     expectLen("remaining=-1", 0xEA, -1, 1);
 
+    // --- 회귀: remaining 이 256 이상이어도 판정이 틀리면 안 된다 ---
+    //   이전 코드는 remaining 을 uint8_t 로 잘라 비교해서 256 의 배수에서 0 을 반환했고,
+    //   `i += len` 으로 전진하는 호출부가 무한 루프에 빠졌다 (긴 문자열의 256 바이트 남은 지점).
+    expectLen("remaining=255 한글",  0xEA, 255, 3);
+    expectLen("remaining=256 한글 (0 이 되면 안 됨)", 0xEA, 256, 3);
+    expectLen("remaining=257 한글",  0xEA, 257, 3);
+    expectLen("remaining=512 ASCII", 'A', 512, 1);
+    expectLen("remaining=768 4바이트", 0xF0, 768, 4);
+    expectLen("remaining=65536 한글", 0xEA, 65536, 3);
+
     printf("test_utf8_len: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail == 0 ? 0 : 1;
 }

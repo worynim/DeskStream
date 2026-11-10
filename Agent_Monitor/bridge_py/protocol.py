@@ -2,9 +2,9 @@
 """
 @file protocol.py
 @brief 데몬 ↔ DeskStream 시리얼 메시지 (JSON Lines, 한 줄 = 한 메시지)
-@details 펌웨어 파서(ds::jsonGetString)는 \\" \\\\ \\/ 이외의 이스케이프를 거부하고 화면 글꼴은 ASCII 뿐이므로,
-         문자열은 출력 가능한 ASCII 로 정리해 보낸다 (한글 등은 '?').
-         길이 제한은 펌웨어 agent_state.h 의 버퍼 크기와 맞춘다.
+@details 펌웨어 파서(ds::jsonGetString)는 \\" \\\\ \\/ 이외의 이스케이프(\\uXXXX 포함)를 거부하므로 JSON 은
+         ensure_ascii=False 로 만들어 UTF-8 그대로 보낸다. 화면 글꼴(갈무리7)에 없는 글자는 펌웨어가 그리지 않는다.
+         길이 제한은 펌웨어 agent_state.h 의 버퍼 크기(바이트)와 맞춘다 — 한글은 글자당 3바이트.
 
 PC → 장치
   {"t":"slot","i":0,"on":1,"name":"DeskStream","st":"run","tool":"Bash","sum":"npm test","el":12,"err":0,"sub":0}
@@ -28,12 +28,12 @@ PC → 장치
 """
 import json
 
-NAME_MAX = 20        # 펌웨어 Slot::name[21] / Perm::name[21]
+NAME_MAX = 20        # (바이트) 펌웨어 Slot::name[21] / Perm::name[21]
 TOOL_MAX = 20        # 펌웨어 Slot::tool[21] / Perm::tool[21]
-SUM_MAX = 63         # 펌웨어 Slot::sum[64]
-PERM_SUM_MAX = 120   # 펌웨어 Perm::sum[121] — 승인 화면은 4화면 × 2줄에 나눠 보여준다
+SUM_MAX = 96         # 펌웨어 Slot::sum[97]
+PERM_SUM_MAX = 240   # 펌웨어 Perm::sum[241] — 승인 화면은 4화면 × 2줄에 나눠 보여준다
 MODE_MAX = 12        # 펌웨어 Detail::mode[13]
-MSG_MAX = 120        # 펌웨어 Detail::msg[121]
+MSG_MAX = 1728       # 펌웨어 Detail::msg[1729] — 상세 화면 4페이지 (한글 576자)
 HIST_MAX = 21        # 펌웨어 Detail::h[4][22] — 상세 화면 한 줄
 CMD_MSG_MAX = 12     # 펌웨어 CmdToast::msg[13]
 KIND_MAX = 5         # 펌웨어 CmdInfo::kind[6] — focus / shell / keys / error
@@ -43,14 +43,14 @@ WHO = '{"t":"who"}'
 
 
 def clean(text, limit: int) -> str:
-    """출력 가능한 ASCII 만 남기고(제어 문자는 공백, 그 밖은 '?'), 공백을 하나로 줄인 뒤 limit 글자로 자른다."""
-    chars = "".join(" " if ord(c) < 32 else "?" if ord(c) > 126 else c for c in str(text or ""))
+    """제어 문자는 공백으로 바꾸고 공백을 하나로 줄인 뒤, UTF-8 로 limit 바이트 안에서 글자 단위로 자른다."""
+    chars = "".join(" " if ord(c) < 32 or ord(c) == 127 else c for c in str(text or ""))
     out = " ".join(chars.split())
-    return out[:limit]
+    return out.encode("utf-8")[:limit].decode("utf-8", "ignore")
 
 
 def encode(msg: dict) -> str:
-    return json.dumps(msg, separators=(",", ":"))
+    return json.dumps(msg, separators=(",", ":"), ensure_ascii=False)
 
 
 def slot_msg(i: int, view) -> str:

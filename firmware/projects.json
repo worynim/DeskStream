@@ -167,15 +167,15 @@
     {
       "id": "Agent_Monitor",
       "name": "AI 에이전트 모니터",
-      "version": "0.5.0",
+      "version": "0.6.0",
       "icon": "🤖",
       "order": 13,
       "sourcePath": "Agent_Monitor",
       "description": "Claude Code 세션 상태를 4개 OLED에 표시하고, 권한 요청을 장치 버튼으로 승인·거절하는 AI 개발 에이전트 모니터",
-      "note": "PC에서 데몬(Agent_Monitor/bridge_py, Python 3.11+)을 실행해야 동작합니다. USB 또는 BLE(\"DeskStream Agent\")로 연결되며, BLE로 승인하려면 먼저 USB로 한 번 연결해 서명 키를 등록하세요.",
+      "note": "PC에서 데몬(Agent_Monitor/bridge_py, Python 3.11+)을 실행해야 동작합니다. 기본은 BLE(\"DeskStream Agent\") 연결이며, 처음 한 번은 USB로 연결(--transport usb)해 서명 키를 등록하세요. 한글 표시(갈무리7).",
       "nameEn": "AI Agent Monitor",
       "descriptionEn": "Shows Claude Code session status on four OLEDs and approves or denies permission requests with the device buttons",
-      "noteEn": "Requires the PC daemon (Agent_Monitor/bridge_py, Python 3.11+). Connects over USB or BLE (\"DeskStream Agent\"); connect once over USB to register the signing key before approving over BLE."
+      "noteEn": "Requires the PC daemon (Agent_Monitor/bridge_py, Python 3.11+). Connects over BLE (\"DeskStream Agent\") by default; connect once over USB (--transport usb) to register the signing key. Korean text (Galmuri7 font)."
     }
   ]
 }

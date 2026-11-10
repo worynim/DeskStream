@@ -127,14 +127,16 @@ class TestSessionTable(unittest.TestCase):
 
 class TestProtocol(unittest.TestCase):
     def test_clean(self):
-        self.assertEqual(protocol.clean("한글 a\nb\x1b", 20), "?? a b")
+        self.assertEqual(protocol.clean("한글 a\nb\x1b", 20), "한글 a b")
+        self.assertEqual(protocol.clean("가나다라", 7), "가나")   # 바이트 기준 — 글자 중간에서 자르지 않는다
+        self.assertNotIn("\\u", protocol.encode({"sum": protocol.clean("한글", 20)}))   # 펌웨어 파서는 \uXXXX 를 거부
         self.assertEqual(protocol.clean("x" * 30, 5), "xxxxx")
 
     def test_slot_msg_only_simple_escapes(self):
         line = protocol.slot_msg(0, {"name": "p", "st": "run", "tool": "Bash",
                                      "sum": 'echo "hi" \\ 완료', "el": 3, "err": 0, "sub": 0})
         self.assertNotIn("\\u", line)
-        self.assertEqual(json.loads(line)["sum"], 'echo "hi" \\ ??')
+        self.assertEqual(json.loads(line)["sum"], 'echo "hi" \\ 완료')
         self.assertEqual(protocol.slot_msg(2, None), '{"t":"slot","i":2,"on":0}')
 
     def test_parse_device(self):
@@ -306,9 +308,9 @@ class TestDetail(unittest.TestCase):
 
     def test_detail_msg(self):
         line = protocol.detail_msg(1, {"name": "p", "st": "done", "mode": "acceptEdits-long", "el": 3,
-                                       "err": 0, "sub": 0, "msg": "x" * 200, "h": ["+Bash " + "y" * 40]})
+                                       "err": 0, "sub": 0, "msg": "x" * 2000, "h": ["+Bash " + "y" * 40]})
         m = json.loads(line)
-        self.assertEqual((m["mode"], len(m["msg"]), len(m["h0"]), m["h3"]), ("acceptEdits-", 120, 21, ""))
+        self.assertEqual((m["mode"], len(m["msg"]), len(m["h0"]), m["h3"]), ("acceptEdits-", 1728, 21, ""))
         self.assertEqual(protocol.detail_msg(2, None), '{"t":"detail","i":2,"on":0}')
 
 
@@ -560,10 +562,10 @@ class TestMainDefault(unittest.TestCase):
         return seen
 
     def test_no_command_runs_tray(self):
-        self.assertEqual(self.run_main(True), {"tray": "auto"})
+        self.assertEqual(self.run_main(True), {"tray": "ble"})
 
     def test_tray_missing_falls_back_to_run(self):
-        self.assertEqual(self.run_main(False), {"run": "auto"})
+        self.assertEqual(self.run_main(False), {"run": "ble"})
 
 
 class TestHooksConfig(unittest.TestCase):

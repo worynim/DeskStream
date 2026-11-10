@@ -98,7 +98,8 @@ ParseResult applyLine(Model& m, const char* line, uint32_t nowMs) {
     } else if (strcmp(type, "detail") == 0) {
         long i;
         if (!ds::jsonGetInt(line, "i", &i) || i < 0 || i >= kSlots) return r;
-        Detail tmp;
+        static Detail tmp;   // 답변이 커서(1.7KB) 스택에 두지 않는다. 전부 해석된 뒤에만 m.detail 에 반영
+        tmp = Detail();
         tmp.slot = (int8_t)i;
         tmp.on = getIntOr(line, "on", 0) != 0;
         if (tmp.on) {

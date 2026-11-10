@@ -10,13 +10,14 @@
          - 슬롯·승인·상세 화면이 바뀌면 바로, 그 밖에는 HEARTBEAT_SEC 마다 하트비트를 보낸다.
          - 장치 버튼: 짧게 = 그 슬롯 상세 보기(+완료 확인), 길게 = 설정 파일의 PC 명령 (commands.py),
            상세 화면 BTN2 = 세션 닫기(슬롯에서 지움). 설정 파일 [device] 의 음소거·밝기를 장치에 보낸다.
-         - 연결: USB 우선, 없으면 BLE (transport.AutoLink). USB 로 연결되면 장치에 서명 키를 등록하고,
+         - 연결: 기본은 BLE 만 (--transport ble). `--transport usb` = USB 만, `--transport auto` = USB 우선·없으면 BLE
+           (transport.AutoLink). USB 로 연결되면 장치에 서명 키를 등록하고(처음 한 번),
            BLE 로 온 버튼·승인 신호는 서명·카운터가 맞을 때만 받는다 (security.py).
 
 명령:
   python3 agent_bridge.py                              # 명령 없이 실행하면 tray (IDE 실행 버튼 등)
   python3 agent_bridge.py tray                         # 메뉴 막대 아이콘과 함께 데몬 실행
-  python3 agent_bridge.py run [--serial PORT]          # 데몬 실행
+  python3 agent_bridge.py run [--transport ble|usb|auto] [--serial PORT]   # 데몬 실행 (기본 BLE)
   python3 agent_bridge.py settings > hooks.json        # claude --settings 용 훅 설정 출력 (전역 설정 변경 없음)
   python3 agent_bridge.py install-hooks                # ~/.claude/settings.json 에 설치 (백업 생성)
   python3 agent_bridge.py uninstall-hooks              # 설치한 항목만 제거
@@ -307,8 +308,8 @@ def main():
     for name, help_text in (("run", "데몬 실행"), ("tray", "메뉴 막대 아이콘과 함께 데몬 실행")):
         run = sub.add_parser(name, help=help_text)
         run.add_argument("--serial", help="시리얼 포트 지정 (지정하면 USB 만)")
-        run.add_argument("--transport", choices=("auto", "usb", "ble"), default="auto",
-                         help="auto = USB 가 보이면 USB, 아니면 BLE (기본) · usb · ble")
+        run.add_argument("--transport", choices=("auto", "usb", "ble"), default="ble",
+                         help="ble = BLE 만 (기본) · usb = USB 만 · auto = USB 가 보이면 USB, 아니면 BLE")
         run.add_argument("-v", "--verbose", action="store_true", help="훅 이벤트 출력")
         run.add_argument("--config", type=Path, default=commands.CONFIG_PATH, help="설정 파일 (기본: %(default)s)")
     sub.add_parser("settings", help="claude --settings 용 훅 설정 JSON 출력")
