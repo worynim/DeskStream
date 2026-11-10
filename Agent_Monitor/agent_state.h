@@ -73,8 +73,15 @@ struct CmdToast {
     uint32_t rxMs = 0;
 };
 
+/** 데몬 설정 파일 [device] — 음소거·OLED 밝기 */
+struct DevCfg {
+    bool mute = false;
+    uint8_t bright = 255;    ///< SSD1306 contrast 1~255
+};
+
 struct Model {
     Slot slots[kSlots];
+    DevCfg dev;
     Perm perm;
     Detail detail;
     CmdToast toasts[kSlots];
@@ -83,7 +90,7 @@ struct Model {
     bool everRx = false;
 };
 
-enum class MsgType : uint8_t { Invalid, Slot, Alert, Heartbeat, Perm, Detail, Cmd, Cmds };
+enum class MsgType : uint8_t { Invalid, Slot, Alert, Heartbeat, Perm, Detail, Cmd, Cmds, Dev };
 
 struct ParseResult {
     MsgType type = MsgType::Invalid;

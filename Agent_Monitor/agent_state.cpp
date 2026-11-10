@@ -136,6 +136,13 @@ ParseResult applyLine(Model& m, const char* line, uint32_t nowMs) {
         m.toasts[b] = tmp;
         r.type = MsgType::Cmd;
         r.slot = (int)b;
+    } else if (strcmp(type, "dev") == 0) {
+        long mute, bright;
+        if (!ds::jsonGetInt(line, "mute", &mute) || !ds::jsonGetInt(line, "bright", &bright) || bright < 1 ||
+            bright > 255) return r;
+        m.dev.mute = mute != 0;
+        m.dev.bright = (uint8_t)bright;
+        r.type = MsgType::Dev;
     } else if (strcmp(type, "cmds") == 0) {
         static const char* const lk[kSlots] = {"l0", "l1", "l2", "l3"};
         static const char* const kk[kSlots] = {"k0", "k1", "k2", "k3"};

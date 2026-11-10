@@ -1,4 +1,4 @@
-# 🤖 Agent_Monitor — AI 개발 에이전트 모니터 (v0.4.2)
+# 🤖 Agent_Monitor — AI 개발 에이전트 모니터 (v0.5.0)
 
 Claude Code 세션의 작업 상태를 DeskStream 4-OLED에 실시간으로 보여주는 책상 위 모니터입니다.
 OLED 한 장이 세션 하나를 맡아 **생각 중 / 실행 중(도구·명령) / 승인 대기 / 입력 대기 / 완료 / 오류**를 표시하고,
@@ -70,7 +70,7 @@ BLE 는 근처 누구나 접속할 수 있어, 같은 이름의 **가짜 장치*
 
 - 60초 동안 버튼을 누르지 않거나 세션이 끝나면 개요로 돌아갑니다.
 - PC 명령 결과는 해당 버튼 화면 아래에 `RUN …` → `OK … exit 0` / `FAIL … exit 2` 띠로 4초간 보입니다.
-- 음소거 중에는 개요의 OLED 4 오른쪽 위에 스피커+X 아이콘이 보이고, 버튼음·알림음·부팅음이 모두 꺼집니다.
+- 음소거(설정 파일 `[device] mute = true`) 중에는 개요의 OLED 4 오른쪽 위에 스피커+X 아이콘이 보이고, 버튼음·알림음·부팅음이 모두 꺼집니다.
 - **빈 슬롯**에는 그 화면 밑 버튼을 **길게 누르면 하는 일**이 보입니다 — `HOLD BTN2:` + 명령 이름(`git status`) + 종류(`run command` / `open app` / `send keys`). 설정이 없으면 `(not set)`, 설정 파일 오류면 `check config`. 설정 파일을 고치면 바로 반영됩니다.
 
 ## 버튼
@@ -79,7 +79,7 @@ BLE 는 근처 누구나 접속할 수 있어, 같은 이름의 **가짜 장치*
 |:--|:--|:--|
 | 개요 | BTN i 짧게 | 슬롯 i 상세 화면 (완료 표시도 확인 처리 → IDLE) |
 | 개요·상세 | BTN i 길게 | 설정 파일의 PC 명령 i 실행 |
-| 상세 | BTN1 / BTN2 | 개요로 / 음소거 켜기·끄기 (보드에 저장 — 켤 때 무음, 끌 때 확인음) |
+| 상세 | BTN1 / BTN2 | 개요로 / **세션 닫기** — 보던 세션을 장치에서 지움 (그 세션에 다시 이벤트가 오면 다시 생김, 승인 대기는 터미널로) |
 | 상세 | BTN3 / BTN4 | 이전 / 다음 세션 |
 | 승인 | BTN1 | **승인** — 도구가 바로 실행됨 |
 | 승인 | BTN2 | 다음 대기 요청 보기 (대기 2개 이상일 때만) |
@@ -104,7 +104,7 @@ arduino-cli compile --fqbn "esp32:esp32:makergo_c3_supermini:CDCOnBoot=default,C
 ```bash
 cd Agent_Monitor/bridge_py
 pip install -r requirements.txt          # pyserial · bleak(BLE) · pystray/Pillow(트레이)
-python3 agent_bridge.py tray             # 메뉴 막대 아이콘과 함께 실행 (권장)
+python3 agent_bridge.py tray             # 메뉴 막대 아이콘과 함께 실행 (권장) — 명령 없이 실행해도 tray
 python3 agent_bridge.py run -v           # 터미널에서 실행 · 이벤트 출력
 ```
 
@@ -129,13 +129,17 @@ python3 agent_bridge.py install-hooks
 python3 agent_bridge.py uninstall-hooks   # 추가한 항목만 제거
 ```
 
-### 4. PC 명령 설정 (선택)
+### 4. 설정 파일 — 음소거 · 밝기 · PC 명령 (선택)
 
 ```bash
 python3 agent_bridge.py init-config     # 예시 → ~/.deskstream/agent_monitor.toml (권한 600)
 ```
 
 ```toml
+[device]
+mute = false            # true = 알림음·버튼음 모두 끔
+brightness = 40         # OLED 밝기 % (1~100) — 낮출수록 번인(잔상)이 줄어듭니다
+
 [[commands]]            # 버튼 길게 누르기 — button = 1~4
 button = 2
 label = "npm test"
@@ -145,6 +149,7 @@ cwd = "~/work/web-app"
 timeout = 300
 ```
 
+- `[device]` 의 음소거·밝기는 장치에 저장돼 데몬이 꺼져 있어도 유지됩니다 (값이 범위 밖이면 장치는 이전 값을 유지하고 빈 슬롯에 `check config`).
 - 장치는 **버튼 번호만** 보냅니다. 실행 내용은 이 파일에만 있고, 버튼을 누를 때마다 다시 읽습니다 (데몬 재시작 불필요).
 - 파일을 다른 사용자도 쓸 수 있는 권한이면(group/other write) 실행하지 않습니다.
 - `keys` 는 ASCII 텍스트와 `return · escape · tab · space · ctrl+c` 만 지원하고, macOS **손쉬운 사용** 권한(데몬을 실행한 터미널 앱)이 필요합니다. `app` 을 지정하면 그 앱을 먼저 앞으로 가져옵니다.
@@ -191,7 +196,7 @@ python3 demo_hooks.py --end
 ## 테스트
 
 ```bash
-cd Agent_Monitor/bridge_py && python3 -m unittest discover -s tests -v      # 데몬 46건
+cd Agent_Monitor/bridge_py && python3 -m unittest discover -s tests -v      # 데몬 51건
 
 # 펌웨어 상태 해석 (저장소 루트에서)
 L=libraries/DeskStreamCore/src

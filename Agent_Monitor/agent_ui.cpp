@@ -190,7 +190,7 @@ void drawApproval(U8G2& u, uint8_t idx, const Perm& p, uint32_t nowMs) {
     u.drawStr(x + 5, 60, labels[idx]);
 }
 
-void drawDetail(U8G2& u, uint8_t idx, const Detail& d, bool muted, uint32_t nowMs) {
+void drawDetail(U8G2& u, uint8_t idx, const Detail& d, uint32_t nowMs) {
     u.clearBuffer();
     u.setDrawColor(1);
     u.setFontMode(1);
@@ -225,8 +225,8 @@ void drawDetail(U8G2& u, uint8_t idx, const Detail& d, bool muted, uint32_t nowM
             for (int k = 0; k < 5; k++) drawCols(u, 9 + k * 10, d.msg, (4 + k) * kCols);
     }
 
-    static const char* const labels[4] = {"BACK", "MUTE", "< PREV", "NEXT >"};
-    const char* label = (idx == 1 && muted) ? "UNMUTE" : labels[idx];
+    static const char* const labels[4] = {"BACK", "CLOSE", "< PREV", "NEXT >"};
+    const char* label = labels[idx];
     int w = u.getStrWidth(label) + 10;
     int x = 64 - w / 2;
     u.drawRFrame(x, 51, w, 13, 3);

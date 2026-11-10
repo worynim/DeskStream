@@ -1,6 +1,11 @@
 # Agent_Monitor 사용자 설정 예시
 # 설치: python3 agent_bridge.py init-config   →  ~/.deskstream/agent_monitor.toml (권한 600)
-# 버튼을 누를 때마다 다시 읽으므로 데몬을 재시작할 필요가 없습니다.
+# 고치면 바로 반영되므로 데몬을 재시작할 필요가 없습니다.
+
+# 장치 설정
+[device]
+mute = false        # true = 알림음·버튼음 모두 끔
+brightness = 40     # OLED 밝기 % (1~100) — 낮출수록 번인(잔상)이 줄어듭니다
 
 # 버튼 길게 누르기(1초) → PC 명령. button = 1~4 (BTN1~BTN4)
 # type = "focus" : app 을 앞으로

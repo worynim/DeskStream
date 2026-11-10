@@ -167,7 +167,7 @@
     {
       "id": "Agent_Monitor",
       "name": "AI 에이전트 모니터",
-      "version": "0.4.2",
+      "version": "0.5.0",
       "icon": "🤖",
       "order": 13,
       "sourcePath": "Agent_Monitor",

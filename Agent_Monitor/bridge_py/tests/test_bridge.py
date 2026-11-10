@@ -321,8 +321,21 @@ class TestCommands(unittest.TestCase):
         self.assertEqual(sorted(c.commands), [1, 2, 3])
         self.assertEqual(c.commands[1].label, "focus")     # label 없으면 type
 
+    def test_parse_device(self):
+        c = commands.parse_config({"device": {"mute": True, "brightness": 25}})
+        self.assertEqual((c.mute, c.brightness), (True, 25))
+        c = commands.parse_config({})
+        self.assertEqual((c.mute, c.brightness), (False, 100))
+        self.assertEqual(protocol.dev_msg(False, 1), '{"t":"dev","mute":0,"bright":3}')
+        self.assertEqual(protocol.dev_msg(True, 100), '{"t":"dev","mute":1,"bright":255}')
+
     def test_parse_errors(self):
         bad = [
+            {"device": {"mute": "yes"}},
+            {"device": {"brightness": 0}},
+            {"device": {"brightness": 101}},
+            {"device": {"brightness": True}},
+            {"device": "loud"},
             {"commands": [{"button": 5, "type": "focus", "app": "a"}]},
             {"commands": [{"button": 1, "type": "rm"}]},
             {"commands": [{"button": 1, "type": "focus"}]},
@@ -430,12 +443,32 @@ class TestBridgeButtons(unittest.TestCase):
         self.assertEqual(commands.button_labels(self.cfg)[0], ("config error", "error"))
 
     def test_cmds_line_reloads_on_change(self):
-        first = json.loads(self.bridge.cmds_line())
+        first = json.loads(self.bridge.config_lines()[0])
         self.assertEqual(first["l1"], "Test")
         self.cfg.write_text('[[commands]]\nbutton = 1\nlabel = "Finder"\ntype = "focus"\napp = "Finder"\n')
         os.utime(self.cfg, (time.time() + 5, time.time() + 5))   # 수정 시각이 확실히 바뀌게
-        second = json.loads(self.bridge.cmds_line())
+        second = json.loads(self.bridge.config_lines()[0])
         self.assertEqual((second["l0"], second["k0"], second["l1"]), ("Finder", "focus", ""))
+
+    def test_device_settings_line(self):
+        self.assertEqual(json.loads(self.bridge.config_lines()[1]), {"t": "dev", "mute": 0, "bright": 255})
+        self.cfg.write_text('[device]\nmute = true\nbrightness = 40\n')
+        os.utime(self.cfg, (time.time() + 5, time.time() + 5))
+        self.assertEqual(json.loads(self.bridge.config_lines()[1]), {"t": "dev", "mute": 1, "bright": 102})
+        self.cfg.write_text('[device]\nbrightness = 0\n')                       # 범위 밖 → 설정 오류
+        os.utime(self.cfg, (time.time() + 10, time.time() + 10))
+        cmds, dev = self.bridge.config_lines()
+        self.assertIsNone(dev)                                                   # 장치는 마지막 값 유지
+        self.assertEqual(json.loads(cmds)["l0"], "config error")
+
+    def test_close_removes_session(self):
+        self.bridge.on_hook("UserPromptSubmit", ev())
+        self.bridge.on_device_line('{"t":"btn","b":0,"press":"short"}')
+        self.bridge.on_device_line('{"t":"btn","b":0,"press":"close"}')
+        self.assertEqual((self.bridge.table.view(0)[0], self.bridge.watch), (None, -1))
+        self.bridge.on_device_line('{"t":"btn","b":2,"press":"close"}')         # 빈 슬롯 — 아무 일 없음
+        self.bridge.on_hook("PreToolUse", ev(tool_name="Bash"))                  # 살아 있는 세션이면 다시 생김
+        self.assertEqual(self.bridge.table.view(0)[0]["st"], "run")
 
     def test_alert_sent_on_done(self):
         self.bridge.on_hook("Stop", ev())
@@ -498,6 +531,39 @@ class TestSecurity(unittest.TestCase):
         b.outbox.clear()
         b.on_device_line(json.dumps({"t": "hello", "kid": b.auth.kid()}))
         self.assertFalse(any('"setkey"' in x for x in b.outbox))
+
+
+class TestMainDefault(unittest.TestCase):
+    """명령 없이 실행(IDE 실행 버튼 등)하면 tray, 트레이 패키지가 없으면 run 으로"""
+
+    def run_main(self, tray_available):
+        import types
+        import agent_bridge
+        seen = {}
+        saved = (sys.argv, agent_bridge.cmd_run, sys.modules.get("tray"))
+        sys.argv = ["agent_bridge.py"]
+        agent_bridge.cmd_run = lambda a: seen.setdefault("run", a.transport)
+        if tray_available:
+            fake = types.ModuleType("tray")
+            fake.main = lambda a, _start: seen.setdefault("tray", a.transport)
+            sys.modules["tray"] = fake
+        else:
+            sys.modules["tray"] = None          # import 하면 ImportError
+        try:
+            agent_bridge.main()
+        finally:
+            sys.argv, agent_bridge.cmd_run = saved[0], saved[1]
+            if saved[2] is None:
+                sys.modules.pop("tray", None)
+            else:
+                sys.modules["tray"] = saved[2]
+        return seen
+
+    def test_no_command_runs_tray(self):
+        self.assertEqual(self.run_main(True), {"tray": "auto"})
+
+    def test_tray_missing_falls_back_to_run(self):
+        self.assertEqual(self.run_main(False), {"run": "auto"})
 
 
 class TestHooksConfig(unittest.TestCase):

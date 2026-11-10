@@ -120,6 +120,16 @@ static void testCmds() {
     CHECK(strcmp(m.cmds[0].label, "Terminal") == 0);
 }
 
+static void testDev() {
+    Model m;
+    CHECK(m.dev.bright == 255 && !m.dev.mute);
+    auto r = applyLine(m, "{\"t\":\"dev\",\"mute\":1,\"bright\":102}", 0);
+    CHECK(r.type == MsgType::Dev && m.dev.mute && m.dev.bright == 102);
+    CHECK(applyLine(m, "{\"t\":\"dev\",\"mute\":0,\"bright\":0}", 0).type == MsgType::Invalid);    // 범위 밖
+    CHECK(applyLine(m, "{\"t\":\"dev\",\"mute\":0}", 0).type == MsgType::Invalid);                  // 밝기 없음
+    CHECK(m.dev.mute && m.dev.bright == 102);
+}
+
 static void testFormat() {
     char b[12];
     formatElapsed(0, b, sizeof(b));
@@ -138,6 +148,7 @@ int main() {
     testPerm();
     testDetailCmd();
     testCmds();
+    testDev();
     testFormat();
     printf(fails ? "❌ %d failed\n" : "✅ all passed\n", fails);
     return fails ? 1 : 0;

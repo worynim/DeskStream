@@ -8,11 +8,14 @@
            장치 미연결·시간 초과·"나중에"·터미널 선결정이면 빈 응답 → 터미널 대화상자로 결정 (자동 허용 없음).
            터미널 대화상자는 기다리는 동안에도 함께 떠 있다 (P0 확인 — 먼저 답한 쪽이 이김).
          - 슬롯·승인·상세 화면이 바뀌면 바로, 그 밖에는 HEARTBEAT_SEC 마다 하트비트를 보낸다.
-         - 장치 버튼: 짧게 = 그 슬롯 상세 보기(+완료 확인), 길게 = 설정 파일의 PC 명령 (commands.py).
+         - 장치 버튼: 짧게 = 그 슬롯 상세 보기(+완료 확인), 길게 = 설정 파일의 PC 명령 (commands.py),
+           상세 화면 BTN2 = 세션 닫기(슬롯에서 지움). 설정 파일 [device] 의 음소거·밝기를 장치에 보낸다.
          - 연결: USB 우선, 없으면 BLE (transport.AutoLink). USB 로 연결되면 장치에 서명 키를 등록하고,
            BLE 로 온 버튼·승인 신호는 서명·카운터가 맞을 때만 받는다 (security.py).
 
 명령:
+  python3 agent_bridge.py                              # 명령 없이 실행하면 tray (IDE 실행 버튼 등)
+  python3 agent_bridge.py tray                         # 메뉴 막대 아이콘과 함께 데몬 실행
   python3 agent_bridge.py run [--serial PORT]          # 데몬 실행
   python3 agent_bridge.py settings > hooks.json        # claude --settings 용 훅 설정 출력 (전역 설정 변경 없음)
   python3 agent_bridge.py install-hooks                # ~/.claude/settings.json 에 설치 (백업 생성)
@@ -57,8 +60,8 @@ class Bridge:
         self.sent = [None] * len(self.table.slots)   # 슬롯별 마지막으로 보낸 내용 (같으면 생략)
         self.sent_perm = None                         # 마지막으로 보낸 승인 화면 줄
         self.sent_detail = None                       # 마지막으로 보낸 상세 화면 내용
-        self.sent_cmds = None                         # 마지막으로 보낸 버튼 명령 이름 줄
-        self._cmds = (None, None)                     # (설정 파일 수정 시각, cmds 줄) — 파일이 바뀔 때만 다시 읽음
+        self.sent_cfg = None                          # 마지막으로 보낸 (cmds 줄, dev 줄)
+        self._cfg = (None, None)                      # (설정 파일 수정 시각, (cmds 줄, dev 줄)) — 파일이 바뀔 때만 다시 읽음
         self.watch = -1                               # 장치가 상세 화면으로 보고 있는 슬롯
         self.outbox = []                              # 바로 보낼 줄(알림·명령 진행) — 시리얼 쓰기는 송신 스레드만 한다
         self.verbose = verbose
@@ -125,18 +128,25 @@ class Bridge:
         self.sent = [None] * len(self.sent)   # 새 연결이면 전체 재전송
         self.sent_perm = None
         self.sent_detail = None
-        self.sent_cmds = None
+        self.sent_cfg = None
         self.dirty.set()
 
-    def cmds_line(self) -> str:
-        """버튼별 PC 명령 이름 메시지 — 설정 파일 수정 시각이 바뀌었을 때만 다시 읽는다."""
+    def config_lines(self) -> tuple:
+        """설정 파일에서 만든 (cmds 줄, dev 줄) — 파일 수정 시각이 바뀌었을 때만 다시 읽는다.
+        설정 오류면 cmds 는 "config error", dev 는 None(장치가 마지막 값을 유지)."""
         try:
             mtime = self.config_path.stat().st_mtime
         except OSError:
             mtime = None
-        if self._cmds[1] is None or mtime != self._cmds[0]:
-            self._cmds = (mtime, protocol.cmds_msg(commands.button_labels(self.config_path)))
-        return self._cmds[1]
+        if self._cfg[1] is None or mtime != self._cfg[0]:
+            try:
+                cfg = commands.load_config(self.config_path)
+                lines = (protocol.cmds_msg(commands.labels_of(cfg)), protocol.dev_msg(cfg.mute, cfg.brightness))
+            except commands.ConfigError as e:
+                log(f"[config] {e}")
+                lines = (protocol.cmds_msg(commands.CONFIG_ERROR_LABELS), None)
+            self._cfg = (mtime, lines)
+        return self._cfg[1]
 
     def on_device_line(self, line: str):
         msg = protocol.parse_device(line)
@@ -158,7 +168,7 @@ class Bridge:
             self.sent = [None] * len(self.sent)
             self.sent_perm = None
             self.sent_detail = None
-            self.sent_cmds = None
+            self.sent_cfg = None
             self.dirty.set()
         elif kind == "decide":
             self._on_decide(msg.get("id"), msg.get("act"))
@@ -172,6 +182,14 @@ class Bridge:
                     self.table.mark_read(b, time.time())
                     self.watch = b
                     self.sent_detail = None
+                self.dirty.set()
+            elif press == "close":          # 상세 화면 BTN2 — 슬롯 b 세션을 장치에서 지운다 (다시 이벤트가 오면 다시 생김)
+                with self.lock:
+                    sid = self.table.slots[b]
+                    if sid:
+                        self._log_cleared(self.approvals.clear_session(sid))
+                        self.table.remove(sid)
+                    self.watch = -1
                 self.dirty.set()
             elif press == "long":           # 설정 파일의 PC 명령 (버튼 번호 1~4)
                 self.runner.run(b + 1)
@@ -213,10 +231,12 @@ class Bridge:
             if perm_line != self.sent_perm:
                 self.sent_perm = perm_line
                 self.link.send(perm_line)
-            cmds_line = self.cmds_line()
-            if cmds_line != self.sent_cmds:
-                self.sent_cmds = cmds_line
-                self.link.send(cmds_line)
+            cfg_lines = self.config_lines()
+            if cfg_lines != self.sent_cfg:
+                self.sent_cfg = cfg_lines
+                for line in cfg_lines:
+                    if line:
+                        self.link.send(line)
             if self.watch >= 0:
                 key = None if detail is None else {**detail, "el": None}
                 if key != self.sent_detail:
@@ -296,12 +316,16 @@ def main():
         p = sub.add_parser(name)
         p.add_argument("--file", type=Path, default=hooks_config.DEFAULT_SETTINGS)
     sub.add_parser("init-config", help=f"예시 설정을 {commands.CONFIG_PATH} 로 복사 (이미 있으면 그대로 둠)")
-    args = ap.parse_args()
+    args = ap.parse_args(sys.argv[1:] or ["tray"])   # 명령 없이 실행하면 tray
 
     if args.cmd == "run":
         cmd_run(args)
     elif args.cmd == "tray":
-        import tray      # pystray·Pillow 는 트레이에서만 필요
+        try:
+            import tray  # pystray·Pillow 는 트레이에서만 필요
+        except ImportError as e:
+            log(f"트레이를 열 수 없어 아이콘 없이 실행합니다 ({e.name} 미설치 — pip install -r requirements.txt)")
+            return cmd_run(args)
         tray.main(args, start_daemon)
     elif args.cmd == "settings":
         print(json.dumps({"hooks": hooks_config.build_hooks(args.http_port)}, indent=2))

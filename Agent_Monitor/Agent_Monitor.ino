@@ -5,7 +5,8 @@
  * @details PC 데몬(bridge_py/agent_bridge.py)이 USB 시리얼로 보내는 세션 상태(JSON Lines)를
  *          OLED 4장(세션 슬롯 4개)에 표시하고, 상태 변화 알림을 부저로 낸다.
  *          - 개요 화면: 버튼 i 짧게 = 슬롯 i 상세 화면(+완료 확인), 길게 = PC 명령 i+1 (데몬 설정 파일).
- *          - 상세 화면: BTN1 개요로 · BTN2 음소거 켜기/끄기(NVS 저장, 켜면 버튼음·알림음 모두 끔) · BTN3 이전 · BTN4 다음 세션.
+ *          - 상세 화면: BTN1 개요로 · BTN2 세션 닫기(슬롯에서 지움) · BTN3 이전 · BTN4 다음 세션.
+ *          - 음소거·OLED 밝기는 데몬 설정 파일 [device] 에서 받아(dev 메시지) NVS 에 저장한다 — 데몬이 없어도 유지.
  *            AM_DETAIL_IDLE_MS 동안 입력이 없거나 세션이 끝나면 개요로 돌아간다.
  *          - 승인 화면(권한 요청 대기 중): BTN1 승인 · BTN2 다음 요청 · BTN3 거절 · BTN4 나중에(터미널에 맡김).
  *            새 요청이 뜬 직후 AM_PERM_GUARD_MS 동안은 버튼을 무시한다.
@@ -29,12 +30,14 @@ static am::Model model;
 
 // 장치 설정 (NVS) — 음소거
 struct Settings {
-    bool muted = false;
+    bool muted = false;       // 켜면 버튼음·알림음·부팅음 모두 끔
+    uint8_t brightness = 255; // OLED contrast (1~255)
 };
 static Settings settings;
 static ds::ConfigStore store;
 static const ds::ConfigField kFields[] = {
     DS_CFG_BOOL(Settings, muted, "muted", "muted", nullptr),
+    DS_CFG_U8(Settings, brightness, "brightness", "bright", 1, 255, nullptr),
 };
 
 // 화면 모드 — 승인 화면이 오면 그것이 우선한다
@@ -46,6 +49,16 @@ static const ds::Note MELODY_DONE[] = {{2093, 80, 30}, {3136, 120, 0}};
 static const ds::Note MELODY_ATTN[] = {{2637, 70, 50}, {2637, 70, 50}, {2637, 70, 0}};
 static const ds::Note MELODY_ERROR[] = {{880, 200, 60}, {659, 300, 0}};
 static const ds::Note MELODY_START[] = {{2093, 60, 20}, {2637, 60, 20}, {3136, 60, 0}};
+
+/** 데몬 설정 파일의 음소거·밝기를 적용하고, 바뀌었으면 NVS 에 저장한다 */
+static void applyDeviceSettings(bool mute, uint8_t bright) {
+    if (mute == settings.muted && bright == settings.brightness) return;
+    if (mute && !settings.muted) buzzer.stop();   // 재생 중인 소리도 멈춤
+    settings.muted = mute;
+    settings.brightness = bright;
+    display.setBrightness(bright);
+    store.setDirty();
+}
 
 /** 버튼 클릭음 — 음소거면 내지 않는다 */
 static void click(uint16_t ms, uint16_t hz) {
@@ -122,6 +135,7 @@ static void handleLine(const char* line, bool fromUsb) {
     }
     am::ParseResult r = am::applyLine(model, line, millis());
     if (r.type == am::MsgType::Alert) playAlert(r.alert);
+    if (r.type == am::MsgType::Dev) applyDeviceSettings(model.dev.mute, model.dev.bright);
 }
 
 /** 바이트를 모아 줄 단위로 handleLine 에 넘긴다 (넘치는 줄은 버림) */
@@ -185,11 +199,9 @@ static void onDetailButton(uint8_t i, uint32_t now) {
     detailTouchMs = now;
     switch (i) {
         case 0: detailSlot = -1; break;
-        case 1:   // 음소거 켜기/끄기 — 켤 때는 소리 없이(진행 중인 소리도 멈춤), 끌 때는 확인음
-            settings.muted = !settings.muted;
-            store.setDirty();
-            if (settings.muted) buzzer.stop();
-            else buzzer.beep(AM_BEEP_MS, AM_BEEP_HZ);
+        case 1:   // 세션 닫기 — 데몬이 슬롯에서 지운다 (그 세션에 다시 이벤트가 오면 다시 생김)
+            sendButton(detailSlot, "close");
+            detailSlot = -1;
             break;
         case 2: openDetail(nextOnSlot(detailSlot, -1), now); break;
         default: openDetail(nextOnSlot(detailSlot, +1), now); break;
@@ -206,7 +218,7 @@ static void pollButtons() {
             continue;
         }
         if (ev & ds::BUTTON_SHORT) {
-            if (!(detailSlot >= 0 && i == 1)) click(AM_BEEP_MS, AM_BEEP_HZ);   // 음소거 버튼은 자체 확인음
+            click(AM_BEEP_MS, AM_BEEP_HZ);
             if (detailSlot >= 0) onDetailButton(i, now);
             else if (model.slots[i].on) openDetail(i, now);
         }
@@ -245,7 +257,7 @@ static void render(uint32_t now) {
         } else if (!alive) {
             am::drawOffline(u, i, model.everRx, now);
         } else {
-            if (detailSlot >= 0) am::drawDetail(u, i, detailFor(detailSlot), settings.muted, now);
+            if (detailSlot >= 0) am::drawDetail(u, i, detailFor(detailSlot), now);
             else am::drawSlot(u, model.slots[i], i, model.cmds[i], now);
             am::drawToast(u, model.toasts[i], now);
             if (detailSlot < 0 && i == ds::kNumScreens - 1 && settings.muted) am::drawMuteIcon(u);
@@ -263,6 +275,7 @@ void setup() {
     buttons.begin();
     buzzer.begin();
     store.begin("agentmon", &settings, kFields, sizeof(kFields) / sizeof(kFields[0]));
+    display.setBrightness(settings.brightness);   // 마지막으로 받은 밝기 (데몬 연결 전에도)
     am::authBegin();
     am::bleBegin(AM_BLE_NAME);
     if (!settings.muted) buzzer.playMelody(MELODY_START, 3);

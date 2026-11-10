@@ -1,7 +1,7 @@
 # worynim@gmail.com
 """
 @file commands.py
-@brief 사용자 설정 파일(~/.deskstream/agent_monitor.toml) — 버튼 길게 누르기 PC 명령
+@brief 사용자 설정 파일(~/.deskstream/agent_monitor.toml) — 버튼 길게 누르기 PC 명령 · 장치 음소거·밝기
 @details 보안 원칙
          - 장치는 버튼 번호만 보낸다. 실행할 내용은 오직 이 설정 파일에서 온다 (장치·네트워크에서 명령 문자열을 받지 않음).
          - 설정 파일이 다른 사용자도 쓸 수 있는 권한(group/other write)이면 명령을 실행하지 않는다 (macOS·Linux).
@@ -49,7 +49,9 @@ class Command:
 
 @dataclass
 class Config:
-    commands: dict       # button(1~4) → Command
+    commands: dict           # button(1~4) → Command
+    mute: bool = False       # [device] mute — 장치 알림음·버튼음 모두 끔
+    brightness: int = 100    # [device] brightness — OLED 밝기 % (1~100, 낮출수록 번인 감소)
 
 
 def parse_config(data: dict) -> Config:
@@ -80,7 +82,16 @@ def parse_config(data: dict) -> Config:
             if not all(32 <= ord(ch) < 127 for ch in cmd.text):
                 raise ConfigError(f"{where}: text 는 영문·숫자·기호(ASCII)만 됩니다")
         commands[b] = cmd
-    return Config(commands)
+    dev = data.get("device", {})
+    if not isinstance(dev, dict):
+        raise ConfigError("[device] 는 표(table)여야 합니다")
+    mute = dev.get("mute", False)
+    if not isinstance(mute, bool):
+        raise ConfigError("device.mute 는 true / false")
+    brightness = dev.get("brightness", 100)
+    if isinstance(brightness, bool) or not isinstance(brightness, int) or not 1 <= brightness <= 100:
+        raise ConfigError("device.brightness 는 1~100 (%)")
+    return Config(commands, mute, brightness)
 
 
 def load_config(path: Path = CONFIG_PATH) -> Config:
@@ -97,14 +108,20 @@ def load_config(path: Path = CONFIG_PATH) -> Config:
     return parse_config(data)
 
 
+CONFIG_ERROR_LABELS = [("config error", "error")] * 4
+
+
+def labels_of(cfg: Config) -> list:
+    """BTN1~4 의 (이름, 종류) — 장치 빈 슬롯 화면에 "길게 누르면 하는 일"로 표시. 설정 없음 = ("", "")."""
+    return [(cfg.commands[b].label, cfg.commands[b].type) if b in cfg.commands else ("", "") for b in (1, 2, 3, 4)]
+
+
 def button_labels(path: Path = CONFIG_PATH) -> list:
-    """BTN1~4 의 (이름, 종류) — 장치 빈 슬롯 화면에 "길게 누르면 하는 일"로 표시. 설정 없음 = ("", "").
-    설정 오류면 네 버튼 모두 ("config error", "error")."""
+    """labels_of(설정 파일). 설정 오류면 네 버튼 모두 ("config error", "error")."""
     try:
-        cmds = load_config(path).commands
+        return labels_of(load_config(path))
     except ConfigError:
-        return [("config error", "error")] * 4
-    return [(cmds[b].label, cmds[b].type) if b in cmds else ("", "") for b in (1, 2, 3, 4)]
+        return CONFIG_ERROR_LABELS
 
 
 def _applescript_str(s: str) -> str:

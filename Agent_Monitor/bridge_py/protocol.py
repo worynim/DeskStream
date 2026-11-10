@@ -16,12 +16,14 @@ PC → 장치
    "msg":"마지막 답변","h0":"+Bash npm test","h1":">Edit app.py","h2":"","h3":""}             상세 화면 (h: '>' 실행 중 '+' 성공 '!' 실패)
   {"t":"cmd","b":1,"st":"run","label":"npm test","msg":""}      PC 명령 진행 (st = run | ok | fail, b = 버튼 0~3)
   {"t":"cmds","l0":"Terminal","k0":"focus","l1":"","k1":"",…}   버튼별 길게 누르기 PC 명령 (빈 슬롯 화면 표시용)
+  {"t":"dev","mute":0,"bright":102}                             장치 설정 — 음소거 · OLED 밝기(contrast 1~255)
   {"t":"hb"}                                                    하트비트 (2초)
   {"t":"who"}                                                   USB 연결 시 — 장치가 hello 로 답한다
   {"t":"setkey","key":"<64 hex>"} / {"t":"nonce","n":"<hex>"}    서명 키 등록(USB 만) / BLE 연결마다 nonce (security.py)
 장치 → PC
   {"t":"hello","fw":"0.4.0","kid":"a1b2c3d4"}   kid = 등록된 서명 키 id (없으면 빈 문자열)
-  {"t":"btn","b":0,"press":"short"}      short = 슬롯 b 상세 보기(+완료 확인), long = PC 명령 b+1 (승인 화면이 아닐 때)
+  {"t":"btn","b":0,"press":"short"}      short = 슬롯 b 상세 보기(+완료 확인), long = PC 명령 b+1,
+                                         close = 슬롯 b 세션 닫기 (상세 화면 BTN2) — 승인 화면이 아닐 때
   {"t":"decide","id":7,"act":"allow"}    act = allow | deny | pass(나중에) | next
 """
 import json
@@ -103,6 +105,12 @@ def cmds_msg(items) -> str:
         msg[f"l{k}"] = clean(label, NAME_MAX)
         msg[f"k{k}"] = clean(kind, KIND_MAX)
     return encode(msg)
+
+
+def dev_msg(mute: bool, brightness_pct: int) -> str:
+    """장치 설정. 밝기 %(1~100) → SSD1306 contrast(1~255)."""
+    contrast = max(1, min(255, round(brightness_pct * 255 / 100)))
+    return encode({"t": "dev", "mute": 1 if mute else 0, "bright": contrast})
 
 
 def alert_msg(kind: str, i: int) -> str:
