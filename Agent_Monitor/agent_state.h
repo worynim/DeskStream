@@ -23,7 +23,7 @@ struct Slot {
     char name[21] = "";
     State st = State::Idle;
     char tool[21] = "";
-    char sum[97] = "";       ///< 요약 — 개요 화면 2줄(한글 약 18자 × 2)
+    char sum[97] = "";       ///< 요약 — 개요 화면 2줄(한글 16자 × 2)
     uint32_t elS = 0;      ///< 메시지를 받은 시점의 경과 초
     uint32_t rxMs = 0;     ///< 메시지를 받은 시각 (millis) — 이후 경과는 장치가 직접 센다
     uint8_t err = 0;

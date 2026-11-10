@@ -6,7 +6,7 @@
  *   y 0~13  : 상태 아이콘(12x12) + 세션(프로젝트) 이름
  *   y 15    : 구분선
  *   y 17~29 : 상태 이름 + 경과 시간(오른쪽)
- *   y 31~63 : 도구 이름 · 요약 2줄 (갈무리7 글꼴, 줄 폭 128px — 한글 약 18자 · 영문 약 21자)
+ *   y 31~63 : 도구 이름 · 요약 2줄 (갈무리7 글꼴, 줄 폭 128px — 한글 16자 · 영문 약 25자)
  * @details 글꼴은 갈무리7 하나(영문·한글). 제목은 글자마다 1px 어긋나게 두 번 그리고 간격을 넓혀 굵게 보이게 한다.
  */
 // 갈무리7 한글 글꼴은 64KB 를 넘어 U8g2 가 큰 글꼴 지원을 켜야 한다 — U8g2lib.h 보다 먼저 정의
@@ -92,15 +92,25 @@ size_t skipSpaces(const char* text, size_t off) {
     return off;
 }
 
+/**
+ * UTF-8 글자 하나(len 바이트)가 줄에서 차지하는 폭(px) — 글자 사이 여백 포함.
+ * getUTF8Width 는 마지막 글자의 여백을 빼고 재므로, 글자마다 불러 더하면 실제 줄 폭보다 짧게 나온다.
+ */
+int charAdvance(U8G2& u, const char* p, uint8_t len) {
+    uint16_t cp = len == 1   ? (uint8_t)p[0]
+                  : len == 2 ? ((p[0] & 0x1F) << 6) | (p[1] & 0x3F)
+                  : len == 3 ? ((p[0] & 0x0F) << 12) | ((p[1] & 0x3F) << 6) | (p[2] & 0x3F)
+                             : 0;   // 4바이트 문자는 글꼴에 없다 (그려지지 않음)
+    return u8g2_GetGlyphWidth(u.getU8g2(), cp);
+}
+
 /** off 부터 한 줄(kLineW px)에 들어가는 만큼의 끝 위치 — UTF-8 글자 단위로 자른다 */
 size_t lineEnd(U8G2& u, const char* text, size_t off) {
     size_t n = strlen(text), i = off;
     int w = 0;
     while (i < n) {
         uint8_t len = ds::utf8CharLen(text + i, (int)(n - i));
-        char ch[5] = {};
-        memcpy(ch, text + i, len);
-        w += u.getUTF8Width(ch);
+        w += charAdvance(u, text + i, len);
         if (w > kLineW) break;
         i += len;
     }
@@ -229,8 +239,9 @@ void drawSlot(U8G2& u, const Slot& s, uint8_t idx, const CmdInfo& cmd, uint32_t 
 
     // 강조 표시
     if (s.st == State::Done) {
-        u.drawFrame(0, 16, 128, 48);
-        u.drawFrame(1, 17, 126, 46);
+        u.setDrawColor(2);   // XOR — 구분선 아래 영역 반전
+        u.drawBox(0, 16, 128, 48);
+        u.setDrawColor(1);
     }
     if ((s.st == State::Approve || s.st == State::Input) && (nowMs / AM_BLINK_MS) % 2) {
         u.setDrawColor(2);   // XOR — 화면 전체 반전
