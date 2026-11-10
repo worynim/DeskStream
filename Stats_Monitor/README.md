@@ -49,6 +49,27 @@ pip install -r client_py/requirements.txt
 python client_py/main.py
 ```
 
+### 3. 단독 실행 파일 빌드 (PyInstaller)
+`client_py/stats_monitor.spec` 으로 Python 설치 없이 더블클릭으로 실행되는 앱을 만듭니다. 다른 OS용 크로스 빌드는 되지 않으므로 각 OS에서 빌드합니다.
+```bash
+cd client_py
+pip install -r requirements.txt pyinstaller
+pyinstaller stats_monitor.spec --noconfirm
+```
+- **macOS (arm64)**: `dist/StatsMonitor.app` — 메뉴 막대 전용(Dock 아이콘 없음). 처음 실행 시 블루투스 권한을 허용해야 합니다.
+- **Windows (x64)**: `dist/StatsMonitor.exe` — 콘솔 창 없는 단일 실행 파일.
+- 서명하지 않은 앱이라 macOS에서는 처음 한 번 **시스템 설정 → 개인정보 보호 및 보안 → "그래도 열기"** 가 필요합니다.
+- 터미널에서 `.app` 안의 실행 파일을 직접 띄우면 블루투스 권한 주체가 터미널로 잡혀 크래시할 수 있습니다. 반드시 Finder 더블클릭이나 `open` 으로 실행하세요.
+
+### 4. 배포 (GitHub Release)
+`stats_monitor.spec` 의 `VERSION` 과 같은 버전으로 태그를 푸시하면 [Build PC clients](../.github/workflows/build-clients.yml) 워크플로가 macOS·Windows 실행 파일을 빌드해 Release 에 올립니다.
+```bash
+git tag Stats_Monitor-client-v2.4.1
+git push origin Stats_Monitor-client-v2.4.1
+```
+- 산출물: `StatsMonitor-<버전>-macos-arm64.zip`, `StatsMonitor-<버전>-windows-x64.exe`
+- 버전을 올릴 때는 spec 의 `VERSION` 과 `main.py` 트레이 툴팁의 버전을 함께 바꿉니다.
+
 ## 📋 사용 방법
 1. PC에서 데이터를 전송할 클라이언트 프로그램 실행 (`python client_py/main.py`)
 2. ESP32-C3 보드 전원 연결 시 자동으로 BLE 연결 후 4개의 OLED에 데이터 표시

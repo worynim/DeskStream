@@ -134,7 +134,11 @@ class MetricsCollector:
                 "\"(Get-Counter '\\GPU Engine(*)\\Utilization Percentage' -ErrorAction SilentlyContinue).CounterSamples | "
                 "Measure-Object -Property CookedValue -Sum | Select-Object -ExpandProperty Sum\""
             )
-            res = subprocess.check_output(cmd, shell=True, stderr=subprocess.DEVNULL).decode().strip()
+            # 콘솔 없는 실행 파일(.exe)에서 매초 콘솔 창이 깜빡이지 않도록 창 생성 억제
+            res = subprocess.check_output(
+                cmd, shell=True, stderr=subprocess.DEVNULL,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            ).decode().strip()
             
             if res and res != "0":
                 # 여러 엔진(3D, Video, Copy 등) 점유율의 합이므로 100이 넘을 수 있으나 

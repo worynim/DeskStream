@@ -1,3 +1,9 @@
+## [v4.32.0] - 2026-11-10
+### 📦 PC 클라이언트 단독 실행 파일 배포 — Stats_Monitor 파일럿
+- 태그 `<프로젝트>-client-v<버전>` 을 푸시하면 `Build PC clients` 워크플로가 PyInstaller 로 macOS(arm64 .app zip)·Windows(x64 .exe)를 빌드해 GitHub Release 에 올립니다. 서명하지 않은 앱이라 처음 실행 시 보안 경고 안내가 필요합니다.
+- Stats_Monitor 클라이언트 2.4.1 에 빌드 스펙(`stats_monitor.spec`)을 추가했습니다. macOS 메뉴 막대 전용 앱·BLE 연결·OLED 표시를 실기로 확인했고, Windows 는 실기 미검증입니다.
+- Windows GPU 수집용 powershell 호출이 콘솔 창을 띄우지 않도록 했습니다.
+
 ## [v4.31.0] - 2026-11-10
 ### 🤖 Agent_Monitor v0.6.0 — 한글 표시(갈무리7), 상세 마지막 답변 4페이지, 데몬 기본 BLE · DeskStreamCore 0.6.1
 - 화면 글꼴을 갈무리7(8px, OFL-1.1) 하나로 통일해 한글을 `?` 없이 표시합니다. 상세 화면 마지막 답변을 BTN3/BTN4 로 4페이지(한글 약 576자)까지 넘겨 봅니다. 데몬은 그냥 실행하면 BLE 로 연결합니다.

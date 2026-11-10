@@ -1,0 +1,131 @@
+# 파이썬 PC 클라이언트를 단독 실행 파일로 빌드해 GitHub Release 에 올린다.
+#
+# 태그 규칙: <프로젝트>-client-v<버전>   예) Stats_Monitor-client-v2.4.1
+#   - <프로젝트> 폴더 아래에서 *.spec 파일 하나를 찾아 빌드한다 (같은 폴더의 requirements.txt 사용).
+#   - 태그 버전은 spec 의 VERSION 과 같아야 한다.
+# 수동 실행(workflow_dispatch)은 Release 없이 빌드 산출물(artifact)만 남긴다.
+name: Build PC clients
+
+on:
+  push:
+    tags: ["*-client-v*"]
+  workflow_dispatch:
+    inputs:
+      project:
+        description: "프로젝트 폴더 이름 (예: Stats_Monitor)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      project: ${{ steps.r.outputs.project }}
+      spec: ${{ steps.r.outputs.spec }}
+      version: ${{ steps.r.outputs.version }}
+      app: ${{ steps.r.outputs.app }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: r
+        shell: bash
+        env:
+          INPUT_PROJECT: ${{ inputs.project }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            project="${GITHUB_REF_NAME%-client-v*}"
+            tag_version="${GITHUB_REF_NAME##*-client-v}"
+          else
+            project="$INPUT_PROJECT"
+            tag_version=""
+          fi
+          mapfile -t specs < <(find "$project" -name "*.spec" -not -path "*/build/*")
+          if [[ ${#specs[@]} -ne 1 ]]; then
+            echo "::error::$project 아래 .spec 파일이 정확히 1개여야 합니다 (발견: ${#specs[@]})"; exit 1
+          fi
+          spec="${specs[0]}"
+          version=$(sed -nE 's/^VERSION = "([^"]+)".*/\1/p' "$spec")
+          app=$(sed -nE 's/^APP_NAME = "([^"]+)".*/\1/p' "$spec")
+          if [[ -z "$version" || -z "$app" ]]; then
+            echo "::error::$spec 에 VERSION / APP_NAME 이 없습니다"; exit 1
+          fi
+          if [[ -n "$tag_version" && "$tag_version" != "$version" ]]; then
+            echo "::error::태그 버전($tag_version)과 spec VERSION($version)이 다릅니다"; exit 1
+          fi
+          { echo "project=$project"; echo "spec=$spec"; echo "version=$version"; echo "app=$app"; } >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: resolve
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest   # Apple Silicon (arm64)
+            platform: macos-arm64
+          - os: windows-latest
+            platform: windows-x64
+    runs-on: ${{ matrix.os }}
+    env:
+      SPEC: ${{ needs.resolve.outputs.spec }}
+      APP: ${{ needs.resolve.outputs.app }}
+      ASSET_BASE: ${{ needs.resolve.outputs.app }}-${{ needs.resolve.outputs.version }}-${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          pip install -r "$(dirname "$SPEC")/requirements.txt" pyinstaller
+
+      - name: Build
+        shell: bash
+        run: |
+          cd "$(dirname "$SPEC")"
+          pyinstaller "$(basename "$SPEC")" --noconfirm --distpath "$GITHUB_WORKSPACE/out"
+
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p release
+          # ditto 로 묶어야 .app 의 심볼릭 링크·ad-hoc 서명이 보존된다
+          ditto -c -k --keepParent "out/$APP.app" "release/$ASSET_BASE.zip"
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir -p release
+          cp "out/$APP.exe" "release/$ASSET_BASE.exe"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}
+          path: release/*
+          if-no-files-found: error
+
+  release:
+    needs: [resolve, build]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PROJECT: ${{ needs.resolve.outputs.project }}
+          VERSION: ${{ needs.resolve.outputs.version }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" release/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$PROJECT PC 클라이언트 v$VERSION" \
+            --notes "macOS(Apple Silicon) · Windows(x64) 단독 실행 파일입니다. 서명하지 않은 앱이라 처음 실행 시 보안 경고가 나올 수 있습니다 — 프로젝트 README 의 실행 안내를 참고하세요."
