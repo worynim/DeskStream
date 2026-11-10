@@ -159,8 +159,10 @@ def execute(cmd: Command) -> tuple:
         return False, "macOS only"
     try:
         if cmd.type == "shell":
+            # Windows 콘솔 없는 실행 파일(.exe)에서 명령마다 콘솔 창이 뜨지 않게 한다
             r = subprocess.run(cmd.command, shell=True, cwd=os.path.expanduser(cmd.cwd) if cmd.cwd else None,
-                               capture_output=True, timeout=cmd.timeout)
+                               capture_output=True, timeout=cmd.timeout,
+                               creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
         else:
             r = subprocess.run(build_argv(cmd), capture_output=True, timeout=10)
     except subprocess.TimeoutExpired:

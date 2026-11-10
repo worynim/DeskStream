@@ -337,6 +337,46 @@ function renderClient(client: ClientEntry): HTMLElement {
   help.append(el("summary", undefined, strings.clientHelpSummary), steps);
 
   box.append(head, el("p", "client__desc", strings.clientDesc), buttons, help);
+  const setup = strings.clientSetup[client.project];
+  if (setup) {
+    const details = el("details", "client__help client__setup");
+    details.open = true;
+    const list = el("ul");
+    for (const line of setup) list.append(el("li", undefined, line));
+    details.append(el("summary", undefined, strings.clientSetupSummary), list);
+    box.append(details);
+  }
+  const permissions = renderPermissions(client, platforms);
+  if (permissions) box.append(permissions);
+  return box;
+}
+
+/** 클라이언트에 필요한 OS 권한별 설정 위치·없을 때 증상 (이 PC 의 OS 를 먼저) */
+function renderPermissions(client: ClientEntry, platforms: ClientPlatform[]): HTMLElement | null {
+  const strings = ui();
+  const order = platforms.map((platform) => (platform === "macos-arm64" ? "macos" : "windows"));
+  const guides = (client.permissions ?? [])
+    .map((key) => strings.clientPermissions[key])
+    .filter((guide) => guide && order.includes(guide.os))
+    .sort((a, b) => order.indexOf(a.os) - order.indexOf(b.os));
+  if (guides.length === 0) return null;
+
+  const box = el("details", "client__help client__perms");
+  box.open = true;
+  const list = el("ul");
+  for (const guide of guides) {
+    const item = el("li");
+    item.append(
+      el("strong", undefined, `${guide.os === "macos" ? "macOS" : "Windows"} · ${guide.title}`),
+      el("span", "client__perm-where", guide.where(client.app)),
+      el("span", "client__perm-missing", guide.missing),
+    );
+    list.append(item);
+  }
+  box.append(el("summary", undefined, strings.clientPermissionsSummary), list);
+  if (guides.some((guide) => guide.os === "macos")) {
+    box.append(el("p", "client__perm-reset", strings.clientPermissionsReset(client.app)));
+  }
   return box;
 }
 

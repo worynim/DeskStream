@@ -12,7 +12,8 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 - **`image_processor.py`**: 이미지 처리 전문 모듈. Numba JIT를 활용한 고속 디더링 알고리즘 및 1-bit 패킹 로직이 집약되어 있습니다.
 - **`network_manager.py`**: 통신 계층 모듈. ESP32 검색(IP Discovery) 및 UDP 데이터 스트리밍 루프를 관리합니다.
 - **`overlay_manager.py`**: UI 보조 모듈. 캡처 영역을 시각화하는 오버레이 창과 드래그 제어 로직을 담당합니다.
-- **`config.json`**: 사용자 외부 설정 파일. 소스 수정 없이 IP 및 시스템 파라미터를 조정합니다.
+- **`config.json`**: 사용자 외부 설정 파일. 소스 수정 없이 IP 및 시스템 파라미터를 조정합니다. (실행 파일은 `~/.deskstream/screen_to_oleds.json`)
+- **`screen_to_oleds.spec`** · **`requirements.txt`**: PC 클라이언트 실행 파일 빌드 (PyInstaller)와 의존 패키지.
 
 ## 🚀 주요 기능
 
@@ -44,6 +45,15 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 - **비차단 부저**: 동작 상태를 부드러운 소리로 안내.
 
 ## 🛠 설치 및 사용 방법
+
+### 실행 파일로 (Python 불필요)
+[웹 플래셔](https://worynim.github.io/DeskStream/)에서 Screen To OLEDs 를 고르면 macOS(Apple Silicon)·Windows(x64) 앱을 받을 수 있습니다 (GitHub Release `Screen_To_OLEDs-client-v<버전>`).
+- 서명하지 않은 앱이라 처음 실행 때 macOS 는 **시스템 설정 → 개인정보 보호 및 보안 → "그래도 열기"**, Windows 는 SmartScreen 의 **추가 정보 → 실행** 이 필요합니다.
+- macOS 에서는 **화면 기록**과 **로컬 네트워크** 권한을 앱에 허용해야 합니다. 화면 기록 권한이 없으면 다른 앱 창이 빠지고 바탕화면만 스트리밍되며, 창 맨 위에 설정 방법이 빨간 띠로 표시됩니다. 서명이 없어 앱을 새 버전으로 바꾸면 다시 허용해야 할 수 있습니다.
+- 앱은 설정 파일을 `~/.deskstream/screen_to_oleds.json` 에서 읽습니다 (형식은 `config.json` 과 같음, 없으면 기본값).
+- Numba 가 포함돼 있지만 실행 파일에서는 디스크 캐시를 쓰지 못해 시작할 때마다 몇 초 JIT 컴파일을 합니다.
+- 직접 빌드: `pip install -r requirements.txt pyinstaller && pyinstaller screen_to_oleds.spec`
+
 
 ### macOS 환경 (Python)
 1. 필요한 라이브러리 설치 (성능 최적화 필수):

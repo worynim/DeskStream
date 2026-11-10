@@ -37,12 +37,21 @@ export interface Manifest {
 /** PC 클라이언트 실행 파일이 제공되는 플랫폼 (Release 파일명 접미사) */
 export type ClientPlatform = "macos-arm64" | "windows-x64";
 
+/** 클라이언트가 처음 실행 때 필요로 하는 OS 권한 (안내 문구 키) */
+export type ClientPermission =
+  | "bluetooth"
+  | "accessibility"
+  | "screenRecording"
+  | "localNetwork"
+  | "windowsFirewall";
+
 /** firmware/clients.json 의 항목 — 프로젝트에 딸린 PC 클라이언트 */
 export interface ClientEntry {
   project: string;
   app: string;
   version: string;
   platforms: ClientPlatform[];
+  permissions?: ClientPermission[];
 }
 
 export interface ClientList {

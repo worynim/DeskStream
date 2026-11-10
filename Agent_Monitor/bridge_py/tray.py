@@ -4,8 +4,8 @@
 @brief 메뉴 막대(트레이) 아이콘으로 데몬 실행 — `python3 agent_bridge.py tray`
 @details pystray + Pillow (Stats_Monitor 클라이언트와 같은 방식). 데몬(훅 서버·장치 연결)은 백그라운드 스레드,
          아이콘은 메인 스레드(macOS 요구사항)에서 돈다.
-         아이콘 색: 회색 = 장치 없음 · 초록 = USB · 파랑 = BLE · 주황 = 승인 대기 중
-         메뉴: 상태(연결·세션 수·승인 대기) · 설정 파일 열기 · 종료
+         아이콘 색: 회색 = 장치 없음 · 초록 = USB · 파랑 = BLE · 주황 = 승인 대기 중 · 빨강 = 시작 실패(포트 사용 중)
+         메뉴: 상태(연결·세션 수·승인 대기) · 설정 파일 열기 · Claude Code 훅 설치/제거(결과는 메뉴 한 줄) · 종료
 """
 import os
 import subprocess
@@ -17,8 +17,10 @@ import pystray
 from PIL import Image, ImageDraw
 
 import commands
+import hooks_config
 
-COLORS = {None: (140, 140, 140), "usb": (40, 170, 80), "ble": (40, 110, 220), "approve": (240, 140, 20)}
+COLORS = {None: (140, 140, 140), "usb": (40, 170, 80), "ble": (40, 110, 220), "approve": (240, 140, 20),
+          "error": (220, 50, 50)}
 REFRESH_SEC = 2
 
 
@@ -53,9 +55,40 @@ def status_text(bridge) -> str:
     return f"{link} · 세션 {n}" + (f" · 승인 대기 {q}" if q else "")
 
 
+def hooks_action(install: bool, port: int) -> str:
+    """~/.claude/settings.json 에 우리 훅을 설치/제거하고 결과 문구를 돌려준다 (기존 훅 보존·백업)."""
+    path = hooks_config.DEFAULT_SETTINGS
+    try:
+        if install:
+            backup = hooks_config.install(path, port)
+            return "훅 설치 완료" + (f" (백업 {backup.name})" if backup else "")
+        removed, backup = hooks_config.uninstall(path, port)
+        return f"훅 {removed}개 제거" + (f" (백업 {backup.name})" if backup else "")
+    except Exception as e:                 # JSON 파싱 실패·권한 오류 등 — 트레이는 계속 돈다
+        return f"훅 {'설치' if install else '제거'} 실패: {e}"
+
+
+def show_error(message: str):
+    """데몬을 시작하지 못했을 때 이유를 메뉴에 보여 주고 종료만 할 수 있는 아이콘 (조용히 꺼지지 않게)"""
+    icon = pystray.Icon("agent_monitor", make_icon(COLORS["error"]), f"Agent Monitor — {message}", menu=pystray.Menu(
+        pystray.MenuItem(message, None, enabled=False),
+        pystray.MenuItem("종료", lambda: icon.stop()),
+    ))
+    icon.run()
+
+
 def main(args, start_daemon):
-    bridge, server = start_daemon(args)
+    try:
+        bridge, server = start_daemon(args)
+    except OSError:                        # 훅 포트가 이미 사용 중 — 다른 Agent Monitor(소스 데몬 포함)가 실행 중
+        return show_error(f"포트 {args.http_port} 사용 중 — 실행 중인 다른 Agent Monitor 를 먼저 종료하세요")
     threading.Thread(target=server.serve_forever, daemon=True).start()
+
+    result = {"text": ""}                  # 마지막 훅 설치/제거 결과 (메뉴에 표시)
+
+    def run_hooks(install):
+        result["text"] = hooks_action(install, args.http_port)
+        icon.update_menu()
 
     def state_color():
         return COLORS["approve"] if bridge.approvals.items else COLORS[bridge.link.kind]
@@ -63,6 +96,10 @@ def main(args, start_daemon):
     icon = pystray.Icon("agent_monitor", make_icon(state_color()), "Agent Monitor", menu=pystray.Menu(
         pystray.MenuItem(lambda _item: status_text(bridge), None, enabled=False),
         pystray.MenuItem("설정 파일 열기", lambda: open_file(args.config)),
+        pystray.MenuItem("Claude Code 훅 설치", lambda: run_hooks(True)),
+        pystray.MenuItem("Claude Code 훅 제거", lambda: run_hooks(False)),
+        pystray.MenuItem(lambda _item: result["text"], None, enabled=False,
+                         visible=lambda _item: bool(result["text"])),
         pystray.MenuItem("종료", lambda: icon.stop()),
     ))
 

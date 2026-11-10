@@ -1,3 +1,13 @@
+## [v4.34.0] - 2026-11-10
+### 📦 PC 클라이언트 실행 파일 — Agent_Monitor 0.6.1 · Screen_To_OLEDs 2.3.2
+- 두 클라이언트에 PyInstaller spec 을 추가하고 웹 플래셔 다운로드 목록(`firmware/clients.json`)에 넣었습니다. 펌웨어는 바뀌지 않았습니다.
+- Agent_Monitor: 트레이 메뉴에 Claude Code 훅 설치/제거 추가, Windows `shell` 명령 콘솔 창 억제.
+- Screen_To_OLEDs: 실행 파일 설정 위치 `~/.deskstream/screen_to_oleds.json`, 실행 파일에서 Numba 캐시 끔, `requirements.txt` 추가.
+- Agent_Monitor: 훅 포트가 사용 중이면 빨간 트레이 아이콘으로 이유 표시(조용히 꺼지던 문제).
+- Screen_To_OLEDs: macOS 화면 기록 권한 확인·요청, 없으면 창 위에 안내.
+- 웹 플래셔 v1.8.0: 클라이언트별 권한 설정 안내(설정 위치·권한이 없을 때 증상), Agent_Monitor "처음 한 번만 할 설정"(훅 설치) 안내. `clients.json` 에 `permissions` 추가.
+- macOS 에서 두 앱 빌드·실행(Screen_To_OLEDs 는 Numba·tkinter 로드) 확인. Windows 는 미검증.
+
 ## [v4.33.0] - 2026-11-10
 ### 💻 웹 플래셔 v1.7.0 — PC 클라이언트 다운로드
 - PC 클라이언트가 필요한 프로젝트(현재 Stats_Monitor)에 macOS·Windows 다운로드 버튼과 처음 실행 안내를 표시합니다. 목록은 새 파일 `firmware/clients.json` 이고, `collect-firmware.mjs --check` 가 spec 과의 버전 일치를 검증합니다.

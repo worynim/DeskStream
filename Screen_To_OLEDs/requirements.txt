@@ -1,0 +1,4 @@
+Pillow
+numpy
+mss
+numba      # 디더링 JIT 가속 (없어도 동작하지만 느림)

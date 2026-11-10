@@ -100,7 +100,20 @@ BLE 는 근처 누구나 접속할 수 있어, 같은 이름의 **가짜 장치*
 arduino-cli compile --fqbn "esp32:esp32:makergo_c3_supermini:CDCOnBoot=default,CPUFreq=160,PartitionScheme=default" Agent_Monitor
 ```
 
-### 2. PC 데몬 (Python 3.11+, macOS에서 검증)
+### 2. PC 데몬
+
+**실행 파일로 (Python 불필요)** — [웹 플래셔](https://worynim.github.io/DeskStream/)에서 Agent Monitor 를 고르면 macOS(Apple Silicon)·Windows(x64) 앱을 받을 수 있습니다 (GitHub Release `Agent_Monitor-client-v<버전>`).
+- 더블클릭하면 트레이 모드(BLE)로 실행됩니다. 트레이 메뉴의 **Claude Code 훅 설치 / 제거** 로 3단계의 `install-hooks`·`uninstall-hooks` 와 같은 일을 합니다 (결과는 메뉴 한 줄에 표시).
+- 서명하지 않은 앱이라 처음 실행 때 macOS 는 **시스템 설정 → 개인정보 보호 및 보안 → "그래도 열기"**, Windows 는 SmartScreen 의 **추가 정보 → 실행** 이 필요합니다.
+- macOS 에서 Bluetooth·손쉬운 사용(`keys` 명령) 권한은 **AgentMonitor 앱**에 허용합니다. 서명이 없어 앱을 새 버전으로 바꾸면 권한을 다시 허용해야 할 수 있습니다.
+- 처음 한 번 USB 로 서명 키를 등록하려면 USB 모드로 실행합니다 (트레이 메뉴 "종료"로 끝냄):
+  ```bash
+  open /Applications/AgentMonitor.app --args tray --transport usb      # macOS
+  AgentMonitor-0.6.1-windows-x64.exe tray --transport usb               # Windows (명령 프롬프트)
+  ```
+- 직접 빌드: `cd bridge_py && pip install -r requirements.txt pyinstaller && pyinstaller agent_monitor.spec`
+
+**소스로 (Python 3.11+, macOS에서 검증)**
 
 ```bash
 cd Agent_Monitor/bridge_py
@@ -110,7 +123,7 @@ python3 agent_bridge.py run -v           # 터미널에서 실행 · 이벤트 �
 ```
 
 - 연결 선택: `--transport ble`(**기본**: BLE 만) · `usb`(USB 만) · `auto`(USB 우선, 없으면 BLE), 포트 지정: `--serial /dev/cu.usbmodemXXXX`(USB 만). BLE 신호는 장치에 서명 키가 등록돼 있어야 받아들여지므로 **처음 한 번은 `--transport usb`(또는 `auto`)로 연결해** 키를 등록하세요.
-- 트레이 아이콘(막대 4개) 색: **회색** 장치 없음 · **초록** USB · **파랑** BLE · **주황** 승인 대기. 메뉴: 상태 · 설정 파일 열기 · 종료
+- 트레이 아이콘(막대 4개) 색: **회색** 장치 없음 · **초록** USB · **파랑** BLE · **주황** 승인 대기 · **빨강** 시작 실패(훅 포트 사용 중 — 이미 실행 중인 데몬을 먼저 종료). 메뉴: 상태 · 설정 파일 열기 · Claude Code 훅 설치/제거 · 종료
 - BLE 는 macOS **Bluetooth 권한**이 필요합니다. 데몬을 실행한 앱(터미널 등)에서 처음 한 번 허용하세요.
 - 펌웨어는 [웹 플래셔](https://worynim.github.io/DeskStream/)에서도 설치할 수 있습니다.
 
@@ -192,6 +205,7 @@ python3 demo_hooks.py --end
 | `bridge_py/tray.py` | 메뉴 막대 트레이 아이콘 |
 | `bridge_py/hooks_config.py` | 훅 설정 생성 · 설치 · 제거 |
 | `bridge_py/demo_hooks.py` | 화면 확인용 가짜 훅 |
+| `bridge_py/agent_monitor.spec` | PC 클라이언트 실행 파일 빌드 (PyInstaller) |
 | `p0_spike/` | P0 훅 동작 검증 도구와 결과 |
 
 ## 테스트

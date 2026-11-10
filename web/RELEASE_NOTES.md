@@ -22,6 +22,18 @@ ESP32-C3 DeskStream 보드용 웹 플래셔 **https://worynim.github.io/DeskStre
 
 ---
 
+## [v1.8.0] - 2026-11-10
+
+### 🔐 PC 클라이언트 권한 설정 안내
+
+- 클라이언트 다운로드 영역에 **권한 설정** 안내를 추가했습니다(기본으로 펼침). 클라이언트마다 필요한 권한(`firmware/clients.json` 의 `permissions`)별로 어디서 켜는지와 권한이 없을 때 나타나는 증상을 보여 줍니다. 접속한 PC 의 OS 권한을 먼저 표시합니다.
+  - macOS: Bluetooth · 손쉬운 사용 · 화면 기록 · 로컬 네트워크 / Windows: 방화벽
+  - 서명하지 않은 앱이라 새 버전으로 바꾸면 macOS 권한이 풀릴 수 있다는 안내 포함
+- 프로젝트별 **처음 한 번만 할 설정** 안내를 추가했습니다(기본으로 펼침). Agent_Monitor: 트레이 메뉴 "Claude Code 훅 설치"를 컴퓨터마다 한 번 누르면 되고, 앱을 다시 켜거나 업데이트해도 유지된다는 내용.
+- "처음 실행 안내"는 Gatekeeper·SmartScreen 통과 방법만 남기고 권한 설명은 위 안내로 옮겼습니다.
+- `collect-firmware --check` 가 `permissions` 이름도 검증합니다.
+- 클라이언트 목록에 Agent_Monitor 0.6.1 · Screen_To_OLEDs 2.3.2 를 추가했습니다.
+
 ## [v1.7.0] - 2026-11-10
 
 ### 💻 PC 클라이언트 다운로드

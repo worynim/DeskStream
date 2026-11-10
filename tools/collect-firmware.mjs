@@ -21,6 +21,8 @@ const META_PATH = path.join(ROOT, "firmware", "projects.json");
 const MANIFEST_PATH = path.join(ROOT, "firmware", "manifest.json");
 const CLIENTS_PATH = path.join(ROOT, "firmware", "clients.json");
 const CLIENT_PLATFORMS = new Set(["macos-arm64", "windows-x64"]);
+// 웹 플래셔 i18n(clientPermissions)에 안내 문구가 있는 권한만 허용
+const CLIENT_PERMISSIONS = new Set(["bluetooth", "accessibility", "screenRecording", "localNetwork", "windowsFirewall"]);
 
 const argv = process.argv.slice(2);
 const CHECK = argv.includes("--check");
@@ -336,7 +338,7 @@ function validateCommittedManifest(meta) {
 
 /**
  * firmware/clients.json(PC 클라이언트 다운로드 목록) 검증
- * - 프로젝트가 projects.json 에 있고, 플랫폼 이름이 정해진 값이며,
+ * - 프로젝트가 projects.json 에 있고, 플랫폼·권한 이름이 정해진 값이며,
  * - 프로젝트 폴더의 PyInstaller spec 의 APP_NAME / VERSION 과 일치해야 한다 (Release 파일명과 태그가 여기서 정해짐).
  */
 function validateClients(meta) {
@@ -365,6 +367,9 @@ function validateClients(meta) {
       for (const platform of client.platforms) {
         if (!CLIENT_PLATFORMS.has(platform)) errors.push(`clients.json: ${id} 알 수 없는 플랫폼 ${platform}`);
       }
+    }
+    for (const permission of client.permissions ?? []) {
+      if (!CLIENT_PERMISSIONS.has(permission)) errors.push(`clients.json: ${id} 알 수 없는 권한 ${permission}`);
     }
     const specs = findSpecs(path.join(ROOT, id));
     if (specs.length !== 1) {

@@ -1,4 +1,4 @@
-import type { ClientPlatform, ManifestProject } from "./types";
+import type { ClientPermission, ClientPlatform, ManifestProject } from "./types";
 
 export type Locale = "ko" | "en";
 export const LOCALES: Locale[] = ["ko", "en"];
@@ -78,6 +78,20 @@ export interface UiStrings {
   clientHelpSummary: string;
   clientHelpMac: (app: string) => string[];
   clientHelpWindows: (app: string) => string[];
+  clientPermissionsSummary: string;
+  clientPermissions: Record<ClientPermission, PermissionGuide>;
+  clientPermissionsReset: (app: string) => string;
+  clientSetupSummary: string;
+  /** 프로젝트별 "처음 한 번만" 하는 설정 (프로젝트 id → 줄 목록) */
+  clientSetup: Partial<Record<string, string[]>>;
+}
+
+/** 권한 하나의 안내 — 어느 OS 에서, 어디서 켜는지, 없으면 어떻게 되는지 */
+export interface PermissionGuide {
+  os: "macos" | "windows";
+  title: string;
+  where: (app: string) => string;
+  missing: string;
 }
 
 export interface FlashStrings {
@@ -183,15 +197,61 @@ const ko: LocalePack = {
     clientForThisPc: "이 PC용",
     clientHelpSummary: "처음 실행 안내 (서명하지 않은 앱)",
     clientHelpMac: (app) => [
-      `macOS: zip을 풀고 ${app}.app 을 응용 프로그램 폴더로 옮깁니다.`,
-      "처음 실행할 때 경고가 뜨면 시스템 설정 → 개인정보 보호 및 보안 → \"그래도 열기\"를 누릅니다. (터미널: xattr -dr com.apple.quarantine /Applications/" + app + ".app)",
-      "블루투스 권한 요청을 허용하면 메뉴 막대에 아이콘이 나타납니다. Apple Silicon(M1 이상) 맥 전용입니다.",
+      `macOS: zip을 풀고 ${app}.app 을 응용 프로그램 폴더로 옮깁니다. Apple Silicon(M1 이상) 맥 전용입니다.`,
+      "처음 실행할 때 경고가 뜨면 시스템 설정 → 개인정보 보호 및 보안 → 아래쪽 \"그래도 열기\"를 누릅니다. (터미널: xattr -dr com.apple.quarantine /Applications/" + app + ".app)",
     ],
     clientHelpWindows: (app) => [
       `Windows: ${app}-….exe 를 실행합니다. 설치 과정은 없습니다.`,
       "\"Windows의 PC 보호\" 창이 뜨면 추가 정보 → 실행을 누릅니다.",
-      "작업 표시줄 오른쪽 트레이(숨겨진 아이콘 ^)에 아이콘이 나타납니다.",
     ],
+    clientPermissionsSummary: "권한 설정",
+    clientPermissions: {
+      bluetooth: {
+        os: "macos",
+        title: "Bluetooth",
+        where: (app) =>
+          `처음 실행 때 뜨는 요청에서 \"허용\". 놓쳤다면 시스템 설정 → 개인정보 보호 및 보안 → Bluetooth 에서 ${app} 앱을 켭니다.`,
+        missing: "없으면: 기기를 찾지 못해 OLED에 데이터가 표시되지 않습니다.",
+      },
+      accessibility: {
+        os: "macos",
+        title: "손쉬운 사용 (선택 — 키 입력 명령)",
+        where: (app) =>
+          `시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용 에서 ${app} 앱을 켭니다. 목록에 없으면 + 버튼으로 응용 프로그램 폴더의 앱을 추가합니다.`,
+        missing: "없으면: 버튼에 지정한 keys 명령이 장치에 \"FAIL … no access\" 로 표시됩니다.",
+      },
+      screenRecording: {
+        os: "macos",
+        title: "화면 기록",
+        where: (app) =>
+          `시스템 설정 → 개인정보 보호 및 보안 → 화면 및 시스템 오디오 녹음 에서 ${app} 앱을 켜고 앱을 완전히 종료한 뒤 다시 실행합니다. 목록에 없으면 + 버튼으로 추가합니다.`,
+        missing: "없으면: 다른 앱 창이 빠지고 바탕화면만 스트리밍됩니다 (앱 창 위쪽에 빨간 안내가 뜹니다).",
+      },
+      localNetwork: {
+        os: "macos",
+        title: "로컬 네트워크",
+        where: (app) =>
+          `처음 Scan 할 때 뜨는 요청에서 \"허용\". 놓쳤다면 시스템 설정 → 개인정보 보호 및 보안 → 로컬 네트워크 에서 ${app} 앱을 켭니다.`,
+        missing: "없으면: Scan 으로 기기를 찾지 못하고 화면도 전송되지 않습니다.",
+      },
+      windowsFirewall: {
+        os: "windows",
+        title: "Windows 방화벽",
+        where: () =>
+          "처음 Scan 할 때 \"Windows 보안 경고\" 창이 뜨면 개인 네트워크를 체크하고 \"허용\"을 누릅니다.",
+        missing: "없으면: Scan 이 \"Not found\" 로 끝납니다. 기기 IP를 직접 입력하면 전송은 됩니다.",
+      },
+    },
+    clientSetupSummary: "처음 한 번만 할 설정",
+    clientSetup: {
+      Agent_Monitor: [
+        "앱을 실행한 뒤 메뉴 막대(Windows는 작업 표시줄 트레이)의 Agent Monitor 아이콘 → \"Claude Code 훅 설치\"를 누릅니다. 컴퓨터마다 한 번만 하면 됩니다.",
+        "훅은 Claude Code 가 세션 상태·권한 요청을 앱에 알려 주는 설정입니다 (~/.claude/settings.json 에 추가, 다른 훅은 그대로 두고 백업 생성). 설치하지 않으면 장치에 세션이 표시되지 않습니다.",
+        "앱을 껐다 켜거나 새 버전으로 바꿔도 유지됩니다. 설치 뒤 새로 시작한 Claude Code 세션부터 표시됩니다. 더 이상 쓰지 않으면 \"Claude Code 훅 제거\"를 누릅니다.",
+      ],
+    },
+    clientPermissionsReset: (app) =>
+      `서명하지 않은 앱이라 새 버전으로 바꾸면 macOS 권한이 풀릴 수 있습니다. 목록에서 ${app} 앱을 껐다 켜거나, − 로 지운 뒤 다시 추가하세요.`,
   },
   flash: {
     portPrompt: "포트 선택 창에서 ESP32-C3 보드를 선택하세요.",
@@ -296,15 +356,61 @@ const en: LocalePack = {
     clientForThisPc: "For this PC",
     clientHelpSummary: "First launch (unsigned app)",
     clientHelpMac: (app) => [
-      `macOS: unzip and move ${app}.app to the Applications folder.`,
-      "If a warning appears on first launch, open System Settings → Privacy & Security → \"Open Anyway\". (Terminal: xattr -dr com.apple.quarantine /Applications/" + app + ".app)",
-      "Allow the Bluetooth permission prompt; an icon appears in the menu bar. Apple Silicon (M1 or later) Macs only.",
+      `macOS: unzip and move ${app}.app to the Applications folder. Apple Silicon (M1 or later) Macs only.`,
+      "If a warning appears on first launch, open System Settings → Privacy & Security and click \"Open Anyway\" at the bottom. (Terminal: xattr -dr com.apple.quarantine /Applications/" + app + ".app)",
     ],
     clientHelpWindows: (app) => [
       `Windows: run ${app}-….exe. There is no installer.`,
       "If \"Windows protected your PC\" appears, click More info → Run anyway.",
-      "An icon appears in the system tray (hidden icons ^) at the right of the taskbar.",
     ],
+    clientPermissionsSummary: "Permissions",
+    clientPermissions: {
+      bluetooth: {
+        os: "macos",
+        title: "Bluetooth",
+        where: (app) =>
+          `Click \"Allow\" on the first-launch prompt. If you missed it, turn on ${app} in System Settings → Privacy & Security → Bluetooth.`,
+        missing: "Without it: the device is not found and nothing appears on the OLEDs.",
+      },
+      accessibility: {
+        os: "macos",
+        title: "Accessibility (optional — keystroke commands)",
+        where: (app) =>
+          `Turn on ${app} in System Settings → Privacy & Security → Accessibility. If it is not listed, add the app from Applications with the + button.`,
+        missing: "Without it: keys commands assigned to buttons show \"FAIL … no access\" on the device.",
+      },
+      screenRecording: {
+        os: "macos",
+        title: "Screen Recording",
+        where: (app) =>
+          `Turn on ${app} in System Settings → Privacy & Security → Screen & System Audio Recording, then quit and relaunch the app. If it is not listed, add it with the + button.`,
+        missing: "Without it: other app windows are left out and only the desktop is streamed (a red notice appears at the top of the app window).",
+      },
+      localNetwork: {
+        os: "macos",
+        title: "Local Network",
+        where: (app) =>
+          `Click \"Allow\" on the prompt shown at the first Scan. If you missed it, turn on ${app} in System Settings → Privacy & Security → Local Network.`,
+        missing: "Without it: Scan cannot find the device and frames are not sent.",
+      },
+      windowsFirewall: {
+        os: "windows",
+        title: "Windows Firewall",
+        where: () =>
+          "When \"Windows Security Alert\" appears at the first Scan, check Private networks and click \"Allow\".",
+        missing: "Without it: Scan ends with \"Not found\". Entering the device IP manually still works.",
+      },
+    },
+    clientSetupSummary: "One-time setup",
+    clientSetup: {
+      Agent_Monitor: [
+        "After launching the app, click the Agent Monitor icon in the menu bar (system tray on Windows) → \"Claude Code 훅 설치\" (Install hooks). Do this once per computer.",
+        "Hooks let Claude Code report session status and permission requests to the app (added to ~/.claude/settings.json; other hooks are kept and a backup is made). Without them, no sessions appear on the device.",
+        "They persist across app restarts and updates, and apply to Claude Code sessions started after installing. To stop using the device, click \"Claude Code 훅 제거\" (Remove hooks).",
+      ],
+    },
+    clientPermissionsReset: (app) =>
+      `Because the app is unsigned, macOS permissions may reset after updating to a new version. Toggle ${app} off and on in the list, or remove it with − and add it again.`,
   },
   flash: {
     portPrompt: "Select your ESP32-C3 board in the port picker.",

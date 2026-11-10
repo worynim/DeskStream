@@ -5,6 +5,8 @@
 @details apply_threshold, apply_dithering, pack_bits 및 Numba JIT 커널 포함
 """
 
+import sys
+
 import numpy as np
 from PIL import Image, ImageEnhance
 
@@ -19,6 +21,9 @@ except ImportError:
         if len(args) == 1 and callable(args[0]):
             return args[0]
         return decorator
+# 실행 파일(PyInstaller)에는 .py 소스가 없어 Numba 디스크 캐시를 쓸 수 없다 → 매 실행 시 JIT 컴파일
+JIT_CACHE = not getattr(sys, "frozen", False)
+
 # =============================================
 # [이미지 처리 유틸리티]
 # =============================================
@@ -37,7 +42,7 @@ def apply_threshold(img_gray: Image.Image, threshold: int) -> np.ndarray:
     arr = np.array(img_gray, dtype=np.uint8)
     return (arr >= threshold).astype(np.uint8) * 255
 
-@njit(cache=True)
+@njit(cache=JIT_CACHE)
 def _dither_fs(arr: np.ndarray, h: int, w: int):
     for y in range(h):
         for x in range(w):
@@ -51,7 +56,7 @@ def _dither_fs(arr: np.ndarray, h: int, w: int):
                 arr[y + 1, x] += err * (5.0/16.0)
                 if x + 1 < w: arr[y + 1, x + 1] += err * (1.0/16.0)
 
-@njit(cache=True)
+@njit(cache=JIT_CACHE)
 def _dither_atkinson(arr: np.ndarray, h: int, w: int):
     err_div = 1.0 / 8.0
     for y in range(h):
@@ -68,7 +73,7 @@ def _dither_atkinson(arr: np.ndarray, h: int, w: int):
                 if x + 1 < w: arr[y + 1, x + 1] += err
             if y + 2 < h: arr[y + 2, x] += err
 
-@njit(cache=True)
+@njit(cache=JIT_CACHE)
 def _dither_stucki(arr: np.ndarray, h: int, w: int):
     err_div = 1.0 / 42.0
     for y in range(h):
@@ -92,7 +97,7 @@ def _dither_stucki(arr: np.ndarray, h: int, w: int):
                 if x + 1 < w: arr[y + 2, x + 1] += err * 2.0
                 if x + 2 < w: arr[y + 2, x + 2] += err * 1.0
 
-@njit(cache=True)
+@njit(cache=JIT_CACHE)
 def _dither_sierra(arr: np.ndarray, h: int, w: int):
     err_div = 1.0 / 32.0
     for y in range(h):

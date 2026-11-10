@@ -285,9 +285,10 @@ def start_daemon(args) -> tuple:
     bridge = Bridge(lambda on_line, on_connect: AutoLink(on_line, on_connect, serial_port=args.serial, log=log,
                                                          mode=args.transport),
                     verbose=args.verbose, config_path=args.config)
-    bridge.start()
+    # 포트를 먼저 연다 — 이미 다른 데몬이 쓰고 있으면(OSError) 장치 연결을 시작하지 않고 실패
     server = ThreadingHTTPServer(("127.0.0.1", args.http_port), make_handler(bridge))
     server.daemon_threads = True          # 붙잡힌 권한 요청이 종료를 막지 않게
+    bridge.start()
     via = args.serial or {"auto": "USB 우선 · 없으면 BLE", "usb": "USB 만", "ble": "BLE 만"}[args.transport]
     log(f"agent_bridge: 훅 수신 127.0.0.1:{args.http_port} · 연결 {via}")
     return bridge, server

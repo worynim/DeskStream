@@ -553,6 +553,24 @@ body {
   overflow-wrap: anywhere;
 }
 
+.client__perms li {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.client__perms strong {
+  color: var(--text);
+}
+
+.client__perm-missing {
+  color: var(--warning);
+}
+
+.client__perm-reset {
+  margin: 0.4rem 0 0;
+  color: var(--text-faint);
+}
+
 .options {
   display: grid;
   gap: 0.55rem;

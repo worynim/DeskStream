@@ -1,5 +1,12 @@
 # Release Notes - Screen_To_OLEDs
 
+## [v2.3.2] - 2026-11-10
+### 📦 PC 클라이언트 실행 파일 (펌웨어 변경 없음 — 펌웨어는 2.3.1)
+- 스트리머를 PyInstaller 로 묶은 macOS(Apple Silicon)·Windows(x64) 앱을 GitHub Release(`Screen_To_OLEDs-client-v2.3.2`)로 배포하고 웹 플래셔에서 내려받는다 (`screen_to_oleds.spec`, Numba 포함). 의존 패키지를 `requirements.txt` 로 정리했다.
+- 실행 파일은 설정을 `~/.deskstream/screen_to_oleds.json` 에서 읽는다 (소스 실행은 그대로 스크립트 옆 `config.json`).
+- 실행 파일에서는 Numba 디스크 캐시(`cache=True`)를 끈다 — 소스 파일이 없어 캐시 위치를 만들 수 없다.
+- macOS 에서 시작할 때 **화면 기록 권한**을 확인한다. 없으면 시스템 권한 요청을 띄우고 창 맨 위에 설정 방법을 빨간 띠로 표시한다 (권한이 없으면 다른 앱 창이 빠지고 바탕화면만 캡처된다).
+
 ## [v2.3.1] - 2026-11-10
 ### 📶 WiFi 설정 포털 교체 (WiFiManager → DeskStreamCore v0.6.0 자체 포털)
 - 저장된 공유기에 연결하지 못하면 여는 설정 포털을 라이브러리 내장 포털로 바꿨다. 열린 AP·캡티브 DNS·주변 SSID 목록·

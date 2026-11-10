@@ -16,6 +16,7 @@ import queue
 import subprocess
 import os
 import hashlib
+import sys
 from pathlib import Path
 import tkinter as tk
 from tkinter import ttk
@@ -52,6 +53,7 @@ def _load_user_config(defaults: dict) -> dict:
     """
     config.json 존재 시 기본값(defaults)을 사용자 설정으로 덮어씀.
     파일 없거나 파싱 실패 시 defaults 그대로 반환.
+    위치: 소스 실행 = 스크립트 옆 config.json / 실행 파일(PyInstaller) = ~/.deskstream/screen_to_oleds.json
 
     Parameters:
         defaults: 기본 설정 딕셔너리 (CONFIG)
@@ -59,7 +61,10 @@ def _load_user_config(defaults: dict) -> dict:
     Returns:
         최종 설정 딕셔너리
     """
-    config_path = Path(__file__).parent / "config.json"
+    if getattr(sys, "frozen", False):
+        config_path = Path.home() / ".deskstream" / "screen_to_oleds.json"
+    else:
+        config_path = Path(__file__).parent / "config.json"
     if not config_path.exists():
         return defaults
     try:
@@ -67,13 +72,33 @@ def _load_user_config(defaults: dict) -> dict:
             overrides = json.load(f)
         cfg = dict(defaults)
         cfg.update({k: v for k, v in overrides.items() if k in defaults})
-        print(f"[Config] config.json 반영: {list(overrides.keys())}")
+        print(f"[Config] {config_path.name} 반영: {list(overrides.keys())}")
         return cfg
     except Exception as e:
-        print(f"[Config] config.json 로드 실패: {e} — 기본값 사용")
+        print(f"[Config] {config_path.name} 로드 실패: {e} — 기본값 사용")
         return defaults
 
 CONFIG = _load_user_config(CONFIG)
+
+def _screen_capture_allowed() -> bool:
+    """
+    macOS 화면 기록 권한 확인. 없으면 시스템 권한 요청을 띄우고 False 를 반환.
+    (권한이 없으면 캡처에 바탕화면·메뉴 막대·자기 창만 나오고 다른 앱 창은 빠진다)
+    macOS 가 아니거나 확인할 수 없으면(구버전) True.
+    """
+    if sys.platform != "darwin":
+        return True
+    try:
+        import ctypes
+        cg = ctypes.cdll.LoadLibrary("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")
+        cg.CGPreflightScreenCaptureAccess.restype = ctypes.c_bool
+        cg.CGRequestScreenCaptureAccess.restype = ctypes.c_bool
+        if cg.CGPreflightScreenCaptureAccess():
+            return True
+        cg.CGRequestScreenCaptureAccess()   # 처음 한 번만 시스템 대화상자가 뜬다
+        return False
+    except (OSError, AttributeError):
+        return True
 
 # =============================================
 # [로깅 설정]
@@ -185,6 +210,8 @@ class VibeStreamerApp:
 
         self._check_os_for_reset()
         self._setup_ui()
+        if not _screen_capture_allowed():
+            self._show_permission_banner()
         self._get_monitors()
         # 매니저 초기화 (Step 6)
         self.overlay_mgr = OverlayManager(self.root, self)
@@ -211,6 +238,15 @@ class VibeStreamerApp:
         self._c_replayd   = self.manage_replayd_var.get()
         self._c_skip_static= self.skip_static_var.get()
         self.root.after(50, self._refresh_settings_cache)  # 50ms마다 반복
+
+    def _show_permission_banner(self) -> None:
+        """화면 기록 권한이 없을 때 창 맨 위에 설정 방법을 표시"""
+        text = ("⚠ Screen Recording permission required — other windows will show as desktop.\n"
+                "시스템 설정 → 개인정보 보호 및 보안 → 화면 및 시스템 오디오 녹음에서\n"
+                "이 앱을 켠 뒤 앱을 다시 실행하세요.")
+        banner = tk.Label(self.root, text=text, justify="left", anchor="w", padx=10, pady=6,
+                          bg="#7a2e2e", fg="white", font=("Arial", 12, "bold"))
+        banner.pack(fill="x", padx=10, pady=(8, 0), before=self.root.winfo_children()[0])
 
     # ──────────────────────────────────────────
     # macOS replayd 메모리 관리
