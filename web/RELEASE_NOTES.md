@@ -22,6 +22,15 @@ ESP32-C3 DeskStream 보드용 웹 플래셔 **https://worynim.github.io/DeskStre
 
 ---
 
+## [v1.7.0] - 2026-11-10
+
+### 💻 PC 클라이언트 다운로드
+
+- PC 클라이언트가 필요한 프로젝트 카드에 **`💻 PC 앱`** 표시를 붙이고, 선택 패널에 macOS(Apple Silicon)·Windows(x64) 다운로드 버튼을 추가했습니다. 접속한 PC의 플랫폼 버튼을 먼저, 강조해서 보여줍니다.
+- 다운로드는 GitHub Release(`<프로젝트>-client-v<버전>` 태그)의 실행 파일로 연결됩니다. 목록은 `firmware/clients.json` 에서 읽고, 파일이 없거나 형식이 틀려도 펌웨어 플래시는 그대로 동작합니다.
+- 서명하지 않은 앱의 처음 실행 안내(macOS "그래도 열기", Windows SmartScreen)를 한국어/영어로 표시합니다.
+- `node tools/collect-firmware.mjs --check` 가 `clients.json` 도 검증합니다 (프로젝트 존재, 플랫폼 이름, PyInstaller spec 의 `APP_NAME`·`VERSION` 일치).
+
 ## [v1.6.0] - 2026-10-21
 
 ### ✨ Android WebUSB(CDC-ACM) 우회 플래시 모드

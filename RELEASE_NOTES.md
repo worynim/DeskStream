@@ -1,3 +1,7 @@
+## [v4.33.0] - 2026-11-10
+### 💻 웹 플래셔 v1.7.0 — PC 클라이언트 다운로드
+- PC 클라이언트가 필요한 프로젝트(현재 Stats_Monitor)에 macOS·Windows 다운로드 버튼과 처음 실행 안내를 표시합니다. 목록은 새 파일 `firmware/clients.json` 이고, `collect-firmware.mjs --check` 가 spec 과의 버전 일치를 검증합니다.
+
 ## [v4.32.0] - 2026-11-10
 ### 📦 PC 클라이언트 단독 실행 파일 배포 — Stats_Monitor 파일럿
 - 태그 `<프로젝트>-client-v<버전>` 을 푸시하면 `Build PC clients` 워크플로가 PyInstaller 로 macOS(arm64 .app zip)·Windows(x64 .exe)를 빌드해 GitHub Release 에 올립니다. 서명하지 않은 앱이라 처음 실행 시 보안 경고 안내가 필요합니다.

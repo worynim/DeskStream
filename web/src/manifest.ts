@@ -1,6 +1,7 @@
-import type { Manifest, ManifestImage, ManifestProject } from "./types";
+import type { ClientEntry, ClientList, Manifest, ManifestImage, ManifestProject } from "./types";
 
 const MANIFEST_FILE = "firmware/manifest.json";
+const CLIENTS_FILE = "firmware/clients.json";
 
 /** Vite base 경로를 반영한 assets URL */
 export function assetUrl(relativePath: string): string {
@@ -34,6 +35,18 @@ function validateManifest(manifest: Manifest): void {
         throw new Error(`이미지 정보가 올바르지 않습니다: ${project.id} / ${image.path ?? image.offset}`);
       }
     }
+  }
+}
+
+/** PC 클라이언트 목록. 파일이 없거나 형식이 틀리면 빈 목록(펌웨어 플래시는 영향 없음). */
+export async function loadClients(): Promise<ClientEntry[]> {
+  try {
+    const response = await fetch(assetUrl(CLIENTS_FILE), { cache: "no-store" });
+    if (!response.ok) return [];
+    const list = (await response.json()) as ClientList;
+    return list.schemaVersion === 1 && Array.isArray(list.clients) ? list.clients : [];
+  } catch {
+    return [];
   }
 }
 

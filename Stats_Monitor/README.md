@@ -69,6 +69,7 @@ git push origin Stats_Monitor-client-v2.4.1
 ```
 - 산출물: `StatsMonitor-<버전>-macos-arm64.zip`, `StatsMonitor-<버전>-windows-x64.exe`
 - 버전을 올릴 때는 spec 의 `VERSION` 과 `main.py` 트레이 툴팁의 버전을 함께 바꿉니다.
+- Release 가 올라간 뒤 [`firmware/clients.json`](../firmware/clients.json) 의 `version` 을 같은 값으로 바꿔 `main` 에 push 하면 웹 플래셔의 다운로드 버튼이 새 버전을 가리킵니다. (`node tools/collect-firmware.mjs --check` 로 spec 과 일치하는지 확인)
 
 ## 📋 사용 방법
 1. PC에서 데이터를 전송할 클라이언트 프로그램 실행 (`python client_py/main.py`)

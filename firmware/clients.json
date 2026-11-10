@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "clients": [
+    {
+      "project": "Stats_Monitor",
+      "app": "StatsMonitor",
+      "version": "2.4.1",
+      "platforms": ["macos-arm64", "windows-x64"]
+    }
+  ]
+}

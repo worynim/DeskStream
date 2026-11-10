@@ -464,6 +464,95 @@ body {
   font-size: 0.78rem;
 }
 
+.card__client {
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(167, 139, 250, 0.12);
+  color: var(--violet);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+/* ── PC 클라이언트 다운로드 ─────────────────────────── */
+.client {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.35rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed var(--panel-border);
+}
+
+.client__head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.client__desc {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.client__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.client__download {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.client__download:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.client__download--mine {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.client__mine {
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #04121c;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.client__help {
+  color: var(--text-dim);
+  font-size: 0.78rem;
+}
+
+.client__help summary {
+  cursor: pointer;
+  color: var(--text-faint);
+}
+
+.client__help ul {
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.25rem;
+  overflow-wrap: anywhere;
+}
+
 .options {
   display: grid;
   gap: 0.55rem;

@@ -9,7 +9,7 @@
  * 사용법:
  *   node tools/collect-firmware.mjs                  # 전체 수집 + manifest 생성
  *   node tools/collect-firmware.mjs --project Hangeul_Clock
- *   node tools/collect-firmware.mjs --check          # CI: 커밋된 manifest/바이너리 검증
+ *   node tools/collect-firmware.mjs --check          # CI: 커밋된 manifest/바이너리·clients.json 검증
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -19,6 +19,8 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const META_PATH = path.join(ROOT, "firmware", "projects.json");
 const MANIFEST_PATH = path.join(ROOT, "firmware", "manifest.json");
+const CLIENTS_PATH = path.join(ROOT, "firmware", "clients.json");
+const CLIENT_PLATFORMS = new Set(["macos-arm64", "windows-x64"]);
 
 const argv = process.argv.slice(2);
 const CHECK = argv.includes("--check");
@@ -332,11 +334,76 @@ function validateCommittedManifest(meta) {
   return errors;
 }
 
+/**
+ * firmware/clients.json(PC 클라이언트 다운로드 목록) 검증
+ * - 프로젝트가 projects.json 에 있고, 플랫폼 이름이 정해진 값이며,
+ * - 프로젝트 폴더의 PyInstaller spec 의 APP_NAME / VERSION 과 일치해야 한다 (Release 파일명과 태그가 여기서 정해짐).
+ */
+function validateClients(meta) {
+  if (!fs.existsSync(CLIENTS_PATH)) return [];
+  let data;
+  try {
+    data = readJson(CLIENTS_PATH);
+  } catch (error) {
+    return [`clients.json 파싱 실패: ${error.message}`];
+  }
+  if (data.schemaVersion !== 1 || !Array.isArray(data.clients)) {
+    return ["clients.json 형식이 올바르지 않습니다 (schemaVersion 1, clients 배열)."];
+  }
+
+  const errors = [];
+  const metaIds = new Set(meta.projects.map((p) => p.id));
+  for (const client of data.clients) {
+    const id = client.project;
+    if (!metaIds.has(id)) {
+      errors.push(`clients.json: projects.json 에 없는 프로젝트 ${id}`);
+      continue;
+    }
+    if (!Array.isArray(client.platforms) || client.platforms.length === 0) {
+      errors.push(`clients.json: ${id} platforms 가 비어 있습니다.`);
+    } else {
+      for (const platform of client.platforms) {
+        if (!CLIENT_PLATFORMS.has(platform)) errors.push(`clients.json: ${id} 알 수 없는 플랫폼 ${platform}`);
+      }
+    }
+    const specs = findSpecs(path.join(ROOT, id));
+    if (specs.length !== 1) {
+      errors.push(`clients.json: ${id} 폴더에 .spec 파일이 정확히 1개여야 합니다 (발견 ${specs.length})`);
+      continue;
+    }
+    const spec = fs.readFileSync(specs[0], "utf8");
+    const app = spec.match(/^APP_NAME = "([^"]+)"/m)?.[1];
+    const version = spec.match(/^VERSION = "([^"]+)"/m)?.[1];
+    if (app !== client.app) errors.push(`clients.json: ${id} app(${client.app}) ≠ spec APP_NAME(${app})`);
+    if (version !== client.version) {
+      errors.push(`clients.json: ${id} version(${client.version}) ≠ spec VERSION(${version})`);
+    }
+  }
+  return errors;
+}
+
+function findSpecs(dir) {
+  const found = [];
+  const stack = [dir];
+  while (stack.length) {
+    const current = stack.pop();
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const full = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        if (!["build", "dist", ".git", "node_modules", "__pycache__"].includes(entry.name)) stack.push(full);
+      } else if (entry.name.endsWith(".spec")) {
+        found.push(full);
+      }
+    }
+  }
+  return found;
+}
+
 function main() {
   const meta = readJson(META_PATH);
 
   if (CHECK) {
-    const errors = validateCommittedManifest(meta);
+    const errors = [...validateCommittedManifest(meta), ...validateClients(meta)];
     if (errors.length) {
       console.error("❌ firmware manifest 검증 실패");
       for (const error of errors) console.error(`  - ${error}`);

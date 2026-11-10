@@ -1,5 +1,5 @@
 import "./styles.css";
-import { RELEASE_NOTES_URL, WEB_VERSION, readmeUrl } from "./config";
+import { RELEASE_NOTES_URL, WEB_VERSION, clientDownloadUrl, readmeUrl } from "./config";
 import { flashProject, isSerialSupported, isWebUsbAvailable, type FlashStage } from "./flasher";
 import {
   dateLocale,
@@ -12,8 +12,8 @@ import {
   type Locale,
   type UiStrings,
 } from "./i18n";
-import { loadManifest, projectSize } from "./manifest";
-import type { Manifest, ManifestProject } from "./types";
+import { loadClients, loadManifest, projectSize } from "./manifest";
+import type { ClientEntry, ClientPlatform, Manifest, ManifestProject } from "./types";
 
 function $<T extends HTMLElement = HTMLElement>(selector: string): T {
   const element = document.querySelector<T>(selector);
@@ -61,12 +61,14 @@ const dom = {
 const state: {
   locale: Locale;
   manifest: Manifest | null;
+  clients: ClientEntry[];
   selected: ManifestProject | null;
   busy: boolean;
   loadErrorMessage: string | null;
 } = {
   locale: detectLocale(),
   manifest: null,
+  clients: [],
   selected: null,
   busy: false,
   loadErrorMessage: null,
@@ -76,6 +78,20 @@ const serialSupported = isSerialSupported();
 const webUsbAvailable = isWebUsbAvailable();
 const supported = serialSupported || webUsbAvailable;
 const langButtons = [...document.querySelectorAll<HTMLButtonElement>("[data-locale]")];
+
+/** 접속한 PC 의 클라이언트 플랫폼 추정 (맥은 Apple Silicon 빌드만 제공) */
+function detectPlatform(): ClientPlatform | null {
+  const nav = navigator as Navigator & { userAgentData?: { platform?: string } };
+  const name = `${nav.userAgentData?.platform ?? ""} ${navigator.userAgent}`;
+  if (/Win/i.test(name)) return "windows-x64";
+  if (/Mac/i.test(name) && !/iPhone|iPad/i.test(name)) return "macos-arm64";
+  return null;
+}
+const currentPlatform = detectPlatform();
+
+function clientFor(project: ManifestProject): ClientEntry | null {
+  return state.clients.find((client) => client.project === project.id) ?? null;
+}
 
 function ui(): UiStrings {
   return getStrings(state.locale).ui;
@@ -199,6 +215,7 @@ function renderProjects(projects: ManifestProject[]): void {
       el("span", "card__name", name),
       el("span", "card__version", `v${project.version}`),
     );
+    if (clientFor(project)) top.append(el("span", "card__client", `💻 ${strings.cardClientBadge}`));
 
     const meta = el(
       "span",
@@ -284,6 +301,43 @@ function renderSelection(project: ManifestProject): void {
   if (note) {
     dom.selection.append(el("p", "selection__note", `ⓘ ${note}`));
   }
+
+  const client = clientFor(project);
+  if (client) dom.selection.append(renderClient(client));
+}
+
+/** PC 클라이언트 다운로드 버튼(이 PC 플랫폼을 먼저) + 처음 실행 안내 */
+function renderClient(client: ClientEntry): HTMLElement {
+  const strings = ui();
+  const box = el("div", "client");
+
+  const head = el("div", "client__head");
+  head.append(el("strong", undefined, `💻 ${strings.clientTitle}`), el("span", "badge", `v${client.version}`));
+
+  const buttons = el("div", "client__buttons");
+  const platforms = [...client.platforms].sort(
+    (a, b) => Number(b === currentPlatform) - Number(a === currentPlatform),
+  );
+  for (const platform of platforms) {
+    const mine = platform === currentPlatform;
+    const link = el("a", `client__download${mine ? " client__download--mine" : ""}`);
+    link.href = clientDownloadUrl(client, platform);
+    link.rel = "noopener";
+    link.append(document.createTextNode(`⬇ ${strings.clientDownload(platform)}`));
+    if (mine) link.append(el("span", "client__mine", strings.clientForThisPc));
+    buttons.append(link);
+  }
+
+  const help = el("details", "client__help");
+  const steps = el("ul");
+  const lines = platforms.flatMap((platform) =>
+    platform === "macos-arm64" ? strings.clientHelpMac(client.app) : strings.clientHelpWindows(client.app),
+  );
+  for (const line of lines) steps.append(el("li", undefined, line));
+  help.append(el("summary", undefined, strings.clientHelpSummary), steps);
+
+  box.append(head, el("p", "client__desc", strings.clientDesc), buttons, help);
+  return box;
 }
 
 function stageLabel(stage: FlashStage): string {
@@ -451,7 +505,7 @@ async function boot(): Promise<void> {
   if (!supported) dom.browserWarning.hidden = false;
 
   try {
-    state.manifest = await loadManifest();
+    [state.manifest, state.clients] = await Promise.all([loadManifest(), loadClients()]);
     state.loadErrorMessage = null;
     renderLocale();
   } catch (error) {

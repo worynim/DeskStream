@@ -195,6 +195,8 @@ Android Chrome 148 이상 + **USB OTG 어댑터**(USB 데이터 케이블)가 �
 | 펌웨어 수집·manifest 생성 스크립트 | [`tools/collect-firmware.mjs`](./tools/collect-firmware.mjs) |
 | 프로젝트 표시 메타데이터 (이름·버전·아이콘·설명) | [`firmware/projects.json`](./firmware/projects.json) |
 | 배포된 펌웨어 목록·오프셋·SHA-256 | [`firmware/manifest.json`](./firmware/manifest.json) |
+| 웹 플래셔에 표시할 PC 클라이언트 목록 | [`firmware/clients.json`](./firmware/clients.json) |
+| PC 클라이언트 빌드·Release 워크플로 | [`.github/workflows/build-clients.yml`](./.github/workflows/build-clients.yml) |
 | GitHub Pages 배포 워크플로 | [`.github/workflows/deploy-web.yml`](./.github/workflows/deploy-web.yml) |
 
 ### 펌웨어 업데이트 방법

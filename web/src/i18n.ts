@@ -1,4 +1,4 @@
-import type { ManifestProject } from "./types";
+import type { ClientPlatform, ManifestProject } from "./types";
 
 export type Locale = "ko" | "en";
 export const LOCALES: Locale[] = ["ko", "en"];
@@ -70,6 +70,14 @@ export interface UiStrings {
   langAria: string;
   readmeTitle: string;
   readmeAria: (name: string) => string;
+  cardClientBadge: string;
+  clientTitle: string;
+  clientDesc: string;
+  clientDownload: (platform: ClientPlatform) => string;
+  clientForThisPc: string;
+  clientHelpSummary: string;
+  clientHelpMac: (app: string) => string[];
+  clientHelpWindows: (app: string) => string[];
 }
 
 export interface FlashStrings {
@@ -167,6 +175,23 @@ const ko: LocalePack = {
     langAria: "언어 선택",
     readmeTitle: "프로젝트 README 열기 (새 탭)",
     readmeAria: (name) => `${name} README 열기 (새 탭)`,
+    cardClientBadge: "PC 앱",
+    clientTitle: "PC 클라이언트",
+    clientDesc: "이 프로젝트는 PC에서 함께 실행하는 클라이언트 앱이 필요합니다. Python 설치 없이 바로 실행됩니다.",
+    clientDownload: (platform) =>
+      platform === "macos-arm64" ? "macOS (Apple Silicon) 다운로드" : "Windows (x64) 다운로드",
+    clientForThisPc: "이 PC용",
+    clientHelpSummary: "처음 실행 안내 (서명하지 않은 앱)",
+    clientHelpMac: (app) => [
+      `macOS: zip을 풀고 ${app}.app 을 응용 프로그램 폴더로 옮깁니다.`,
+      "처음 실행할 때 경고가 뜨면 시스템 설정 → 개인정보 보호 및 보안 → \"그래도 열기\"를 누릅니다. (터미널: xattr -dr com.apple.quarantine /Applications/" + app + ".app)",
+      "블루투스 권한 요청을 허용하면 메뉴 막대에 아이콘이 나타납니다. Apple Silicon(M1 이상) 맥 전용입니다.",
+    ],
+    clientHelpWindows: (app) => [
+      `Windows: ${app}-….exe 를 실행합니다. 설치 과정은 없습니다.`,
+      "\"Windows의 PC 보호\" 창이 뜨면 추가 정보 → 실행을 누릅니다.",
+      "작업 표시줄 오른쪽 트레이(숨겨진 아이콘 ^)에 아이콘이 나타납니다.",
+    ],
   },
   flash: {
     portPrompt: "포트 선택 창에서 ESP32-C3 보드를 선택하세요.",
@@ -263,6 +288,23 @@ const en: LocalePack = {
     langAria: "Language",
     readmeTitle: "Open project README (new tab)",
     readmeAria: (name) => `Open ${name} README (new tab)`,
+    cardClientBadge: "PC app",
+    clientTitle: "PC client",
+    clientDesc: "This project needs a companion app running on your PC. It runs as-is, no Python install required.",
+    clientDownload: (platform) =>
+      platform === "macos-arm64" ? "Download for macOS (Apple Silicon)" : "Download for Windows (x64)",
+    clientForThisPc: "For this PC",
+    clientHelpSummary: "First launch (unsigned app)",
+    clientHelpMac: (app) => [
+      `macOS: unzip and move ${app}.app to the Applications folder.`,
+      "If a warning appears on first launch, open System Settings → Privacy & Security → \"Open Anyway\". (Terminal: xattr -dr com.apple.quarantine /Applications/" + app + ".app)",
+      "Allow the Bluetooth permission prompt; an icon appears in the menu bar. Apple Silicon (M1 or later) Macs only.",
+    ],
+    clientHelpWindows: (app) => [
+      `Windows: run ${app}-….exe. There is no installer.`,
+      "If \"Windows protected your PC\" appears, click More info → Run anyway.",
+      "An icon appears in the system tray (hidden icons ^) at the right of the taskbar.",
+    ],
   },
   flash: {
     portPrompt: "Select your ESP32-C3 board in the port picker.",

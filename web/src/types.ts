@@ -33,3 +33,19 @@ export interface Manifest {
   flashDefaults: { mode: string; freq: string; size: string };
   projects: ManifestProject[];
 }
+
+/** PC 클라이언트 실행 파일이 제공되는 플랫폼 (Release 파일명 접미사) */
+export type ClientPlatform = "macos-arm64" | "windows-x64";
+
+/** firmware/clients.json 의 항목 — 프로젝트에 딸린 PC 클라이언트 */
+export interface ClientEntry {
+  project: string;
+  app: string;
+  version: string;
+  platforms: ClientPlatform[];
+}
+
+export interface ClientList {
+  schemaVersion: number;
+  clients: ClientEntry[];
+}
