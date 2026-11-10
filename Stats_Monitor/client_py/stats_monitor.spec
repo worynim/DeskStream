@@ -9,7 +9,7 @@ Stats_Monitor PC 클라이언트 PyInstaller 빌드 스펙
 import sys
 
 APP_NAME = "StatsMonitor"
-VERSION = "2.4.1"  # 클라이언트 버전 — 트레이 툴팁(main.py)의 버전과 맞출 것
+VERSION = "2.4.2"  # 클라이언트 버전 — 트레이 툴팁(main.py)의 버전과 맞출 것
 
 a = Analysis(
     ["main.py"],
@@ -36,6 +36,7 @@ if sys.platform == "darwin":
         name=f"{APP_NAME}.app",
         bundle_identifier="com.deskstream.statsmonitor",
         version=VERSION,
+        icon=f"{SPECPATH}/icons/{APP_NAME}.icns",
         info_plist={
             "CFBundleShortVersionString": VERSION,
             "LSUIElement": True,  # 트레이(메뉴 막대) 전용 — Dock 아이콘 숨김
@@ -52,4 +53,5 @@ else:
         name=APP_NAME,
         console=False,
         upx=False,
+        icon=f"{SPECPATH}/icons/{APP_NAME}.ico",
     )

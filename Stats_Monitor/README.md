@@ -64,8 +64,8 @@ pyinstaller stats_monitor.spec --noconfirm
 ### 4. 배포 (GitHub Release)
 `stats_monitor.spec` 의 `VERSION` 과 같은 버전으로 태그를 푸시하면 [Build PC clients](../.github/workflows/build-clients.yml) 워크플로가 macOS·Windows 실행 파일을 빌드해 Release 에 올립니다.
 ```bash
-git tag Stats_Monitor-client-v2.4.1
-git push origin Stats_Monitor-client-v2.4.1
+git tag Stats_Monitor-client-v2.4.2
+git push origin Stats_Monitor-client-v2.4.2
 ```
 - 산출물: `StatsMonitor-<버전>-macos-arm64.zip`, `StatsMonitor-<버전>-windows-x64.exe`
 - 버전을 올릴 때는 spec 의 `VERSION` 과 `main.py` 트레이 툴팁의 버전을 함께 바꿉니다.

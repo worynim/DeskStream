@@ -1,5 +1,10 @@
 # Release Notes - Screen_To_OLEDs
 
+## [v2.3.3] - 2026-11-11
+### 🎨 PC 앱 아이콘 (펌웨어 변경 없음 — 펌웨어는 2.3.1)
+- 실행 파일에 전용 아이콘을 넣었다 — 보라 바탕의 모니터와 같은 그림이 이어지는 OLED 4장 (`icons/`, spec 의 `icon`). 32px 이하는 모니터만 키운 단순화 그림을 쓴다.
+- 스트리머 동작은 그대로다. 실행 파일은 `Screen_To_OLEDs-client-v2.3.3` 태그로 빌드한다.
+
 ## [v2.3.2] - 2026-11-10
 ### 📦 PC 클라이언트 실행 파일 (펌웨어 변경 없음 — 펌웨어는 2.3.1)
 - 스트리머를 PyInstaller 로 묶은 macOS(Apple Silicon)·Windows(x64) 앱을 GitHub Release(`Screen_To_OLEDs-client-v2.3.2`)로 배포하고 웹 플래셔에서 내려받는다 (`screen_to_oleds.spec`, Numba 포함). 의존 패키지를 `requirements.txt` 로 정리했다.

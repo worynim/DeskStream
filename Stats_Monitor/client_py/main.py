@@ -183,7 +183,7 @@ class StatsMonitorApp:
         self.icon = pystray.Icon(
             "StatsMonitor", 
             self.create_image(), 
-            "DeskStream Stats Monitor (v2.4.1)", 
+            "DeskStream Stats Monitor (v2.4.2)", 
             menu
         )
         

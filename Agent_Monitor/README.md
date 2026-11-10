@@ -1,4 +1,4 @@
-# 🤖 Agent_Monitor — AI 개발 에이전트 모니터 (v0.6.2)
+# 🤖 Agent_Monitor — AI 개발 에이전트 모니터 (v0.6.3)
 
 Claude Code 세션의 작업 상태를 DeskStream 4-OLED에 실시간으로 보여주는 책상 위 모니터입니다.
 OLED 한 장이 세션 하나를 맡아 **생각 중 / 실행 중(도구·명령) / 승인 대기 / 입력 대기 / 완료 / 오류**를 표시하고,

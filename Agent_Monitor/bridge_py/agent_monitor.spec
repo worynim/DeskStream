@@ -10,7 +10,7 @@ Agent_Monitor PC 데몬 PyInstaller 빌드 스펙
 import sys
 
 APP_NAME = "AgentMonitor"
-VERSION = "0.6.2"  # PC 클라이언트 버전 (펌웨어 버전과 별개) — RELEASE_NOTES 와 맞출 것
+VERSION = "0.6.3"  # PC 클라이언트 버전 (펌웨어 버전과 별개) — RELEASE_NOTES 와 맞출 것
 
 a = Analysis(
     ["agent_bridge.py"],
@@ -38,6 +38,7 @@ if sys.platform == "darwin":
         name=f"{APP_NAME}.app",
         bundle_identifier="com.deskstream.agentmonitor",
         version=VERSION,
+        icon=f"{SPECPATH}/icons/{APP_NAME}.icns",
         info_plist={
             "CFBundleShortVersionString": VERSION,
             "LSUIElement": True,  # 트레이(메뉴 막대) 전용 — Dock 아이콘 숨김
@@ -55,4 +56,5 @@ else:
         name=APP_NAME,
         console=False,
         upx=False,
+        icon=f"{SPECPATH}/icons/{APP_NAME}.ico",
     )

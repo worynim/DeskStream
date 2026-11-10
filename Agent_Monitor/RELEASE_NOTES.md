@@ -1,5 +1,10 @@
 # Release Notes - Agent_Monitor
 
+## [v0.6.3] - 2026-11-11
+### 🎨 PC 앱 아이콘 (펌웨어 변경 없음 — 펌웨어는 0.6.2)
+- 실행 파일에 전용 아이콘을 넣었다 — 주황 바탕의 에이전트 얼굴과 세션 상태를 띄운 OLED 4장 (`bridge_py/icons/`, spec 의 `icon`). 32px 이하는 얼굴만 키운 단순화 그림을 쓴다.
+- 트레이 아이콘(막대 4개)과 데몬 동작은 그대로다. 실행 파일은 `Agent_Monitor-client-v0.6.3` 태그로 빌드한다.
+
 ## [펌웨어 0.6.2] - 2026-11-11
 ### 🩹 BLE 연결 간격 요청 제거 — Windows 노트북에서 연결 실패 · BT 마우스 멈춤 (PC 클라이언트는 0.6.2 그대로)
 - **버그 수정**: 펌웨어 0.6.1 이 연결 직후 요청한 연결 간격 15~30ms 를 Windows 가 레지스트리(`HKLM\SYSTEM\CurrentControlSet\Services\BTHPORT\Parameters\Devices\<주소>\LERemoteConnParams*`)에 저장해 다음 연결부터 처음부터 적용했다. 노트북 내장 Bluetooth 에서는 이 값으로 새 연결의 서비스 탐색이 끝나지 않아(연결 시간 초과) 트레이가 회색으로 남았고, 연결을 시도하는 동안 BT 마우스가 멈췄다. 장치를 0.6.0 으로 되돌려도·Bluetooth 를 껐다 켜도 저장된 값 때문에 계속 실패했다.
