@@ -11,7 +11,7 @@
     {
       "project": "Agent_Monitor",
       "app": "AgentMonitor",
-      "version": "0.6.1",
+      "version": "0.6.2",
       "platforms": ["macos-arm64", "windows-x64"],
       "permissions": ["bluetooth", "accessibility"]
     },

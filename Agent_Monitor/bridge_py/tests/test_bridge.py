@@ -534,6 +534,67 @@ class TestSecurity(unittest.TestCase):
         b.on_device_line(json.dumps({"t": "hello", "kid": b.auth.kid()}))
         self.assertFalse(any('"setkey"' in x for x in b.outbox))
 
+    def test_ble_key_mismatch_registers_via_usb(self):
+        """BLE 전용 모드(트레이 기본)에서도 키가 다르면 USB 를 잠깐 열어 등록한다 — 실패하면 KEY_RETRY_SEC 뒤 재시도"""
+        import agent_bridge
+        link = FakeLink(kind="ble")
+        calls, results = [], [False, True]
+        done = threading.Event()
+
+        def register(line, kid):
+            calls.append((json.loads(line)["t"], kid))
+            done.set()
+            return results[len(calls) - 1]
+        link.register_key = register
+        b = Bridge(lambda *_: link, config_path=NO_CONFIG, auth=test_auth("k6"))
+        b.on_device_line('{"t":"hello","fw":"0.6.0","kid":""}')
+        self.assertTrue(done.wait(2))
+        self.assertEqual(calls, [("setkey", b.auth.kid())])
+        self.assertFalse(any('"setkey"' in x for x in b.outbox))      # BLE 로는 키를 보내지 않는다
+        self.assertTrue(b.key_mismatch)
+        deadline = time.time() + 2
+        while b.key_busy and time.time() < deadline:
+            time.sleep(0.01)
+        b._register_key_via_usb(b.key_try_at + 1)                     # 재시도 간격 전 → 시도 안 함
+        self.assertEqual(len(calls), 1)
+        done.clear()
+        b._register_key_via_usb(b.key_try_at + agent_bridge.KEY_RETRY_SEC)
+        self.assertTrue(done.wait(2))
+        self.assertEqual(len(calls), 2)
+        b.on_device_line(json.dumps({"t": "hello", "kid": b.auth.kid()}))   # 등록 뒤 장치가 BLE 로도 hello
+        self.assertFalse(b.key_mismatch)
+
+    def test_register_key_via_usb(self):
+        import transport
+        a = test_auth("k7")
+
+        class FakeSerial:
+            def __init__(self, reply):
+                self.reply, self.written, self.closed = reply, b"", False
+
+            def write(self, data):
+                self.written += data
+
+            def read(self, _n):
+                out, self.reply = self.reply, b""
+                return out
+
+            def close(self):
+                self.closed = True
+        ok = FakeSerial(('{"t":"hello","fw":"0.6.0","kid":"' + a.kid() + '"}\r\n').encode())
+        self.assertTrue(transport.register_key_via_usb(a.setkey_msg(), a.kid(), port="COMX",
+                                                       open_serial=lambda _p: ok))
+        self.assertIn(b'"setkey"', ok.written)
+        self.assertTrue(ok.closed)
+        other = FakeSerial(b'{"t":"hello","fw":"2.0","kid":""}\n')      # 키를 받지 않는 장치(다른 펌웨어 등)
+        self.assertFalse(transport.register_key_via_usb(a.setkey_msg(), a.kid(), port="COMX", timeout=0.3,
+                                                        open_serial=lambda _p: other))
+        self.assertTrue(other.closed)
+
+        def busy(_p):
+            raise OSError("in use")
+        self.assertFalse(transport.register_key_via_usb(a.setkey_msg(), a.kid(), port="COMX", open_serial=busy))
+
 
 class TestMainDefault(unittest.TestCase):
     """명령 없이 실행(IDE 실행 버튼 등)하면 tray, 트레이 패키지가 없으면 run 으로"""

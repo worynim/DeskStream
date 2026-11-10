@@ -6,6 +6,7 @@
          - BleLink: bleak. 이름 "DeskStream Agent" 로 광고하는 장치에 연결, Nordic UART UUID 로 주고받는다.
            BLE 로 온 버튼·승인 신호는 Bridge 가 서명을 확인한다 (security.py).
          - AutoLink: USB 장치가 보이면 USB, 아니면 BLE. BLE 사용 중 USB 가 꽂히면 USB 로 바꾼다.
+         - register_key_via_usb: BLE 전용 모드에서 키가 다를 때 USB 포트를 잠깐 열어 키만 등록하고 닫는다.
          공통 인터페이스: start() · send(line) · connected · kind("usb" / "ble" / None)
 """
 import asyncio
@@ -18,6 +19,7 @@ from serial.tools import list_ports
 ESPRESSIF_VID = 0x303A
 RETRY_SEC = 2
 WRITE_TIMEOUT_SEC = 1   # 장치가 읽지 않아 쓰기가 막히면 끊고 재연결 (송신 스레드가 멈추지 않게)
+PROVISION_SEC = 3       # BLE 모드에서 USB 로 키를 등록할 때 장치 hello 를 기다리는 시간
 BLE_NAME = "DeskStream Agent"   # 펌웨어 config.h AM_BLE_NAME
 BLE_RX_UUID = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"   # PC → 장치
 BLE_TX_UUID = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"   # 장치 → PC
@@ -29,6 +31,39 @@ def find_port():
         if p.vid == ESPRESSIF_VID:
             return p.device
     return None
+
+
+def register_key_via_usb(setkey_line: str, kid: str, log=print, port=None, timeout=PROVISION_SEC,
+                         open_serial=None) -> bool:
+    """BLE 로 쓰는 중에 USB 포트를 잠깐 열어 서명 키를 등록하고 바로 닫는다.
+    장치가 hello 로 kid 를 알려 주면 그 값이 kid 와 같을 때 성공. USB 장치가 없거나 포트가 사용 중이면 False."""
+    port = port or find_port()
+    if port is None:
+        return False
+    opener = open_serial or (lambda p: serial.Serial(p, 115200, timeout=0.2, write_timeout=WRITE_TIMEOUT_SEC))
+    try:
+        ser = opener(port)
+    except (serial.SerialException, OSError):
+        return False    # 시리얼 모니터·다른 앱이 쓰는 중 — 조용히 다음 시도를 기다린다
+    try:
+        ser.write((setkey_line + "\n").encode("utf-8"))
+        end = time.monotonic() + timeout
+        buf = b""
+        while time.monotonic() < end:
+            buf += ser.read(256)
+            while b"\n" in buf:
+                raw, buf = buf.split(b"\n", 1)
+                if b'"t":"hello"' in raw and f'"kid":"{kid}"'.encode() in raw:
+                    return True
+        return False
+    except (serial.SerialException, OSError) as e:
+        log(f"[usb] 키 등록 실패: {e}")
+        return False
+    finally:
+        try:
+            ser.close()
+        except Exception:
+            pass
 
 
 class SerialLink:
@@ -185,6 +220,10 @@ class AutoLink:
         a = self._active
         if a is not None:
             a.send(line)
+
+    def register_key(self, setkey_line: str, kid: str) -> bool:
+        """BLE 로 연결된 장치의 키가 다를 때 — USB 가 꽂혀 있으면 잠깐 열어 키를 등록한다."""
+        return register_key_via_usb(setkey_line, kid, log=self.usb.log, port=self.serial_port)
 
     def start(self):
         threading.Thread(target=self._run, daemon=True).start()

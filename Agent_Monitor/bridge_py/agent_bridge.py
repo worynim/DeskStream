@@ -45,10 +45,16 @@ HOLD_SEC = hooks_config.PERMISSION_TIMEOUT_SEC - 10   # 훅 timeout 전에 스�
 CLEAR_SESSION_EVENTS = ("UserPromptSubmit", "Stop", "StopFailure", "SessionEnd")
 CLEAR_TOOL_EVENTS = ("PostToolUse", "PostToolUseFailure")
 SIGNED_TYPES = ("decide", "btn")   # BLE 로 올 때 서명이 필요한 장치 메시지
+KEY_RETRY_SEC = 30                 # BLE 모드에서 USB 키 등록에 실패하면 이 간격으로 다시 시도 (케이블을 나중에 꽂아도 되게)
 
 
 def log(msg: str):
-    print(f"{time.strftime('%H:%M:%S')} {msg}", flush=True)
+    line = f"{time.strftime('%H:%M:%S')} {msg}"
+    try:
+        print(line, flush=True)
+    except UnicodeEncodeError:   # Windows 콘솔(cp949 등)에 없는 글자 — 로그 때문에 장치 처리가 멈추지 않게
+        enc = getattr(sys.stdout, "encoding", None) or "ascii"
+        print(line.encode(enc, "replace").decode(enc), flush=True)
 
 
 class Bridge:
@@ -70,6 +76,9 @@ class Bridge:
         self.config_path = config_path
         self.runner = commands.CommandRunner(self._on_cmd_status, log, config_path, executor)
         self.auth = auth or DeviceAuth()
+        self.key_mismatch = False                     # BLE 로 연결된 장치의 키가 이 PC 키와 다름 (USB 로 등록 필요)
+        self.key_busy = False                         # USB 키 등록 시도 중
+        self.key_try_at = float("-inf")               # 마지막 USB 키 등록 시도 시각
         self.link = link_factory(self.on_device_line, self.on_connect)
 
     def start(self):
@@ -132,6 +141,25 @@ class Bridge:
         self.sent_cfg = None
         self.dirty.set()
 
+    def _register_key_via_usb(self, now: float):
+        """BLE 로 연결된 장치의 키가 다름 → USB 가 꽂혀 있으면 포트를 잠깐 열어 키를 등록한다.
+        실패하면 KEY_RETRY_SEC 뒤 다시 (나중에 케이블을 꽂아도 등록되게). 성공하면 장치가 BLE 로도 새 kid 의 hello 를
+        보내 key_mismatch 가 풀린다. 송신 루프를 막지 않게 별도 스레드에서."""
+        register = getattr(self.link, "register_key", None)
+        with self.lock:
+            if register is None or self.key_busy or now - self.key_try_at < KEY_RETRY_SEC:
+                return
+            self.key_busy, self.key_try_at = True, now
+
+        def work():
+            try:
+                if register(self.auth.setkey_msg(), self.auth.kid()):
+                    log("[device] 서명 키 등록 (USB 잠깐 연결) — 이제 BLE 버튼·승인을 받습니다")
+            finally:
+                with self.lock:
+                    self.key_busy = False
+        threading.Thread(target=work, daemon=True).start()
+
     def config_lines(self) -> tuple:
         """설정 파일에서 만든 (cmds 줄, dev 줄) — 파일 수정 시각이 바뀌었을 때만 다시 읽는다.
         설정 오류면 cmds 는 "config error", dev 는 None(장치가 마지막 값을 유지)."""
@@ -159,13 +187,17 @@ class Bridge:
             return
         if kind == "hello":
             log(f"[device] hello fw={msg.get('fw')} kid={msg.get('kid') or '-'} via {self.link.kind}")
-            if msg.get("kid") != self.auth.kid():
+            mismatch = msg.get("kid") != self.auth.kid()
+            with self.lock:
+                self.key_mismatch = mismatch and self.link.kind == "ble"
+            if mismatch:
                 if self.link.kind == "usb":
                     log("[device] 서명 키 등록 (USB)")
                     with self.lock:
                         self.outbox.append(self.auth.setkey_msg())
                 else:
-                    log("[device] 장치 키가 없거나 다름 — BLE 버튼·승인은 거부됨. USB 로 한 번 연결하세요")
+                    log("[device] 장치 키가 없거나 다름 — BLE 버튼·승인은 거부됨. USB 가 꽂혀 있으면 자동으로 등록합니다")
+                    self._register_key_via_usb(time.time())
             self.sent = [None] * len(self.sent)
             self.sent_perm = None
             self.sent_detail = None
@@ -246,6 +278,8 @@ class Bridge:
             if now - last_hb >= HEARTBEAT_SEC:
                 last_hb = now
                 self.link.send(protocol.HEARTBEAT)
+            if self.key_mismatch and self.link.kind == "ble":
+                self._register_key_via_usb(now)
 
 
 def make_handler(bridge: Bridge):
