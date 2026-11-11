@@ -18,7 +18,7 @@
     {
       "project": "Screen_To_OLEDs",
       "app": "ScreenToOLEDs",
-      "version": "2.3.3",
+      "version": "2.3.4",
       "platforms": ["macos-arm64", "windows-x64"],
       "permissions": ["screenRecording", "localNetwork", "windowsFirewall"]
     }

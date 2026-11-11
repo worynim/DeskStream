@@ -10,7 +10,7 @@ Screen_To_OLEDs 화면 스트리머 PyInstaller 빌드 스펙
 import sys
 
 APP_NAME = "ScreenToOLEDs"
-VERSION = "2.3.3"  # PC 클라이언트 버전 (펌웨어 버전과 별개) — RELEASE_NOTES 와 맞출 것
+VERSION = "2.3.4"  # PC 클라이언트 버전 (펌웨어 버전과 별개) — RELEASE_NOTES 와 맞출 것
 
 a = Analysis(
     ["screen_streamer.py"],

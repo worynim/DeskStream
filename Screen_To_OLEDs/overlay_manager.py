@@ -71,7 +71,7 @@ class OverlayManager:
         }
 
         pad      = 2               # 테두리와 캡처 영역 사이 여백
-        HANDLE_H = 24              # 핸들 바 크기 (정사각형)
+        HANDLE_H = round(24 * app.ui_scale)  # 핸들 바 크기 (정사각형, Windows 배율 반영)
         GREEN    = "#00FF00"       # 테두리 색상
 
         # 오버레이 원점 (핸들 좌상단)
@@ -210,7 +210,7 @@ class OverlayManager:
             return
 
         pad      = 2
-        HANDLE_H = 24
+        HANDLE_H = round(24 * app.ui_scale)
         w = app.capture_area['width']
         h = app.capture_area['height']
 

@@ -100,6 +100,22 @@ def _screen_capture_allowed() -> bool:
     except (OSError, AttributeError):
         return True
 
+def _enable_windows_dpi_awareness() -> None:
+    """
+    Windows 디스플레이 배율(예: 200%) 적용. tk.Tk() 생성 전에 호출해야 Tk 가 실제 DPI 로 글꼴 크기를 잡는다.
+    (호출하지 않으면 뒤에 mss 가 프로세스를 DPI 인식으로 바꿔 창·글꼴이 배율 없이 작게 보인다)
+    """
+    if sys.platform != "win32":
+        return
+    import ctypes
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)   # Per-Monitor (mss 와 같은 값)
+    except (OSError, AttributeError):
+        try:
+            ctypes.windll.user32.SetProcessDPIAware()    # Windows 8 이하
+        except (OSError, AttributeError):
+            pass
+
 # =============================================
 # [로깅 설정]
 # =============================================
@@ -172,7 +188,9 @@ class VibeStreamerApp:
         self.root = root
         _jit_status = "🚀 Numba JIT" if HAS_NUMBA else "⚠️ Python Mode (느림 — pip install numba 권장)"
         self.root.title(f"Screen To OLEDs — DeskStream Screen Streamer  [{_jit_status}]")
-        self.root.geometry("520x920")
+        # Windows 배율: 글꼴(pt)은 Tk 가 키우지만 픽셀 단위 크기는 직접 곱한다 (96 DPI = 100%)
+        self.ui_scale: float = root.winfo_fpixels('1i') / 96 if sys.platform == "win32" else 1.0
+        self.root.geometry(f"{round(520 * self.ui_scale)}x{round(920 * self.ui_scale)}")
         self.root.configure(bg="#2b2b2b")
 
         self.streaming_active: bool = False
@@ -961,6 +979,7 @@ class VibeStreamerApp:
 # [엔트리 포인트]
 # =============================================
 if __name__ == "__main__":
+    _enable_windows_dpi_awareness()
     root = tk.Tk()
     app  = VibeStreamerApp(root)
     root.mainloop()
