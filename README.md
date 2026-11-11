@@ -16,7 +16,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 - 상세 정보: [hardware.md](./hardware.md) 참조
 
 ## 📁 주요 프로젝트 (Sub-Projects)
-본 저장소는 DeskStream 보드용으로 개발된 13가지 주요 프로그램을 포함하고 있습니다.
+본 저장소는 DeskStream 보드용으로 개발된 14가지 주요 프로그램을 포함하고 있습니다.
 
 ### 1. [Smart_Info_Station: 스마트 정보 스테이션 (v2.10.1)](./Smart_Info_Station/)
 - **기능**: 시계, 날씨, 미세먼지, 유튜브 구독자 수, 증시 지수, 가상화폐 가격, 환율 실시간 모니터링.
@@ -94,6 +94,10 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 - **기능**: Claude Code 세션 상태(생각 중 / 실행 중 / 승인 대기 / 입력 대기 / 완료 / 오류)를 OLED 한 장에 세션 하나씩 실시간 표시하고 부저로 알림.
 - **특징**: Claude Code 훅(CLI·데스크톱 앱) → PC 데몬(Python, 트레이 아이콘) → USB 시리얼 또는 BLE(USB 로 등록한 키로 서명). 데몬이 꺼져 있어도 Claude Code 동작에 영향 없음. 권한 요청을 장치 버튼으로 승인/거절(터미널 대화상자와 동시 대기, 자동 허용 없음). 한글 표시(갈무리7 글꼴), 세션 상세 화면(마지막 답변 4페이지 넘김 · 세션 닫기), 설정 파일로 음소거·OLED 밝기, 버튼 길게 누르기로 PC 명령(앱 앞으로·셸 명령·키 입력) 실행.
 
+### 14. [Wireless_Analyzer: 2.4GHz 무선 환경 분석기 (v0.5.0)](./Wireless_Analyzer/)
+- **기능**: ESP32-C3의 WiFi·BLE 무선부 자체를 측정 도구로 써서 2.4GHz 채널 1~13 혼잡도와 추천 채널, 주변 AP 신호 세기 추이·추적, 근처 BLE 기기 수를 512x64 화면에 표시. 공유기에 접속하지 않는 단독 장치.
+- **특징**: 화면 6개(채널 스펙트럼 · 채널 혼잡도 · AP 목록 · AP 추적 · BLE 기기 · 요약). 같은 채널(시간 나눠 쓰기)과 옆 채널(잡음)을 구분한 채널 비용 + 프로미스큐어스 순회로 잰 채널 활동량(초당 제어·데이터 프레임)으로 추천 채널 선택. AP 추적 모드는 그 채널만 빠르게 스캔하고 부저로 신호 세기 안내. 라디오 하나를 WiFi 스캔·순회 측정·BLE 스캔이 번갈아 쓰는 스케줄러. BLE 기기 주소는 표시·전송하지 않음. 한글 표시(갈무리7), 모드·밝기·뒤집기 NVS 저장.
+
 ## 🚀 주요 기술적 특징
 - **하이브리드 I2C 아키텍처**: 하드웨어 I2C와 레지스터 직접 제어 기반 고속 소프트웨어 I2C를 병렬로 사용하여 4개의 화면을 끊김 없이 제어합니다.
 - **성능 최적화**: 부드러운 애니메이션 구현을 위한 Dirty Page 체크 및 그래픽 가속 기법이 적용되었습니다.
@@ -103,7 +107,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
 여러 프로젝트가 함께 쓰는 기능(화면 엔진, 버튼, 부저, WiFi, NTP, 설정 저장, 웹 설정 엔진)을
 Arduino 라이브러리 [`libraries/DeskStreamCore`](./libraries/DeskStreamCore/)로 모으고 있습니다.
-**13개 프로젝트 전부**가 이 라이브러리를 씁니다 (화면 전송 HW 1.1MHz + 고속 SW I2C, 바뀐 타일만 병렬 전송 — 한글 시계 실측 4화면 45.7fps).
+**14개 프로젝트 전부**가 이 라이브러리를 씁니다 (화면 전송 HW 1.1MHz + 고속 SW I2C, 바뀐 타일만 병렬 전송 — 한글 시계 실측 4화면 45.7fps).
 
 ### 최초 설정 (PC마다 1회)
 
@@ -162,14 +166,14 @@ WiFi 설정 포털은 DeskStreamCore에 들어 있어 WiFiManager는 필요 없�
 
 ## 🌐 웹 플래셔 (Web Flasher)
 
-**https://worynim.github.io/DeskStream/** — Chrome/Edge 데스크톱 또는 Android Chrome에서 USB로 연결한 ESP32-C3 보드에 13개 프로젝트를 브라우저에서 바로 플래시할 수 있습니다. 별도 프로그램 설치가 필요 없습니다.
+**https://worynim.github.io/DeskStream/** — Chrome/Edge 데스크톱 또는 Android Chrome에서 USB로 연결한 ESP32-C3 보드에 14개 프로젝트를 브라우저에서 바로 플래시할 수 있습니다. 별도 프로그램 설치가 필요 없습니다.
 
 - **Web Serial + [esptool-js](https://github.com/espressif/esptool-js)** 기반. Chrome/Edge 데스크톱, **Android Chrome 148+ (USB OTG)** 지원. iPhone/iPad(Safari)·Firefox Android·인앱 브라우저는 불가
 - **한국어 / English UI** 지원 — 페이지 우측 상단에서 전환 (브라우저 언어 자동 감지, 선택값 저장)
 - 각 프로젝트 카드의 **README ↗** 링크에서 해당 프로젝트 문서를 새 탭으로 열 수 있습니다.
 - 기본 플래시는 **NVS(WiFi·표시 설정) 보존**, 필요 시 "전체 지우기" 옵션 제공
 - 펌웨어 **SHA-256**(다운로드) 및 **MD5**(쓰기 후) 무결성 검증, 플래시 후 자동 재부팅
-- 13개 프로젝트: 스마트 정보 스테이션, GPS 대시보드, 사운드 비주얼라이저, 초광폭 OLED 테스트, 시스템 상태 모니터, DS DECK, 화면 스트리머, 게임 오브 라이프, 한글/영어/중국어 시계, 범용 타이머, AI 에이전트 모니터
+- 14개 프로젝트: 스마트 정보 스테이션, GPS 대시보드, 사운드 비주얼라이저, 초광폭 OLED 테스트, 시스템 상태 모니터, DS DECK, 화면 스트리머, 게임 오브 라이프, 한글/영어/중국어 시계, 범용 타이머, AI 에이전트 모니터, 무선 환경 분석기
 - **한글 시계 BB(Hangeul_Clock_bitbang_i2c)는 1.3" SH1106 · 4-bus 회로 구성이 달라 웹 플래셔 대상에서 제외**됩니다.
   하드웨어가 달라 2026-11-08부터 별도 폴더 **DeskStream_V2**에서 관리합니다.
 

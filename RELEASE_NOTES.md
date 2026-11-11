@@ -1,3 +1,13 @@
+## [v4.38.0] - 2026-11-11
+### 📡 Wireless_Analyzer 신규 — 2.4GHz 무선 환경 분석기 (v0.5.0)
+- ESP32-C3의 WiFi·BLE 무선부로 주변 무선 환경을 재는 단독 장치를 추가했습니다 (14번째 프로젝트). 공유기에 접속하지 않습니다.
+- 화면 6개: 채널 스펙트럼 · 채널 혼잡도(비용 막대 + 실측 활동량 막대, 추천 채널과 이유) · AP 목록(RSSI 스파크라인) · AP 추적(그 채널만 빠르게 스캔, 부저 안내) · BLE 기기(수·거리 구간·이름·제조사, 주소는 표시 안 함) · 요약.
+- 추천 채널: 같은 채널의 센 AP는 시간 나눠 쓰기, 옆 채널·약한 AP는 잡음(2배)으로 비용을 계산하고 1·6·11 밖 채널에 3dB, 실측 활동량 100프레임/s마다 3dB를 더합니다.
+  ESP32-C3(1스트림)는 2스트림 데이터 프레임을 해독하지 못해, 전송 시간 대신 초당 제어·데이터 프레임으로 바쁜 정도를 잽니다 (부하 시험: 스트리밍 채널 153/s, 나머지 0~6).
+- 측정 검증·설계 근거는 `Wireless_Analyzer/p0_spike/RESULTS.md`, 이력은 `Wireless_Analyzer/RELEASE_NOTES.md`.
+- 웹 플래셔 배포본 추가: `firmware/projects.json`(order 14)·`firmware/Wireless_Analyzer/`·`manifest.json`(다른 13개 항목은 그대로 병합), 공통 파티션(app0 2.5MB), `node tools/collect-firmware.mjs --check` 통과(14개 프로젝트).
+- 루트 README 프로젝트 목록·개수, DeskStreamCore README 사용 중인 스케치에 추가.
+
 ## [v4.37.2] - 2026-11-11
 ### 🖥️ Screen_To_OLEDs 2.3.4 — Windows 디스플레이 배율 적용
 - 4K·200% 같은 고배율 Windows 에서 화면 스트리머 창과 글꼴이 배율 없이 작게 보이던 문제를 고쳤습니다. 창을 만들기 전에 DPI 인식을 켜고, 창 크기와 캡처 영역 핸들을 배율만큼 키웁니다 (macOS 변경 없음, 펌웨어 변경 없음).

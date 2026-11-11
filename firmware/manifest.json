@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-11T09:53:29.984Z",
+  "generatedAt": "2026-11-11T13:13:41.166Z",
   "chip": "ESP32-C3",
   "board": "DeskStream (ESP32-C3 SuperMini · 4× OLED)",
   "flashDefaults": {
@@ -630,6 +630,54 @@
           "path": "firmware/Agent_Monitor/Agent_Monitor.ino.bin",
           "size": 906784,
           "sha256": "e7da8b4e30a36407e75a2dce1eea239d723dd3e640a4e59fe7313969aa148028"
+        }
+      ]
+    },
+    {
+      "id": "Wireless_Analyzer",
+      "name": "무선 환경 분석기",
+      "version": "0.5.0",
+      "icon": "📡",
+      "order": 14,
+      "description": "ESP32-C3의 WiFi·BLE 무선부로 2.4GHz 채널 1~13 혼잡도·추천 채널, 주변 AP 신호 세기 추이·추적, 근처 BLE 기기 수를 보여주는 분석기",
+      "note": "공유기에 접속하지 않는 단독 장치입니다. 화면 6개(채널 스펙트럼·혼잡도·AP 목록·AP 추적·BLE 기기·요약)를 BTN1/BTN2로 바꿉니다. BLE 기기 주소는 표시·전송하지 않습니다. 한글 표시(갈무리7).",
+      "nameEn": "Wireless Analyzer",
+      "descriptionEn": "Uses the ESP32-C3 WiFi/BLE radio to show 2.4GHz channel 1–13 congestion and a recommended channel, nearby AP signal history and tracking, and nearby BLE device counts",
+      "noteEn": "Standalone — it never joins a WiFi network. Six screens (channel spectrum, congestion, AP list, AP tracking, BLE devices, summary), switched with BTN1/BTN2. BLE device addresses are never shown or sent. Korean text (Galmuri7 font).",
+      "fqbn": "esp32:esp32:makergo_c3_supermini:CDCOnBoot=default,CPUFreq=160,PartitionScheme=huge_app",
+      "partitionScheme": "huge_app",
+      "flash": {
+        "mode": "dio",
+        "freq": "80m",
+        "size": "4MB"
+      },
+      "exportedAt": "2026-11-11T13:13:41.029Z",
+      "sourcePath": "Wireless_Analyzer",
+      "sourceCommit": "7bf46de3bc8319ce1af9550fe78ed96b0542e742",
+      "images": [
+        {
+          "offset": "0x0",
+          "path": "firmware/Wireless_Analyzer/Wireless_Analyzer.ino.bootloader.bin",
+          "size": 19536,
+          "sha256": "9b2fa5e4af7cf282b2db5ed726b26bcca0aec7946eb3fdacc14444195ba754b3"
+        },
+        {
+          "offset": "0x8000",
+          "path": "firmware/Wireless_Analyzer/Wireless_Analyzer.ino.partitions.bin",
+          "size": 3072,
+          "sha256": "36d00268bf809898d080ec822be0927177ecc5f1649e5cea68a2ff2d74fbbcf9"
+        },
+        {
+          "offset": "0xe000",
+          "path": "firmware/Wireless_Analyzer/boot_app0.bin",
+          "size": 8192,
+          "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+        },
+        {
+          "offset": "0x10000",
+          "path": "firmware/Wireless_Analyzer/Wireless_Analyzer.ino.bin",
+          "size": 1401920,
+          "sha256": "b28e48757b328e170d8124d256155762aba32130eba0d104a5c4ba9e14e3544c"
         }
       ]
     }

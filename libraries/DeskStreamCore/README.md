@@ -72,7 +72,8 @@ void loop() {
 
 사용 중인 스케치: Hangeul_Clock (v2.11.0~), ENG_Clock (v1.1.0~), Chinese_Clock (v1.1.0~), Game_Of_Life (v1.1.0~),
 Universal_Timer (v1.1.0~), Stats_Monitor (v1.6.0~), GPS_DASH (v2.7.0~), DS_DECK (v1.6.0~), Smart_Info_Station (v2.10.0~),
-Sound_Visualizer_4_OLEDs (v3.5.0~), Screen_To_OLEDs (v2.3.0~), OLED_Wide_test (v1.3.0~), Agent_Monitor (v0.1.0~) — 저장소의 13개 프로젝트 전부.
+Sound_Visualizer_4_OLEDs (v3.5.0~), Screen_To_OLEDs (v2.3.0~), OLED_Wide_test (v1.3.0~), Agent_Monitor (v0.1.0~),
+Wireless_Analyzer (v0.1.0~) — 저장소의 14개 프로젝트 전부.
 
 ## 테스트
 

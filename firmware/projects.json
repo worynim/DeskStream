@@ -176,6 +176,19 @@
       "nameEn": "AI Agent Monitor",
       "descriptionEn": "Shows Claude Code session status on four OLEDs and approves or denies permission requests with the device buttons",
       "noteEn": "Requires the PC daemon (Agent_Monitor/bridge_py, Python 3.11+). Connects over BLE (\"DeskStream Agent\") by default; keep the USB cable connected the first time so the daemon can register the signing key automatically. Korean text (Galmuri7 font)."
+    },
+    {
+      "id": "Wireless_Analyzer",
+      "name": "무선 환경 분석기",
+      "version": "0.5.0",
+      "icon": "📡",
+      "order": 14,
+      "sourcePath": "Wireless_Analyzer",
+      "description": "ESP32-C3의 WiFi·BLE 무선부로 2.4GHz 채널 1~13 혼잡도·추천 채널, 주변 AP 신호 세기 추이·추적, 근처 BLE 기기 수를 보여주는 분석기",
+      "note": "공유기에 접속하지 않는 단독 장치입니다. 화면 6개(채널 스펙트럼·혼잡도·AP 목록·AP 추적·BLE 기기·요약)를 BTN1/BTN2로 바꿉니다. BLE 기기 주소는 표시·전송하지 않습니다. 한글 표시(갈무리7).",
+      "nameEn": "Wireless Analyzer",
+      "descriptionEn": "Uses the ESP32-C3 WiFi/BLE radio to show 2.4GHz channel 1–13 congestion and a recommended channel, nearby AP signal history and tracking, and nearby BLE device counts",
+      "noteEn": "Standalone — it never joins a WiFi network. Six screens (channel spectrum, congestion, AP list, AP tracking, BLE devices, summary), switched with BTN1/BTN2. BLE device addresses are never shown or sent. Korean text (Galmuri7 font)."
     }
   ]
 }
