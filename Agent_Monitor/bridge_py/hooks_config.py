@@ -7,6 +7,9 @@
            PermissionRequest 만 장치 결정을 기다리므로 timeout 이 길다.
          - 설치는 기존 사용자 훅을 보존하고 우리 항목만 추가한다. 쓰기 전 백업 파일을 만든다.
          - 우리 항목 판별: url/command 에 "127.0.0.1:<port>/hooks/" 가 들어 있는지.
+         - 사용량(5시간·주간)은 훅이 아니라 상태줄(statusLine) 명령에만 전달되므로, 상태줄 입력을 데몬으로 보내는
+           명령을 statusLine 에 등록한다 (출력 없음 → 터미널 상태줄은 비어 있다).
+           사용자가 이미 쓰는 statusLine 이 있으면 건드리지 않는다 — 그 경우 사용량은 표시되지 않는다.
 """
 import json
 import shutil
@@ -36,13 +39,19 @@ def build_hooks(port: int) -> dict:
     return hooks
 
 
+def build_statusline(port: int) -> dict:
+    return {"type": "command",
+            "command": f"curl -s -m 2 -o /dev/null -H 'Content-Type: application/json' "
+                       f"--data-binary @- http://{marker(port)}StatusLine || true"}
+
+
 def _is_ours(hook: dict, port: int) -> bool:
     m = marker(port)
     return m in str(hook.get("url", "")) or m in str(hook.get("command", ""))
 
 
 def _strip_ours(settings: dict, port: int) -> int:
-    """settings 의 hooks 에서 우리 항목을 지우고 지운 개수를 돌려준다. 비게 된 그룹·이벤트도 정리."""
+    """settings 의 hooks·statusLine 에서 우리 항목을 지우고 지운 개수를 돌려준다. 비게 된 그룹·이벤트도 정리."""
     removed = 0
     hooks = settings.get("hooks", {})
     for event in list(hooks):
@@ -58,7 +67,17 @@ def _strip_ours(settings: dict, port: int) -> int:
             del hooks[event]
     if not hooks:
         settings.pop("hooks", None)
+    status = settings.get("statusLine")
+    if isinstance(status, dict) and _is_ours(status, port):
+        del settings["statusLine"]
+        removed += 1
     return removed
+
+
+def statusline_kept(path: Path, port: int) -> bool:
+    """사용자가 따로 쓰는 statusLine 이 있어 우리 것을 등록하지 못하는가 (사용량 표시 불가)"""
+    status = _load(path).get("statusLine")
+    return status is not None and not (isinstance(status, dict) and _is_ours(status, port))
 
 
 def _load(path: Path) -> dict:
@@ -81,6 +100,8 @@ def install(path: Path, port: int) -> Path | None:
     hooks = settings.setdefault("hooks", {})
     for event, groups in build_hooks(port).items():
         hooks.setdefault(event, []).extend(groups)
+    if "statusLine" not in settings:        # 사용자의 statusLine 은 덮어쓰지 않는다
+        settings["statusLine"] = build_statusline(port)
     return _save(path, settings)
 
 

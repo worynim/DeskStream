@@ -56,12 +56,13 @@ def status_text(bridge) -> str:
 
 
 def hooks_action(install: bool, port: int) -> str:
-    """~/.claude/settings.json 에 우리 훅을 설치/제거하고 결과 문구를 돌려준다 (기존 훅 보존·백업)."""
+    """~/.claude/settings.json 에 우리 훅·상태줄을 설치/제거하고 결과 문구를 돌려준다 (기존 설정 보존·백업)."""
     path = hooks_config.DEFAULT_SETTINGS
     try:
         if install:
             backup = hooks_config.install(path, port)
-            return "훅 설치 완료" + (f" (백업 {backup.name})" if backup else "")
+            kept = " · 기존 statusLine 유지(사용량 표시 안 됨)" if hooks_config.statusline_kept(path, port) else ""
+            return "훅 설치 완료" + (f" (백업 {backup.name})" if backup else "") + kept
         removed, backup = hooks_config.uninstall(path, port)
         return f"훅 {removed}개 제거" + (f" (백업 {backup.name})" if backup else "")
     except Exception as e:                 # JSON 파싱 실패·권한 오류 등 — 트레이는 계속 돈다

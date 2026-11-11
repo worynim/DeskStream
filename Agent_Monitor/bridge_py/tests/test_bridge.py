@@ -259,6 +259,36 @@ class TestBridgePermission(unittest.TestCase):
         self.assertEqual(r["body"], b"")
         self.assertEqual(bridge.approvals.items, [])
 
+    def test_terminal_answer_adds_fields(self):
+        """AskUserQuestion 은 PostToolUse 입력에 answers 가 덧붙는다 — 그래도 같은 요청으로 정리"""
+        bridge, _ = self.make()
+        q = {"questions": [{"question": "color?"}]}
+        r = {}
+        t = threading.Thread(target=lambda: r.update(body=bridge.on_permission(
+            ev(tool_name="AskUserQuestion", tool_input=q))))
+        t.start()
+        while not bridge.approvals.items:
+            time.sleep(0.01)
+        bridge.on_hook("PostToolUse", ev(tool_name="AskUserQuestion", tool_input={"questions": [{"question": "other"}]}))
+        self.assertEqual(len(bridge.approvals.items), 1)             # 다른 질문이면 그대로
+        bridge.on_hook("PostToolUse", ev(tool_name="AskUserQuestion", tool_input={**q, "answers": {"color?": "red"}}))
+        t.join(2)
+        self.assertEqual((r["body"], bridge.approvals.items), (b"", []))
+
+    def test_closed_connection_clears(self):
+        """터미널에서 거절하면 후속 훅 없이 연결만 끊긴다 → 바로 정리"""
+        bridge, _ = self.make(hold=30)
+        gone = threading.Event()
+        r = {}
+        t = threading.Thread(target=lambda: r.update(body=bridge.on_permission(
+            ev(tool_name="Bash", tool_input={"command": "x"}), gone.is_set)))
+        t.start()
+        while not bridge.approvals.items:
+            time.sleep(0.01)
+        gone.set()
+        t.join(3)
+        self.assertEqual((r.get("body"), bridge.approvals.items), (b"", []))
+
     def test_stop_clears_session(self):
         bridge, _ = self.make()
         t, r = self.ask(bridge)
@@ -640,10 +670,47 @@ class TestHooksConfig(unittest.TestCase):
             s = json.loads(path.read_text())
             self.assertEqual(len(s["hooks"]["Stop"]), 2)
             self.assertEqual(s["hooks"]["SessionStart"][0]["hooks"][0]["type"], "command")
+            self.assertIn("127.0.0.1:9230/hooks/StatusLine", s["statusLine"]["command"])
+            self.assertFalse(hooks_config.statusline_kept(path, 9230))
             removed, backup = hooks_config.uninstall(path, 9230)
-            self.assertEqual(removed, 12)
+            self.assertEqual(removed, 13)                    # 훅 12 + 상태줄
             self.assertTrue(backup.exists())
             self.assertEqual(json.loads(path.read_text()), {"model": "x", "hooks": {"Stop": [{"hooks": [user_hook]}]}})
+
+    def test_user_statusline_is_kept(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "settings.json"
+            mine = {"type": "command", "command": "my-statusline"}
+            path.write_text(json.dumps({"statusLine": mine}))
+            hooks_config.install(path, 9230)
+            self.assertEqual(json.loads(path.read_text())["statusLine"], mine)
+            self.assertTrue(hooks_config.statusline_kept(path, 9230))
+            self.assertEqual(hooks_config.uninstall(path, 9230)[0], 12)
+            self.assertEqual(json.loads(path.read_text()), {"statusLine": mine})
+
+
+class TestUsage(unittest.TestCase):
+    def setUp(self):
+        self.bridge = Bridge(lambda *_: FakeLink(), config_path=NO_CONFIG, auth=test_auth())
+
+    def test_usage_msg(self):
+        m = json.loads(protocol.usage_msg(((23, 1500), None), 1000))
+        self.assertEqual(m, {"t": "usage", "p5": 23, "r5": 500, "p7": -1, "r7": 0})
+        self.assertEqual(json.loads(protocol.usage_msg(((5, 0), (9, 900)), 1000))["r7"], 0)   # 지난 시각 → 0
+
+    def test_status_updates_usage(self):
+        self.bridge.on_status({"model": {"id": "x"}})                       # rate_limits 없음 → 그대로
+        self.assertEqual(self.bridge.usage, [None, None])
+        self.bridge.on_status({"rate_limits": {"five_hour": {"used_percentage": 23.6, "resets_at": 2000},
+                                               "seven_day": {"used_percentage": 141, "resets_at": 9000}}})
+        self.assertEqual(self.bridge.usage, [(24, 2000), (100, 9000)])
+        self.bridge.on_status({"rate_limits": {"five_hour": {"used_percentage": 30, "resets_at": 2000}}})
+        self.assertEqual(self.bridge.usage, [(30, 2000), (100, 9000)])     # 빠진 구간은 마지막 값 유지
+
+    def test_window_is_zero_after_reset(self):
+        self.bridge.on_status({"rate_limits": {"five_hour": {"used_percentage": 80, "resets_at": 2000}}})
+        self.assertEqual(self.bridge.usage_windows(1999), ((80, 2000), None))
+        self.assertEqual(self.bridge.usage_windows(2000), ((0, 0), None))
 
 
 if __name__ == "__main__":

@@ -144,16 +144,21 @@ ParseResult applyLine(Model& m, const char* line, uint32_t nowMs) {
         m.dev.mute = mute != 0;
         m.dev.bright = (uint8_t)bright;
         r.type = MsgType::Dev;
-    } else if (strcmp(type, "cmds") == 0) {
-        static const char* const lk[kSlots] = {"l0", "l1", "l2", "l3"};
-        static const char* const kk[kSlots] = {"k0", "k1", "k2", "k3"};
-        CmdInfo tmp[kSlots];
-        for (int k = 0; k < kSlots; k++) {
-            if (!getStr(line, lk[k], tmp[k].label, sizeof(tmp[k].label)) ||
-                !getStr(line, kk[k], tmp[k].kind, sizeof(tmp[k].kind))) return r;
+    } else if (strcmp(type, "usage") == 0) {
+        static const char* const pk[kUsageWindows] = {"p5", "p7"};
+        static const char* const rk[kUsageWindows] = {"r5", "r7"};
+        Usage tmp[kUsageWindows];
+        for (int k = 0; k < kUsageWindows; k++) {
+            long pct, reset;
+            if (!ds::jsonGetInt(line, pk[k], &pct) || !ds::jsonGetInt(line, rk[k], &reset) || pct > 100 ||
+                reset < 0) return r;
+            tmp[k].known = pct >= 0;   // 음수 = 데몬도 아직 모름
+            tmp[k].pct = tmp[k].known ? (uint8_t)pct : 0;
+            tmp[k].resetS = (uint32_t)reset;
+            tmp[k].rxMs = nowMs;
         }
-        for (int k = 0; k < kSlots; k++) m.cmds[k] = tmp[k];
-        r.type = MsgType::Cmds;
+        for (int k = 0; k < kUsageWindows; k++) m.usage[k] = tmp[k];
+        r.type = MsgType::Usage;
     } else if (strcmp(type, "perm") == 0) {
         long id;
         if (!ds::jsonGetInt(line, "id", &id) || id < 0) return r;
@@ -192,6 +197,21 @@ void formatElapsed(uint32_t s, char* out, size_t cap) {
     } else {
         snprintf(out, cap, "%lu:%02lu:%02lu", (unsigned long)(s / 3600), (unsigned long)(s / 60 % 60),
                  (unsigned long)(s % 60));
+    }
+}
+
+uint32_t remainS(const Usage& u, uint32_t nowMs) {
+    uint32_t passed = (uint32_t)(nowMs - u.rxMs) / 1000;
+    return u.resetS > passed ? u.resetS - passed : 0;
+}
+
+void formatRemain(uint32_t s, char* out, size_t cap) {
+    if (s < 3600) {
+        snprintf(out, cap, "%lum", (unsigned long)(s / 60));
+    } else if (s < 86400) {
+        snprintf(out, cap, "%luh %02lum", (unsigned long)(s / 3600), (unsigned long)(s / 60 % 60));
+    } else {
+        snprintf(out, cap, "%lud %luh", (unsigned long)(s / 86400), (unsigned long)(s / 3600 % 24));
     }
 }
 

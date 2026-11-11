@@ -49,7 +49,7 @@
 ## 미검증
 
 - Claude Code **데스크톱 앱(Code 탭)** 세션에서의 훅 동작 (이번은 CLI 만)
-- 터미널에서 먼저 결정했을 때 훅 HTTP 연결이 즉시 끊기는지
+- ~~터미널에서 먼저 결정했을 때 훅 HTTP 연결이 즉시 끊기는지~~ → 2026-11-11 확인 (Claude Code 2.1.321): 터미널 **승인**은 연결을 끊지 않고 PostToolUse 가 온다. 터미널 **거절(Esc)** 은 연결을 바로 끊고 Stop 등 후속 이벤트가 없다. AskUserQuestion 도 PermissionRequest 가 오며, PostToolUse 의 `tool_input` 에 `answers`·`annotations` 가 덧붙는다.
 - Notification 의 `elicitation_dialog`, `agent_needs_input` (질문 대기) 실제 발생 조건
 
 ## 재현 방법

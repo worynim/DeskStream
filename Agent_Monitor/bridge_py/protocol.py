@@ -15,7 +15,9 @@ PC → 장치
   {"t":"detail","i":0,"on":1,"name":"web-app","st":"run","mode":"default","el":12,"err":0,"sub":0,
    "msg":"마지막 답변","h0":"+Bash npm test","h1":">Edit app.py","h2":"","h3":""}             상세 화면 (h: '>' 실행 중 '+' 성공 '!' 실패)
   {"t":"cmd","b":1,"st":"run","label":"npm test","msg":""}      PC 명령 진행 (st = run | ok | fail, b = 버튼 0~3)
-  {"t":"cmds","l0":"Terminal","k0":"focus","l1":"","k1":"",…}   버튼별 길게 누르기 PC 명령 (빈 슬롯 화면 표시용)
+  {"t":"cmds","l0":"Terminal","k0":"focus","l1":"","k1":"",…}   버튼별 길게 누르기 PC 명령 (펌웨어 0.6.3 이하의 빈 슬롯 화면용 — 이후 펌웨어는 무시)
+  {"t":"usage","p5":23,"r5":5400,"p7":41,"r7":300000}           Claude Code 사용량 — p = 사용률 %(-1 = 모름), r = 리셋까지 남은 초(0 = 모름),
+                                                                5 = 5시간 · 7 = 주간 (OLED 3·4 빈 슬롯 화면)
   {"t":"dev","mute":0,"bright":102}                             장치 설정 — 음소거 · OLED 밝기(contrast 1~255)
   {"t":"hb"}                                                    하트비트 (2초)
   {"t":"who"}                                                   USB 연결 시 — 장치가 hello 로 답한다
@@ -104,6 +106,16 @@ def cmds_msg(items) -> str:
     for k, (label, kind) in enumerate(items):
         msg[f"l{k}"] = clean(label, NAME_MAX)
         msg[f"k{k}"] = clean(kind, KIND_MAX)
+    return encode(msg)
+
+
+def usage_msg(windows, now: float) -> str:
+    """windows = (5시간, 주간) 각각 (사용률 %, 리셋 시각 epoch 초) 또는 None(모름). 남은 시간은 장치가 직접 센다."""
+    msg = {"t": "usage"}
+    for key, w in zip("57", windows):
+        pct, reset_at = w if w else (-1, 0)
+        msg[f"p{key}"] = pct
+        msg[f"r{key}"] = max(0, int(reset_at - now)) if reset_at else 0
     return encode(msg)
 
 

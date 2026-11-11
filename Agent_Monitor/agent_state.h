@@ -59,10 +59,14 @@ struct Detail {
 
 enum class CmdState : uint8_t { None, Run, Ok, Fail };
 
-/** 버튼 길게 누르기에 설정된 PC 명령 (데몬 설정 파일에서 — 빈 슬롯 화면에 표시) */
-struct CmdInfo {
-    char label[21] = "";     ///< 빈 문자열 = 설정 없음
-    char kind[6] = "";       ///< focus / shell / keys / error
+constexpr int kUsageWindows = 2;   ///< 사용량 구간 수 — 0 = 5시간, 1 = 주간
+
+/** Claude Code 사용량 한 구간 (데몬이 상태줄에서 받아 보냄 — 마지막 두 화면의 빈 슬롯에 표시) */
+struct Usage {
+    bool known = false;      ///< 아직 받은 값이 없으면 false
+    uint8_t pct = 0;         ///< 사용률 0~100 %
+    uint32_t resetS = 0;     ///< 메시지를 받은 시점에 리셋까지 남은 초 (0 = 모름)
+    uint32_t rxMs = 0;       ///< 메시지를 받은 시각 (millis) — 이후 남은 시간은 장치가 직접 센다
 };
 
 /** 버튼 길게 누르기 PC 명령의 진행·결과 (버튼별 알림 띠) */
@@ -85,12 +89,12 @@ struct Model {
     Perm perm;
     Detail detail;
     CmdToast toasts[kSlots];
-    CmdInfo cmds[kSlots];    ///< 버튼별 길게 누르기 명령
+    Usage usage[kUsageWindows];
     uint32_t lastRxMs = 0;   ///< 마지막으로 유효한 메시지를 받은 시각
     bool everRx = false;
 };
 
-enum class MsgType : uint8_t { Invalid, Slot, Alert, Heartbeat, Perm, Detail, Cmd, Cmds, Dev };
+enum class MsgType : uint8_t { Invalid, Slot, Alert, Heartbeat, Perm, Detail, Cmd, Dev, Usage };
 
 struct ParseResult {
     MsgType type = MsgType::Invalid;
@@ -113,6 +117,12 @@ uint32_t elapsedS(const Slot& s, uint32_t nowMs);
 
 /** 경과 초 → "m:ss" (1시간 미만) / "h:mm:ss" */
 void formatElapsed(uint32_t s, char* out, size_t cap);
+
+/** 사용량 구간이 리셋될 때까지 남은 초 (지났거나 모르면 0) */
+uint32_t remainS(const Usage& u, uint32_t nowMs);
+
+/** 남은 초 → "45m" (1시간 미만) / "2h 05m" (1일 미만) / "3d 4h" */
+void formatRemain(uint32_t s, char* out, size_t cap);
 
 /** 화면 표시용 상태 이름 ("RUNNING" 등) */
 const char* stateLabel(State st);

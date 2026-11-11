@@ -1,4 +1,4 @@
-# 🤖 Agent_Monitor — AI 개발 에이전트 모니터 (v0.6.3)
+# 🤖 Agent_Monitor — AI 개발 에이전트 모니터 (v0.7.0)
 
 Claude Code 세션의 작업 상태를 DeskStream 4-OLED에 실시간으로 보여주는 책상 위 모니터입니다.
 OLED 한 장이 세션 하나를 맡아 **생각 중 / 실행 중(도구·명령) / 승인 대기 / 입력 대기 / 완료 / 오류**를 표시하고,
@@ -74,7 +74,9 @@ BLE 는 근처 누구나 접속할 수 있어, 같은 이름의 **가짜 장치*
 - 60초 동안 버튼을 누르지 않거나 세션이 끝나면 개요로 돌아갑니다.
 - PC 명령 결과는 해당 버튼 화면 아래에 `RUN …` → `OK … exit 0` / `FAIL … exit 2` 띠로 4초간 보입니다.
 - 음소거(설정 파일 `[device] mute = true`) 중에는 개요의 OLED 4 오른쪽 위에 스피커+X 아이콘이 보이고, 버튼음·알림음·부팅음이 모두 꺼집니다.
-- **빈 슬롯**에는 그 화면 밑 버튼을 **길게 누르면 하는 일**이 보입니다 — `HOLD BTN2:` + 명령 이름(`git status`) + 종류(`run command` / `open app` / `send keys`). 설정이 없으면 `(not set)`, 설정 파일 오류면 `check config`. 설정 파일을 고치면 바로 반영됩니다.
+- **빈 슬롯**: OLED 1·2 는 `SLOT n  empty` 만 보입니다. OLED 3·4 는 **Claude Code 사용량** — OLED 3 = 5시간(`5H USAGE`), OLED 4 = 주간(`WEEK USAGE`) 사용률(숫자 + 막대)과 그 아래 리셋까지 남은 시간(`reset 2h 05m`)을 보여줍니다. 아직 받은 값이 없으면 `--`.
+  - 사용량은 Claude Code 가 **상태줄(statusLine) 명령**에만 넘겨주는 값이라, 훅 설치 때 `~/.claude/settings.json` 의 `statusLine` 에 데몬으로 전달하는 명령을 함께 등록합니다 (출력이 없어 터미널 상태줄은 비어 있습니다). **이미 쓰는 statusLine 이 있으면 덮어쓰지 않으며**, 그 경우 사용량은 표시되지 않습니다.
+  - 상태줄이 갱신될 때(Claude Code 세션이 응답을 주고받을 때)만 값이 바뀝니다. 데몬을 다시 켜면 다음 갱신까지 `--` 이고, 리셋 시각이 지나면 새 값이 올 때까지 0% 로 보입니다. Claude 구독 계정이 아니면(API 키 등) 값이 오지 않습니다.
 
 ## 버튼
 
@@ -139,7 +141,7 @@ python3 agent_bridge.py settings > ~/agent_monitor_hooks.json
 claude --settings ~/agent_monitor_hooks.json
 ```
 
-모든 세션에 적용 (`~/.claude/settings.json`에 추가, 기존 훅 보존·백업 생성):
+모든 세션에 적용 (`~/.claude/settings.json`에 훅과 사용량용 `statusLine` 추가, 기존 훅·statusLine 보존·백업 생성):
 ```bash
 python3 agent_bridge.py install-hooks
 python3 agent_bridge.py uninstall-hooks   # 추가한 항목만 제거
@@ -165,7 +167,7 @@ cwd = "~/work/web-app"
 timeout = 300
 ```
 
-- `[device]` 의 음소거·밝기는 장치에 저장돼 데몬이 꺼져 있어도 유지됩니다 (값이 범위 밖이면 장치는 이전 값을 유지하고 빈 슬롯에 `check config`).
+- `[device]` 의 음소거·밝기는 장치에 저장돼 데몬이 꺼져 있어도 유지됩니다 (값이 범위 밖이면 장치는 이전 값을 유지합니다 — 오류 내용은 데몬 로그에 남습니다).
 - 장치는 **버튼 번호만** 보냅니다. 실행 내용은 이 파일에만 있고, 버튼을 누를 때마다 다시 읽습니다 (데몬 재시작 불필요).
 - 파일을 다른 사용자도 쓸 수 있는 권한이면(group/other write) 실행하지 않습니다.
 - `keys` 는 ASCII 텍스트와 `return · escape · tab · space · ctrl+c` 만 지원하고, macOS **손쉬운 사용** 권한(데몬을 실행한 터미널 앱)이 필요합니다. `app` 을 지정하면 그 앱을 먼저 앞으로 가져옵니다.

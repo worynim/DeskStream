@@ -118,18 +118,22 @@ static void testDetailCmd() {
     CHECK(applyLine(m, "{\"t\":\"cmd\",\"b\":4,\"st\":\"ok\"}", 0).type == MsgType::Invalid);
 }
 
-static void testCmds() {
+static void testUsage() {
     Model m;
-    auto r = applyLine(m,
-                       "{\"t\":\"cmds\",\"l0\":\"Terminal\",\"k0\":\"focus\",\"l1\":\"\",\"k1\":\"\","
-                       "\"l2\":\"npm test\",\"k2\":\"shell\",\"l3\":\"\",\"k3\":\"\"}",
-                       10);
-    CHECK(r.type == MsgType::Cmds);
-    CHECK(strcmp(m.cmds[0].label, "Terminal") == 0 && strcmp(m.cmds[0].kind, "focus") == 0);
-    CHECK(m.cmds[1].label[0] == '\0' && strcmp(m.cmds[2].kind, "shell") == 0);
-    // 종류가 버퍼(5자)를 넘으면 전체를 바꾸지 않는다
-    CHECK(applyLine(m, "{\"t\":\"cmds\",\"l0\":\"x\",\"k0\":\"toolong\"}", 20).type == MsgType::Invalid);
-    CHECK(strcmp(m.cmds[0].label, "Terminal") == 0);
+    CHECK(!m.usage[0].known && !m.usage[1].known);
+    auto r = applyLine(m, "{\"t\":\"usage\",\"p5\":23,\"r5\":5400,\"p7\":-1,\"r7\":0}", 1000);
+    CHECK(r.type == MsgType::Usage);
+    CHECK(m.usage[0].known && m.usage[0].pct == 23);
+    CHECK(!m.usage[1].known);                                     // 음수 = 모름
+    CHECK(remainS(m.usage[0], 1000) == 5400);
+    CHECK(remainS(m.usage[0], 61000) == 5340);                    // 장치가 직접 센다
+    CHECK(remainS(m.usage[0], 1000 + 6000 * 1000u) == 0);         // 지나면 0
+    // 필드 누락·범위 밖이면 거부 — 이전 값 유지
+    CHECK(applyLine(m, "{\"t\":\"usage\",\"p5\":50,\"r5\":10}", 2000).type == MsgType::Invalid);
+    CHECK(applyLine(m, "{\"t\":\"usage\",\"p5\":101,\"r5\":10,\"p7\":1,\"r7\":1}", 2000).type == MsgType::Invalid);
+    CHECK(m.usage[0].pct == 23);
+    // 이전 데몬이 보내는 cmds 는 모르는 메시지로 무시한다
+    CHECK(applyLine(m, "{\"t\":\"cmds\",\"l0\":\"Terminal\",\"k0\":\"focus\"}", 2000).type == MsgType::Invalid);
 }
 
 static void testDev() {
@@ -151,6 +155,14 @@ static void testFormat() {
     formatElapsed(3725, b, sizeof(b));
     CHECK(strcmp(b, "1:02:05") == 0);
     CHECK(strcmp(stateLabel(State::Approve), "APPROVE?") == 0);
+    formatRemain(59, b, sizeof(b));
+    CHECK(strcmp(b, "0m") == 0);
+    formatRemain(2700, b, sizeof(b));
+    CHECK(strcmp(b, "45m") == 0);
+    formatRemain(7500, b, sizeof(b));
+    CHECK(strcmp(b, "2h 05m") == 0);
+    formatRemain(3 * 86400 + 4 * 3600 + 59, b, sizeof(b));
+    CHECK(strcmp(b, "3d 4h") == 0);
 }
 
 int main() {
@@ -159,7 +171,7 @@ int main() {
     testAlertAndHeartbeat();
     testPerm();
     testDetailCmd();
-    testCmds();
+    testUsage();
     testDev();
     testFormat();
     printf(fails ? "❌ %d failed\n" : "✅ all passed\n", fails);

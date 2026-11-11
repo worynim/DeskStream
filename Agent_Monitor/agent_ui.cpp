@@ -176,37 +176,49 @@ bool isAnimated(State st) {
     return st == State::Think || st == State::Run || st == State::Approve || st == State::Input;
 }
 
-/** 빈 슬롯 — 버튼 idx 를 길게 누르면 하는 일 */
-static void drawEmptySlot(U8G2& u, uint8_t idx, const CmdInfo& cmd) {
+/** 사용량 한 구간 — 제목 · 사용률(숫자 + 막대) · 리셋까지 남은 시간 */
+static void drawUsage(U8G2& u, int window, const Usage& usage, uint32_t nowMs) {
+    u.setFont(u8g2_font_galmuri7_kr);
+    drawBold(u, 0, 10, window == 0 ? "5H USAGE" : "WEEK USAGE");
+    u.drawHLine(0, 13, 128);
+    if (!usage.known) {
+        u.drawUTF8(0, 30, "--");
+        return;
+    }
+    char buf[20];
+    snprintf(buf, sizeof(buf), "%u%%", usage.pct);
+    drawBold(u, 0, 29, buf);
+    u.drawFrame(0, 34, 128, 10);
+    u.drawBox(2, 36, 124 * usage.pct / 100, 6);
+    uint32_t left = remainS(usage, nowMs);
+    if (left == 0) return;   // 리셋 시각을 모르거나 이미 지남
+    char t[12];
+    formatRemain(left, t, sizeof(t));
+    snprintf(buf, sizeof(buf), "reset %s", t);
+    u.drawUTF8(0, 58, buf);
+}
+
+/** 빈 슬롯 — 마지막 kUsageWindows 화면은 사용량, 나머지는 슬롯 번호만 */
+static void drawEmptySlot(U8G2& u, uint8_t idx, const Usage* usage, uint32_t nowMs) {
+    int window = idx - (kSlots - kUsageWindows);
+    if (window >= 0) {
+        drawUsage(u, window, usage[window], nowMs);
+        return;
+    }
     char buf[24];
     u.setFont(u8g2_font_galmuri7_kr);
     snprintf(buf, sizeof(buf), "SLOT %u  empty", idx + 1);
     u.drawUTF8(0, 10, buf);
     u.drawHLine(0, 13, 128);
-    snprintf(buf, sizeof(buf), "HOLD BTN%u:", idx + 1);
-    u.drawUTF8(0, 26, buf);
-    if (!cmd.label[0]) {
-        u.drawUTF8(0, 42, "(not set)");
-        u.drawUTF8(0, 58, "agent_monitor.toml");
-        return;
-    }
-    u.setFont(u8g2_font_galmuri7_kr);
-    drawBold(u, 0, 43, cmd.label);
-    u.setFont(u8g2_font_galmuri7_kr);
-    const char* what = strcmp(cmd.kind, "focus") == 0 ? "open app"
-                     : strcmp(cmd.kind, "shell") == 0 ? "run command"
-                     : strcmp(cmd.kind, "keys") == 0  ? "send keys"
-                                                      : "check config";
-    u.drawUTF8(0, 58, what);
 }
 
-void drawSlot(U8G2& u, const Slot& s, uint8_t idx, const CmdInfo& cmd, uint32_t nowMs) {
+void drawSlot(U8G2& u, const Slot& s, uint8_t idx, const Usage* usage, uint32_t nowMs) {
     u.clearBuffer();
     u.setDrawColor(1);
     u.setFontMode(1);
 
     if (!s.on) {
-        drawEmptySlot(u, idx, cmd);
+        drawEmptySlot(u, idx, usage, nowMs);
         return;
     }
 

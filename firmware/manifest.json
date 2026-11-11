@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-10T19:12:54.865Z",
+  "generatedAt": "2026-11-11T08:38:53.639Z",
   "chip": "ESP32-C3",
   "board": "DeskStream (ESP32-C3 SuperMini · 4× OLED)",
   "flashDefaults": {
@@ -588,7 +588,7 @@
     {
       "id": "Agent_Monitor",
       "name": "AI 에이전트 모니터",
-      "version": "0.6.3",
+      "version": "0.7.0",
       "icon": "🤖",
       "order": 13,
       "description": "Claude Code 세션 상태를 4개 OLED에 표시하고, 권한 요청을 장치 버튼으로 승인·거절하는 AI 개발 에이전트 모니터",
@@ -603,9 +603,9 @@
         "freq": "80m",
         "size": "4MB"
       },
-      "exportedAt": "2026-11-10T19:12:43.153Z",
+      "exportedAt": "2026-11-11T08:38:43.559Z",
       "sourcePath": "Agent_Monitor",
-      "sourceCommit": "bb74e39d5bd833d4f670b486f1db8311c3eb741a",
+      "sourceCommit": "87fee9af0c62b9bb59fd9a0bd95af1fa01d436af",
       "images": [
         {
           "offset": "0x0",
@@ -628,8 +628,8 @@
         {
           "offset": "0x10000",
           "path": "firmware/Agent_Monitor/Agent_Monitor.ino.bin",
-          "size": 906480,
-          "sha256": "fc03a434adea41cdd7768cc1f54f49643dbc910681c335bdc1fb2a558508ac94"
+          "size": 906672,
+          "sha256": "02569b32b2cf422fb4c9cde617704e09ae7bf4b18397b2dc108d7669843ca3aa"
         }
       ]
     }

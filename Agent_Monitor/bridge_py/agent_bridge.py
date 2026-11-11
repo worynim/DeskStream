@@ -6,8 +6,11 @@
          - 상태 훅: 즉시 빈 200 응답 → 데몬·장치가 꺼져 있어도 Claude Code 작업에 영향 없음.
          - PermissionRequest: 장치가 연결돼 있으면 최대 HOLD_SEC 동안 응답을 붙잡고 버튼 결정을 기다린다.
            장치 미연결·시간 초과·"나중에"·터미널 선결정이면 빈 응답 → 터미널 대화상자로 결정 (자동 허용 없음).
+           터미널에서 승인하면 PostToolUse 로, 거절(Esc)하면 훅 연결이 끊기는 것으로 알고 장치 화면을 정리한다.
            터미널 대화상자는 기다리는 동안에도 함께 떠 있다 (P0 확인 — 먼저 답한 쪽이 이김).
          - 슬롯·승인·상세 화면이 바뀌면 바로, 그 밖에는 HEARTBEAT_SEC 마다 하트비트를 보낸다.
+         - 상태줄(statusLine) 입력의 rate_limits(5시간·주간 사용률, 리셋 시각)를 받아 장치로 보낸다 (OLED 3·4 빈 슬롯 화면).
+           데몬을 다시 켜면 다음 상태줄 갱신(Claude Code 세션 활동)이 올 때까지는 값을 모른다.
          - 장치 버튼: 짧게 = 그 슬롯 상세 보기(+완료 확인), 길게 = 설정 파일의 PC 명령 (commands.py),
            상세 화면 BTN2 = 세션 닫기(슬롯에서 지움). 설정 파일 [device] 의 음소거·밝기를 장치에 보낸다.
          - 연결: 기본은 BLE 만 (--transport ble). `--transport usb` = USB 만, `--transport auto` = USB 우선·없으면 BLE
@@ -19,13 +22,15 @@
   python3 agent_bridge.py tray                         # 메뉴 막대 아이콘과 함께 데몬 실행
   python3 agent_bridge.py run [--transport ble|usb|auto] [--serial PORT]   # 데몬 실행 (기본 BLE)
   python3 agent_bridge.py settings > hooks.json        # claude --settings 용 훅 설정 출력 (전역 설정 변경 없음)
-  python3 agent_bridge.py install-hooks                # ~/.claude/settings.json 에 설치 (백업 생성)
+  python3 agent_bridge.py install-hooks                # ~/.claude/settings.json 에 훅·상태줄 설치 (백업 생성)
   python3 agent_bridge.py uninstall-hooks              # 설치한 항목만 제거
   python3 agent_bridge.py init-config                  # 예시 설정 → ~/.deskstream/agent_monitor.toml (권한 600)
 """
 import argparse
 import json
+import select
 import shutil
+import socket
 import sys
 import threading
 import time
@@ -45,6 +50,8 @@ HOLD_SEC = hooks_config.PERMISSION_TIMEOUT_SEC - 10   # 훅 timeout 전에 스�
 CLEAR_SESSION_EVENTS = ("UserPromptSubmit", "Stop", "StopFailure", "SessionEnd")
 CLEAR_TOOL_EVENTS = ("PostToolUse", "PostToolUseFailure")
 SIGNED_TYPES = ("decide", "btn")   # BLE 로 올 때 서명이 필요한 장치 메시지
+USAGE_WINDOWS = ("five_hour", "seven_day")   # 상태줄 rate_limits 의 구간 — 5시간 · 주간 (protocol.usage_msg 순서)
+CLOSED_POLL_SEC = 0.5              # 권한 요청을 붙잡고 있는 동안 훅 연결이 끊겼는지 확인하는 간격
 KEY_RETRY_SEC = 30                 # BLE 모드에서 USB 키 등록에 실패하면 이 간격으로 다시 시도 (케이블을 나중에 꽂아도 되게)
 
 
@@ -68,6 +75,8 @@ class Bridge:
         self.sent_perm = None                         # 마지막으로 보낸 승인 화면 줄
         self.sent_detail = None                       # 마지막으로 보낸 상세 화면 내용
         self.sent_cfg = None                          # 마지막으로 보낸 (cmds 줄, dev 줄)
+        self.usage = [None] * len(USAGE_WINDOWS)      # 구간별 (사용률 %, 리셋 시각 epoch 초) — 받기 전에는 None
+        self.sent_usage = None                        # 마지막으로 보낸 사용량 (구간별 값)
         self._cfg = (None, None)                      # (설정 파일 수정 시각, (cmds 줄, dev 줄)) — 파일이 바뀔 때만 다시 읽음
         self.watch = -1                               # 장치가 상세 화면으로 보고 있는 슬롯
         self.outbox = []                              # 바로 보낼 줄(알림·명령 진행) — 시리얼 쓰기는 송신 스레드만 한다
@@ -100,8 +109,9 @@ class Bridge:
             log(f"[hook] {event:<18} {sid[:8]} {payload.get('tool_name', '')}")
         self.dirty.set()
 
-    def on_permission(self, payload: dict) -> bytes:
-        """PermissionRequest — 장치 결정을 기다려 훅 응답 본문을 돌려준다 (호출한 HTTP 스레드를 붙잡는다)."""
+    def on_permission(self, payload: dict, closed=lambda: False) -> bytes:
+        """PermissionRequest — 장치 결정을 기다려 훅 응답 본문을 돌려준다 (호출한 HTTP 스레드를 붙잡는다).
+        closed() 가 참이 되면(Claude Code 가 훅 연결을 끊음 = 터미널에서 거절) 기다리지 않고 정리한다."""
         self.on_hook("PermissionRequest", payload)
         if not self.link.connected:
             return protocol.permission_response("pass")
@@ -112,12 +122,37 @@ class Bridge:
                                    payload.get("tool_name", ""), summarize_tool(payload.get("tool_input")),
                                    payload.get("tool_input"))
         self.dirty.set()
-        if not p.done.wait(self.hold_sec):
-            with self.lock:
-                self.approvals.resolve(p.id, "pass")   # 시간 초과 → 터미널에서 결정
-            self.dirty.set()
+        deadline = time.time() + self.hold_sec
+        while not p.done.wait(CLOSED_POLL_SEC):
+            gone = closed()
+            if gone or time.time() >= deadline:
+                with self.lock:
+                    self.approvals.resolve(p.id, "pass")   # 시간 초과 → 터미널에서 결정 / 터미널에서 이미 거절
+                if gone:
+                    log(f"[perm] #{p.id} 훅 연결이 끊김 (터미널에서 거절) → 장치 화면 정리")
+                self.dirty.set()
         log(f"[perm] #{p.id} {p.tool} {p.summary[:40]!r} → {p.decision}")
         return protocol.permission_response(p.decision)
+
+    def on_status(self, payload: dict):
+        """상태줄 입력 — rate_limits 가 있으면 사용량을 갱신한다 (구독 계정이 아니거나 첫 응답 전에는 없음)."""
+        limits = payload.get("rate_limits")
+        if not isinstance(limits, dict):
+            return
+        with self.lock:
+            for k, name in enumerate(USAGE_WINDOWS):
+                w = limits.get(name)
+                pct = w.get("used_percentage") if isinstance(w, dict) else None
+                if not isinstance(pct, (int, float)):
+                    continue                          # 이 구간 값이 없으면 마지막 값을 유지
+                reset_at = w.get("resets_at")
+                self.usage[k] = (max(0, min(100, round(pct))),
+                                 int(reset_at) if isinstance(reset_at, (int, float)) else 0)
+        self.dirty.set()
+
+    def usage_windows(self, now: float) -> tuple:
+        """보낼 사용량 (구간별 값). 리셋 시각이 지난 구간은 0 % 로 본다 (새 값이 올 때까지)."""
+        return tuple((0, 0) if w and w[1] and now >= w[1] else w for w in self.usage)
 
     def _on_cmd_status(self, button: int, state: str, label: str, result: str):
         with self.lock:
@@ -139,6 +174,7 @@ class Bridge:
         self.sent_perm = None
         self.sent_detail = None
         self.sent_cfg = None
+        self.sent_usage = None
         self.dirty.set()
 
     def _register_key_via_usb(self, now: float):
@@ -202,6 +238,7 @@ class Bridge:
             self.sent_perm = None
             self.sent_detail = None
             self.sent_cfg = None
+            self.sent_usage = None
             self.dirty.set()
         elif kind == "decide":
             self._on_decide(msg.get("id"), msg.get("act"))
@@ -253,6 +290,7 @@ class Bridge:
                 outbox, self.outbox = self.outbox, []
                 perm_line = protocol.perm_msg(self.approvals.current(), *self.approvals.position())
                 detail = self.table.detail(self.watch, now) if self.watch >= 0 else None
+                usage = self.usage_windows(now)
             for line in outbox:
                 self.link.send(line)
             for i, v in enumerate(views):
@@ -270,6 +308,9 @@ class Bridge:
                 for line in cfg_lines:
                     if line:
                         self.link.send(line)
+            if any(usage) and usage != self.sent_usage:
+                self.sent_usage = usage
+                self.link.send(protocol.usage_msg(usage, now))
             if self.watch >= 0:
                 key = None if detail is None else {**detail, "el": None}
                 if key != self.sent_detail:
@@ -294,9 +335,20 @@ def make_handler(bridge: Bridge):
             if not isinstance(payload, dict):
                 return self._reply(b"")
             if event == "PermissionRequest":
-                return self._reply(bridge.on_permission(payload))
+                return self._reply(bridge.on_permission(payload, self._client_closed))
+            if event == "StatusLine":        # 훅이 아니라 상태줄 입력 — 사용량만 읽는다
+                self._reply(b"")
+                return bridge.on_status(payload)
             self._reply(b"")                 # 상태 훅은 먼저 응답해 Claude Code 를 기다리게 하지 않는다
             bridge.on_hook(event, payload)
+
+        def _client_closed(self) -> bool:
+            """요청 본문을 다 받은 뒤 소켓이 읽기 가능 = 상대가 연결을 닫음 (추가로 보낼 데이터는 없다)"""
+            try:
+                readable, _, _ = select.select([self.connection], [], [], 0)
+                return bool(readable) and self.connection.recv(1, socket.MSG_PEEK) == b""
+            except OSError:
+                return True
 
         def _reply(self, out: bytes):
             try:
@@ -364,10 +416,13 @@ def main():
             return cmd_run(args)
         tray.main(args, start_daemon)
     elif args.cmd == "settings":
-        print(json.dumps({"hooks": hooks_config.build_hooks(args.http_port)}, indent=2))
+        print(json.dumps({"hooks": hooks_config.build_hooks(args.http_port),
+                          "statusLine": hooks_config.build_statusline(args.http_port)}, indent=2))
     elif args.cmd == "install-hooks":
         backup = hooks_config.install(args.file, args.http_port)
         print(f"설치 완료: {args.file}" + (f" (백업: {backup})" if backup else ""))
+        if hooks_config.statusline_kept(args.file, args.http_port):
+            print("기존 statusLine 을 그대로 두었습니다 — 사용량(5시간·주간)은 표시되지 않습니다")
     elif args.cmd == "init-config":
         dst = commands.CONFIG_PATH
         if dst.exists():

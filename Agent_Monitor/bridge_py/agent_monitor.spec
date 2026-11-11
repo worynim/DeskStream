@@ -10,7 +10,7 @@ Agent_Monitor PC 데몬 PyInstaller 빌드 스펙
 import sys
 
 APP_NAME = "AgentMonitor"
-VERSION = "0.6.3"  # PC 클라이언트 버전 (펌웨어 버전과 별개) — RELEASE_NOTES 와 맞출 것
+VERSION = "0.7.0"  # PC 클라이언트 버전 (펌웨어 버전과 별개) — RELEASE_NOTES 와 맞출 것
 
 a = Analysis(
     ["agent_bridge.py"],

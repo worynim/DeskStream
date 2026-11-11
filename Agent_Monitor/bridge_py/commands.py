@@ -112,7 +112,7 @@ CONFIG_ERROR_LABELS = [("config error", "error")] * 4
 
 
 def labels_of(cfg: Config) -> list:
-    """BTN1~4 의 (이름, 종류) — 장치 빈 슬롯 화면에 "길게 누르면 하는 일"로 표시. 설정 없음 = ("", "")."""
+    """BTN1~4 의 (이름, 종류) — 펌웨어 0.6.3 이하가 빈 슬롯 화면에 "길게 누르면 하는 일"로 표시. 설정 없음 = ("", "")."""
     return [(cfg.commands[b].label, cfg.commands[b].type) if b in cfg.commands else ("", "") for b in (1, 2, 3, 4)]
 
 
