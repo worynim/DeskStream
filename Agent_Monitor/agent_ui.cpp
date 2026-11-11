@@ -198,9 +198,8 @@ static void drawUsage(U8G2& u, int window, const Usage& usage, uint32_t nowMs) {
     u.drawUTF8(0, 58, buf);
 }
 
-/** 빈 슬롯 — 마지막 kUsageWindows 화면은 사용량, 나머지는 슬롯 번호만 */
-static void drawEmptySlot(U8G2& u, uint8_t idx, const Usage* usage, uint32_t nowMs) {
-    int window = idx - (kSlots - kUsageWindows);
+/** 빈 슬롯 — window(0 = 5시간, 1 = 주간)가 있으면 사용량, 없으면(-1) 슬롯 번호만 */
+static void drawEmptySlot(U8G2& u, uint8_t idx, int window, const Usage* usage, uint32_t nowMs) {
     if (window >= 0) {
         drawUsage(u, window, usage[window], nowMs);
         return;
@@ -212,13 +211,13 @@ static void drawEmptySlot(U8G2& u, uint8_t idx, const Usage* usage, uint32_t now
     u.drawHLine(0, 13, 128);
 }
 
-void drawSlot(U8G2& u, const Slot& s, uint8_t idx, const Usage* usage, uint32_t nowMs) {
+void drawSlot(U8G2& u, const Slot& s, uint8_t idx, int window, const Usage* usage, uint32_t nowMs) {
     u.clearBuffer();
     u.setDrawColor(1);
     u.setFontMode(1);
 
     if (!s.on) {
-        drawEmptySlot(u, idx, usage, nowMs);
+        drawEmptySlot(u, idx, window, usage, nowMs);
         return;
     }
 

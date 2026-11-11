@@ -19,10 +19,10 @@ constexpr int kMaxMsgPages = 4;   ///< 상세 화면 마지막 답변 최대 페
 
 /**
  * @brief 슬롯 하나를 화면에 그린다 (버퍼만 — 전송은 display.push())
- * @details 빈 슬롯이면 마지막 두 화면(idx 2·3)에는 Claude Code 사용량(5시간 · 주간)과 리셋까지 남은 시간을,
- *          나머지 화면에는 슬롯 번호만 보여준다. usage = 구간 kUsageWindows 개 배열.
+ * @details 빈 슬롯이면 window(0 = 5시간, 1 = 주간 — usageWindowFor)에 해당하는 Claude Code 사용량과
+ *          리셋까지 남은 시간을, window = -1 이면 슬롯 번호만 보여준다. usage = 구간 kUsageWindows 개 배열.
  */
-void drawSlot(U8G2& u, const Slot& s, uint8_t idx, const Usage* usage, uint32_t nowMs);
+void drawSlot(U8G2& u, const Slot& s, uint8_t idx, int window, const Usage* usage, uint32_t nowMs);
 
 /**
  * @brief 승인 화면 중 화면 idx 부분을 그린다 (4화면이 한 장처럼 이어짐)

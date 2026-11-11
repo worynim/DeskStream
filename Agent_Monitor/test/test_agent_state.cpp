@@ -136,6 +136,23 @@ static void testUsage() {
     CHECK(applyLine(m, "{\"t\":\"cmds\",\"l0\":\"Terminal\",\"k0\":\"focus\"}", 2000).type == MsgType::Invalid);
 }
 
+static void testUsageWindow() {
+    Model m;
+    // 모두 비면 뒤쪽 두 화면(3·4) = 5시간 · 주간
+    CHECK(usageWindowFor(m, 0) == -1 && usageWindowFor(m, 1) == -1);
+    CHECK(usageWindowFor(m, 2) == 0 && usageWindowFor(m, 3) == 1);
+    // 2·4 만 비면 2 = 5시간, 4 = 주간
+    m.slots[0].on = m.slots[2].on = true;
+    CHECK(usageWindowFor(m, 0) == -1 && usageWindowFor(m, 2) == -1);
+    CHECK(usageWindowFor(m, 1) == 0 && usageWindowFor(m, 3) == 1);
+    // 하나만 비면 5시간
+    m.slots[3].on = true;
+    CHECK(usageWindowFor(m, 1) == 0 && usageWindowFor(m, 3) == -1);
+    // 다 차면 없음
+    m.slots[1].on = true;
+    CHECK(usageWindowFor(m, 1) == -1);
+}
+
 static void testDev() {
     Model m;
     CHECK(m.dev.bright == 255 && !m.dev.mute);
@@ -172,6 +189,7 @@ int main() {
     testPerm();
     testDetailCmd();
     testUsage();
+    testUsageWindow();
     testDev();
     testFormat();
     printf(fails ? "❌ %d failed\n" : "✅ all passed\n", fails);

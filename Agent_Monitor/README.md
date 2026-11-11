@@ -74,9 +74,10 @@ BLE 는 근처 누구나 접속할 수 있어, 같은 이름의 **가짜 장치*
 - 60초 동안 버튼을 누르지 않거나 세션이 끝나면 개요로 돌아갑니다.
 - PC 명령 결과는 해당 버튼 화면 아래에 `RUN …` → `OK … exit 0` / `FAIL … exit 2` 띠로 4초간 보입니다.
 - 음소거(설정 파일 `[device] mute = true`) 중에는 개요의 OLED 4 오른쪽 위에 스피커+X 아이콘이 보이고, 버튼음·알림음·부팅음이 모두 꺼집니다.
-- **빈 슬롯**: OLED 1·2 는 `SLOT n  empty` 만 보입니다. OLED 3·4 는 **Claude Code 사용량** — OLED 3 = 5시간(`5H USAGE`), OLED 4 = 주간(`WEEK USAGE`) 사용률(숫자 + 막대)과 그 아래 리셋까지 남은 시간(`reset 2h 05m`)을 보여줍니다. 아직 받은 값이 없으면 `--`.
+- **빈 슬롯**: 빈 OLED 에 **Claude Code 사용량**을 보여줍니다 — 빈 화면 중 뒤쪽 두 개에 앞에서부터 5시간(`5H USAGE`) · 주간(`WEEK USAGE`) 사용률(숫자 + 막대)과 그 아래 리셋까지 남은 시간(`reset 2h 05m`). 예: 모두 비면 OLED 3 = 5시간 · 4 = 주간, OLED 2·4 만 비면 2 = 5시간 · 4 = 주간, 하나만 비면 그 화면에 5시간. 나머지 빈 화면은 `SLOT n  empty`, 아직 받은 값이 없으면 `--`. 세션이 끝나 슬롯이 비면 다시 나타납니다.
   - 사용량은 Claude Code 가 **상태줄(statusLine) 명령**에만 넘겨주는 값이라, 훅 설치 때 `~/.claude/settings.json` 의 `statusLine` 에 데몬으로 전달하는 명령을 함께 등록합니다 (출력이 없어 터미널 상태줄은 비어 있습니다). **이미 쓰는 statusLine 이 있으면 덮어쓰지 않으며**, 그 경우 사용량은 표시되지 않습니다.
-  - 상태줄이 갱신될 때(Claude Code 세션이 응답을 주고받을 때)만 값이 바뀝니다. 데몬을 다시 켜면 다음 갱신까지 `--` 이고, 리셋 시각이 지나면 새 값이 올 때까지 0% 로 보입니다. Claude 구독 계정이 아니면(API 키 등) 값이 오지 않습니다.
+  - 사용량은 **Claude 구독 계정(Pro/Max)으로 로그인**했을 때만 들어옵니다. `ANTHROPIC_API_KEY` · `ANTHROPIC_AUTH_TOKEN` · `ANTHROPIC_BASE_URL` 로 API 과금(시작 화면에 `API Usage Billing`)이나 다른 모델 서버로 실행하면 값이 없어 `--` 로 남습니다. 셸 설정에 이 변수가 있다면 `env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u ANTHROPIC_BASE_URL claude` 로 실행하세요.
+  - 상태줄이 갱신될 때(Claude Code 세션이 응답을 주고받을 때)만 값이 바뀝니다. 데몬을 다시 켜면 다음 갱신까지 `--` 이고, 리셋 시각이 지나면 새 값이 올 때까지 0% 로 보입니다.
 
 ## 버튼
 

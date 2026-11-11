@@ -205,6 +205,18 @@ uint32_t remainS(const Usage& u, uint32_t nowMs) {
     return u.resetS > passed ? u.resetS - passed : 0;
 }
 
+int usageWindowFor(const Model& m, uint8_t idx) {
+    if (idx >= kSlots || m.slots[idx].on) return -1;
+    int empty = 0, before = 0;   // 빈 슬롯 수 · idx 앞의 빈 슬롯 수
+    for (int i = 0; i < kSlots; i++) {
+        if (m.slots[i].on) continue;
+        if (i < idx) before++;
+        empty++;
+    }
+    int first = empty > kUsageWindows ? empty - kUsageWindows : 0;   // 사용량을 보여줄 첫 빈 슬롯 순번
+    return before >= first ? before - first : -1;
+}
+
 void formatRemain(uint32_t s, char* out, size_t cap) {
     if (s < 3600) {
         snprintf(out, cap, "%lum", (unsigned long)(s / 60));

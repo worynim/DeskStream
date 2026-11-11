@@ -5,7 +5,7 @@
  * @details PC 데몬(bridge_py/agent_bridge.py)이 USB 시리얼로 보내는 세션 상태(JSON Lines)를
  *          OLED 4장(세션 슬롯 4개)에 표시하고, 상태 변화 알림을 부저로 낸다.
  *          - 개요 화면: 버튼 i 짧게 = 슬롯 i 상세 화면(+완료 확인), 길게 = PC 명령 i+1 (데몬 설정 파일).
- *            OLED 3·4 가 빈 슬롯이면 Claude Code 사용량(5시간 · 주간)과 리셋까지 남은 시간을 보여준다.
+ *            빈 슬롯 중 뒤쪽 두 화면에 Claude Code 사용량(5시간 · 주간)과 리셋까지 남은 시간을 보여준다.
  *          - 상세 화면: BTN1 개요로 · BTN2 세션 닫기(슬롯에서 지움) · BTN3 이전 · BTN4 다음 세션.
  *          - 음소거·OLED 밝기는 데몬 설정 파일 [device] 에서 받아(dev 메시지) NVS 에 저장한다 — 데몬이 없어도 유지.
  *            AM_DETAIL_IDLE_MS 동안 입력이 없거나 세션이 끝나면 개요로 돌아간다.
@@ -256,7 +256,7 @@ static void render(uint32_t now) {
             am::drawOffline(u, i, model.everRx, now);
         } else {
             if (detailSlot >= 0) am::drawDetail(u, i, detailFor(detailSlot), detailPage, now);
-            else am::drawSlot(u, model.slots[i], i, model.usage, now);
+            else am::drawSlot(u, model.slots[i], i, am::usageWindowFor(model, i), model.usage, now);
             am::drawToast(u, model.toasts[i], now);
             if (detailSlot < 0 && i == ds::kNumScreens - 1 && settings.muted) am::drawMuteIcon(u);
         }

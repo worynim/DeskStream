@@ -121,6 +121,13 @@ void formatElapsed(uint32_t s, char* out, size_t cap);
 /** 사용량 구간이 리셋될 때까지 남은 초 (지났거나 모르면 0) */
 uint32_t remainS(const Usage& u, uint32_t nowMs);
 
+/**
+ * @brief 화면 idx 에 보여줄 사용량 구간 (0 = 5시간, 1 = 주간, -1 = 없음)
+ * @details 빈 슬롯 중 뒤쪽 kUsageWindows 개에 앞에서부터 5시간 · 주간 순으로 배치한다.
+ *          빈 슬롯이 하나뿐이면 5시간만 보여준다.
+ */
+int usageWindowFor(const Model& m, uint8_t idx);
+
 /** 남은 초 → "45m" (1시간 미만) / "2h 05m" (1일 미만) / "3d 4h" */
 void formatRemain(uint32_t s, char* out, size_t cap);
 
