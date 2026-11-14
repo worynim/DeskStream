@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-14T19:09:40.917Z",
+  "generatedAt": "2026-11-14T20:12:12.970Z",
   "chip": "ESP32-C3",
   "board": "DeskStream (ESP32-C3 SuperMini · 4× OLED)",
   "flashDefaults": {
@@ -678,6 +678,54 @@
           "path": "firmware/Wireless_Analyzer/Wireless_Analyzer.ino.bin",
           "size": 1401952,
           "sha256": "a20dd7306a0e44d6d8a7fd394be1d852858b7190a1a73e02c68683f43b76f168"
+        }
+      ]
+    },
+    {
+      "id": "World_Clock",
+      "name": "세계 시계",
+      "version": "0.1.0",
+      "icon": "🌍",
+      "order": 15,
+      "description": "OLED 화면 하나에 도시 하나씩 지구 위 4곳의 현지 시각을 보여주는 시계. 큰 AM/PM 글자와 해/달 아이콘으로 오전/오후·낮/밤을 구분",
+      "note": "화면을 길게 누르면 그 화면의 장소 설정이 시작됩니다(나머지 세 화면이 지도·서쪽·동쪽 버튼). 도시 113개, 서머타임 자동 반영. 처음에는 WiFi \"World_Clock_Setup\"에 접속해 192.168.4.1에서 WiFi를 설정하세요. 0.1.0은 실제 보드 확인 전 배포본입니다.",
+      "nameEn": "World Clock",
+      "descriptionEn": "Shows the local time of four places on Earth, one city per OLED, with large AM/PM letters and a sun/moon icon",
+      "noteEn": "Long-press a screen to change its city (the other three screens become map, west and east buttons). 113 cities with automatic DST. On first boot, join WiFi \"World_Clock_Setup\" and open 192.168.4.1 to set up WiFi. 0.1.0 has not been verified on real hardware yet.",
+      "fqbn": "esp32:esp32:makergo_c3_supermini:CDCOnBoot=default,CPUFreq=160,PartitionScheme=huge_app",
+      "partitionScheme": "huge_app",
+      "flash": {
+        "mode": "dio",
+        "freq": "80m",
+        "size": "4MB"
+      },
+      "exportedAt": "2026-11-14T20:12:12.744Z",
+      "sourcePath": "World_Clock",
+      "sourceCommit": "089f2ca1d2702ba5c1cd1f6b5ed602611894092e",
+      "images": [
+        {
+          "offset": "0x0",
+          "path": "firmware/World_Clock/World_Clock.ino.bootloader.bin",
+          "size": 19536,
+          "sha256": "9b2fa5e4af7cf282b2db5ed726b26bcca0aec7946eb3fdacc14444195ba754b3"
+        },
+        {
+          "offset": "0x8000",
+          "path": "firmware/World_Clock/World_Clock.ino.partitions.bin",
+          "size": 3072,
+          "sha256": "36d00268bf809898d080ec822be0927177ecc5f1649e5cea68a2ff2d74fbbcf9"
+        },
+        {
+          "offset": "0xe000",
+          "path": "firmware/World_Clock/boot_app0.bin",
+          "size": 8192,
+          "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0"
+        },
+        {
+          "offset": "0x10000",
+          "path": "firmware/World_Clock/World_Clock.ino.bin",
+          "size": 1257056,
+          "sha256": "e6df129ca126fe21bf6ad384404e15231591c73ff20ef724d92339bd0070a344"
         }
       ]
     }

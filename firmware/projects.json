@@ -189,6 +189,19 @@
       "nameEn": "Wireless Analyzer",
       "descriptionEn": "Uses the ESP32-C3 WiFi/BLE radio to show 2.4GHz channel 1–13 congestion and a recommended channel, nearby AP signal history and tracking, and nearby BLE device counts",
       "noteEn": "Standalone — it never joins a WiFi network. Six screens (channel spectrum, congestion, AP list, AP tracking, BLE devices, summary), switched with BTN1/BTN2. BLE device addresses are never shown or sent. Korean text (Galmuri7 font)."
+    },
+    {
+      "id": "World_Clock",
+      "name": "세계 시계",
+      "version": "0.1.0",
+      "icon": "🌍",
+      "order": 15,
+      "sourcePath": "World_Clock",
+      "description": "OLED 화면 하나에 도시 하나씩 지구 위 4곳의 현지 시각을 보여주는 시계. 큰 AM/PM 글자와 해/달 아이콘으로 오전/오후·낮/밤을 구분",
+      "note": "화면을 길게 누르면 그 화면의 장소 설정이 시작됩니다(나머지 세 화면이 지도·서쪽·동쪽 버튼). 도시 113개, 서머타임 자동 반영. 처음에는 WiFi \"World_Clock_Setup\"에 접속해 192.168.4.1에서 WiFi를 설정하세요. 0.1.0은 실제 보드 확인 전 배포본입니다.",
+      "nameEn": "World Clock",
+      "descriptionEn": "Shows the local time of four places on Earth, one city per OLED, with large AM/PM letters and a sun/moon icon",
+      "noteEn": "Long-press a screen to change its city (the other three screens become map, west and east buttons). 113 cities with automatic DST. On first boot, join WiFi \"World_Clock_Setup\" and open 192.168.4.1 to set up WiFi. 0.1.0 has not been verified on real hardware yet."
     }
   ]
 }
