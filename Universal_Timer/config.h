@@ -40,10 +40,13 @@
 // ==========================================
 #define BEEP_FREQ           3000        // 버튼 클릭 비프음 주파수 (Hz)
 #define BEEP_DURATION_MS    30          // 버튼 클릭 비프음 길이 (ms)
-#define ALARM_FREQ          2500        // 알람 주파수 (Hz)
-#define ALARM_DURATION_MS   200         // 알람 한 사이클 길이 (ms)
-#define ALARM_REPEAT        5           // 알람 반복 횟수
-#define ALARM_PAUSE_MS      100         // 알람 사이클 간 멈춤 (ms)
+// 알람 멜로디(오르골 아르페지오)는 Universal_Timer.ino의 ALARM_MELODY
+
+// 멜로디 음량 감쇠 (BellBuzzer) — 패시브 부저는 duty가 50%일 때 가장 크고 줄일수록 작아진다
+#define BUZZER_PWM_RES_BITS 10          // LEDC duty 해상도 (0~1023)
+#define BUZZER_DECAY_STEP_MS 60         // 감쇠 한 단계 길이 (ms)
+// 단계별 duty: 50·30·18·10·6·3 % — 마지막 값은 음이 끝날 때까지 유지한다
+static constexpr uint16_t BUZZER_DECAY_DUTY[] = {512, 307, 184, 102, 61, 31};
 
 // ==========================================
 // [7] 부팅 멜로디 설정

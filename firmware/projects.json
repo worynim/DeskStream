@@ -154,7 +154,7 @@
     {
       "id": "Universal_Timer",
       "name": "범용 타이머",
-      "version": "1.1.1",
+      "version": "1.2.0",
       "icon": "⏱️",
       "order": 12,
       "sourcePath": "Universal_Timer",
@@ -180,7 +180,7 @@
     {
       "id": "Wireless_Analyzer",
       "name": "무선 환경 분석기",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "icon": "📡",
       "order": 14,
       "sourcePath": "Wireless_Analyzer",

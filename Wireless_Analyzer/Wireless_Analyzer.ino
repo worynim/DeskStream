@@ -116,6 +116,8 @@ static bool selectable() { return ui.mode == wa::Mode::List || ui.mode == wa::Mo
 
 static void pollButtons() {
     buttons.update();
+    for (uint8_t i = 0; i < ds::kNumButtons; i++)   // 누르는 순간 버튼음
+        if (buttons.events(i) & ds::BUTTON_PRESS) buzzer.beep(WA_KEY_BEEP_MS, WA_KEY_BEEP_HZ);
     if (buttons.events(0) & ds::BUTTON_SHORT) stepMode(-1);
     if (buttons.events(0) & ds::BUTTON_LONG) toggleFlip();
     if (buttons.events(1) & ds::BUTTON_SHORT) stepMode(+1);

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-11T13:13:41.166Z",
+  "generatedAt": "2026-11-14T19:09:40.917Z",
   "chip": "ESP32-C3",
   "board": "DeskStream (ESP32-C3 SuperMini · 4× OLED)",
   "flashDefaults": {
@@ -540,7 +540,7 @@
     {
       "id": "Universal_Timer",
       "name": "범용 타이머",
-      "version": "1.1.1",
+      "version": "1.2.0",
       "icon": "⏱️",
       "order": 12,
       "description": "4개 OLED로 시·분·초를 설정하고 카운트다운을 수행하는 하드웨어 타이머. 직전 설정 시간 복원 지원",
@@ -555,9 +555,9 @@
         "freq": "80m",
         "size": "4MB"
       },
-      "exportedAt": "2026-11-09T15:48:35.013Z",
+      "exportedAt": "2026-11-14T19:08:09.133Z",
       "sourcePath": "Universal_Timer",
-      "sourceCommit": "e1efc0f73d658ff823bcef8b7d08e8acf4777396",
+      "sourceCommit": "2d0cc12532eeb2b4272b98689caa007751b840cf",
       "images": [
         {
           "offset": "0x0",
@@ -580,8 +580,8 @@
         {
           "offset": "0x10000",
           "path": "firmware/Universal_Timer/Universal_Timer.ino.bin",
-          "size": 429392,
-          "sha256": "66c2eea89c4429045e46f8889b63237f252e9de05206bd6e3a074f4023afaca2"
+          "size": 429024,
+          "sha256": "3eb0f436f5b85e5b98a95a00b9365163e20cd5ee6c0bc4bcfcf0c7575950fc70"
         }
       ]
     },
@@ -636,7 +636,7 @@
     {
       "id": "Wireless_Analyzer",
       "name": "무선 환경 분석기",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "icon": "📡",
       "order": 14,
       "description": "ESP32-C3의 WiFi·BLE 무선부로 2.4GHz 채널 1~13 혼잡도·추천 채널, 주변 AP 신호 세기 추이·추적, 근처 BLE 기기 수를 보여주는 분석기",
@@ -651,9 +651,9 @@
         "freq": "80m",
         "size": "4MB"
       },
-      "exportedAt": "2026-11-11T13:13:41.029Z",
+      "exportedAt": "2026-11-14T19:09:34.936Z",
       "sourcePath": "Wireless_Analyzer",
-      "sourceCommit": "7bf46de3bc8319ce1af9550fe78ed96b0542e742",
+      "sourceCommit": "2d0cc12532eeb2b4272b98689caa007751b840cf",
       "images": [
         {
           "offset": "0x0",
@@ -676,8 +676,8 @@
         {
           "offset": "0x10000",
           "path": "firmware/Wireless_Analyzer/Wireless_Analyzer.ino.bin",
-          "size": 1401920,
-          "sha256": "b28e48757b328e170d8124d256155762aba32130eba0d104a5c4ba9e14e3544c"
+          "size": 1401952,
+          "sha256": "a20dd7306a0e44d6d8a7fd394be1d852858b7190a1a73e02c68683f43b76f168"
         }
       ]
     }

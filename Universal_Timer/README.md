@@ -20,7 +20,8 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
    - **Long Press (1초)**: 00시 00분 00초로 전체 초기화(RESET)
 4. **시각 및 청각 피드백**:
    - 버튼 클릭 시마다 경쾌하고 짧은 비프음 출력
-   - 카운트다운 종료 시 4번 OLED 화면 반전 점멸 및 경고 알람음 연속 출력
+   - 카운트다운 종료 시 4번 OLED 화면 반전 점멸 및 오르골 아르페지오 알람 연속 출력
+   - 알람·부팅 멜로디는 PWM duty를 50%에서 3%로 낮춰 종소리처럼 여운을 남김 (v1.2.0)
    - 알람 발생 중 아무 버튼이나 누르면 즉시 알람 해제
 5. **고속 듀얼 I2C 아키텍처**:
    - `Sound_Visualizer_4_OLEDs`의 검증된 고속 I2C 방식을 채택
@@ -59,9 +60,10 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
 - `Universal_Timer.ino`: 메인 루프, 버튼 분기 처리 및 화면 렌더링
 - `TimerLogic.h / .cpp`: 시/분/초 증가 및 카운트다운 비즈니스 로직
+- `BellBuzzer.h / .cpp`: duty 감쇠를 넣는 비차단 부저 (비프·부팅 멜로디·알람). `ds::Buzzer`는 `tone()`이라 duty가 50%로 고정되어 프로젝트 안에 따로 둠
 - `config.h`: 타이머/버튼 타이밍/부저 관련 전역 상수 정의 (핀맵은 DeskStreamCore `ds_board.h`)
 
-화면 전송(`ds::DisplayCore`)·버튼 자동 반복(`ds::Buttons`)·비차단 비프·알람(`ds::Buzzer`)은
+화면 전송(`ds::DisplayCore`)·버튼 자동 반복(`ds::Buttons`)은
 공통 라이브러리 [DeskStreamCore](../libraries/DeskStreamCore/) — 빌드 전 저장소 루트에서 `bash scripts/link-arduino-lib.sh` 1회를 씁니다 (v1.1.0).
 
 ---

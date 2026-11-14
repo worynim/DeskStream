@@ -8,11 +8,12 @@
 #include <DeskStreamCore.h>
 #include "config.h"
 #include "TimerLogic.h"
+#include "BellBuzzer.h"
 
 // === 공통 서비스 (DeskStreamCore) ===
 static ds::DisplayCore display;   // 4-OLED 화면 엔진 — 바뀐 페이지만 병렬 전송
 static ds::Buttons buttons;       // 짧게/길게/자동 반복
-static ds::Buzzer buzzer;         // 비차단 비프·멜로디·알람
+static BellBuzzer buzzer;         // 비차단 비프·멜로디·알람 (멜로디는 duty 감쇠)
 
 /** 화면 idx(0~3)의 U8G2 — REVERSE_SCREEN_ORDER면 물리 순서를 뒤집는다 */
 static U8G2* screenAt(int idx) {
@@ -37,8 +38,17 @@ static const ds::Note STARTUP_MELODY[] = {
     {STARTUP_NOTE_1, STARTUP_NOTE_DUR, STARTUP_NOTE_PAUSE}, {STARTUP_NOTE_2, STARTUP_NOTE_DUR, STARTUP_NOTE_PAUSE},
     {STARTUP_NOTE_3, STARTUP_NOTE_DUR, STARTUP_NOTE_PAUSE}, {STARTUP_NOTE_4, STARTUP_NOTE_DUR, STARTUP_NOTE_PAUSE},
 };
-// 알람 한 사이클 (울림 ALARM_DURATION_MS + 쉼 ALARM_PAUSE_MS) — stop() 할 때까지 반복
-static const ds::Note ALARM_MELODY[] = {{ALARM_FREQ, ALARM_DURATION_MS, ALARM_PAUSE_MS}};
+// 알람 음 이름 → 주파수 (Hz)
+enum : uint16_t { N_A5 = 880, N_B5 = 988, N_C6 = 1047, N_D6 = 1175, N_E6 = 1319, N_F6 = 1397,
+                  N_G6 = 1568, N_A6 = 1760, N_B6 = 1976, N_C7 = 2093 };
+// 알람 한 사이클: 오르골 아르페지오 C → F → G → C (약 2.5초) — stop() 할 때까지 반복
+static const ds::Note ALARM_MELODY[] = {
+    {N_C6, 90, 25}, {N_E6, 90, 25}, {N_G6, 90, 25}, {N_C7, 180, 60},
+    {N_A5, 90, 25}, {N_C6, 90, 25}, {N_F6, 90, 25}, {N_A6, 180, 60},
+    {N_B5, 90, 25}, {N_D6, 90, 25}, {N_G6, 90, 25}, {N_B6, 180, 60},
+    {N_C7, 90, 25}, {N_G6, 90, 25}, {N_E6, 90, 25}, {N_C7, 360, 400},
+};
+static constexpr uint8_t ALARM_NOTES = sizeof(ALARM_MELODY) / sizeof(ALARM_MELODY[0]);
 
 /** 버튼 클릭 비프 — 알람이 울리는 중에는 무시한다 (알람을 끊지 않게) */
 static void beep() {
@@ -101,7 +111,7 @@ void loop() {
     // [2] 타이머 카운트다운 틱 처리
     bool timer_finished = timer.update();
     if (timer_finished) {
-        buzzer.playMelody(ALARM_MELODY, 1, true);   // 사용자가 끌 때까지 반복
+        buzzer.playMelody(ALARM_MELODY, ALARM_NOTES, true);   // 사용자가 끌 때까지 반복
     }
 
     // [3] 버튼 입력 이벤트 처리 (지연 없이 즉각 반응)

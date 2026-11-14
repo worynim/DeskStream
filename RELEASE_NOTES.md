@@ -1,3 +1,12 @@
+## [v4.39.0] - 2026-11-15
+### 🎵 Universal_Timer 1.2.0 — 오르골 알람 · 종소리 여운 / 🔔 Wireless_Analyzer 0.5.1 — 버튼음
+- 종료 알람을 2500Hz 단음 반복에서 오르골 아르페지오(C → F → G → C, 16음, 한 사이클 약 2.5초)로 바꿨습니다. 버튼을 누를 때까지 반복합니다.
+- 패시브 부저의 PWM duty를 50 → 30 → 18 → 10 → 6 → 3%로 60ms마다 낮춰, 알람·부팅 멜로디의 긴 음이 종소리처럼 사라집니다. 버튼 비프는 그대로입니다.
+- `ds::Buzzer`는 `tone()`이라 duty가 50%로 고정되어, 프로젝트 안에 LEDC를 직접 쓰는 `BellBuzzer`를 두었습니다 (DeskStreamCore 변경 없음). 이력은 `Universal_Timer/RELEASE_NOTES.md`.
+- 루트 README 버전·특징, AI_GUIDE 사용 예, DeskStreamCore README의 `ds_buzzer` 사용처를 고쳤습니다.
+- **Wireless_Analyzer 0.5.1**: 버튼을 누르는 순간 짧은 버튼음(20ms · 3000Hz)을 냅니다. 이전에는 부저를 AP 추적 알림에만 써서 버튼을 눌러도 소리가 없었습니다. 이력은 `Wireless_Analyzer/RELEASE_NOTES.md`.
+- 웹 플래셔 배포본을 Universal_Timer 1.2.0 · Wireless_Analyzer 0.5.1로 갱신했습니다 (`firmware/projects.json` 버전, manifest 두 항목 병합, `--check` 통과 14개).
+
 ## [v4.38.0] - 2026-11-11
 ### 📡 Wireless_Analyzer 신규 — 2.4GHz 무선 환경 분석기 (v0.5.0)
 - ESP32-C3의 WiFi·BLE 무선부로 주변 무선 환경을 재는 단독 장치를 추가했습니다 (14번째 프로젝트). 공유기에 접속하지 않습니다.

@@ -6,7 +6,7 @@
 
 - 라이브러리 원본: [`libraries/DeskStreamCore/`](./libraries/DeskStreamCore/) (README·RELEASE_NOTES 참조)
 - 하드웨어: [`hardware.md`](./hardware.md) — ESP32-C3 SuperMini, SSD1306 128x64 × 4, 버튼 4개, 부저
-- 사용 예(실제 프로젝트): `Hangeul_Clock`(전 모듈), `Universal_Timer`(이벤트 조회·자동 반복·알람),
+- 사용 예(실제 프로젝트): `Hangeul_Clock`(전 모듈), `Universal_Timer`(이벤트 조회·자동 반복),
   `Game_Of_Life`(버퍼 직접 쓰기·누름 즉시 반응), `Smart_Info_Station`(WiFi·NTP·오프셋 시간대),
   `Sound_Visualizer_4_OLEDs`(512x64 LovyanGFX 캔버스)
 

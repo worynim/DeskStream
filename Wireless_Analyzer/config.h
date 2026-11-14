@@ -7,7 +7,7 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#define WA_FW_VERSION "0.5.0"
+#define WA_FW_VERSION "0.5.1"
 
 // --- WiFi 스캔 ---
 #define WA_COUNTRY_CODE     "KR"    // 채널 1~13
@@ -35,5 +35,9 @@
 #define WA_BEEP_MS          30
 #define WA_BEEP_HZ          2500
 #define WA_TRACK_STALE_MS   2000    // 마지막 유효 기록이 이보다 오래되면 부저를 멈춘다
+
+// --- 버튼음 (버튼을 누르는 순간 짧게) ---
+#define WA_KEY_BEEP_MS      20
+#define WA_KEY_BEEP_HZ      3000
 
 #endif

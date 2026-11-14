@@ -58,7 +58,7 @@ void loop() {
 | `src/display/ds_i2c_retry_policy.h` | HW I2C 전송 후 dirty 마스크 갱신 정책 (순수) | Hangeul_Clock v2.10.0 |
 | `src/input/ds_buttons.*` | 4버튼 폴링 — 콜백(짧게/길게/누름/반복) 또는 이벤트 조회 | Hangeul_Clock + Universal_Timer |
 | `src/input/ds_button_fsm.h` | 버튼 판정 상태 머신 — 자동 반복·안정 디바운스 옵션 (순수) | Hangeul·Universal_Timer·Game_Of_Life |
-| `src/sound/ds_buzzer.*` | 비차단 비프·멜로디·반복 알람 (FreeRTOS 타이머) | Hangeul_Clock + Universal_Timer |
+| `src/sound/ds_buzzer.*` | 비차단 비프·멜로디·반복 알람 (FreeRTOS 타이머) | Hangeul_Clock (Universal_Timer v1.2.0~는 duty 감쇠용 자체 `BellBuzzer`) |
 | `src/net/ds_wifi.*` | 저장 AP 비차단 접속 → **자체 설정 포털**(열린 AP·캡티브 DNS·SSID 목록) → 끊김 재접속 | Hangeul_Clock v2.10.0 + 자체 포털 |
 | `src/net/ds_wifi_portal_util.*` | 포털 입력 검증(SSID·비밀번호 길이)·HTML 이스케이프 (순수) | 신규 |
 | `src/net/ds_time_sync.*` | NTP 재동기화 감독·드리프트 기록 (`sntp_sync_time` 대체) | Hangeul_Clock v2.10.0 |
