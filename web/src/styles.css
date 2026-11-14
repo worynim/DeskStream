@@ -185,6 +185,20 @@ body {
   font-size: 0.82rem;
 }
 
+.chip--link {
+  text-decoration: none;
+}
+
+.chip--link:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.chip--link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* ── Banners ────────────────────────────────────────── */
 .banner {
   display: flex;

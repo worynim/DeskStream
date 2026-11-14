@@ -12,6 +12,7 @@ export interface UiStrings {
   heroLead: string;
   chipLoading: string;
   chipBrowser: string;
+  chipVideos: string;
   chipError: string;
   warningTitle: string;
   warningBody: string;
@@ -125,6 +126,7 @@ const ko: LocalePack = {
       "USB 케이블로 ESP32-C3 보드를 연결하고, 원하는 프로젝트를 선택해 브라우저에서 바로 플래시하세요. 별도 프로그램 설치가 필요 없습니다.",
     chipLoading: "프로젝트 불러오는 중…",
     chipBrowser: "Chrome / Edge · Android Chrome",
+    chipVideos: "▶ 프로젝트 영상 (YouTube)",
     chipError: "목록 로드 실패",
     warningTitle: "이 브라우저에서는 플래시할 수 없습니다.",
     warningBody:
@@ -284,6 +286,7 @@ const en: LocalePack = {
       "Connect your ESP32-C3 board over USB, pick a project, and flash it straight from your browser. No extra software to install.",
     chipLoading: "Loading projects…",
     chipBrowser: "Chrome / Edge · Android Chrome",
+    chipVideos: "▶ Project videos (YouTube)",
     chipError: "Failed to load projects",
     warningTitle: "This browser can't flash the board.",
     warningBody:
