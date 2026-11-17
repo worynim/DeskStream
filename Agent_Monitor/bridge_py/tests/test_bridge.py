@@ -499,8 +499,17 @@ class TestBridgeButtons(unittest.TestCase):
         self.bridge.on_device_line('{"t":"btn","b":0,"press":"close"}')
         self.assertEqual((self.bridge.table.view(0)[0], self.bridge.watch), (None, -1))
         self.bridge.on_device_line('{"t":"btn","b":2,"press":"close"}')         # 빈 슬롯 — 아무 일 없음
-        self.bridge.on_hook("PreToolUse", ev(tool_name="Bash"))                  # 살아 있는 세션이면 다시 생김
-        self.assertEqual(self.bridge.table.view(0)[0]["st"], "run")
+        self.bridge.on_hook("PreToolUse", ev(tool_name="Bash"))                  # 닫은 세션의 다른 이벤트는 무시
+        self.bridge.on_hook("Notification", ev(notification_type="idle_prompt"))
+        self.assertIsNone(self.bridge.table.view(0)[0])
+        self.bridge.on_hook("UserPromptSubmit", ev())                            # 새 질문이면 다시 생김
+        self.assertEqual(self.bridge.table.view(0)[0]["st"], "think")
+
+    def test_closed_session_reopens_on_permission(self):
+        self.bridge.on_hook("Stop", ev())
+        self.bridge.on_device_line('{"t":"btn","b":0,"press":"close"}')
+        self.bridge.on_hook("Notification", ev(notification_type="permission_prompt"))
+        self.assertEqual(self.bridge.table.view(0)[0]["st"], "approve")
 
     def test_alert_sent_on_done(self):
         self.bridge.on_hook("Stop", ev())

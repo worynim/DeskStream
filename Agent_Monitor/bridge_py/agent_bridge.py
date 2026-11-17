@@ -253,12 +253,12 @@ class Bridge:
                     self.watch = b
                     self.sent_detail = None
                 self.dirty.set()
-            elif press == "close":          # 상세 화면 BTN2 — 슬롯 b 세션을 장치에서 지운다 (다시 이벤트가 오면 다시 생김)
+            elif press == "close":          # 상세 화면 BTN2 — 슬롯 b 세션을 장치에서 지운다 (새 질문·승인 요청이 오면 다시 생김)
                 with self.lock:
                     sid = self.table.slots[b]
                     if sid:
                         self._log_cleared(self.approvals.clear_session(sid))
-                        self.table.remove(sid)
+                        self.table.close(sid)
                     self.watch = -1
                 self.dirty.set()
             elif press == "long":           # 설정 파일의 PC 명령 (버튼 번호 1~4)

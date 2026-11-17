@@ -193,7 +193,7 @@ static void onDetailButton(uint8_t i, uint32_t now) {
     detailTouchMs = now;
     switch (i) {
         case 0: detailSlot = -1; break;
-        case 1:   // 세션 닫기 — 데몬이 슬롯에서 지운다 (그 세션에 다시 이벤트가 오면 다시 생김)
+        case 1:   // 세션 닫기 — 데몬이 슬롯에서 지운다 (새 질문·승인 요청이 오면 다시 생김)
             sendButton(detailSlot, "close");
             detailSlot = -1;
             break;

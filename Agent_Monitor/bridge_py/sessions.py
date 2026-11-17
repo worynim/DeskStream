@@ -16,6 +16,7 @@ ALERT_STATES = ("approve", "input", "done", "error")   # 이 상태로 바뀌면
 INPUT_NOTIFICATIONS = ("idle_prompt", "elicitation_dialog", "agent_needs_input")
 HISTORY_LEN = 4                 # 상세 화면의 최근 도구 줄 수
 SUMMARY_KEYS = ("command", "file_path", "pattern", "url", "description", "prompt", "query")
+REOPEN_EVENTS = ("SessionStart", "UserPromptSubmit", "PermissionRequest")   # 장치에서 닫은 세션을 다시 보이게 하는 이벤트
 
 
 @dataclass
@@ -50,6 +51,7 @@ class SessionTable:
     def __init__(self, max_slots: int = MAX_SLOTS):
         self.sessions: dict[str, Session] = {}
         self.slots: list = [None] * max_slots   # 슬롯 i 에 표시 중인 session_id
+        self.closed: set = set()                # 장치에서 닫은 session_id — 새 질문·승인 요청 전까지 무시
 
     def apply(self, event: str, p: dict, now: float) -> list:
         """훅 이벤트 하나를 반영하고, 새로 알림이 필요한 (상태, 슬롯) 목록을 돌려준다."""
@@ -58,7 +60,14 @@ class SessionTable:
             return []
         if event == "SessionEnd":
             self.remove(sid)
+            self.closed.discard(sid)
             return []
+        if sid in self.closed:
+            reopen = event in REOPEN_EVENTS or (
+                event == "Notification" and p.get("notification_type") == "permission_prompt")
+            if not reopen:
+                return []
+            self.closed.discard(sid)
         if event == "SubagentStop" and not p.get("agent_type"):
             return []   # 매 턴 Stop 뒤에 따라오는 내부 작업 (P0 발견 4)
 
@@ -123,6 +132,11 @@ class SessionTable:
         s = self.sessions.get(sid)
         if s is not None and s.state != state:
             s.state, s.since = state, now
+
+    def close(self, sid: str):
+        """장치에서 세션을 닫음 — 슬롯에서 지우고, 새 질문·승인 요청이 올 때까지 다시 만들지 않는다."""
+        self.remove(sid)
+        self.closed.add(sid)
 
     def remove(self, sid: str):
         s = self.sessions.pop(sid, None)
