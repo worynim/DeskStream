@@ -1,4 +1,4 @@
-# 🤖 Agent_Monitor — AI 개발 에이전트 모니터 (v0.7.1)
+# 🤖 Agent_Monitor — AI 개발 에이전트 모니터 (v0.8.0)
 
 Claude Code 세션의 작업 상태를 DeskStream 4-OLED에 실시간으로 보여주는 책상 위 모니터입니다.
 OLED 한 장이 세션 하나를 맡아 **생각 중 / 실행 중(도구·명령) / 승인 대기 / 입력 대기 / 완료 / 오류**를 표시하고,
@@ -78,6 +78,7 @@ BLE 는 근처 누구나 접속할 수 있어, 같은 이름의 **가짜 장치*
   - 사용량은 Claude Code 가 **상태줄(statusLine) 명령**에만 넘겨주는 값이라, 훅 설치 때 `~/.claude/settings.json` 의 `statusLine` 에 데몬으로 전달하는 명령을 함께 등록합니다 (출력이 없어 터미널 상태줄은 비어 있습니다). **이미 쓰는 statusLine 이 있으면 덮어쓰지 않으며**, 그 경우 사용량은 표시되지 않습니다.
   - 사용량은 **Claude 구독 계정(Pro/Max)으로 로그인**했을 때만 들어옵니다. `ANTHROPIC_API_KEY` · `ANTHROPIC_AUTH_TOKEN` · `ANTHROPIC_BASE_URL` 로 API 과금(시작 화면에 `API Usage Billing`)이나 다른 모델 서버로 실행하면 값이 없어 `--` 로 남습니다. 셸 설정에 이 변수가 있다면 `env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u ANTHROPIC_BASE_URL claude` 로 실행하세요.
   - 상태줄이 갱신될 때(Claude Code 세션이 응답을 주고받을 때)만 값이 바뀝니다. 데몬을 다시 켜면 다음 갱신까지 `--` 이고, 리셋 시각이 지나면 새 값이 올 때까지 0% 로 보입니다.
+  - **Claude 데스크톱 앱(Code 탭)만 쓰면 상태줄이 실행되지 않아 값이 멈춥니다.** 이때는 설정 파일에 `[usage] poll = true` 를 넣으면 데몬이 5분마다 사용량을 직접 조회합니다 (macOS 만, 아래 [설정 파일](#설정-파일-선택) 참고).
 
 ## 버튼
 
@@ -148,7 +149,7 @@ python3 agent_bridge.py install-hooks
 python3 agent_bridge.py uninstall-hooks   # 추가한 항목만 제거
 ```
 
-### 4. 설정 파일 — 음소거 · 밝기 · PC 명령 (선택)
+### 4. 설정 파일 — 음소거 · 밝기 · 사용량 조회 · PC 명령 (선택)
 
 ```bash
 python3 agent_bridge.py init-config     # 예시 → ~/.deskstream/agent_monitor.toml (권한 600)
@@ -158,6 +159,9 @@ python3 agent_bridge.py init-config     # 예시 → ~/.deskstream/agent_monitor
 [device]
 mute = false            # true = 알림음·버튼음 모두 끔
 brightness = 40         # OLED 밝기 % (1~100) — 낮출수록 번인(잔상)이 줄어듭니다
+
+[usage]
+poll = false            # true = 5분마다 Claude 사용량 직접 조회 (macOS)
 
 [[commands]]            # 버튼 길게 누르기 — button = 1~4
 button = 2
@@ -169,6 +173,10 @@ timeout = 300
 ```
 
 - `[device]` 의 음소거·밝기는 장치에 저장돼 데몬이 꺼져 있어도 유지됩니다 (값이 범위 밖이면 장치는 이전 값을 유지합니다 — 오류 내용은 데몬 로그에 남습니다).
+- `[usage] poll = true` (기본 꺼짐, macOS 만): 데몬이 Claude Code 가 쓰는 사용량 주소(`api.anthropic.com/api/oauth/usage`)를 Claude Code 가 키체인(`Claude Code-credentials`)에 둔 로그인 토큰으로 5분마다 조회합니다.
+  - 토큰은 **읽기만** 합니다 — 갱신·저장·로그 출력하지 않고, 만료됐으면 조회를 쉬었다가 Claude Code 를 다시 쓰면(토큰 갱신) 이어서 조회합니다.
+  - 공식 API 가 아니라 Claude Code 업데이트로 바뀔 수 있고, 구독 로그인 토큰을 Claude Code 밖에서 쓰는 방식이라 기본은 꺼 두었습니다. 처음 조회할 때 macOS 가 키체인 접근을 물으면 허용하세요.
+  - 결과는 데몬 로그에 `[usage] 직접 조회 성공` / `[usage] 조회 실패: …` 로 남습니다 (같은 내용은 한 번만). 상태줄 값도 함께 받으며 나중에 받은 값을 씁니다.
 - 장치는 **버튼 번호만** 보냅니다. 실행 내용은 이 파일에만 있고, 버튼을 누를 때마다 다시 읽습니다 (데몬 재시작 불필요).
 - 파일을 다른 사용자도 쓸 수 있는 권한이면(group/other write) 실행하지 않습니다.
 - `keys` 는 ASCII 텍스트와 `return · escape · tab · space · ctrl+c` 만 지원하고, macOS **손쉬운 사용** 권한(데몬을 실행한 터미널 앱)이 필요합니다. `app` 을 지정하면 그 앱을 먼저 앞으로 가져옵니다.
@@ -203,6 +211,7 @@ python3 demo_hooks.py --end
 | `bridge_py/sessions.py` | 훅 이벤트 → 세션 상태 · 슬롯 배정 |
 | `bridge_py/approvals.py` | 권한 요청 대기열 (결정 · 다음 · 터미널 선결정 정리) |
 | `bridge_py/commands.py` | 사용자 설정 파일 · PC 명령 실행 |
+| `bridge_py/usage_poll.py` | Claude 사용량 직접 조회 (`[usage] poll`) |
 | `bridge_py/agent_monitor.example.toml` | 설정 예시 |
 | `bridge_py/protocol.py` | 시리얼 메시지 형식 (프로토콜 설명 포함) |
 | `bridge_py/transport.py` | USB 시리얼 · BLE(bleak) · USB 우선 자동 선택 |

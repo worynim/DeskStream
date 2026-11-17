@@ -20,6 +20,7 @@ sys.path.insert(0, str(HERE.parent))
 import commands  # noqa: E402
 import hooks_config  # noqa: E402
 import protocol  # noqa: E402
+import usage_poll  # noqa: E402
 from agent_bridge import Bridge  # noqa: E402
 from approvals import ApprovalQueue  # noqa: E402
 from security import DeviceAuth  # noqa: E402
@@ -720,6 +721,62 @@ class TestUsage(unittest.TestCase):
         self.bridge.on_status({"rate_limits": {"five_hour": {"used_percentage": 80, "resets_at": 2000}}})
         self.assertEqual(self.bridge.usage_windows(1999), ((80, 2000), None))
         self.assertEqual(self.bridge.usage_windows(2000), ((0, 0), None))
+
+
+    def _poll_bridge(self, poll, source):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        cfg = Path(tmp.name) / "c.toml"
+        cfg.write_text(f"[usage]\npoll = {'true' if poll else 'false'}\n")
+        os.chmod(cfg, 0o600)
+        return Bridge(lambda *_: FakeLink(), config_path=cfg, auth=test_auth(), usage_source=source)
+
+    def test_parse_usage_response(self):
+        data = {"five_hour": {"utilization": 42.4, "resets_at": "1970-01-01T00:33:20+00:00"},
+                "seven_day": {"utilization": 60.0, "resets_at": None}, "seven_day_opus": None}
+        self.assertEqual(usage_poll.parse_usage(data, ("five_hour", "seven_day")), [(42, 2000), (60, 0)])
+        self.assertEqual(usage_poll.parse_usage({"five_hour": None}, ("five_hour",)), [None])
+
+    def test_poll_usage_only_when_enabled(self):
+        calls = []
+        src = lambda now: calls.append(now) or {"five_hour": {"utilization": 42.0, "resets_at": None}}
+        off = self._poll_bridge(False, src)
+        off.poll_usage(10)
+        self.assertEqual((calls, off.usage), ([], [None, None]))
+        on = self._poll_bridge(True, src)
+        on.poll_usage(10)
+        self.assertEqual((calls, on.usage), ([10], [(42, 0), None]))
+
+    def test_poll_usage_keeps_last_value_on_failure(self):
+        results = [{"seven_day": {"utilization": 60, "resets_at": None}}, None, OSError("HTTP Error 401")]
+        def src(now):
+            r = results.pop(0)
+            if isinstance(r, Exception):
+                raise r
+            return r
+        b = self._poll_bridge(True, src)
+        for now in (1, 2, 3):                                                # 성공 · 토큰 없음 · 오류
+            b.poll_usage(now)
+        self.assertEqual(b.usage, [None, (60, 0)])
+        self.assertIn("401", b.usage_err)
+
+    def test_read_token(self):
+        class R:
+            def __init__(self, code, out): self.returncode, self.stdout = code, out
+        cred = lambda exp: json.dumps({"claudeAiOauth": {"accessToken": "tok", "expiresAt": exp}})
+        if sys.platform != "darwin":
+            self.assertIsNone(usage_poll.read_token(0, run=lambda *a, **k: R(0, cred(None))))
+            return
+        self.assertEqual(usage_poll.read_token(100, run=lambda *a, **k: R(0, cred(200_000))), "tok")
+        self.assertIsNone(usage_poll.read_token(300, run=lambda *a, **k: R(0, cred(200_000))))   # 만료
+        self.assertIsNone(usage_poll.read_token(0, run=lambda *a, **k: R(44, "")))               # 항목 없음
+        self.assertIsNone(usage_poll.read_token(0, run=lambda *a, **k: R(0, "not json")))
+
+    def test_config_usage_poll(self):
+        self.assertTrue(commands.parse_config({"usage": {"poll": True}}).usage_poll)
+        self.assertFalse(commands.parse_config({}).usage_poll)
+        with self.assertRaises(commands.ConfigError):
+            commands.parse_config({"usage": {"poll": "yes"}})
 
 
 if __name__ == "__main__":

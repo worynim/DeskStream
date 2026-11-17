@@ -11,6 +11,7 @@
          - 슬롯·승인·상세 화면이 바뀌면 바로, 그 밖에는 HEARTBEAT_SEC 마다 하트비트를 보낸다.
          - 상태줄(statusLine) 입력의 rate_limits(5시간·주간 사용률, 리셋 시각)를 받아 장치로 보낸다 (빈 슬롯 화면).
            데몬을 다시 켜면 다음 상태줄 갱신(Claude Code 세션 활동)이 올 때까지는 값을 모른다.
+           설정 [usage] poll = true 면 USAGE_POLL_SEC 마다 직접 조회도 한다 (usage_poll.py — 데스크톱 앱만 쓸 때).
          - 장치 버튼: 짧게 = 그 슬롯 상세 보기(+완료 확인), 길게 = 설정 파일의 PC 명령 (commands.py),
            상세 화면 BTN2 = 세션 닫기(슬롯에서 지움). 설정 파일 [device] 의 음소거·밝기를 장치에 보낸다.
          - 연결: 기본은 BLE 만 (--transport ble). `--transport usb` = USB 만, `--transport auto` = USB 우선·없으면 BLE
@@ -40,6 +41,7 @@ from pathlib import Path
 import commands
 import hooks_config
 import protocol
+import usage_poll
 from approvals import DECISIONS, ApprovalQueue
 from security import DeviceAuth
 from sessions import SessionTable, summarize_tool
@@ -51,6 +53,7 @@ CLEAR_SESSION_EVENTS = ("UserPromptSubmit", "Stop", "StopFailure", "SessionEnd")
 CLEAR_TOOL_EVENTS = ("PostToolUse", "PostToolUseFailure")
 SIGNED_TYPES = ("decide", "btn")   # BLE 로 올 때 서명이 필요한 장치 메시지
 USAGE_WINDOWS = ("five_hour", "seven_day")   # 상태줄 rate_limits 의 구간 — 5시간 · 주간 (protocol.usage_msg 순서)
+USAGE_POLL_SEC = 300              # [usage] poll = true 일 때 사용량 직접 조회 간격
 CLOSED_POLL_SEC = 0.5              # 권한 요청을 붙잡고 있는 동안 훅 연결이 끊겼는지 확인하는 간격
 KEY_RETRY_SEC = 30                 # BLE 모드에서 USB 키 등록에 실패하면 이 간격으로 다시 시도 (케이블을 나중에 꽂아도 되게)
 
@@ -66,7 +69,7 @@ def log(msg: str):
 
 class Bridge:
     def __init__(self, link_factory, verbose=False, hold_sec=HOLD_SEC, config_path=commands.CONFIG_PATH,
-                 executor=commands.execute, auth=None):
+                 executor=commands.execute, auth=None, usage_source=None):
         self.table = SessionTable()
         self.approvals = ApprovalQueue()
         self.lock = threading.Lock()
@@ -77,6 +80,8 @@ class Bridge:
         self.sent_cfg = None                          # 마지막으로 보낸 (cmds 줄, dev 줄)
         self.usage = [None] * len(USAGE_WINDOWS)      # 구간별 (사용률 %, 리셋 시각 epoch 초) — 받기 전에는 None
         self.sent_usage = None                        # 마지막으로 보낸 사용량 (구간별 값)
+        self.usage_source = usage_source or _fetch_usage   # now → 사용량 응답 JSON (토큰 없으면 None)
+        self.usage_err = ""                           # 마지막 직접 조회 오류 (None = 성공, 같은 내용은 한 번만 로그)
         self._cfg = (None, None)                      # (설정 파일 수정 시각, (cmds 줄, dev 줄)) — 파일이 바뀔 때만 다시 읽음
         self.watch = -1                               # 장치가 상세 화면으로 보고 있는 슬롯
         self.outbox = []                              # 바로 보낼 줄(알림·명령 진행) — 시리얼 쓰기는 송신 스레드만 한다
@@ -93,6 +98,7 @@ class Bridge:
     def start(self):
         self.link.start()
         threading.Thread(target=self._send_loop, daemon=True).start()
+        threading.Thread(target=self._usage_loop, daemon=True).start()
 
     # --- 훅 → 상태 ---
     def on_hook(self, event: str, payload: dict):
@@ -139,16 +145,47 @@ class Bridge:
         limits = payload.get("rate_limits")
         if not isinstance(limits, dict):
             return
+        values = []
+        for name in USAGE_WINDOWS:
+            w = limits.get(name)
+            pct = w.get("used_percentage") if isinstance(w, dict) else None
+            if not isinstance(pct, (int, float)):
+                values.append(None)
+                continue
+            reset_at = w.get("resets_at")
+            values.append((max(0, min(100, round(pct))), int(reset_at) if isinstance(reset_at, (int, float)) else 0))
+        self._set_usage(values)
+
+    def _set_usage(self, values: list):
+        """구간별 (사용률 %, 리셋 시각) 반영. None 인 구간은 마지막 값을 유지한다."""
         with self.lock:
-            for k, name in enumerate(USAGE_WINDOWS):
-                w = limits.get(name)
-                pct = w.get("used_percentage") if isinstance(w, dict) else None
-                if not isinstance(pct, (int, float)):
-                    continue                          # 이 구간 값이 없으면 마지막 값을 유지
-                reset_at = w.get("resets_at")
-                self.usage[k] = (max(0, min(100, round(pct))),
-                                 int(reset_at) if isinstance(reset_at, (int, float)) else 0)
+            for k, v in enumerate(values):
+                if v is not None:
+                    self.usage[k] = v
         self.dirty.set()
+
+    def poll_usage(self, now: float):
+        """설정 [usage] poll = true 면 사용량을 직접 조회해 반영한다. 오류는 같은 내용이면 한 번만 로그."""
+        try:
+            if not commands.load_config(self.config_path).usage_poll:
+                return
+        except commands.ConfigError:
+            return                                    # 설정 오류는 config_lines 가 로그를 남긴다
+        try:
+            data = self.usage_source(now)
+            err = None if data is not None else "Claude Code 로그인 토큰 없음·만료 (Claude Code 를 쓰면 다시 받음)"
+        except (OSError, ValueError) as e:            # urllib.error.URLError/HTTPError 는 OSError
+            data, err = None, f"조회 실패: {e}"
+        if err != self.usage_err:
+            self.usage_err = err
+            log(f"[usage] {err}" if err else "[usage] 직접 조회 성공")
+        if data is not None:
+            self._set_usage(usage_poll.parse_usage(data, USAGE_WINDOWS))
+
+    def _usage_loop(self):
+        while True:
+            self.poll_usage(time.time())
+            time.sleep(USAGE_POLL_SEC)
 
     def usage_windows(self, now: float) -> tuple:
         """보낼 사용량 (구간별 값). 리셋 시각이 지난 구간은 0 % 로 본다 (새 값이 올 때까지)."""
@@ -321,6 +358,11 @@ class Bridge:
                 self.link.send(protocol.HEARTBEAT)
             if self.key_mismatch and self.link.kind == "ble":
                 self._register_key_via_usb(now)
+
+
+def _fetch_usage(now: float):
+    token = usage_poll.read_token(now)
+    return usage_poll.fetch(token) if token else None
 
 
 def make_handler(bridge: Bridge):

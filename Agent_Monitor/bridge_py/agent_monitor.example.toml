@@ -7,6 +7,12 @@
 mute = false        # true = 알림음·버튼음 모두 끔
 brightness = 40     # OLED 밝기 % (1~100) — 낮출수록 번인(잔상)이 줄어듭니다
 
+# Claude 사용량(5시간·주간) 직접 조회 — 데스크톱 앱만 써서 상태줄로 값이 안 들어올 때
+# true = 5분마다 Claude Code 의 macOS 키체인 로그인 토큰으로 사용량을 조회 (토큰은 읽기만 함)
+# 공식 API 가 아니라 바뀔 수 있고, 구독 토큰을 Claude Code 밖에서 쓰는 것이라 기본은 꺼둡니다. macOS 만 지원.
+[usage]
+poll = false
+
 # 버튼 길게 누르기(1초) → PC 명령. button = 1~4 (BTN1~BTN4)
 # type = "focus" : app 을 앞으로
 # type = "shell" : command 실행 (cwd, timeout 초 선택) → 장치에 exit 코드 표시

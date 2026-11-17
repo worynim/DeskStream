@@ -52,6 +52,7 @@ class Config:
     commands: dict           # button(1~4) → Command
     mute: bool = False       # [device] mute — 장치 알림음·버튼음 모두 끔
     brightness: int = 100    # [device] brightness — OLED 밝기 % (1~100, 낮출수록 번인 감소)
+    usage_poll: bool = False # [usage] poll — 데몬이 Claude 사용량을 직접 조회 (usage_poll.py)
 
 
 def parse_config(data: dict) -> Config:
@@ -91,7 +92,13 @@ def parse_config(data: dict) -> Config:
     brightness = dev.get("brightness", 100)
     if isinstance(brightness, bool) or not isinstance(brightness, int) or not 1 <= brightness <= 100:
         raise ConfigError("device.brightness 는 1~100 (%)")
-    return Config(commands, mute, brightness)
+    usage = data.get("usage", {})
+    if not isinstance(usage, dict):
+        raise ConfigError("[usage] 는 표(table)여야 합니다")
+    usage_poll = usage.get("poll", False)
+    if not isinstance(usage_poll, bool):
+        raise ConfigError("usage.poll 은 true / false")
+    return Config(commands, mute, brightness, usage_poll)
 
 
 def load_config(path: Path = CONFIG_PATH) -> Config:
