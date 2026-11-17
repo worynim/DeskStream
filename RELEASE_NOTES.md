@@ -1,3 +1,7 @@
+## [v4.41.1] - 2026-11-18
+### 🔗 웹 플래셔 다운로드 — Agent_Monitor PC 앱 0.8.0
+- 웹 플래셔 다운로드 목록(`firmware/clients.json`)의 Agent_Monitor 를 0.7.0 → 0.8.0 으로 갱신했습니다 (Release `Agent_Monitor-client-v0.8.0`, macOS arm64 · Windows x64). 펌웨어는 0.7.1 그대로입니다.
+
 ## [v4.41.0] - 2026-11-18
 ### 📊 Agent_Monitor 0.8.0 — Claude 사용량 직접 조회
 - 설정 `[usage] poll = true` 면 PC 데몬이 5분마다 Claude 사용량(5시간 · 주간)을 직접 조회합니다. Claude 데스크톱 앱만 써서 상태줄로 값이 들어오지 않을 때를 위한 기능입니다 (macOS 만, 기본 꺼짐 — Claude Code 가 쓰는 비공개 주소와 키체인 로그인 토큰을 읽기 전용으로 사용). PC 클라이언트만 변경, 펌웨어 그대로. 이력은 `Agent_Monitor/RELEASE_NOTES.md`.
