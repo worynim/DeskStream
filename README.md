@@ -16,7 +16,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 - 상세 정보: [hardware.md](./hardware.md) 참조
 
 ## 📁 주요 프로젝트 (Sub-Projects)
-본 저장소는 DeskStream 보드용으로 개발된 15가지 주요 프로그램을 포함하고 있습니다.
+본 저장소는 DeskStream 보드용으로 개발된 16가지 주요 프로그램을 포함하고 있습니다.
 
 ### 1. [Smart_Info_Station: 스마트 정보 스테이션 (v2.10.1)](./Smart_Info_Station/)
 - **기능**: 시계, 날씨, 미세먼지, 유튜브 구독자 수, 증시 지수, 가상화폐 가격, 환율 실시간 모니터링.
@@ -104,6 +104,10 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 - **기능**: OLED 화면 하나에 도시 하나씩 지구 위 4곳의 현지 시각을 표시. 큰 AM/PM 글자, 해/달 아이콘, 0~24시 하루 막대로 오전/오후와 낮/밤을 구분하고, 기준 도시(1번 화면)와 날짜가 다르면 `+1일`/`-1일` 표시.
 - **특징**: 웹 페이지 없이 **화면을 눌러 장소 설정** — 화면을 길게 누르면 그 화면이 미리보기가 되고 나머지 세 화면이 세계 지도(취소) · 서쪽 · 동쪽 버튼이 됨(짧게 = 도시 하나, 누르고 있기 = 시간대 건너뛰기). 도시 113개(한글·영문), 서머타임 자동 반영(tzdata 2026f 기준, 호스트 테스트가 시스템 zoneinfo와 대조). 12/24시 · 밝기 · 한글/영문 전환, NVS 저장. 0.1.0은 실제 보드 확인 전 배포본.
 
+### 16. [Page_Turner: BLE 페이지 터너 (v1.0.0)](./Page_Turner/)
+- **기능**: 장치를 세로로 쥐고 엄지로 버튼을 눌러 웹소설·웹툰·유튜브 쇼츠를 넘기는 블루투스 리모컨. 스마트폰 카메라 셔터(딜레이 셔터 포함)와 PC 발표 슬라이드(PageUp/PageDown) 넘김도 지원.
+- **특징**: 키보드 · 미디어 키 · 마우스 휠을 합친 BLE HID(NimBLE). 앱 이름별 모드 7개(YouTube · 카카오 웹툰/소설 · 시리즈 웹툰/소설 · 카메라 · PPT)에 Android 실기 시험으로 찾은 신호와 이동량을 미리 맞춤. 연결 기기 슬롯 3개(BTN3 길게 → 슬롯 버튼 두 번으로 전환, 길게 = 새 기기). 설정·마지막 모드·슬롯 NVS 저장, 1분 화면 끄기 · 5분 딥슬립. 세로 방향 화면에 버튼 역할을 화살표·아이콘으로 표시.
+
 - **하이브리드 I2C 아키텍처**: 하드웨어 I2C와 레지스터 직접 제어 기반 고속 소프트웨어 I2C를 병렬로 사용하여 4개의 화면을 끊김 없이 제어합니다.
 - **성능 최적화**: 부드러운 애니메이션 구현을 위한 Dirty Page 체크 및 그래픽 가속 기법이 적용되었습니다.
 - **문서화 표준화**: 전 프로젝트 소스 코드에 Doxygen 스타일 헤더 및 작성자 정보를 도입하여 유지보수성을 극대화했습니다.
@@ -112,7 +116,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
 여러 프로젝트가 함께 쓰는 기능(화면 엔진, 버튼, 부저, WiFi, NTP, 설정 저장, 웹 설정 엔진)을
 Arduino 라이브러리 [`libraries/DeskStreamCore`](./libraries/DeskStreamCore/)로 모으고 있습니다.
-**15개 프로젝트 전부**가 이 라이브러리를 씁니다 (화면 전송 HW 1.1MHz + 고속 SW I2C, 바뀐 타일만 병렬 전송 — 한글 시계 실측 4화면 45.7fps).
+**16개 프로젝트 전부**가 이 라이브러리를 씁니다 (화면 전송 HW 1.1MHz + 고속 SW I2C, 바뀐 타일만 병렬 전송 — 한글 시계 실측 4화면 45.7fps).
 
 ### 최초 설정 (PC마다 1회)
 
@@ -171,14 +175,14 @@ WiFi 설정 포털은 DeskStreamCore에 들어 있어 WiFiManager는 필요 없�
 
 ## 🌐 웹 플래셔 (Web Flasher)
 
-**https://worynim.github.io/DeskStream/** — Chrome/Edge 데스크톱 또는 Android Chrome에서 USB로 연결한 ESP32-C3 보드에 15개 프로젝트를 브라우저에서 바로 플래시할 수 있습니다. 별도 프로그램 설치가 필요 없습니다.
+**https://worynim.github.io/DeskStream/** — Chrome/Edge 데스크톱 또는 Android Chrome에서 USB로 연결한 ESP32-C3 보드에 16개 프로젝트를 브라우저에서 바로 플래시할 수 있습니다. 별도 프로그램 설치가 필요 없습니다.
 
 - **Web Serial + [esptool-js](https://github.com/espressif/esptool-js)** 기반. Chrome/Edge 데스크톱, **Android Chrome 148+ (USB OTG)** 지원. iPhone/iPad(Safari)·Firefox Android·인앱 브라우저는 불가
 - **한국어 / English UI** 지원 — 페이지 우측 상단에서 전환 (브라우저 언어 자동 감지, 선택값 저장)
 - 각 프로젝트 카드의 **README ↗** 링크에서 해당 프로젝트 문서를 새 탭으로 열 수 있습니다.
 - 기본 플래시는 **NVS(WiFi·표시 설정) 보존**, 필요 시 "전체 지우기" 옵션 제공
 - 펌웨어 **SHA-256**(다운로드) 및 **MD5**(쓰기 후) 무결성 검증, 플래시 후 자동 재부팅
-- 15개 프로젝트: 스마트 정보 스테이션, GPS 대시보드, 사운드 비주얼라이저, 초광폭 OLED 테스트, 시스템 상태 모니터, DS DECK, 화면 스트리머, 게임 오브 라이프, 한글/영어/중국어 시계, 범용 타이머, AI 에이전트 모니터, 무선 환경 분석기, 세계 시계
+- 16개 프로젝트: 스마트 정보 스테이션, GPS 대시보드, 사운드 비주얼라이저, 초광폭 OLED 테스트, 시스템 상태 모니터, DS DECK, 화면 스트리머, 게임 오브 라이프, 한글/영어/중국어 시계, 범용 타이머, AI 에이전트 모니터, 무선 환경 분석기, 세계 시계, 페이지 터너
 - **한글 시계 BB(Hangeul_Clock_bitbang_i2c)는 1.3" SH1106 · 4-bus 회로 구성이 달라 웹 플래셔 대상에서 제외**됩니다.
   하드웨어가 달라 2026-11-08부터 별도 폴더 **DeskStream_V2**에서 관리합니다.
 

@@ -202,6 +202,19 @@
       "nameEn": "World Clock",
       "descriptionEn": "Shows the local time of four places on Earth, one city per OLED, with large AM/PM letters and a sun/moon icon",
       "noteEn": "Long-press a screen to change its city (the other three screens become map, west and east buttons). 113 cities with automatic DST. On first boot, join WiFi \"World_Clock_Setup\" and open 192.168.4.1 to set up WiFi. 0.1.0 has not been verified on real hardware yet."
+    },
+    {
+      "id": "Page_Turner",
+      "name": "페이지 터너",
+      "version": "1.0.0",
+      "icon": "📖",
+      "order": 16,
+      "sourcePath": "Page_Turner",
+      "description": "장치를 세로로 쥐고 엄지로 웹소설·웹툰·유튜브 쇼츠를 넘기는 블루투스 리모컨. 카메라 셔터(딜레이 셔터)·PPT 넘김도 지원",
+      "note": "폰·PC의 블루투스 설정에서 \"DS Page Turner\"를 페어링하세요. 웹소설은 앱에서 볼륨 키로 페이지 넘기기를 켜야 합니다. BTN3 길게 = 연결 기기 슬롯 1~3 선택. 5분 동안 입력이 없으면 딥슬립 — BTN1·BTN2로 깨웁니다.",
+      "nameEn": "Page Turner",
+      "descriptionEn": "A Bluetooth remote you hold upright to turn web-novel and webtoon pages and YouTube Shorts with your thumb; also a camera shutter (with delay) and slide clicker",
+      "noteEn": "Pair \"DS Page Turner\" in your phone or PC Bluetooth settings. For web novels, enable volume-key page turning in the app. Hold BTN3 to choose device slot 1-3. After 5 minutes idle it deep-sleeps — wake it with BTN1 or BTN2."
     }
   ]
 }
