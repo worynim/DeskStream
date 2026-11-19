@@ -5,6 +5,10 @@
  * @details 시/분/초 증가, 카운트다운 1초 틱 처리, 초기화 및 상태 관리
  */
 #include "TimerLogic.h"
+#include <Preferences.h>
+
+// NVS 저장 위치 — 마지막 설정 시간 (시/분/초)
+static const char* NVS_NAMESPACE = "utimer";
 
 TimerLogic::TimerLogic()
     : hours(0)
@@ -13,12 +17,30 @@ TimerLogic::TimerLogic()
     , init_hours(0)
     , init_minutes(0)
     , init_seconds(0)
+    , paused(false)
+    , edited(false)
     , state(TimerState::SETTING)
     , last_tick_ms(0) {}
+
+void TimerLogic::begin() {
+    Preferences prefs;
+    prefs.begin(NVS_NAMESPACE, true);
+    hours   = min<uint8_t>(prefs.getUChar("h", 0), MAX_HOURS);
+    minutes = min<uint8_t>(prefs.getUChar("m", 0), MAX_MINUTES);
+    seconds = min<uint8_t>(prefs.getUChar("s", 0), MAX_SECONDS);
+    prefs.end();
+
+    init_hours = hours;
+    init_minutes = minutes;
+    init_seconds = seconds;
+}
 
 void TimerLogic::increment(int unit) {
     // RUNNING 또는 FINISHED 상태일 때는 증감 방지
     if (state != TimerState::SETTING) return;
+
+    paused = false;   // 일시정지 중에 바꾸면 새 설정 시간으로 본다
+    edited = true;
 
     if (unit == 0) { // 시 (Hours: 0 ~ MAX_HOURS)
         hours++;
@@ -43,10 +65,24 @@ bool TimerLogic::start() {
         return false; // 설정된 시간이 없으면 시작하지 않음
     }
 
-    // [중요] 카운트다운 시작 시 직전 설정 시간을 보관
-    init_hours = hours;
-    init_minutes = minutes;
-    init_seconds = seconds;
+    // [중요] 새로 시작할 때만 설정 시간을 보관 — 일시정지 후 재개면 처음 시작한 시간을 유지
+    if (!paused) {
+        init_hours = hours;
+        init_minutes = minutes;
+        init_seconds = seconds;
+
+        // 버튼으로 바꾼 시간만 NVS에 저장 (버튼을 누를 때마다 쓰지 않도록 시작 시 1회)
+        if (edited) {
+            Preferences prefs;
+            prefs.begin(NVS_NAMESPACE, false);
+            prefs.putUChar("h", hours);
+            prefs.putUChar("m", minutes);
+            prefs.putUChar("s", seconds);
+            prefs.end();
+            edited = false;
+        }
+    }
+    paused = false;
 
     state = TimerState::RUNNING;
     last_tick_ms = millis();
@@ -56,6 +92,7 @@ bool TimerLogic::start() {
 void TimerLogic::pause() {
     if (state == TimerState::RUNNING) {
         state = TimerState::SETTING;
+        paused = true;
     }
 }
 
@@ -66,6 +103,7 @@ void TimerLogic::reset() {
     init_hours = 0;
     init_minutes = 0;
     init_seconds = 0;
+    paused = false;
     state = TimerState::SETTING;
 }
 
@@ -74,6 +112,7 @@ void TimerLogic::dismissAlarm() {
     hours = init_hours;
     minutes = init_minutes;
     seconds = init_seconds;
+    paused = false;
     state = TimerState::SETTING;
 }
 

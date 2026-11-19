@@ -540,7 +540,7 @@
     {
       "id": "Universal_Timer",
       "name": "범용 타이머",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "icon": "⏱️",
       "order": 12,
       "description": "4개 OLED로 시·분·초를 설정하고 카운트다운을 수행하는 하드웨어 타이머. 직전 설정 시간 복원 지원",
@@ -555,9 +555,9 @@
         "freq": "80m",
         "size": "4MB"
       },
-      "exportedAt": "2026-11-14T19:08:09.133Z",
+      "exportedAt": "2026-11-19T09:37:12.759Z",
       "sourcePath": "Universal_Timer",
-      "sourceCommit": "2d0cc12532eeb2b4272b98689caa007751b840cf",
+      "sourceCommit": "89ec08a4002980c02e67f3cd83be5e2deec8f9b7",
       "images": [
         {
           "offset": "0x0",
@@ -580,8 +580,8 @@
         {
           "offset": "0x10000",
           "path": "firmware/Universal_Timer/Universal_Timer.ino.bin",
-          "size": 429024,
-          "sha256": "3eb0f436f5b85e5b98a95a00b9365163e20cd5ee6c0bc4bcfcf0c7575950fc70"
+          "size": 438672,
+          "sha256": "3ad1d59f41c5d95f3655927597a2f8c2075878a084596bed2266273af6f17ab0"
         }
       ]
     },

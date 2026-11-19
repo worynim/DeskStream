@@ -85,7 +85,10 @@ void setup() {
     timing.repeatIntervalMs = BTN_REPEAT_FAST_MS;
     buttons.begin(timing);
 
-    // 3. 부저 초기화 및 시작 멜로디 연주
+    // 3. 마지막 설정 시간 복원 (NVS)
+    timer.begin();
+
+    // 4. 부저 초기화 및 시작 멜로디 연주
     buzzer.begin();
     buzzer.playMelody(STARTUP_MELODY, sizeof(STARTUP_MELODY) / sizeof(STARTUP_MELODY[0]));
 

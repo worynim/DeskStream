@@ -27,6 +27,11 @@ public:
     TimerLogic();
 
     /**
+     * @brief NVS에 저장된 마지막 설정 시간을 불러온다 (setup에서 1회 호출)
+     */
+    void begin();
+
+    /**
      * @brief 시간 값 증가 (+1)
      * @param unit 0=시, 1=분, 2=초
      */
@@ -34,6 +39,8 @@ public:
 
     /**
      * @brief 카운트다운 시작
+     * @details 일시정지 후 재개가 아니면 현재 시간을 복원 시간으로 보관하고,
+     *          버튼으로 바꾼 시간이면 NVS에도 저장한다
      * @return true면 시작 성공, false면 시간이 0이라 시작 불가
      */
     bool start();
@@ -80,6 +87,9 @@ private:
     uint8_t init_hours;
     uint8_t init_minutes;
     uint8_t init_seconds;
+
+    bool paused;                    // 일시정지 후 시간을 바꾸지 않은 상태 (start = 재개)
+    bool edited;                    // 버튼으로 시간을 바꿨고 아직 NVS에 저장하지 않음
 
     TimerState state;
     uint32_t last_tick_ms;          // 마지막 카운트다운 틱 시각

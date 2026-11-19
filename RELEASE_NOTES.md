@@ -1,3 +1,9 @@
+## [v4.42.0] - 2026-11-19
+### 💾 Universal_Timer 1.3.0 — 마지막 설정 시간 기억 · 알람 후 복원 시간 수정
+- 시/분/초 버튼으로 바꾼 시간을 START할 때 NVS에 저장하고, 다시 켜면 그 시간으로 시작합니다. 일시정지 후 그대로 재개할 때는 저장하지 않습니다.
+- 중간에 일시정지했다가 재개하면 TIME OVER 해제 시 일시정지한 시간으로 돌아가던 문제를 고쳐, 처음 START한 시간으로 돌아갑니다. 실제 보드에서 확인했습니다. 이력은 `Universal_Timer/RELEASE_NOTES.md`.
+- 웹 플래셔 배포본 갱신: `firmware/projects.json` 1.3.0 · `firmware/Universal_Timer/` · `manifest.json`(다른 항목 그대로 병합), `--check` 통과(15개 프로젝트).
+
 ## [v4.41.1] - 2026-11-18
 ### 🔗 웹 플래셔 다운로드 — Agent_Monitor PC 앱 0.8.0
 - 웹 플래셔 다운로드 목록(`firmware/clients.json`)의 Agent_Monitor 를 0.7.0 → 0.8.0 으로 갱신했습니다 (Release `Agent_Monitor-client-v0.8.0`, macOS arm64 · Windows x64). 펌웨어는 0.7.1 그대로입니다.
