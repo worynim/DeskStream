@@ -246,6 +246,7 @@ void setup() {
     ds::DisplayConfig cfg;
     cfg.rotation = U8G2_R1;   // 기본 R2(가로)에서 90° 돌려 세로로 쥐었을 때 OLED1이 위
     display.begin(cfg);
+    display.setBrightness(kBrightness);
     view::begin(display);
     view::drawSplash();
 

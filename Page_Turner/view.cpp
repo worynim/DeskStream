@@ -1,7 +1,8 @@
 // worynim@gmail.com
 /**
  * @file view.cpp
- * @brief 4화면 그리기 — 위쪽 아이콘/내용 + 설명 + 맨 아래 반전 이름표 (DESIGN §6.6)
+ * @brief 4화면 그리기 — 위쪽 아이콘/내용 + 설명 + 맨 아래 테두리 이름표 (DESIGN §6.6)
+ * @details 어두운 곳 눈부심·OLED 절전을 위해 채움/반전 없이 테두리로만 그린다
  */
 #include "view.h"
 
@@ -24,14 +25,12 @@ static U8G2& blank(int i) {
     return u;
 }
 
-// 반전 이름표는 화면 맨 아래(y 114~127)에 둔다 — 세로로 쥐면 버튼 쪽 끝이라 눈에 덜 걸린다
+// 테두리 이름표는 화면 맨 아래(y 114~127)에 둔다 — 세로로 쥐면 버튼 쪽 끝이라 눈에 덜 걸린다
 static U8G2& withHeader(int i, const char* head) {
     U8G2& u = blank(i);
-    u.drawBox(0, 114, W, 14);
-    u.setDrawColor(0);
+    u.drawFrame(0, 114, W, 14);
     u.setFont(u8g2_font_6x10_tf);
     center(u, 125, head);
-    u.setDrawColor(1);
     return u;
 }
 
@@ -44,34 +43,42 @@ static void thickLine(U8G2& u, int x0, int y0, int x1, int y1) {
     for (int d = -2; d <= 2; d++) u.drawLine(x0 + d, y0, x1 + d, y1);
 }
 
-// 굵은 화살표 (머리 삼각형 + 몸통 사각형), 중심 y≈64
+// 닫힌 다각형 테두리 (xy = x0,y0,x1,y1,...)
+static void outline(U8G2& u, const uint8_t* xy, int n) {
+    for (int k = 0; k < n; k++) {
+        const int j = (k + 1) % n;
+        u.drawLine(xy[2 * k], xy[2 * k + 1], xy[2 * j], xy[2 * j + 1]);
+    }
+}
+
+// 굵은 화살표 테두리 (머리 삼각형 + 몸통 사각형), 중심 y≈64
 static void drawArrow(U8G2& u, Arrow a) {
+    static const uint8_t up[]    = {32, 34, 56, 64, 41, 64, 41, 93, 22, 93, 22, 64, 8, 64};
+    static const uint8_t down[]  = {32, 94, 56, 64, 41, 64, 41, 34, 22, 34, 22, 64, 8, 64};
+    static const uint8_t left[]  = {4, 64, 32, 40, 32, 54, 57, 54, 57, 73, 32, 73, 32, 88};
+    static const uint8_t right[] = {60, 64, 32, 40, 32, 54, 6, 54, 6, 73, 32, 73, 32, 88};
     switch (a) {
-        case Arrow::Up:    u.drawTriangle(32, 34, 8, 64, 56, 64);  u.drawBox(22, 64, 20, 30); break;
-        case Arrow::Down:  u.drawTriangle(32, 94, 8, 64, 56, 64);  u.drawBox(22, 34, 20, 30); break;
-        case Arrow::Left:  u.drawTriangle(4, 64, 32, 40, 32, 88);  u.drawBox(32, 54, 26, 20); break;
-        case Arrow::Right: u.drawTriangle(60, 64, 32, 40, 32, 88); u.drawBox(6, 54, 26, 20);  break;
+        case Arrow::Up:    outline(u, up, 7);    break;
+        case Arrow::Down:  outline(u, down, 7);  break;
+        case Arrow::Left:  outline(u, left, 7);  break;
+        case Arrow::Right: outline(u, right, 7); break;
     }
 }
 
 // 타이머 아이콘: 시계 + 위쪽 단추
 static void drawTimer(U8G2& u) {
-    u.drawBox(28, 36, 8, 5);
-    u.drawDisc(32, 66, 22);
-    u.setDrawColor(0);
-    u.drawDisc(32, 66, 18);
-    u.setDrawColor(1);
-    u.drawBox(31, 52, 3, 15);   // 분침
-    u.drawBox(31, 64, 12, 3);   // 시침
+    u.drawFrame(28, 36, 8, 5);
+    u.drawCircle(32, 66, 22);
+    u.drawCircle(32, 66, 18);
+    u.drawLine(32, 52, 32, 66);   // 분침
+    u.drawLine(32, 66, 42, 66);   // 시침
 }
 
 static void drawCamera(U8G2& u) {
-    u.drawBox(22, 44, 20, 8);         // 셔터 돌기
-    u.drawRBox(6, 50, 52, 34, 5);     // 몸체
-    u.setDrawColor(0);
-    u.drawDisc(32, 67, 12);           // 렌즈 테두리
-    u.setDrawColor(1);
-    u.drawDisc(32, 67, 7);
+    u.drawFrame(22, 44, 20, 7);       // 셔터 돌기 (아랫변은 몸체 윗변과 겹침)
+    u.drawRFrame(6, 50, 52, 34, 5);   // 몸체
+    u.drawCircle(32, 67, 12);         // 렌즈 테두리
+    u.drawCircle(32, 67, 7);
 }
 
 // 이름은 왼쪽, 값은 오른쪽 정렬로 한 줄
@@ -148,7 +155,8 @@ void drawNormal(int modeIdx, int slot, bool connected, const ShutterTimer& timer
     u3.setFont(u8g2_font_helvB10_tr);
     center(u3, m.line2[0] ? 56 : 66, m.line1);
     center(u3, 76, m.line2);
-    caption(u3, "Change mode");
+    caption(u3, "Change");   // 한 줄이면 64px 폭에서 끝 글자가 잘려 두 줄로
+    center(u3, 20, "mode");
 
     // OLED4: 보내는 신호 종류 + 설정값 + Beep
     snprintf(buf, sizeof(buf), connected ? "BT%d ON" : "BT%d wait", slot + 1);
@@ -191,28 +199,24 @@ void drawMenu(const SettingsMenu& menu) {
     center(u2, 42, buf);
 
     if (s.unit == Unit::OnOff || s.unit == Unit::Hide) {
-        // 두 값 항목(Beep·Cursor): BTN1 = 첫 값(Off/Show), BTN2 = 둘째 값(On/Hide), 고른 쪽을 반전
+        // 두 값 항목(Beep·Cursor): BTN1 = 첫 값(Off/Show), BTN2 = 둘째 값(On/Hide), 고른 쪽은 테두리를 두 겹으로
         for (int v = 0; v < 2; v++) {
             U8G2& u = v ? u2 : u1;
             formatValue(buf, sizeof(buf), s, v);
             u.setFont(u8g2_font_helvB14_tr);
-            if (idx == v) {
-                u.drawRBox(4, 78, W - 8, 30, 4);
-                u.setDrawColor(0);
-            } else {
-                u.drawRFrame(4, 78, W - 8, 30, 4);
-            }
+            u.drawRFrame(4, 78, W - 8, 30, 4);
+            if (idx == v) u.drawRFrame(6, 80, W - 12, 26, 3);
             center(u, 100, buf);
-            u.setDrawColor(1);
         }
     } else {
         // 여러 값 항목: BTN1 줄이기(−), BTN2 위치 막대 + 늘리기(+)
-        u1.drawBox(12, 84, 40, 10);
+        static const uint8_t plus[] = {27, 69, 36, 69, 36, 84, 51, 84, 51, 93, 36, 93,
+                                       36, 108, 27, 108, 27, 93, 12, 93, 12, 84, 27, 84};
+        u1.drawFrame(12, 84, 40, 10);
         caption(u1, "Less");
         u2.drawFrame(4, 52, 56, 7);
         u2.drawBox(4, 52, 56 * (idx + 1) / s.numValues, 7);
-        u2.drawBox(12, 84, 40, 10);
-        u2.drawBox(27, 69, 10, 40);
+        outline(u2, plus, 12);
         caption(u2, "More");
     }
 
@@ -229,7 +233,8 @@ void drawMenu(const SettingsMenu& menu) {
         thickLine(u4, 12, 66, 26, 82);
         thickLine(u4, 26, 82, 52, 46);
     } else {
-        u4.drawTriangle(18, 42, 18, 86, 50, 64);
+        static const uint8_t next[] = {18, 42, 18, 86, 50, 64};
+        outline(u4, next, 3);
     }
     caption(u4, last ? "Save" : "Next item");
     display->push();
@@ -262,24 +267,15 @@ void drawDevices(int selected, int active, const bool paired[3]) {
     for (int s = 0; s < 3; s++) {
         snprintf(buf, sizeof(buf), "SLOT %d", s + 1);
         U8G2& u = withHeader(s, buf);
-        // 고른 슬롯은 상자 전체를 반전 (fg = 글자 색, bg = 상자 안 바탕 색)
-        const uint8_t fg = (s == selected) ? 0 : 1;
-        if (s == selected) u.drawRBox(2, 20, W - 4, 52, 4);
-        else u.drawRFrame(2, 20, W - 4, 52, 4);
+        // 고른 슬롯은 상자 테두리를 두 겹으로
+        u.drawRFrame(2, 20, W - 4, 52, 4);
+        if (s == selected) u.drawRFrame(4, 22, W - 8, 48, 3);
         snprintf(buf, sizeof(buf), "%d", s + 1);
         u.setFont(u8g2_font_logisoso20_tn);
-        if (s == active) {   // 쓰는 중인 슬롯은 번호 칸을 한 번 더 반전해 눈에 띄게
-            u.setDrawColor(fg);
-            u.drawRBox(14, 25, 36, 27, 3);
-            u.setDrawColor(1 - fg);
-        } else {
-            u.setDrawColor(fg);
-        }
+        if (s == active) u.drawRFrame(14, 25, 36, 27, 3);   // 쓰는 중인 슬롯은 번호 칸에 테두리
         center(u, 48, buf);
-        u.setDrawColor(fg);
         u.setFont(u8g2_font_6x10_tf);
         center(u, 64, s == active ? "In use" : (paired[s] ? "Paired" : "Empty"));
-        u.setDrawColor(1);
         u.setFont(u8g2_font_5x8_tf);
         center(u, 88, s == selected ? "Press again" : "Press");
         center(u, 98, s == selected ? "to use" : "to choose");

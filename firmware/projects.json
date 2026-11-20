@@ -206,7 +206,7 @@
     {
       "id": "Page_Turner",
       "name": "페이지 터너",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "icon": "📖",
       "order": 16,
       "sourcePath": "Page_Turner",

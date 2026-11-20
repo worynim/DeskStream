@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-19T18:16:46.153Z",
+  "generatedAt": "2026-11-20T06:56:03.158Z",
   "chip": "ESP32-C3",
   "board": "DeskStream (ESP32-C3 SuperMini · 4× OLED)",
   "flashDefaults": {
@@ -732,7 +732,7 @@
     {
       "id": "Page_Turner",
       "name": "페이지 터너",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "icon": "📖",
       "order": 16,
       "description": "장치를 세로로 쥐고 엄지로 웹소설·웹툰·유튜브 쇼츠를 넘기는 블루투스 리모컨. 카메라 셔터(딜레이 셔터)·PPT 넘김도 지원",
@@ -747,9 +747,9 @@
         "freq": "80m",
         "size": "4MB"
       },
-      "exportedAt": "2026-11-19T18:26:13.071Z",
+      "exportedAt": "2026-11-20T06:55:43.532Z",
       "sourcePath": "Page_Turner",
-      "sourceCommit": "1779babc281b1a44cb0c9a16677a23c88d582c79",
+      "sourceCommit": "ddbaa52dfd94c0a318cf780a427ed36d01503acd",
       "images": [
         {
           "offset": "0x0",
@@ -772,8 +772,8 @@
         {
           "offset": "0x10000",
           "path": "firmware/Page_Turner/Page_Turner.ino.bin",
-          "size": 742784,
-          "sha256": "57a60e20096bb059cfb0f92f8d4147e04f0f55b3f9e716405104bae68e9addb7"
+          "size": 741088,
+          "sha256": "50f5c1c2d1c791a4b0927233aaabb2c403f9bff96e2e461a9e0df8add022fc98"
         }
       ]
     }

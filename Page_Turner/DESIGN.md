@@ -134,7 +134,8 @@ DeskStream 보드를 손에 쥐는 **BLE 페이지 터너**로 만든다. 웹소
 ### 6.6 화면 (세로 방향, 화면마다 64x128)
 
 - 회전: `DisplayConfig::rotation = U8G2_R1` — 세로로 쥐었을 때 OLED1이 위 (실기 확인 완료).
-- 구성 원칙: 각 OLED는 옆 버튼의 역할을 보여준다. **맨 위 설명**(Prev page, Change mode, Settings 등) + 가운데 아이콘/내용 + **맨 아래 반전 이름표**(BTN1, MODE 4/7, BT1 ON 등) — 사용자 요청으로 이름표는 아래, 설명은 위로 옮김. 기기 선택 화면에서 쓰는 중인 슬롯은 번호 칸을 반전한다. 아래 표의 \"머리줄\"은 이 이름표다.
+- 구성 원칙: 각 OLED는 옆 버튼의 역할을 보여준다. **맨 위 설명**(Prev page, Change mode, Settings 등) + 가운데 아이콘/내용 + **맨 아래 테두리 이름표**(BTN1, MODE 4/7, BT1 ON 등) — 사용자 요청으로 이름표는 아래, 설명은 위로 옮김. 기기 선택 화면에서 고른 슬롯은 상자 테두리를 두 겹으로, 쓰는 중인 슬롯은 번호에 테두리를 두른다.
+- 밝기·절전 (1.1.0): 어두운 곳 눈부심과 OLED 전력을 줄이려고 밝기(contrast)를 1로 두고, 화살표·아이콘·이름표·선택 표시는 채움/반전 없이 테두리로만 그린다. 값 위치 막대만 위치를 알아보도록 채운다. 아래 표의 \"머리줄\"은 이 이름표다.
 
 **일반 화면**
 
@@ -142,7 +143,7 @@ DeskStream 보드를 손에 쥐는 **BLE 페이지 터너**로 만든다. 웹소
 |---|---|---|---|
 | OLED1 | BTN1 | ← (볼륨·PPT) / ↑ (휠·방향키) / 카메라 아이콘 | Prev page / Scroll up / Shutter |
 | OLED2 | BTN2 | → / ↓ / 타이머 아이콘 (세는 중: 남은 초) | Next page / Scroll down / Timer 3s (세는 중: Cancel) |
-| OLED3 | MODE n/7 | 앱 이름 (2줄) | Change mode |
+| OLED3 | MODE n/7 | 앱 이름 (2줄) | Change / mode (2줄 — 한 줄이면 64px 폭에서 끝 글자가 잘림) |
 | OLED4 | BT1 ON / BT1 wait (슬롯 번호) | 신호 종류(Wheel / Arrow / Volume / PgUp/Dn) + 설정 요약 (`Steps x3` 등 + Beep) | Settings |
 
 **설정 화면**
@@ -152,7 +153,7 @@ DeskStream 보드를 손에 쥐는 **BLE 페이지 터너**로 만든다. 웹소
 | OLED1 | SET n/m | 항목 이름 + 설명 2줄 + 큰 − | Less |
 | OLED2 | VALUE | 값 + 위치 막대 + 큰 + | More |
 
-두 값 항목(Beep, Cursor)은 −/+ 대신 OLED1에 `Off`/`Show`, OLED2에 `On`/`Hide` 선택 상자를 그리고 고른 쪽을 반전한다 (사용자 요청, 시험판에 반영됨).
+두 값 항목(Beep, Cursor)은 −/+ 대신 OLED1에 `Off`/`Show`, OLED2에 `On`/`Hide` 선택 상자를 그리고 고른 쪽을 반전한다 (사용자 요청, 시험판에 반영됨). 1.1.0부터는 반전 대신 고른 쪽 테두리를 두 겹으로 그린다.
 | OLED3 | BTN3 | X | Cancel |
 | OLED4 | BTN4 | ▶ (다음) / ✓ (마지막) | Next item / Save |
 
