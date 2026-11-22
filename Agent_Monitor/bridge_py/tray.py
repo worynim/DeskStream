@@ -5,7 +5,7 @@
 @details pystray + Pillow (Stats_Monitor 클라이언트와 같은 방식). 데몬(훅 서버·장치 연결)은 백그라운드 스레드,
          아이콘은 메인 스레드(macOS 요구사항)에서 돈다.
          아이콘 색: 회색 = 장치 없음 · 초록 = USB · 파랑 = BLE · 주황 = 승인 대기 중 · 빨강 = 시작 실패(포트 사용 중)
-         메뉴: 상태(연결·세션 수·승인 대기) · 설정 파일 열기 · Claude Code 훅 설치/제거(결과는 메뉴 한 줄) · 종료
+         메뉴: 상태(연결·세션 수·승인 대기) · 부저 소리(켜기/끄기 — 설정 파일 [device] mute) · 설정 파일 열기 · Claude Code 훅 설치/제거(결과는 메뉴 한 줄) · 종료
 """
 import os
 import subprocess
@@ -34,10 +34,7 @@ def make_icon(color) -> Image.Image:
 
 def open_file(path):
     """설정 파일을 기본 편집기로 연다 (없으면 예시로 만든다)."""
-    if not path.exists():
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(commands.EXAMPLE_PATH.read_text(encoding="utf-8"), encoding="utf-8")
-        path.chmod(0o600)
+    commands.ensure_config(path)
     if sys.platform == "darwin":
         subprocess.run(["open", "-t", str(path)])
     elif os.name == "nt":
@@ -69,6 +66,26 @@ def hooks_action(install: bool, port: int) -> str:
         return f"훅 {'설치' if install else '제거'} 실패: {e}"
 
 
+def buzzer_on(path):
+    """부저가 켜져 있는지 (설정 파일 [device] mute 의 반대). 설정 오류면 None."""
+    try:
+        return not commands.load_config(path).mute
+    except commands.ConfigError:
+        return None
+
+
+def toggle_buzzer(path) -> str:
+    """부저 켜기/끄기 — 설정 파일 mute 를 뒤집는다 (데몬이 수정 시각을 보고 장치에 보냄). 실패하면 이유 문구, 성공하면 ""."""
+    on = buzzer_on(path)
+    if on is None:
+        return "부저 설정 실패: 설정 파일 오류 — 설정 파일 열기로 고쳐 주세요"
+    try:
+        commands.set_mute(path, on)        # 켜져 있으면 mute = true
+        return ""
+    except (OSError, commands.ConfigError) as e:
+        return f"부저 설정 실패: {e}"
+
+
 def show_error(message: str):
     """데몬을 시작하지 못했을 때 이유를 메뉴에 보여 주고 종료만 할 수 있는 아이콘 (조용히 꺼지지 않게)"""
     icon = pystray.Icon("agent_monitor", make_icon(COLORS["error"]), f"Agent Monitor — {message}", menu=pystray.Menu(
@@ -91,11 +108,19 @@ def main(args, start_daemon):
         result["text"] = hooks_action(install, args.http_port)
         icon.update_menu()
 
+    def on_toggle_buzzer():
+        msg = toggle_buzzer(args.config)
+        if msg or result["text"].startswith("부저"):   # 실패 문구만 보여 주고, 성공하면 지난 실패 문구를 지운다
+            result["text"] = msg
+        icon.update_menu()
+
     def state_color():
         return COLORS["approve"] if bridge.approvals.items else COLORS[bridge.link.kind]
 
     icon = pystray.Icon("agent_monitor", make_icon(state_color()), "Agent Monitor", menu=pystray.Menu(
         pystray.MenuItem(lambda _item: status_text(bridge), None, enabled=False),
+        pystray.MenuItem("부저 소리", on_toggle_buzzer, checked=lambda _item: bool(buzzer_on(args.config)),
+                         enabled=lambda _item: buzzer_on(args.config) is not None),
         pystray.MenuItem("설정 파일 열기", lambda: open_file(args.config)),
         pystray.MenuItem("Claude Code 훅 설치", lambda: run_hooks(True)),
         pystray.MenuItem("Claude Code 훅 제거", lambda: run_hooks(False)),

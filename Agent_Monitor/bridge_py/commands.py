@@ -2,6 +2,7 @@
 """
 @file commands.py
 @brief 사용자 설정 파일(~/.deskstream/agent_monitor.toml) — 버튼 길게 누르기 PC 명령 · 장치 음소거·밝기
+         (음소거는 트레이 메뉴 "부저 소리"로도 바꾼다 — set_mute)
 @details 보안 원칙
          - 장치는 버튼 번호만 보낸다. 실행할 내용은 오직 이 설정 파일에서 온다 (장치·네트워크에서 명령 문자열을 받지 않음).
          - 설정 파일이 다른 사용자도 쓸 수 있는 권한(group/other write)이면 명령을 실행하지 않는다 (macOS·Linux).
@@ -12,6 +13,7 @@
          - keys  : 앞에 있는 창(또는 app 지정 시 그 앱)에 텍스트·키 입력 (osascript, macOS 손쉬운 사용 권한 필요)
 """
 import os
+import re
 import stat
 import subprocess
 import sys
@@ -99,6 +101,51 @@ def parse_config(data: dict) -> Config:
     if not isinstance(usage_poll, bool):
         raise ConfigError("usage.poll 은 true / false")
     return Config(commands, mute, brightness, usage_poll)
+
+
+def ensure_config(path: Path = CONFIG_PATH):
+    """설정 파일이 없으면 예시로 만든다 (권한 600)."""
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(EXAMPLE_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+        path.chmod(0o600)
+
+
+def set_mute(path: Path, mute: bool):
+    """설정 파일의 [device] mute 만 고쳐 쓴다 (주석·다른 값은 그대로). 데몬은 수정 시각을 보고 장치에 다시 보낸다.
+    고친 결과가 읽히지 않거나 값이 안 바뀌면 원래 내용으로 되돌리고 ConfigError."""
+    ensure_config(path)
+    old = path.read_bytes().decode("utf-8")   # read_text 는 줄바꿈(CRLF)을 바꿔 버림
+    lines = old.splitlines(keepends=True)
+    value = "true" if mute else "false"
+    header = re.compile(r"^\s*\[\s*device\s*\]\s*(#.*)?$")
+    start = next((i for i, ln in enumerate(lines) if header.match(ln.rstrip("\r\n"))), None)
+    if start is None:                      # [device] 표가 없으면 끝에 추가
+        sep = "" if not old or old.endswith("\n") else "\n"
+        new = old + f"{sep}\n[device]\nmute = {value}\n"
+    else:
+        end = next((i for i in range(start + 1, len(lines)) if re.match(r"^\s*\[", lines[i])), len(lines))
+        key = re.compile(r"^(\s*mute\s*=\s*)([^#\r\n]*?)(\s*(#.*)?)(\r?\n)?$")
+        for i in range(start + 1, end):
+            m = key.match(lines[i])
+            if m:
+                lines[i] = m.group(1) + value + (m.group(3) or "") + (m.group(5) or "")
+                break
+        else:                              # 표는 있는데 mute 줄이 없으면 머리줄 바로 아래에
+            nl = "\r\n" if lines[start].endswith("\r\n") else "\n"
+            if not lines[start].endswith("\n"):
+                lines[start] += nl
+            lines.insert(start + 1, f"mute = {value}{nl}")
+        new = "".join(lines)
+    path.write_text(new, encoding="utf-8", newline="")
+    try:
+        ok = load_config(path).mute == mute
+    except ConfigError as e:
+        path.write_text(old, encoding="utf-8", newline="")
+        raise ConfigError(f"설정 파일을 고치지 못했습니다: {e}") from e
+    if not ok:
+        path.write_text(old, encoding="utf-8", newline="")
+        raise ConfigError("설정 파일의 mute 를 바꾸지 못했습니다 — 직접 고쳐 주세요")
 
 
 def load_config(path: Path = CONFIG_PATH) -> Config:

@@ -399,6 +399,34 @@ class TestCommands(unittest.TestCase):
         ok, msg = commands.execute(commands.Command(2, "t", "shell", command="sleep 2", timeout=0.2))
         self.assertEqual((ok, msg), (False, "timeout"))
 
+    def test_set_mute_keeps_rest_of_file(self):
+        """트레이 "부저 소리" — [device] mute 만 바꾸고 주석·다른 값은 그대로"""
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "c.toml"
+            commands.set_mute(p, True)                       # 파일이 없으면 예시로 만든 뒤 고침
+            self.assertTrue(commands.load_config(p).mute)
+            example = commands.EXAMPLE_PATH.read_text(encoding="utf-8")
+            self.assertEqual(p.read_text(encoding="utf-8"),
+                             example.replace("mute = false ", "mute = true  ".rstrip() + " ", 1))
+            commands.set_mute(p, False)
+            self.assertEqual(p.read_text(encoding="utf-8"), example)
+            # mute 줄이 없는 [device] · [device] 자체가 없는 파일 · CRLF
+            p.write_text("[usage]\npoll = true\n\n[device]\nbrightness = 30\n", encoding="utf-8")
+            commands.set_mute(p, True)
+            cfg = commands.load_config(p)
+            self.assertEqual((cfg.mute, cfg.brightness, cfg.usage_poll), (True, 30, True))
+            p.write_text("[usage]\npoll = true", encoding="utf-8")
+            commands.set_mute(p, True)
+            self.assertTrue(commands.load_config(p).mute)
+            p.write_bytes(b"[device]\r\nmute = true # x\r\nbrightness = 5\r\n")
+            commands.set_mute(p, False)
+            self.assertEqual(p.read_bytes(), b"[device]\r\nmute = false # x\r\nbrightness = 5\r\n")
+            # 문법 오류 파일은 건드리지 않는다
+            p.write_text("[device]\nmute = false\nnot = [toml\n", encoding="utf-8")
+            with self.assertRaises(commands.ConfigError):
+                commands.set_mute(p, True)
+            self.assertEqual(p.read_text(encoding="utf-8"), "[device]\nmute = false\nnot = [toml\n")
+
     @unittest.skipIf(os.name == "nt", "Windows 는 st_mode 권한 검사를 하지 않음")
     def test_load_rejects_group_writable(self):
         with tempfile.TemporaryDirectory() as d:
