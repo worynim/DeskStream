@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-20T06:56:03.158Z",
+  "generatedAt": "2026-11-22T15:19:09.479Z",
   "chip": "ESP32-C3",
   "board": "DeskStream (ESP32-C3 SuperMini · 4× OLED)",
   "flashDefaults": {
@@ -29,7 +29,7 @@
       },
       "exportedAt": "2026-11-09T15:44:11.692Z",
       "sourcePath": "Smart_Info_Station",
-      "sourceCommit": "e1efc0f73d658ff823bcef8b7d08e8acf4777396",
+      "sourceCommit": "576d2d1cbceade078d2c11314e8b1f678c452c11",
       "images": [
         {
           "offset": "0x0",
@@ -77,7 +77,7 @@
       },
       "exportedAt": "2026-11-09T15:51:25.982Z",
       "sourcePath": "GPS_DASH",
-      "sourceCommit": "e1efc0f73d658ff823bcef8b7d08e8acf4777396",
+      "sourceCommit": "576d2d1cbceade078d2c11314e8b1f678c452c11",
       "images": [
         {
           "offset": "0x0",
@@ -125,7 +125,7 @@
       },
       "exportedAt": "2026-11-09T21:51:59.609Z",
       "sourcePath": "Sound_Visualizer_4_OLEDs",
-      "sourceCommit": "be892eee279fb28e5bade0ac4d72751c92de008c",
+      "sourceCommit": "576d2d1cbceade078d2c11314e8b1f678c452c11",
       "images": [
         {
           "offset": "0x0",
@@ -173,7 +173,7 @@
       },
       "exportedAt": "2026-11-09T15:54:44.704Z",
       "sourcePath": "OLED_Wide_test",
-      "sourceCommit": "e1efc0f73d658ff823bcef8b7d08e8acf4777396",
+      "sourceCommit": "576d2d1cbceade078d2c11314e8b1f678c452c11",
       "images": [
         {
           "offset": "0x0",
@@ -221,7 +221,7 @@
       },
       "exportedAt": "2026-11-09T15:50:06.266Z",
       "sourcePath": "Stats_Monitor",
-      "sourceCommit": "e1efc0f73d658ff823bcef8b7d08e8acf4777396",
+      "sourceCommit": "576d2d1cbceade078d2c11314e8b1f678c452c11",
       "images": [
         {
           "offset": "0x0",
@@ -269,7 +269,7 @@
       },
       "exportedAt": "2026-11-09T15:42:51.147Z",
       "sourcePath": "DS_DECK",
-      "sourceCommit": "e1efc0f73d658ff823bcef8b7d08e8acf4777396",
+      "sourceCommit": "576d2d1cbceade078d2c11314e8b1f678c452c11",
       "images": [
         {
           "offset": "0x0",
@@ -317,7 +317,7 @@
       },
       "exportedAt": "2026-11-09T15:45:52.594Z",
       "sourcePath": "Screen_To_OLEDs/Screen_To_OLEDs",
-      "sourceCommit": "e1efc0f73d658ff823bcef8b7d08e8acf4777396",
+      "sourceCommit": "576d2d1cbceade078d2c11314e8b1f678c452c11",
       "images": [
         {
           "offset": "0x0",
@@ -365,7 +365,7 @@
       },
       "exportedAt": "2026-11-09T15:47:21.970Z",
       "sourcePath": "Game_Of_Life",
-      "sourceCommit": "e1efc0f73d658ff823bcef8b7d08e8acf4777396",
+      "sourceCommit": "576d2d1cbceade078d2c11314e8b1f678c452c11",
       "images": [
         {
           "offset": "0x0",
@@ -413,7 +413,7 @@
       },
       "exportedAt": "2026-11-09T15:38:46.835Z",
       "sourcePath": "Hangeul_Clock",
-      "sourceCommit": "e1efc0f73d658ff823bcef8b7d08e8acf4777396",
+      "sourceCommit": "576d2d1cbceade078d2c11314e8b1f678c452c11",
       "images": [
         {
           "offset": "0x0",
@@ -461,7 +461,7 @@
       },
       "exportedAt": "2026-11-09T15:40:02.073Z",
       "sourcePath": "ENG_Clock",
-      "sourceCommit": "e1efc0f73d658ff823bcef8b7d08e8acf4777396",
+      "sourceCommit": "576d2d1cbceade078d2c11314e8b1f678c452c11",
       "images": [
         {
           "offset": "0x0",
@@ -509,7 +509,7 @@
       },
       "exportedAt": "2026-11-09T15:41:17.365Z",
       "sourcePath": "Chinese_Clock",
-      "sourceCommit": "e1efc0f73d658ff823bcef8b7d08e8acf4777396",
+      "sourceCommit": "576d2d1cbceade078d2c11314e8b1f678c452c11",
       "images": [
         {
           "offset": "0x0",
@@ -557,7 +557,7 @@
       },
       "exportedAt": "2026-11-19T09:37:12.759Z",
       "sourcePath": "Universal_Timer",
-      "sourceCommit": "89ec08a4002980c02e67f3cd83be5e2deec8f9b7",
+      "sourceCommit": "576d2d1cbceade078d2c11314e8b1f678c452c11",
       "images": [
         {
           "offset": "0x0",
@@ -605,7 +605,7 @@
       },
       "exportedAt": "2026-11-11T09:53:24.705Z",
       "sourcePath": "Agent_Monitor",
-      "sourceCommit": "7c7d9ac4b7b93f453de156a6a1aad4bea4421069",
+      "sourceCommit": "576d2d1cbceade078d2c11314e8b1f678c452c11",
       "images": [
         {
           "offset": "0x0",
@@ -653,7 +653,7 @@
       },
       "exportedAt": "2026-11-14T19:09:34.936Z",
       "sourcePath": "Wireless_Analyzer",
-      "sourceCommit": "2d0cc12532eeb2b4272b98689caa007751b840cf",
+      "sourceCommit": "576d2d1cbceade078d2c11314e8b1f678c452c11",
       "images": [
         {
           "offset": "0x0",
@@ -701,7 +701,7 @@
       },
       "exportedAt": "2026-11-14T20:12:12.744Z",
       "sourcePath": "World_Clock",
-      "sourceCommit": "089f2ca1d2702ba5c1cd1f6b5ed602611894092e",
+      "sourceCommit": "576d2d1cbceade078d2c11314e8b1f678c452c11",
       "images": [
         {
           "offset": "0x0",
@@ -749,7 +749,7 @@
       },
       "exportedAt": "2026-11-20T06:55:43.532Z",
       "sourcePath": "Page_Turner",
-      "sourceCommit": "ddbaa52dfd94c0a318cf780a427ed36d01503acd",
+      "sourceCommit": "576d2d1cbceade078d2c11314e8b1f678c452c11",
       "images": [
         {
           "offset": "0x0",
@@ -774,6 +774,55 @@
           "path": "firmware/Page_Turner/Page_Turner.ino.bin",
           "size": 741088,
           "sha256": "50f5c1c2d1c791a4b0927233aaabb2c403f9bff96e2e461a9e0df8add022fc98"
+        }
+      ]
+    },
+    {
+      "id": "Launcher",
+      "kind": "launcher",
+      "name": "런처 (esp-launcher)",
+      "version": "0.1.0",
+      "icon": "🚀",
+      "order": 100,
+      "description": "기기 화면에서 펌웨어 목록을 골라 Wi-Fi로 설치하는 런처. 한 번 설치하면 다른 프로젝트를 구워도 남아 있고, BTN1을 누른 채 리셋해 2초 유지하면 런처로 돌아옵니다.",
+      "note": "설치하면 지금 앱은 지워집니다(Wi-Fi 설정·글꼴은 유지). 런처를 지우려면 '전체 지우기'를 켜고 다른 프로젝트를 구우세요.",
+      "nameEn": "Launcher (esp-launcher)",
+      "descriptionEn": "Pick firmware from a list on the device screen and install it over Wi-Fi. Once installed, it stays when you flash other projects; hold BTN1 while resetting for 2 seconds to return to it.",
+      "noteEn": "Installing replaces the current app (Wi-Fi settings and fonts are kept). To remove the launcher, enable 'Full erase' and flash another project.",
+      "fqbn": null,
+      "partitionScheme": "ds4m-v1",
+      "flash": {
+        "mode": "dio",
+        "freq": "80m",
+        "size": "4MB"
+      },
+      "exportedAt": "2026-11-22T14:08:57+00:00",
+      "sourcePath": "firmware/Launcher",
+      "sourceCommit": "7bc5b2ea577d1314acd84f649987ea6454c57d3b",
+      "images": [
+        {
+          "offset": "0x0",
+          "path": "firmware/Launcher/bootloader.bin",
+          "size": 22576,
+          "sha256": "dc11aad4a2340a2535e4cee20ad28b555cb510ae9cfb8c95a81a4582cbfe3e99"
+        },
+        {
+          "offset": "0x8000",
+          "path": "firmware/Launcher/partition-table.bin",
+          "size": 3072,
+          "sha256": "99cdea8e68b3507ad5d784a4b36bb68c7023dcf23a0f8aa0d2b7f0ed575317d2"
+        },
+        {
+          "offset": "0xe000",
+          "path": "firmware/Launcher/ota_data_initial.bin",
+          "size": 8192,
+          "sha256": "7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f"
+        },
+        {
+          "offset": "0x10000",
+          "path": "firmware/Launcher/esp-launcher.bin",
+          "size": 862512,
+          "sha256": "c03be6da14c57ae68fc4eb15f1bac3d6591b8616ba84b32eab9b92ce5b37da32"
         }
       ]
     }

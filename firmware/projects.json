@@ -7,6 +7,11 @@
     "freq": "80m",
     "size": "4MB"
   },
+  "launcherCatalog": {
+    "board": "deskstream_c3",
+    "layout": "ds4m-v1",
+    "baseUrl": "https://worynim.github.io/DeskStream/"
+  },
   "projects": [
     {
       "id": "Smart_Info_Station",
@@ -215,6 +220,20 @@
       "nameEn": "Page Turner",
       "descriptionEn": "A Bluetooth remote you hold upright to turn web-novel and webtoon pages and YouTube Shorts with your thumb; also a camera shutter (with delay) and slide clicker",
       "noteEn": "Pair \"DS Page Turner\" in your phone or PC Bluetooth settings. For web novels, enable volume-key page turning in the app. Hold BTN3 to choose device slot 1-3. After 5 minutes idle it deep-sleeps — wake it with BTN1 or BTN2."
+    },
+    {
+      "id": "Launcher",
+      "kind": "launcher",
+      "name": "런처 (esp-launcher)",
+      "version": "0.1.0",
+      "icon": "🚀",
+      "order": 100,
+      "sourcePath": "firmware/Launcher",
+      "description": "기기 화면에서 펌웨어 목록을 골라 Wi-Fi로 설치하는 런처. 한 번 설치하면 다른 프로젝트를 구워도 남아 있고, BTN1을 누른 채 리셋해 2초 유지하면 런처로 돌아옵니다.",
+      "note": "설치하면 지금 앱은 지워집니다(Wi-Fi 설정·글꼴은 유지). 런처를 지우려면 '전체 지우기'를 켜고 다른 프로젝트를 구우세요.",
+      "nameEn": "Launcher (esp-launcher)",
+      "descriptionEn": "Pick firmware from a list on the device screen and install it over Wi-Fi. Once installed, it stays when you flash other projects; hold BTN1 while resetting for 2 seconds to return to it.",
+      "noteEn": "Installing replaces the current app (Wi-Fi settings and fonts are kept). To remove the launcher, enable 'Full erase' and flash another project."
     }
   ]
 }

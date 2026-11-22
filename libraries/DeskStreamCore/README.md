@@ -66,6 +66,7 @@ void loop() {
 | `src/net/ds_tz_util.*` | POSIX TZ 문자열 화이트리스트 검증 (순수) | Hangeul_Clock v2.10.0 |
 | `src/net/ds_web_config.*` | 필드 테이블 기반 `GET/POST /api/config` + `jsonEscape` | Hangeul·Chinese_Clock web_manager |
 | `src/store/ds_config.*` | 필드 테이블 기반 NVS 로드·검증·지연 저장·마이그레이션 훅 | Hangeul_Clock config_manager |
+| `src/sys/ds_launcher.*` | `ds::returnToLauncher()` — 런처(esp-launcher, factory 파티션)로 재시작 | 신규 |
 | `src/util/ds_json_lite.*` | 평평한 JSON 키 값 파서 (순수) | 신규 (parseVal 대체) |
 | `src/util/ds_logger.*` | 부팅 로그 (시리얼 + OLED 한 화면 4줄) | Hangeul_Clock v2.10.0 |
 | `src/util/ds_utf8.h` | UTF-8 리딩 바이트 길이 판정 (순수) | Hangeul_Clock v2.10.0 |

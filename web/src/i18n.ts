@@ -105,6 +105,10 @@ export interface FlashStrings {
   imageReady: (offset: string, file: string, bytes: number) => string;
   writing: (current: number, total: number, file: string) => string;
   flashStart: (name: string, version: string, count: number, eraseAll: boolean) => string;
+  checkingLauncher: string;
+  launcherDetected: (otaOffset: string) => string;
+  launcherAppTooBig: (bytes: number, slot: number) => string;
+  launcherImagesMissing: string;
   rebooting: string;
   flashDone: string;
   resetSent: (method: string) => string;
@@ -174,7 +178,7 @@ const ko: LocalePack = {
       "프로젝트를 선택하고 <b>플래시 시작</b>을 누른 뒤, 포트 선택 창에서 보드를 고릅니다. USB 장치가 안 보이면 <b>USB(WebUSB) 모드</b>를 켜고 다시 시도하세요.",
       "연결이 되지 않으면 <b>BOOT 버튼을 누른 채 RESET</b>을 눌렀다 놓은 뒤 다시 시도하세요.",
       "Arduino IDE의 시리얼 모니터 등 <b>포트를 점유한 프로그램은 종료</b>해야 합니다.",
-      "기본 플래시는 NVS(WiFi·설정)를 보존합니다. 초기화가 필요하면 <b>전체 지우기</b>를 체크하세요.",
+      "기본 플래시는 NVS(WiFi·설정)를 보존합니다. 초기화가 필요하면 <b>전체 지우기</b>를 체크하세요. 런처가 설치된 보드는 런처를 남기고 앱만 바꾸며, 전체 지우기는 런처도 지웁니다.",
     ],
     logSummary: "로그 보기",
     footerTagline: "DeskStream · ESP32-C3 4-OLED 데스크 가젯",
@@ -268,6 +272,12 @@ const ko: LocalePack = {
     writing: (current, total, file) => `기록 중… (${current}/${total} · ${file})`,
     flashStart: (name, version, count, eraseAll) =>
       `플래시 시작: ${name} v${version} / ${count}개 이미지 / ${eraseAll ? "전체 지우기" : "설정 보존"}`,
+    checkingLauncher: "기기의 파티션 테이블을 확인하는 중…",
+    launcherDetected: (otaOffset) =>
+      `런처가 설치된 기기입니다. 런처는 그대로 두고 앱만 ${otaOffset}(ota_0)에 설치합니다.`,
+    launcherAppTooBig: (bytes, slot) =>
+      `앱(${bytes.toLocaleString()} bytes)이 런처의 앱 칸(${slot.toLocaleString()} bytes)보다 큽니다. '전체 지우기'를 켜고 구우면 런처 없이 설치됩니다.`,
+    launcherImagesMissing: "이 프로젝트는 런처 기기에 설치할 이미지(앱·boot_app0)가 없습니다. '전체 지우기'를 켜고 구워 주세요.",
     rebooting: "재부팅 중…",
     flashDone: "플래시 완료. 보드를 재부팅합니다…",
     resetSent: (method) => `재부팅 신호를 보냈습니다 (reset: ${method}).`,
@@ -334,7 +344,7 @@ const en: LocalePack = {
       "Select a project, press <b>Start flashing</b>, then choose the board in the port picker. If the USB device is missing, enable <b>USB (WebUSB) mode</b> and try again.",
       "If it won't connect, hold <b>BOOT</b>, press and release <b>RESET</b>, then try again.",
       "Close any program that is using the port, such as the Arduino IDE Serial Monitor.",
-      "Standard flashing preserves NVS (WiFi and settings). Enable <b>Full erase</b> only if you need a clean slate.",
+      "Standard flashing preserves NVS (WiFi and settings). Enable <b>Full erase</b> only if you need a clean slate. On a board with the launcher, only the app is replaced and the launcher stays; full erase removes the launcher too.",
     ],
     logSummary: "Show log",
     footerTagline: "DeskStream · ESP32-C3 4-OLED desk gadget",
@@ -428,6 +438,12 @@ const en: LocalePack = {
     writing: (current, total, file) => `Writing… (${current}/${total} · ${file})`,
     flashStart: (name, version, count, eraseAll) =>
       `Flashing: ${name} v${version} / ${count} images / ${eraseAll ? "full erase" : "preserving settings"}`,
+    checkingLauncher: "Checking the device's partition table…",
+    launcherDetected: (otaOffset) =>
+      `The launcher is installed. Keeping it and installing only the app at ${otaOffset} (ota_0).`,
+    launcherAppTooBig: (bytes, slot) =>
+      `The app (${bytes.toLocaleString()} bytes) is larger than the launcher's app slot (${slot.toLocaleString()} bytes). Turn on full erase to flash without the launcher.`,
+    launcherImagesMissing: "This project has no images for a launcher device (app and boot_app0). Turn on full erase and flash again.",
     rebooting: "Rebooting…",
     flashDone: "Flash complete. Rebooting the board…",
     resetSent: (method) => `Reset signal sent (reset: ${method}).`,

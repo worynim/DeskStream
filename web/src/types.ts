@@ -7,6 +7,8 @@ export interface ManifestImage {
 
 export interface ManifestProject {
   id: string;
+  /** "launcher": esp-launcher 번들 (없으면 일반 프로젝트) */
+  kind?: "launcher";
   name: string;
   nameEn?: string;
   version: string;

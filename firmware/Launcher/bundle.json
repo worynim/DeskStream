@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "launcher": "esp-launcher",
+  "version": "0.1.0",
+  "board": "deskstream_c3",
+  "chip": "esp32c3",
+  "layout": "ds4m-v1",
+  "flash": {
+    "mode": "dio",
+    "freq": "80m",
+    "size": "4MB"
+  },
+  "commit": "7bc5b2ea577d1314acd84f649987ea6454c57d3b",
+  "builtAt": "2026-11-22T14:08:57+00:00",
+  "images": [
+    {
+      "offset": "0x0",
+      "file": "bootloader.bin",
+      "size": 22576,
+      "sha256": "dc11aad4a2340a2535e4cee20ad28b555cb510ae9cfb8c95a81a4582cbfe3e99"
+    },
+    {
+      "offset": "0x8000",
+      "file": "partition-table.bin",
+      "size": 3072,
+      "sha256": "99cdea8e68b3507ad5d784a4b36bb68c7023dcf23a0f8aa0d2b7f0ed575317d2"
+    },
+    {
+      "offset": "0xe000",
+      "file": "ota_data_initial.bin",
+      "size": 8192,
+      "sha256": "7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f"
+    },
+    {
+      "offset": "0x10000",
+      "file": "esp-launcher.bin",
+      "size": 862512,
+      "sha256": "c03be6da14c57ae68fc4eb15f1bac3d6591b8616ba84b32eab9b92ce5b37da32"
+    }
+  ]
+}

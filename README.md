@@ -181,6 +181,7 @@ WiFi 설정 포털은 DeskStreamCore에 들어 있어 WiFiManager는 필요 없�
 - **한국어 / English UI** 지원 — 페이지 우측 상단에서 전환 (브라우저 언어 자동 감지, 선택값 저장)
 - 각 프로젝트 카드의 **README ↗** 링크에서 해당 프로젝트 문서를 새 탭으로 열 수 있습니다.
 - 기본 플래시는 **NVS(WiFi·표시 설정) 보존**, 필요 시 "전체 지우기" 옵션 제공
+- **런처(esp-launcher)** 항목: 보드 화면에서 펌웨어를 골라 Wi-Fi로 설치하는 런처를 설치합니다 ([아래](#-런처-esp-launcher))
 - 펌웨어 **SHA-256**(다운로드) 및 **MD5**(쓰기 후) 무결성 검증, 플래시 후 자동 재부팅
 - 16개 프로젝트: 스마트 정보 스테이션, GPS 대시보드, 사운드 비주얼라이저, 초광폭 OLED 테스트, 시스템 상태 모니터, DS DECK, 화면 스트리머, 게임 오브 라이프, 한글/영어/중국어 시계, 범용 타이머, AI 에이전트 모니터, 무선 환경 분석기, 세계 시계, 페이지 터너
 - **한글 시계 BB(Hangeul_Clock_bitbang_i2c)는 1.3" SH1106 · 4-bus 회로 구성이 달라 웹 플래셔 대상에서 제외**됩니다.
@@ -199,6 +200,20 @@ Android Chrome 148 이상 + **USB OTG 어댑터**(USB 데이터 케이블)가 �
 >
 > iPhone/iPad는 Safari(WebKit)가 Web Serial API를 지원하지 않아 브라우저 플래시가 불가능합니다. PC의 Chrome/Edge를 사용해 주세요.
 
+### 🚀 런처 (esp-launcher)
+
+PC 없이 보드에서 프로젝트를 바꿀 수 있게 해 주는 런처입니다. 런처는 factory 영역에, 고른 프로젝트는 앱 영역(ota_0)에 들어갑니다.
+
+1. 웹 플래셔에서 **런처 (esp-launcher)** 를 골라 한 번 굽습니다. 지금 앱은 지워지고 Wi-Fi 설정·글꼴(LittleFS)은 남습니다.
+2. 런처 화면의 **Wi-Fi** 에서 폰으로 QR을 찍어 설정 포털에 접속하고 AP를 저장합니다 (앱과 같은 저장소라 앱에서도 그대로 씁니다).
+3. **Firmware** 에서 목록([`firmware/manifest.launcher.json`](./firmware/manifest.launcher.json))을 받아 프로젝트를 골라 설치하면 그 앱으로 재부팅합니다.
+4. 런처로 돌아가려면 **BTN1을 누른 채 RESET** 을 눌렀다 떼고 BTN1을 **2초** 더 누르고 있습니다.
+
+- 런처가 설치된 보드에 웹 플래셔로 다른 프로젝트를 구우면, 플래셔가 보드의 파티션 테이블을 읽어 **런처는 남기고 앱만** ota_0에 설치합니다.
+- 런처를 없애려면 **전체 지우기**를 켜고 아무 프로젝트나 구우면 됩니다 (예전 방식으로 4개 이미지를 모두 씁니다).
+- 앱 코드에서 런처로 돌아가려면 DeskStreamCore 0.7.0의 `ds::returnToLauncher()`를 부릅니다.
+- 런처 소스는 별도 저장소 `esp-launcher`에 있습니다. 배포본은 `tools/mkbundle.py deskstream_c3 <DeskStream>/firmware/Launcher` 로 내보낸 번들입니다.
+
 ### 관련 파일 및 링크
 
 | 항목 | 링크 |
@@ -208,6 +223,7 @@ Android Chrome 148 이상 + **USB OTG 어댑터**(USB 데이터 케이블)가 �
 | 펌웨어 수집·manifest 생성 스크립트 | [`tools/collect-firmware.mjs`](./tools/collect-firmware.mjs) |
 | 프로젝트 표시 메타데이터 (이름·버전·아이콘·설명) | [`firmware/projects.json`](./firmware/projects.json) |
 | 배포된 펌웨어 목록·오프셋·SHA-256 | [`firmware/manifest.json`](./firmware/manifest.json) |
+| 런처가 기기에서 읽는 펌웨어 목록 (자동 생성) | [`firmware/manifest.launcher.json`](./firmware/manifest.launcher.json) |
 | 웹 플래셔에 표시할 PC 클라이언트 목록 | [`firmware/clients.json`](./firmware/clients.json) |
 | PC 클라이언트 빌드·Release 워크플로 | [`.github/workflows/build-clients.yml`](./.github/workflows/build-clients.yml) |
 | GitHub Pages 배포 워크플로 | [`.github/workflows/deploy-web.yml`](./.github/workflows/deploy-web.yml) |
@@ -216,7 +232,7 @@ Android Chrome 148 이상 + **USB OTG 어댑터**(USB 데이터 케이블)가 �
 
 1. Arduino IDE에서 보드 선택: **ESP32C3 Super Mini** (`makergo_c3_supermini` 보드 패키지)
 2. `Sketch → Export Compiled Binary` 실행
-3. 저장소 루트에서 수집 스크립트 실행 → `firmware/<project>/`와 `firmware/manifest.json` 갱신
+3. 저장소 루트에서 수집 스크립트 실행 → `firmware/<project>/`와 `firmware/manifest.json`·`manifest.launcher.json` 갱신
 
    ```bash
    node tools/collect-firmware.mjs

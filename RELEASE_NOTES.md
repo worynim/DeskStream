@@ -1,3 +1,10 @@
+## [v4.47.0] - 2026-11-23
+### 🚀 런처(esp-launcher) 연동 — 웹 플래셔 1.9.0 · DeskStreamCore 0.7.0
+- 웹 플래셔에 **런처 (esp-launcher)** 항목을 추가했습니다. 보드 화면에서 펌웨어 목록을 골라 Wi-Fi로 설치하고, BTN1을 누른 채 리셋해 2초 유지하면 런처로 돌아옵니다. 사용법은 README "런처 (esp-launcher)".
+- 웹 플래셔가 보드의 파티션 테이블을 읽어 런처가 있으면 **앱만 ota_0에 설치**하고 런처를 남깁니다. 전체 지우기를 켜면 예전처럼 4개 이미지를 모두 써서 런처가 지워집니다. 이력은 `web/RELEASE_NOTES.md`.
+- `tools/collect-firmware.mjs`: `kind: "launcher"` 항목은 esp-launcher 번들(`firmware/Launcher/bundle.json`)을 그대로 쓰고, 전체 수집 때 런처용 목록 `firmware/manifest.launcher.json` 을 manifest 에서 자동으로 만듭니다(목록이 같으면 날짜도 그대로). `--check` 가 이 목록이 manifest 와 맞는지도 검사합니다.
+- DeskStreamCore 0.7.0: `ds::returnToLauncher()` 추가(라이브러리에만, 스케치 변경 없음). 이력은 `libraries/DeskStreamCore/RELEASE_NOTES.md`.
+
 ## [v4.46.1] - 2026-11-22
 ### 🔗 웹 플래셔 다운로드 — Agent_Monitor PC 앱 0.8.2
 - 웹 플래셔 다운로드 목록(`firmware/clients.json`)의 Agent_Monitor 를 0.8.1 → 0.8.2 로 갱신했습니다 (Release `Agent_Monitor-client-v0.8.2`, macOS arm64 · Windows x64). 펌웨어는 0.7.1 그대로입니다.

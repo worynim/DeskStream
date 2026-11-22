@@ -9,9 +9,24 @@ import {
 import SparkMD5 from "spark-md5";
 import { serial as webUsbSerial } from "web-serial-polyfill";
 import type { FlashStrings } from "./i18n";
-import { fetchImage, projectSize } from "./manifest";
+import { fetchImage } from "./manifest";
+import {
+  findLauncherSlots,
+  parsePartitionTable,
+  PARTITION_TABLE_OFFSET,
+  PARTITION_TABLE_SIZE,
+} from "./partitions";
 import { resetIntoApp } from "./reset";
-import type { ManifestProject } from "./types";
+import type { ManifestImage, ManifestProject } from "./types";
+
+/** 프로젝트 export 에서 앱·boot_app0(ota_0 선택 otadata) 이미지의 표준 오프셋 */
+const APP_OFFSET = 0x10000;
+const BOOT_APP0_OFFSET = 0xe000;
+
+interface PlannedImage {
+  image: ManifestImage;
+  address: number;
+}
 
 export type FlashStage = "port" | "connect" | "download" | "write" | "reset";
 
@@ -54,6 +69,8 @@ export function isWebUsbAvailable(): boolean {
  * - 표준 Arduino IDE 업로드와 동일: bootloader(0x0) / partitions(0x8000) /
  *   boot_app0(0xe000) / app(0x10000)
  * - NVS(0x9000~0xDFFF)는 건드리지 않으므로 기본 설정이 보존된다.
+ * - 런처(esp-launcher)가 설치된 기기에 일반 프로젝트를 구우면(전체 지우기 끔)
+ *   앱을 ota_0 에, boot_app0 를 otadata 에만 써서 런처를 남긴다.
  */
 export async function flashProject(request: FlashRequest): Promise<void> {
   const { project, displayName, eraseAll, verifyMd5, baudrate, messages } = request;
@@ -90,27 +107,26 @@ export async function flashProject(request: FlashRequest): Promise<void> {
       throw new Error(messages.chipUnsupported(chip));
     }
 
+    const plan = await planImages(loader, request);
+
     request.onStage("download");
-    const totalBytes = project.images
-      .map((image) => image.size)
-      .reduce((sum, size) => sum + size, 0);
+    const totalBytes = plan.reduce((sum, { image }) => sum + image.size, 0);
     let downloaded = 0;
     const files: { data: Uint8Array; address: number }[] = [];
 
-    for (const image of project.images) {
+    for (const { image, address } of plan) {
       const fileName = image.path.split("/").pop() ?? image.path;
       const data = await fetchImage(image);
       downloaded += data.length;
-      files.push({ data, address: Number.parseInt(image.offset, 16) });
+      files.push({ data, address });
       request.onProgress(
         totalBytes > 0 ? downloaded / totalBytes : 1,
         messages.preparing(fileName),
       );
-      request.onLog(messages.imageReady(image.offset, fileName, data.length));
+      request.onLog(messages.imageReady(`0x${address.toString(16)}`, fileName, data.length));
     }
 
     request.onStage("write");
-    const projectBytes = projectSize(project);
     request.onLog(messages.flashStart(displayName, project.version, files.length, eraseAll));
 
     await loader.writeFlash({
@@ -121,14 +137,14 @@ export async function flashProject(request: FlashRequest): Promise<void> {
       eraseAll,
       compress: true,
       reportProgress: (fileIndex, written, total) => {
-        const image = project.images[fileIndex];
+        const image = plan[fileIndex]?.image;
         if (!image) return;
         const fileName = image.path.split("/").pop() ?? image.path;
-        const previous = project.images
+        const previous = plan
           .slice(0, fileIndex)
-          .reduce((sum, item) => sum + item.size, 0);
-        const ratio = projectBytes > 0
-          ? (previous + (written / Math.max(total, 1)) * image.size) / projectBytes
+          .reduce((sum, item) => sum + item.image.size, 0);
+        const ratio = totalBytes > 0
+          ? (previous + (written / Math.max(total, 1)) * image.size) / totalBytes
           : 0;
         request.onProgress(
           Math.min(1, ratio),
@@ -160,4 +176,31 @@ export async function flashProject(request: FlashRequest): Promise<void> {
       // 이미 분리된 포트는 무시
     }
   }
+}
+
+/**
+ * 기록할 이미지와 주소를 정한다.
+ * 런처 항목·전체 지우기는 export 그대로, 그 밖에는 기기 파티션 테이블을 읽어 런처가 있으면 앱만 ota_0 에 넣는다.
+ */
+async function planImages(loader: ESPLoader, request: FlashRequest): Promise<PlannedImage[]> {
+  const { project, eraseAll, messages } = request;
+  const asExported = project.images.map((image) => ({ image, address: Number.parseInt(image.offset, 16) }));
+  if (project.kind === "launcher" || eraseAll) return asExported;
+
+  request.onLog(messages.checkingLauncher);
+  const table = await loader.readFlash(PARTITION_TABLE_OFFSET, PARTITION_TABLE_SIZE);
+  const slots = findLauncherSlots(parsePartitionTable(table));
+  if (!slots) return asExported;
+
+  const app = asExported.find((item) => item.address === APP_OFFSET)?.image;
+  const bootApp0 = asExported.find((item) => item.address === BOOT_APP0_OFFSET)?.image;
+  if (!app || !bootApp0) throw new Error(messages.launcherImagesMissing);
+  if (app.size > slots.ota0.size) throw new Error(messages.launcherAppTooBig(app.size, slots.ota0.size));
+  if (bootApp0.size > slots.otadata.size) throw new Error(messages.launcherImagesMissing);
+
+  request.onLog(messages.launcherDetected(`0x${slots.ota0.offset.toString(16)}`));
+  return [
+    { image: bootApp0, address: slots.otadata.offset },
+    { image: app, address: slots.ota0.offset },
+  ];
 }

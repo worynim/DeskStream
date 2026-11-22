@@ -5,6 +5,8 @@
  * Arduino IDE 의 "Export Compiled Binary" 결과(build/**\/flash_args)에서
  * 실제 업로드에 필요한 .bin 4종만 firmware/<project>/ 로 복사하고,
  * 웹 플래셔가 읽는 firmware/manifest.json 을 생성합니다.
+ * kind "launcher" 항목은 esp-launcher 의 tools/mkbundle.py 가 내보낸 번들(<sourcePath>/bundle.json)을 그대로 씁니다.
+ * 전체 수집 때는 런처가 기기에서 읽는 펌웨어 목록 firmware/manifest.launcher.json 도 함께 만듭니다.
  *
  * 사용법:
  *   node tools/collect-firmware.mjs                  # 전체 수집 + manifest 생성
@@ -20,6 +22,10 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const META_PATH = path.join(ROOT, "firmware", "projects.json");
 const MANIFEST_PATH = path.join(ROOT, "firmware", "manifest.json");
 const CLIENTS_PATH = path.join(ROOT, "firmware", "clients.json");
+const CATALOG_PATH = path.join(ROOT, "firmware", "manifest.launcher.json");
+const APP_OFFSET = "0x10000";
+// ESP 이미지 헤더 chip_id(오프셋 12, uint16 LE) → 런처 카탈로그 chip 이름
+const CHIP_IDS = { 0: "esp32", 2: "esp32s2", 5: "esp32c3", 9: "esp32s3", 12: "esp32c2", 13: "esp32c6", 16: "esp32h2" };
 const CLIENT_PLATFORMS = new Set(["macos-arm64", "windows-x64"]);
 // 웹 플래셔 i18n(clientPermissions)에 안내 문구가 있는 권한만 허용
 const CLIENT_PERMISSIONS = new Set(["bluetooth", "accessibility", "screenRecording", "localNetwork", "windowsFirewall"]);
@@ -266,6 +272,104 @@ function collectProject(project) {
   };
 }
 
+/** esp-launcher 번들(bundle.json + 이미지)을 manifest 항목으로 만든다. 파일은 이미 firmware/<id>/ 에 있다. */
+function collectLauncher(project) {
+  const dir = path.join(ROOT, project.sourcePath);
+  let bundle;
+  try {
+    bundle = readJson(path.join(dir, "bundle.json"));
+  } catch {
+    return { ok: false, reason: `번들이 없습니다: ${project.sourcePath}/bundle.json (esp-launcher tools/mkbundle.py)` };
+  }
+  if (bundle.schema !== 1 || bundle.launcher !== "esp-launcher") return { ok: false, reason: "bundle.json 형식이 다릅니다." };
+  if (bundle.version !== project.version) {
+    return { ok: false, reason: `번들 버전(${bundle.version}) ≠ projects.json version(${project.version})` };
+  }
+  const images = [];
+  for (const image of bundle.images) {
+    const file = path.join(dir, image.file);
+    if (!fs.existsSync(file)) return { ok: false, reason: `파일 없음 ${image.file}` };
+    const buf = fs.readFileSync(file);
+    if (buf.length !== image.size || sha256(buf) !== image.sha256) {
+      return { ok: false, reason: `${image.file} 이 bundle.json 과 다릅니다.` };
+    }
+    images.push({ offset: image.offset, path: toPosix(path.relative(ROOT, file)), size: buf.length, sha256: image.sha256 });
+  }
+  const flash = { mode: bundle.flash.mode, freq: bundle.flash.freq, size: bundle.flash.size };
+  return {
+    ok: true,
+    stale: bundle.commit.endsWith("-dirty"),
+    staleNote: "커밋하지 않은 변경이 있는 런처 빌드",
+    entry: {
+      id: project.id,
+      kind: "launcher",
+      name: project.name,
+      version: project.version,
+      icon: project.icon ?? "",
+      order: project.order ?? 999,
+      description: project.description ?? "",
+      note: project.note ?? "",
+      nameEn: project.nameEn ?? "",
+      descriptionEn: project.descriptionEn ?? "",
+      noteEn: project.noteEn ?? "",
+      fqbn: null,
+      partitionScheme: bundle.layout,
+      flash,
+      exportedAt: bundle.builtAt,
+      sourcePath: project.sourcePath,
+      sourceCommit: bundle.commit,
+      images,
+    },
+  };
+}
+
+/** ESP 이미지 헤더의 chip_id 로 칩 이름을 얻는다. */
+function chipOfImage(file) {
+  const buf = fs.readFileSync(path.join(ROOT, file));
+  if (buf.length < 16 || buf[0] !== 0xe9) return null;
+  return CHIP_IDS[buf.readUInt16LE(12)] ?? null;
+}
+
+/** 런처 카탈로그(manifest.launcher.json)의 firmwares 를 manifest 항목에서 만든다. */
+function catalogFirmwares(meta, projects) {
+  const { board, layout, baseUrl } = meta.launcherCatalog;
+  return projects
+    .filter((p) => p.kind !== "launcher")
+    .map((p) => {
+      const app = p.images.find((image) => image.offset === APP_OFFSET);
+      const chip = chipOfImage(app.path);
+      if (!chip) throw new Error(`${p.id}: 앱 이미지 헤더에서 칩을 알 수 없습니다.`);
+      return {
+        id: p.id,
+        name: p.name,
+        nameEn: p.nameEn,
+        version: p.version,
+        chip,
+        board,
+        layout,
+        url: baseUrl + app.path,
+        size: app.size,
+        sha256: app.sha256,
+        desc: p.description,
+        descEn: p.descriptionEn,
+      };
+    });
+}
+
+function writeCatalog(meta, projects) {
+  const firmwares = catalogFirmwares(meta, projects);
+  let updated = new Date().toISOString().slice(0, 10);
+  try {
+    const prev = readJson(CATALOG_PATH);
+    // 목록이 그대로면 날짜도 그대로 둬 불필요한 변경을 만들지 않는다
+    if (JSON.stringify(prev.firmwares) === JSON.stringify(firmwares)) updated = prev.updated;
+  } catch {
+    /* 처음 생성 */
+  }
+  fs.writeFileSync(CATALOG_PATH, `${JSON.stringify({ schema: 1, updated, firmwares }, null, 2)}\n`);
+  return firmwares.length;
+}
+
 function gitHead() {
   try {
     const head = fs.readFileSync(path.join(ROOT, ".git", "HEAD"), "utf8").trim();
@@ -333,7 +437,24 @@ function validateCommittedManifest(meta) {
   for (const id of metaIds) {
     if (!ids.has(id)) errors.push(`manifest 에 누락된 프로젝트: ${id} (export 여부 확인)`);
   }
+  if (errors.length === 0) errors.push(...validateCatalog(meta, manifest.projects));
   return errors;
+}
+
+/** manifest.launcher.json 이 manifest.json 에서 만든 결과와 같은가 (수집 후 다시 만들지 않은 경우를 잡는다) */
+function validateCatalog(meta, projects) {
+  if (!meta.launcherCatalog) return [];
+  let catalog;
+  try {
+    catalog = readJson(CATALOG_PATH);
+  } catch (error) {
+    return [`manifest.launcher.json 읽기 실패: ${error.message}`];
+  }
+  if (catalog.schema !== 1) return [`manifest.launcher.json: 지원하지 않는 schema ${catalog.schema}`];
+  if (JSON.stringify(catalog.firmwares) !== JSON.stringify(catalogFirmwares(meta, projects))) {
+    return ["manifest.launcher.json 이 manifest.json 과 맞지 않습니다 (전체 수집으로 다시 생성)"];
+  }
+  return [];
 }
 
 /**
@@ -433,7 +554,7 @@ function main() {
   console.log("프로젝트별 export 수집");
   console.log("─".repeat(96));
   for (const project of projects) {
-    const result = collectProject(project);
+    const result = project.kind === "launcher" ? collectLauncher(project) : collectProject(project);
     if (!result.ok) {
       skipped.push({ project, reason: result.reason });
       console.log(`${pad(project.id, 30)} ${pad("SKIP", 6)} ${result.reason}`);
@@ -442,7 +563,7 @@ function main() {
     collected.push(result.entry);
     if (result.stale) stale.push(result.entry.id);
     console.log(
-      `${pad(project.id, 30)} ${pad("OK", 6)} ${pad(formatBytes(result.entry.images.reduce((sum, i) => sum + i.size, 0)), 10)} ${result.entry.flash.mode}/${result.entry.flash.freq}/${result.entry.flash.size}${result.stale ? "  ⚠️ 소스가 바이너리보다 최신" : ""}`,
+      `${pad(project.id, 30)} ${pad("OK", 6)} ${pad(formatBytes(result.entry.images.reduce((sum, i) => sum + i.size, 0)), 10)} ${result.entry.flash.mode}/${result.entry.flash.freq}/${result.entry.flash.size}${result.stale ? `  ⚠️ ${result.staleNote ?? "소스가 바이너리보다 최신"}` : ""}`,
     );
   }
 
@@ -457,16 +578,20 @@ function main() {
   };
   fs.writeFileSync(MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`);
 
-  // 제외된 프로젝트의 이전 산출물 정리
+  // 제외된 프로젝트의 이전 산출물 정리 (런처 번들 폴더는 원본이므로 지우지 않는다)
   for (const { project } of skipped) {
-    if (!PROJECT_FILTER) fs.rmSync(path.join(ROOT, "firmware", project.id), { recursive: true, force: true });
+    if (!PROJECT_FILTER && project.kind !== "launcher") {
+      fs.rmSync(path.join(ROOT, "firmware", project.id), { recursive: true, force: true });
+    }
   }
+  const catalogCount = !PROJECT_FILTER && meta.launcherCatalog ? writeCatalog(meta, collected) : null;
 
   console.log("─".repeat(96));
   console.log(`✅ ${collected.length}개 프로젝트 → ${toPosix(path.relative(ROOT, MANIFEST_PATH))}`);
+  if (catalogCount !== null) console.log(`✅ 런처 목록 ${catalogCount}개 → ${toPosix(path.relative(ROOT, CATALOG_PATH))}`);
   if (skipped.length) console.log(`ℹ️  ${skipped.length}개 프로젝트는 export가 없어 제외되었습니다.`);
   if (stale.length) {
-    console.log(`⚠️  소스가 바이너리보다 최신입니다. Arduino IDE에서 다시 export 하세요: ${stale.join(", ")}`);
+    console.log(`⚠️  바이너리가 최신 소스가 아닙니다. 다시 export 하세요: ${stale.join(", ")}`);
   }
 }
 

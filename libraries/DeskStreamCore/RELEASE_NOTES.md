@@ -1,5 +1,12 @@
 # DeskStreamCore Release Notes
 
+## [v0.7.0] - 2026-11-23
+### 🚀 `ds::returnToLauncher()` — 런처로 돌아가기
+- `sys/ds_launcher.*`: factory 파티션(런처 esp-launcher)이 있으면 다음 부팅을 런처로 정하고 재시작한다.
+  런처가 없거나 부팅 파티션을 바꾸지 못하면 아무것도 바꾸지 않고 `false` 를 돌려준다.
+- 라이브러리에만 추가했다 — 아직 이 함수를 부르는 스케치는 없다 (런처 진입은 BTN1 을 누른 채 리셋, 2초 유지).
+- `DS_CORE_VERSION` 을 `library.properties` 와 맞췄다 (0.6.1 때 0.6.0 으로 남아 있던 것 포함).
+
 ## [v0.6.1] - 2026-11-10
 ### 🐛 `ds::utf8CharLen` — 남은 길이가 256 의 배수면 0 반환 (무한 루프)
 - 남은 바이트 수 `remaining` 을 `(uint8_t)` 로 잘라 비교해서 **256·512·768… 이 남으면 0 을 반환**했다.
