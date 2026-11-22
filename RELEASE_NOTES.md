@@ -1,3 +1,7 @@
+## [v4.45.1] - 2026-11-22
+### 🔗 웹 플래셔 다운로드 — Agent_Monitor PC 앱 0.8.1
+- 웹 플래셔 다운로드 목록(`firmware/clients.json`)의 Agent_Monitor 를 0.8.0 → 0.8.1 로 갱신했습니다 (Release `Agent_Monitor-client-v0.8.1`, macOS arm64 · Windows x64). 펌웨어는 0.7.1 그대로입니다.
+
 ## [v4.45.0] - 2026-11-22
 ### 🔔 Agent_Monitor 0.8.1 — 트레이 메뉴에서 부저 켜기/끄기
 - PC 클라이언트 트레이 메뉴에 **부저 소리** 체크 항목을 추가했습니다. 누르면 설정 파일 `[device] mute` 를 바꾸고 장치에 바로 반영합니다 (재시작 불필요). PC 클라이언트만 변경, 펌웨어 그대로. 이력은 `Agent_Monitor/RELEASE_NOTES.md`.
