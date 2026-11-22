@@ -2,38 +2,61 @@
 """
 @file usage_poll.py
 @brief Claude 구독 사용량(5시간·주간) 직접 조회 — 설정 [usage] poll = true 일 때만 데몬이 쓴다
-@details Claude Code 가 쓰는 비공개 주소 GET /api/oauth/usage 를, Claude Code 가 macOS 키체인에 둔 로그인 토큰으로 호출한다.
+@details Claude Code 가 쓰는 비공개 주소 GET /api/oauth/usage 를 Claude Code 의 로그인 토큰으로 호출한다.
+         토큰 위치: macOS = 키체인 "Claude Code-credentials", Windows·Linux = ~/.claude/.credentials.json
+         (CLAUDE_CONFIG_DIR 가 있으면 그 폴더). 둘 다 claudeAiOauth.accessToken · expiresAt(ms).
          - 공식 API 가 아니라 Claude Code 업데이트로 바뀔 수 있다.
          - 토큰은 읽기만 한다: 갱신·저장·로그 출력하지 않는다. 만료됐으면 조회하지 않는다
            (그동안은 Claude Code 를 쓰지 않아 사용량도 늘지 않고, 다시 쓰면 Claude Code 가 토큰을 갱신한다).
-         - macOS 만 지원한다 (다른 OS 는 토큰 없음으로 처리).
+         - 터미널 Claude Code 로 구독 계정에 로그인해야 토큰이 생긴다 (데스크톱 앱 로그인만으로는 없을 수 있음).
 """
 import getpass
 import json
+import os
 import ssl
 import subprocess
 import sys
 import urllib.request
 from datetime import datetime
+from pathlib import Path
 
 USAGE_URL = "https://api.anthropic.com/api/oauth/usage"
 KEYCHAIN_SERVICE = "Claude Code-credentials"
 TIMEOUT_SEC = 10
 
 
-def read_token(now: float, run=subprocess.run):
-    """키체인의 Claude Code 로그인 토큰. 없거나 만료됐으면 None."""
-    if sys.platform != "darwin":
-        return None
+def credentials_path() -> Path:
+    """Windows·Linux 의 Claude Code 로그인 정보 파일"""
+    base = os.environ.get("CLAUDE_CONFIG_DIR")
+    return (Path(base) if base else Path.home() / ".claude") / ".credentials.json"
+
+
+def _keychain_text(run):
     try:
         r = run(["security", "find-generic-password", "-s", KEYCHAIN_SERVICE, "-a", getpass.getuser(), "-w"],
                 capture_output=True, text=True, timeout=5)
     except (OSError, subprocess.SubprocessError):
         return None
-    if r.returncode != 0:
+    return r.stdout if r.returncode == 0 else None
+
+
+def _file_text(path: Path):
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+
+
+def read_token(now: float, run=subprocess.run, platform=None, cred_path=None):
+    """Claude Code 로그인 토큰 (macOS 키체인 · 그 밖 ~/.claude/.credentials.json). 없거나 만료됐으면 None."""
+    if (platform or sys.platform) == "darwin":
+        text = _keychain_text(run)
+    else:
+        text = _file_text(cred_path or credentials_path())
+    if not text:
         return None
     try:
-        oauth = json.loads(r.stdout).get("claudeAiOauth") or {}
+        oauth = json.loads(text).get("claudeAiOauth") or {}
     except (ValueError, AttributeError):
         return None
     token, expires_ms = oauth.get("accessToken"), oauth.get("expiresAt")

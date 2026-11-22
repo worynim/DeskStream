@@ -792,13 +792,36 @@ class TestUsage(unittest.TestCase):
         class R:
             def __init__(self, code, out): self.returncode, self.stdout = code, out
         cred = lambda exp: json.dumps({"claudeAiOauth": {"accessToken": "tok", "expiresAt": exp}})
-        if sys.platform != "darwin":
-            self.assertIsNone(usage_poll.read_token(0, run=lambda *a, **k: R(0, cred(None))))
-            return
-        self.assertEqual(usage_poll.read_token(100, run=lambda *a, **k: R(0, cred(200_000))), "tok")
-        self.assertIsNone(usage_poll.read_token(300, run=lambda *a, **k: R(0, cred(200_000))))   # 만료
-        self.assertIsNone(usage_poll.read_token(0, run=lambda *a, **k: R(44, "")))               # 항목 없음
-        self.assertIsNone(usage_poll.read_token(0, run=lambda *a, **k: R(0, "not json")))
+        mac = lambda now, r: usage_poll.read_token(now, run=lambda *a, **k: r, platform="darwin")
+        self.assertEqual(mac(100, R(0, cred(200_000))), "tok")
+        self.assertIsNone(mac(300, R(0, cred(200_000))))   # 만료
+        self.assertIsNone(mac(0, R(44, "")))               # 항목 없음
+        self.assertIsNone(mac(0, R(0, "not json")))
+
+    def test_read_token_from_file(self):
+        """Windows·Linux — ~/.claude/.credentials.json (키체인 호출 없음)"""
+        def no_run(*a, **k):
+            raise AssertionError("키체인을 부르면 안 됨")
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / ".credentials.json"
+            win = lambda now: usage_poll.read_token(now, run=no_run, platform="win32", cred_path=p)
+            self.assertIsNone(win(0))                                                    # 파일 없음
+            p.write_text(json.dumps({"claudeAiOauth": {"accessToken": "tok", "expiresAt": 200_000}}), encoding="utf-8")
+            self.assertEqual(win(100), "tok")
+            self.assertIsNone(win(300))                                                  # 만료
+            p.write_text(json.dumps({"mcpOAuth": {}}), encoding="utf-8")
+            self.assertIsNone(win(0))                                                    # 구독 로그인 안 함
+            p.write_text("not json", encoding="utf-8")
+            self.assertIsNone(win(0))
+            saved = os.environ.get("CLAUDE_CONFIG_DIR")
+            os.environ["CLAUDE_CONFIG_DIR"] = d
+            try:
+                self.assertEqual(usage_poll.credentials_path(), p)
+            finally:
+                if saved is None:
+                    del os.environ["CLAUDE_CONFIG_DIR"]
+                else:
+                    os.environ["CLAUDE_CONFIG_DIR"] = saved
 
     def test_config_usage_poll(self):
         self.assertTrue(commands.parse_config({"usage": {"poll": True}}).usage_poll)

@@ -1,3 +1,7 @@
+## [v4.46.0] - 2026-11-22
+### 🪟 Agent_Monitor 0.8.2 — 사용량 직접 조회를 Windows · Linux 에서도
+- `[usage] poll = true` 가 Windows · Linux 에서도 동작합니다 (로그인 토큰을 `~/.claude/.credentials.json` 에서 읽기만 함 — 터미널 `claude` 로 구독 계정 로그인 필요). PC 클라이언트만 변경, 펌웨어 그대로. 이력은 `Agent_Monitor/RELEASE_NOTES.md`.
+
 ## [v4.45.1] - 2026-11-22
 ### 🔗 웹 플래셔 다운로드 — Agent_Monitor PC 앱 0.8.1
 - 웹 플래셔 다운로드 목록(`firmware/clients.json`)의 Agent_Monitor 를 0.8.0 → 0.8.1 로 갱신했습니다 (Release `Agent_Monitor-client-v0.8.1`, macOS arm64 · Windows x64). 펌웨어는 0.7.1 그대로입니다.
