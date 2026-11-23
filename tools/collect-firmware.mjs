@@ -330,30 +330,41 @@ function chipOfImage(file) {
   return CHIP_IDS[buf.readUInt16LE(12)] ?? null;
 }
 
-/** 런처 카탈로그(manifest.launcher.json)의 firmwares 를 manifest 항목에서 만든다. */
+// 런처 업데이트 항목 설명 — 0.1.x 런처는 이 항목을 Firmware 목록에 보여 주므로 설치하면 무엇이 되는지 적는다
+const LAUNCHER_ENTRY_DESC = "런처 업데이트: 설치하면 이 런처로 바뀝니다 (설치된 앱은 지워지고 Wi-Fi·데이터는 남음)";
+const LAUNCHER_ENTRY_DESC_EN = "Launcher update: installing replaces the launcher (removes the installed app; Wi-Fi and data stay)";
+
+/**
+ * 런처 카탈로그(manifest.launcher.json)의 firmwares 를 manifest 항목에서 만든다.
+ * 앱 항목 뒤에 런처 항목(type "launcher", factory 오프셋 이미지)을 하나 붙인다 — 런처 Info 메뉴의 업데이트용.
+ */
 function catalogFirmwares(meta, projects) {
   const { board, layout, baseUrl } = meta.launcherCatalog;
-  return projects
-    .filter((p) => p.kind !== "launcher")
-    .map((p) => {
-      const app = p.images.find((image) => image.offset === APP_OFFSET);
-      const chip = chipOfImage(app.path);
-      if (!chip) throw new Error(`${p.id}: 앱 이미지 헤더에서 칩을 알 수 없습니다.`);
-      return {
-        id: p.id,
-        name: p.name,
-        nameEn: p.nameEn,
-        version: p.version,
-        chip,
-        board,
-        layout,
-        url: baseUrl + app.path,
-        size: app.size,
-        sha256: app.sha256,
-        desc: p.description,
-        descEn: p.descriptionEn,
-      };
-    });
+  const entry = (p) => {
+    const app = p.images.find((image) => image.offset === APP_OFFSET);
+    const chip = chipOfImage(app.path);
+    if (!chip) throw new Error(`${p.id}: 앱 이미지 헤더에서 칩을 알 수 없습니다.`);
+    const launcher = p.kind === "launcher";
+    return {
+      id: launcher ? "esp-launcher" : p.id,
+      ...(launcher ? { type: "launcher" } : {}),
+      name: p.name,
+      nameEn: p.nameEn,
+      version: p.version,
+      chip,
+      board,
+      layout,
+      url: baseUrl + app.path,
+      size: app.size,
+      sha256: app.sha256,
+      desc: launcher ? LAUNCHER_ENTRY_DESC : p.description,
+      descEn: launcher ? LAUNCHER_ENTRY_DESC_EN : p.descriptionEn,
+    };
+  };
+  return [
+    ...projects.filter((p) => p.kind !== "launcher").map(entry),
+    ...projects.filter((p) => p.kind === "launcher").map(entry),
+  ];
 }
 
 function writeCatalog(meta, projects) {

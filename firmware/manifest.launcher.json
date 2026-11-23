@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated": "2026-11-22",
+  "updated": "2026-11-23",
   "firmwares": [
     {
       "id": "Smart_Info_Station",
@@ -225,6 +225,21 @@
       "sha256": "50f5c1c2d1c791a4b0927233aaabb2c403f9bff96e2e461a9e0df8add022fc98",
       "desc": "장치를 세로로 쥐고 엄지로 웹소설·웹툰·유튜브 쇼츠를 넘기는 블루투스 리모컨. 카메라 셔터(딜레이 셔터)·PPT 넘김도 지원",
       "descEn": "A Bluetooth remote you hold upright to turn web-novel and webtoon pages and YouTube Shorts with your thumb; also a camera shutter (with delay) and slide clicker"
+    },
+    {
+      "id": "esp-launcher",
+      "type": "launcher",
+      "name": "런처 (esp-launcher)",
+      "nameEn": "Launcher (esp-launcher)",
+      "version": "0.2.0",
+      "chip": "esp32c3",
+      "board": "deskstream_c3",
+      "layout": "ds4m-v1",
+      "url": "https://worynim.github.io/DeskStream/firmware/Launcher/esp-launcher.bin",
+      "size": 864944,
+      "sha256": "26b37594b1f332baa4952c26977053e37b3eb8a3cce6c6c1d4d57f03218e1d75",
+      "desc": "런처 업데이트: 설치하면 이 런처로 바뀝니다 (설치된 앱은 지워지고 Wi-Fi·데이터는 남음)",
+      "descEn": "Launcher update: installing replaces the launcher (removes the installed app; Wi-Fi and data stay)"
     }
   ]
 }
