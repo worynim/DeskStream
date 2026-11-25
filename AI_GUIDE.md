@@ -271,7 +271,7 @@ server.begin();
    한국어판에서 다른 문서로 거는 링크는 `README.ko.md`를 가리킨다. `RELEASE_NOTES.md`도 작성.
 7. 루트 `README.md`·`README.ko.md` 프로젝트 목록, 루트 `RELEASE_NOTES.md`에 항목 추가.
    README를 고칠 때는 영문·한국어 두 파일을 함께 고친다.
-8. 웹 플래셔에 올리려면 `firmware/projects.json`에 항목 추가 → Arduino IDE `Export Compiled Binary`
+8. 웹 플래셔에 올리려면 `firmware/projects.json`에 항목 추가 (`order`가 웹 플래셔·런처 목록의 번호 — 런처 0, 같은 종류끼리 번호가 이어지게 넣고 뒤 번호를 민다) → Arduino IDE `Export Compiled Binary`
    → `node tools/collect-firmware.mjs` (전체 실행 — `--project`는 manifest를 덮어쓴다) → `--check` 통과 확인.
 
 ---

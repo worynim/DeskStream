@@ -7,6 +7,7 @@ import {
   getStrings,
   projectDescription,
   projectName,
+  projectNumber,
   projectNote,
   storeLocale,
   type Locale,
@@ -194,7 +195,18 @@ function resolveHtml(strings: UiStrings, key: string): string | null {
 
 function renderProjects(projects: ManifestProject[]): void {
   const strings = ui();
-  dom.projectGrid.replaceChildren();
+  // 런처는 앱이 아니므로 위쪽 별도 묶음에, 앱은 아래 묶음에 번호 순으로 둔다
+  const launcherGrid = el("div", "grid");
+  const appGrid = el("div", "grid");
+  const group = (modifier: string, title: string, grid: HTMLElement): HTMLElement => {
+    const section = el("div", `project-group ${modifier}`);
+    section.append(el("h3", "project-group__title", title), grid);
+    return section;
+  };
+  dom.projectGrid.replaceChildren(
+    group("project-group--launcher", strings.launcherGroupTitle, launcherGrid),
+    group("project-group--apps", strings.appsGroupTitle, appGrid),
+  );
   for (const project of [...projects].sort((a, b) => a.order - b.order)) {
     const name = projectName(project, state.locale);
 
@@ -212,6 +224,7 @@ function renderProjects(projects: ManifestProject[]): void {
     const body = el("span", "card__body");
     const top = el("span", "card__top");
     top.append(
+      el("span", "card__no", projectNumber(project)),
       el("span", "card__name", name),
       el("span", "card__version", `v${project.version}`),
     );
@@ -239,8 +252,9 @@ function renderProjects(projects: ManifestProject[]): void {
       readme.append(document.createTextNode("README"), el("span", "card__readme-arrow", "↗"));
       item.append(readme);
     }
-    dom.projectGrid.append(item);
+    (project.kind === "launcher" ? launcherGrid : appGrid).append(item);
   }
+  if (!launcherGrid.hasChildNodes()) launcherGrid.parentElement?.remove();
 }
 
 function selectProject(project: ManifestProject): void {
@@ -272,6 +286,7 @@ function renderSelection(project: ManifestProject): void {
   const head = el("div", "selection__head");
   head.append(
     el("span", "selection__icon", project.icon || "📦"),
+    el("span", "card__no", projectNumber(project)),
     el("strong", "selection__name", projectName(project, state.locale)),
     el("span", "badge", `v${project.version}`),
   );
@@ -429,7 +444,8 @@ function renderLocale(): void {
   const strings = ui();
 
   if (state.manifest) {
-    const count = state.manifest.projects.length;
+    // 런처는 프로젝트 수에 넣지 않는다
+    const count = state.manifest.projects.filter((project) => project.kind !== "launcher").length;
     dom.chipProjects.textContent = strings.projectCount(count);
     dom.projectCount.textContent = strings.projectCount(count);
     dom.manifestMeta.textContent = strings.manifestMeta(formatDate(state.manifest.generatedAt));

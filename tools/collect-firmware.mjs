@@ -334,6 +334,11 @@ function chipOfImage(file) {
 const LAUNCHER_ENTRY_DESC = "런처 업데이트: 설치하면 이 런처로 바뀝니다 (설치된 앱은 지워지고 Wi-Fi·데이터는 남음)";
 const LAUNCHER_ENTRY_DESC_EN = "Launcher update: installing replaces the launcher (removes the installed app; Wi-Fi and data stay)";
 
+/** 프로젝트 번호 — projects.json 의 order 를 두 자리로 (런처 00, 앱 01~). 웹 플래셔 카드와 같은 규칙 */
+function projectNumber(project) {
+  return String(project.order).padStart(2, "0");
+}
+
 /**
  * 런처 카탈로그(manifest.launcher.json)의 firmwares 를 manifest 항목에서 만든다.
  * 앱 항목 뒤에 런처 항목(type "launcher", factory 오프셋 이미지)을 하나 붙인다 — 런처 Info 메뉴의 업데이트용.
@@ -345,11 +350,13 @@ function catalogFirmwares(meta, projects) {
     const chip = chipOfImage(app.path);
     if (!chip) throw new Error(`${p.id}: 앱 이미지 헤더에서 칩을 알 수 없습니다.`);
     const launcher = p.kind === "launcher";
+    // 앱 이름 앞에 웹 플래셔와 같은 번호(order, 두 자리)를 붙여 런처 Firmware 목록에도 보이게 한다
+    const no = launcher ? "" : `${projectNumber(p)} `;
     return {
       id: launcher ? "esp-launcher" : p.id,
       ...(launcher ? { type: "launcher" } : {}),
-      name: p.name,
-      nameEn: p.nameEn,
+      name: no + p.name,
+      nameEn: no + p.nameEn,
       version: p.version,
       chip,
       board,

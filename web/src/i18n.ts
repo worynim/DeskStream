@@ -19,6 +19,8 @@ export interface UiStrings {
   projectsTitle: string;
   projectsAriaLabel: string;
   projectCount: (count: number) => string;
+  launcherGroupTitle: string;
+  appsGroupTitle: string;
   flashTitle: string;
   selectionEmpty: string;
   verifyLabel: string;
@@ -138,6 +140,8 @@ const ko: LocalePack = {
     projectsTitle: "프로젝트 선택",
     projectsAriaLabel: "플래시할 프로젝트 선택",
     projectCount: (count) => `${count}개 프로젝트`,
+    launcherGroupTitle: "런처 — 보드 화면에서 프로젝트를 골라 Wi-Fi로 설치",
+    appsGroupTitle: "프로젝트",
     flashTitle: "연결 및 플래시",
     selectionEmpty: "위에서 프로젝트를 선택하세요.",
     verifyLabel: "쓰기 검증(MD5) <small>플래시 후 데이터를 다시 읽어 검증합니다</small>",
@@ -304,6 +308,8 @@ const en: LocalePack = {
     projectsTitle: "Choose a project",
     projectsAriaLabel: "Select a project to flash",
     projectCount: (count) => `${count} projects`,
+    launcherGroupTitle: "Launcher — pick and install projects over Wi-Fi on the board",
+    appsGroupTitle: "Projects",
     flashTitle: "Connect & flash",
     selectionEmpty: "Select a project above.",
     verifyLabel: "Verify write (MD5) <small>Reads the data back after flashing to verify it</small>",
@@ -483,6 +489,11 @@ export function dateLocale(locale: Locale): string {
 
 export function projectName(project: ManifestProject, locale: Locale): string {
   return locale === "en" ? project.nameEn || project.name : project.name;
+}
+
+/** 프로젝트 번호 — order 를 두 자리로 (런처 00, 앱 01~). 런처 목록(tools/collect-firmware.mjs)과 같은 규칙 */
+export function projectNumber(project: ManifestProject): string {
+  return String(project.order).padStart(2, "0");
 }
 
 export function projectDescription(project: ManifestProject, locale: Locale): string {
