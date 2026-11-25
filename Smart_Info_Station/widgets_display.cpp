@@ -111,6 +111,10 @@ void display_weather_oled(U8G2 &u8g2) {
   u8g2.drawStr(0, 0, ("Ann.Time: " + announcement_time.substring(0, 5) + " " + announcement_time.substring(announcement_time.length() - 5)).c_str());
   for (int i = 0; i < 3; i++) {
     u8g2.setFont(u8g2_font_6x10_tf);
+    if (forecast[i].type == 0) {   // 아직 받지 못한 시간대 (날씨 코드는 1부터)
+      u8g2.drawStr(43 * i, 13, "--");
+      continue;
+    }
     u8g2.drawStr(43 * i, 13, (String(forecast[i].time) + ":00").c_str());
     if (forecast[i].type == 1) u8g2.drawStr(43 * i, 23, "Clear");
     else if (forecast[i].type == 2) u8g2.drawStr(43 * i, 23, "Partly");
@@ -142,6 +146,13 @@ void display_dust_oled(U8G2 &u8g2) {
   u8g2.drawStr(0, 0, "Air pollution ");
   u8g2.drawStr(0, 18, "PM10: ");
   u8g2.drawStr(0, 43, "PM2.5: ");
+  if (dust_10_num < 0 || dust_2_5_num < 0) {   // 아직 받지 못함 — 등급 대신 "--"
+    u8g2.setFont(MAIN_NUM_FONT);
+    u8g2.drawStr(60, 14, "--");
+    u8g2.drawStr(60, 40, "--");
+    display.push();
+    return;
+  }
   if (dust_10_num <= 30) u8g2.drawStr(0, 28, "Good");
   else if (dust_10_num <= 80) u8g2.drawStr(0, 28, "Moderate");
   else if (dust_10_num <= 150) u8g2.drawStr(0, 28, "Bad");

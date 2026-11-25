@@ -68,7 +68,6 @@ extern volatile bool is_updating_kpi200;
 
 // --- 함수 프로토타입 ---
 bool isWidgetActive(WidgetType type);
-bool isWidgetVisible(WidgetType type);
 bool isDomesticMarketOpen();
 bool isUsMarketOpen();
 

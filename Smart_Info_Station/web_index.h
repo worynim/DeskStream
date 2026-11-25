@@ -70,7 +70,7 @@ const char INDEX_HTML_SETTINGS[] PROGMEM = R"rawliteral(
             <div class="section">
                 <h3>⏰ 시간대 (Timezone) 설정</h3>
                 <p>UTC 기준 오프셋 시간을 입력하세요. (대한민국: 9)</p>
-                <input type="text" name="tz_offset" placeholder="현재: +%TZ%">
+                <input type="text" name="tz_offset" placeholder="현재: %TZ%">
             </div>
             <input type="submit" class="btn" value="💾 설정 저장 후 즉시 반영">
         </form>

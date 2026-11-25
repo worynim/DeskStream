@@ -18,7 +18,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
     - **Visibility-based parsing**: Widgets not currently shown on the OLEDs do not call their servers unnecessarily. (All data is still fetched once at boot or on a forced update.)
     - **Market-hours optimization**:
       - **Korean markets (KOSPI, KOSDAQ, KPI200)**: Auto-update only on weekdays (Mon–Fri) between 08:30 and 16:10.
-      - **US markets (S&P 500, NASDAQ)**: Auto-update only through the weekday sessions in Korean time (until 8 AM Mon–Sat).
+      - **US markets (S&P 500, NASDAQ)**: Auto-update only on weekdays (Mon–Fri) between 04:00 and 20:00 US Eastern time (pre-market to after-hours), with daylight saving time. (**v2.10.3**: Market hours are judged in each market's local time, so changing the time zone on the web page does not affect them.)
     - **Force update**: Long-press BTN4 to immediately re-read the data of all active widgets from the servers, whether the market is open or not.
 4.  **Powerful web dashboard and live settings**
     - Change the router, YouTube channel, dust measuring station, time zone and more in real time from a web browser, without editing the source code.
@@ -71,6 +71,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 - `data_manager.h / .cpp` : The main collection engine; manages the headers with the network parsing functions for weather, fine dust, stocks, coins, etc., collects data through the background `dataTask`, and manages the state (`update_flag`).
 - `web_handlers.h / .cpp` : Generates the internal settings web page UI reachable after connecting to WiFi, and saves the entered settings (channel, region, etc.) to flash (`handleRoot`, `handleSet`).
 - `weather.h`, `dust.h`, `youtube.h`, `market.h`, `btc.h`, `usdkrw.h` : Declarations of the parsing function for each individual data source. (With their own include guards and extern variable declarations)
+- `stream_scanner.h` : Scanner that reads the weather, fine-dust and YouTube pages through a fixed-size buffer and extracts the value after each key, so even a multi-megabyte line uses no extra memory.
 
 ## 📝 Quick Start
 

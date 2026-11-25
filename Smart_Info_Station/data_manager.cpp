@@ -8,6 +8,7 @@
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 #include <UrlEncode.h>
+#include "stream_scanner.h"
 #include "dust.h"
 #include "weather.h"
 #include "youtube.h"
@@ -18,8 +19,8 @@
 // --- 전역 데이터 변수 실제 정의 (Definition) ---
 String dust_location = "대전";
 String dust_host = "http://apis.data.go.kr";
-int dust_10_num = 0;
-int dust_2_5_num = 0;
+int dust_10_num = -1;   // -1: 아직 받지 못함 (화면에 "--")
+int dust_2_5_num = -1;
 
 String weather_location_code = "4211054500";
 String weather_host = "http://apis.data.go.kr";
@@ -132,14 +133,43 @@ String formatSubscribers(String subscribers) {
   return formattedString;
 }
 
+/**
+ * 응답 본문을 512바이트씩 읽어 scanner에 넣는다 — 줄 단위 String을 만들지 않는다.
+ * @param timeout_ms 데이터가 이 시간 동안 들어오지 않으면 그만 읽는다
+ * @return onValue가 멈춤을 요청했으면 true (원하는 값을 다 찾음)
+ */
+template <typename F>
+static bool scanResponse(HTTPClient &https, StreamScanner &scanner, unsigned long timeout_ms, F onValue) {
+  WiFiClient *stream = https.getStreamPtr();
+  uint8_t buf[512];
+  unsigned long last = millis();
+  while ((https.connected() || stream->available()) && (millis() - last < timeout_ms)) {
+    int avail = stream->available();
+    if (avail <= 0) {
+      vTaskDelay(1);   // 데이터를 기다리는 동안 양보
+      continue;
+    }
+    int got = stream->read(buf, avail < (int)sizeof(buf) ? avail : (int)sizeof(buf));
+    if (got <= 0) continue;
+    last = millis();   // 데이터 수신 시 타임아웃 갱신
+    if (!scanner.feed(buf, got, onValue)) return true;
+  }
+  return false;
+}
+
 bool get_dust() {
   if (WiFi.status() != WL_CONNECTED) return false;
 
   String location;
   { DataLock lock; location = dust_location; }  // 웹 설정 변경과 겹치지 않도록 사본으로 작업
 
+  // 네이버 모바일 미세먼지/초미세먼지 수치 — 키 뒤 4바이트를 정수로 읽는다
+  static const ScanKey keys[] = {
+    {">미세</span> <span class=\"num\">", 4, 0},
+    {">초미세</span> <span class=\"num\">", 4, 0},
+  };
+
   for (int retry = 0; retry < 3; retry++) {
-    bool success = false;
     String query = urlEncode(location) + urlEncode(" 미세먼지");
     dust_host = "https://m.search.naver.com/search.naver?where=m&query=" + query;
 
@@ -154,46 +184,24 @@ bool get_dust() {
     https.setTimeout(5000);
     https.setUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1");
 
-    int httpCode = https.GET();
-    if (httpCode == 200) {
-      WiFiClient *stream = https.getStreamPtr(); // 대용량 HTML 처리를 위한 스트림 획득
-      unsigned long startTime = millis();
-
-      // 서버 연결 유지 시간 동안 스트리밍 파싱 수행
-      while (https.connected() && (millis() - startTime < 5000)) {
-        if (stream->available()) {
-          String line = stream->readStringUntil('\n'); // 라인 단위로 읽기
-          Serial.print('.'); // 진행 상태 시리얼 출력
-
-          // 네이버 모바일 미세먼지/초미세먼지 데이터 추출용 키워드
-          String keyword1 = ">미세</span> <span class=\"num\">";
-          String keyword2 = ">초미세</span> <span class=\"num\">";
-
-          // 두 키워드가 한 라인에 모두 존재하는지 확인 (안정성)
-          if (line.indexOf(keyword1) >= 0 && line.indexOf(keyword2) >= 0) {
-            // [PM10] 미세먼지 수치 추출 (키워드 이후 4자리 추출 후 변환)
-            int k1Pos = line.indexOf(keyword1);
-            int pm10 = line.substring(k1Pos + keyword1.length(), k1Pos + keyword1.length() + 4).toInt();
-
-            // [PM2.5] 초미세먼지 수치 추출
-            int k2Pos = line.indexOf(keyword2);
-            int pm25 = line.substring(k2Pos + keyword2.length(), k2Pos + keyword2.length() + 4).toInt();
-
-            { DataLock lock; dust_10_num = pm10; dust_2_5_num = pm25; }
-            Serial.printf("\n[SUCCESS] dust 10um: %d\n", pm10);
-            Serial.printf("[SUCCESS] dust 2.5um: %d\n", pm25);
-            success = true;
-            break; // 데이터 발견 시 즉시 종료
-          }
-          startTime = millis(); // 데이터 수신 시 타임아웃 갱신
-        }
-        vTaskDelay(1); // 시스템에 컨트롤 양도
-      }
-      if (success) Serial.println();
+    int pm10 = -1, pm25 = -1;
+    bool success = false;
+    if (https.GET() == 200) {
+      StreamScanner scanner(keys, 2);
+      success = scanResponse(https, scanner, 5000, [&](int k, const char *v) {
+        if (k == 0 && pm10 < 0) pm10 = atoi(v);
+        if (k == 1 && pm25 < 0) pm25 = atoi(v);
+        return !(pm10 >= 0 && pm25 >= 0);   // 둘 다 찾으면 멈춘다
+      });
     }
     https.end();
 
-    if (success) return true;
+    if (success) {
+      { DataLock lock; dust_10_num = pm10; dust_2_5_num = pm25; }
+      Serial.printf("[SUCCESS] dust 10um: %d\n", pm10);
+      Serial.printf("[SUCCESS] dust 2.5um: %d\n", pm25);
+      return true;
+    }
 
     Serial.println("[ERROR] Dust: Fail to parse, retrying...");
     vTaskDelay(500 / portTICK_PERIOD_MS);
@@ -207,10 +215,15 @@ bool get_weather() {
   String code;
   { DataLock lock; code = weather_location_code; }  // 웹 설정 변경과 겹치지 않도록 사본으로 작업
 
+  // 기상청 디지털 예보 — 발표 시각 17바이트, 시간대별 시각 2·날씨 코드 2·기온 3바이트
+  static const ScanKey keys[] = {
+    {"3시간간격예보(현재부터 +일까지) : <span>", 17, 0},
+    {"hid\">시각: </span><span>", 2, 0},
+    {"hid\">날씨: </span><span class=\"wic DB", 2, 0},
+    {"hid\">기온 : </span><span class=\"hid feel\">", 3, 0},
+  };
+
   for (int retry = 0; retry < 3; retry++) {
-    bool success = false;
-    Forecast fc[3] = {};   // 3개 시간대를 모두 찾았을 때만 전역 forecast에 반영한다
-    String ann = "";
     weather_host = "https://www.weather.go.kr/w/wnuri-fct2021/main/digital-forecast.do?code=" + code;
     
     WiFiClientSecure client;
@@ -223,46 +236,22 @@ bool get_weather() {
     https.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36");
 
     Serial.printf("\n[HTTP] get Weather (Attempt %d/3)...\n", retry + 1);
-    int httpCode = https.GET();
-    if (httpCode == 200) {
+    Forecast fc[3] = {};   // 3개 시간대를 모두 찾았을 때만 전역 forecast에 반영한다
+    String ann = "";
+    bool success = false;
+    if (https.GET() == 200) {
       int idx = 0;
-      WiFiClient *stream = https.getStreamPtr();
-      unsigned long startTime = millis();
-      
-      const String announcement_keyword = "3시간간격예보(현재부터 +일까지) : <span>";
-      const String time_keyword = "hid\">시각: </span><span>";
-      const String type_keyword = "hid\">날씨: </span><span class=\"wic DB";
-      const String temp_keyword = "hid\">기온 : </span><span class=\"hid feel\">";
-
-      while (https.connected() && (millis() - startTime < 5000)) {
-        if (stream->available()) {
-          String line = stream->readStringUntil('\n'); // 라인 단위로 읽기
-          
-          // 1. 발표 시각 추출
-          if (line.indexOf(announcement_keyword) >= 0) {
-            ann = line.substring(line.indexOf(announcement_keyword) + announcement_keyword.length(), line.indexOf(announcement_keyword) + announcement_keyword.length() + 17);
-          }
-          // 2. 예보 시각 추출
-          if (line.indexOf(time_keyword) >= 0) {
-            fc[idx].time = line.substring(line.indexOf(time_keyword) + time_keyword.length(), line.indexOf(time_keyword) + time_keyword.length() + 2).toInt();
-          } 
-          // 3. 날씨 아이콘 타입 추출
-          else if (line.indexOf(type_keyword) >= 0) {
-            fc[idx].type = line.substring(line.indexOf(type_keyword) + type_keyword.length(), line.indexOf(type_keyword) + type_keyword.length() + 2).toInt();
-          } 
-          // 4. 기온 값 추출
-          else if (line.indexOf(temp_keyword) >= 0) {
-            fc[idx].temp = line.substring(line.indexOf(temp_keyword) + temp_keyword.length(), line.indexOf(temp_keyword) + temp_keyword.length() + 3).toInt();
-            idx++; // 한 시간대 데이터 수집 완료 시 인덱스 증가
-            if (idx >= 3) {
-              success = true; // 총 3개 시간대 데이터를 모두 찾으면 성공
-              break;
-            }
-          }
-          startTime = millis(); // 데이터 수신 시 타임아웃 갱신
+      StreamScanner scanner(keys, 4);
+      success = scanResponse(https, scanner, 5000, [&](int k, const char *v) {
+        if (k == 0) ann = v;                      // 1. 발표 시각
+        else if (k == 1) fc[idx].time = atoi(v);  // 2. 예보 시각
+        else if (k == 2) fc[idx].type = atoi(v);  // 3. 날씨 아이콘 타입
+        else {                                    // 4. 기온 — 한 시간대 완료
+          fc[idx].temp = atoi(v);
+          if (++idx >= 3) return false;           // 3개 시간대를 모두 찾으면 멈춘다
         }
-        vTaskDelay(1); // 백그라운드 태스크 양보
-      }
+        return true;
+      });
     }
     https.end();
 
@@ -287,8 +276,12 @@ bool get_subscribe() {
   String channel;
   { DataLock lock; channel = youtube_channel; }  // 웹 설정 변경과 겹치지 않도록 사본으로 작업
 
+  // 채널 페이지의 구독자 문구 — 예: {"content":"구독자 4680만명"} → "4680만명"
+  static const ScanKey keys[] = {
+    {"{\"content\":\"구독자 ", 31, '"'},
+  };
+
   for (int retry = 0; retry < 3; retry++) {
-    bool success = false;
     String encoded_channel = channel.startsWith("@") ? "@" + urlEncode(channel.substring(1)) : urlEncode(channel);
     String url = "https://www.youtube.com/" + encoded_channel + "?hl=ko";
 
@@ -304,42 +297,26 @@ bool get_subscribe() {
     https.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36");
     https.addHeader("Accept-Language", "ko-KR");
 
-    int httpCode = https.GET();
-    if (httpCode == 200) {
-      WiFiClient *stream = https.getStreamPtr();
-      unsigned long startTime = millis();
-      
-      const String kw1 = "{\"content\":\"구독자 ";
-      const String kw2 = "명\"},\"accessibilityLabel\":\"구독자";
-
-      while (https.connected() && (millis() - startTime < youtube_timeout)) {
-        if (stream->available()) {
-          String line = stream->readStringUntil('\n');
-          Serial.print('.');
-
-          if (line.indexOf(kw1) >= 0 && line.indexOf(kw2) >= 0) {
-            int start = line.indexOf(kw1) + kw1.length();
-            int end = line.indexOf(kw2);
-            String raw = line.substring(start, end);
-            
-            String subs = formatSubscribers(raw);
-            { DataLock lock; subscribe_num = subs; }
-            Serial.print("\n[SUCCESS] YouTube: "); Serial.println(subs);
-            success = true;
-            break;
-          }
-          startTime = millis();
-        }
-        vTaskDelay(1);
-      }
+    String raw = "";
+    bool success = false;
+    if (https.GET() == 200) {
+      StreamScanner scanner(keys, 1);
+      success = scanResponse(https, scanner, youtube_timeout, [&](int, const char *v) {
+        String s = v;
+        if (!s.endsWith("명")) return true;   // 구독자 수 문구가 아니면 계속 찾는다
+        raw = s;
+        return false;
+      });
     }
     https.end();
 
     if (success) {
-      Serial.println();
+      String subs = formatSubscribers(raw);
+      { DataLock lock; subscribe_num = subs; }
+      Serial.print("[SUCCESS] YouTube: "); Serial.println(subs);
       return true;
     }
-    Serial.println("\n[ERROR] YouTube: Fail to parse, retrying...");
+    Serial.println("[ERROR] YouTube: Fail to parse, retrying...");
     vTaskDelay(500 / portTICK_PERIOD_MS);
   }
   return false;
@@ -575,25 +552,48 @@ bool isWidgetActive(WidgetType type) {
   return false;
 }
 
-bool isWidgetVisible(WidgetType type) {
-  if (current_page == MAX_PAGE) return false; 
-  int start_idx = (current_page - 1) * 4;
-  for (int i = start_idx; i < start_idx + 4; i++) {
-    if (SCREEN_MAP[i] == type) return true;
-  }
-  return false;
+// --- 시장 개폐장 판단 로직 ---
+// 장 시간은 각 시장의 현지 시각으로 판단한다 — 기기 시간대 설정(웹 tz_offset)과 무관하다.
+// 시각이 아직 동기화되지 않았으면 true(업데이트 시도)를 돌려준다. 공휴일은 고려하지 않는다.
+
+static const time_t kTimeSyncedEpoch = 1600000000;   // 2020-09 이후면 NTP로 맞춰진 시각으로 본다
+
+/** 그레고리력 요일 (0=일요일) */
+static int dayOfWeek(int y, int m, int d) {
+  static const int t[] = {0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4};
+  if (m < 3) y -= 1;
+  return (y + y / 4 - y / 100 + y / 400 + t[m - 1] + d) % 7;
 }
 
-// --- 시장 개패장 판단 로직 ---
+/** 미국 동부 서머타임(EDT) 여부 — 3월 둘째 일요일 07:00 UTC ~ 11월 첫째 일요일 06:00 UTC */
+static bool isUsEasternDst(time_t utc) {
+  struct tm u;
+  gmtime_r(&utc, &u);
+  int y = u.tm_year + 1900, mon = u.tm_mon + 1, day = u.tm_mday;
+  if (mon < 3 || mon > 11) return false;
+  if (mon > 3 && mon < 11) return true;
+  if (mon == 3) {
+    int start = 8 + (7 - dayOfWeek(y, 3, 8)) % 7;   // 8일 이후 첫 일요일 = 둘째 일요일
+    return day > start || (day == start && u.tm_hour >= 7);
+  }
+  int end = 1 + (7 - dayOfWeek(y, 11, 1)) % 7;      // 첫째 일요일
+  return day < end || (day == end && u.tm_hour < 6);
+}
+
+/** UTC 시각을 고정 오프셋(시간 단위)의 현지 시각으로 바꾼다 */
+static void localAt(time_t utc, int offset_hours, struct tm *out) {
+  time_t t = utc + (time_t)offset_hours * 3600;
+  gmtime_r(&t, out);
+}
 
 bool isDomesticMarketOpen() {
-  struct tm timeinfo;
-  if (!getLocalTime(&timeinfo)) return true; // 실패 시 안전하게 업데이트 시도
-  int wday = timeinfo.tm_wday;   
-  int hour = timeinfo.tm_hour;
-  int min  = timeinfo.tm_min;
+  time_t now = time(nullptr);
+  if (now < kTimeSyncedEpoch) return true; // 시각 미동기 시 안전하게 업데이트 시도
+  struct tm kst;
+  localAt(now, 9, &kst);   // 한국 표준시 UTC+9 (서머타임 없음)
+  int wday = kst.tm_wday, hour = kst.tm_hour, min = kst.tm_min;
 
-  // 국내 증시 (KOSPI, KOSDAQ 등): 월~금 08:30 - 16:00 (장전 시간외 ~ 장후 정리 시간)
+  // 국내 증시 (KOSPI, KOSDAQ 등): 월~금 08:30 - 16:10 (장전 시간외 ~ 장후 정리 시간)
   if (wday >= 1 && wday <= 5) {
     if (hour >= 9 && hour < 16) return true;
     if (hour == 8 && min >= 30) return true;
@@ -603,20 +603,14 @@ bool isDomesticMarketOpen() {
 }
 
 bool isUsMarketOpen() {
-  struct tm timeinfo;
-  if (!getLocalTime(&timeinfo)) return true;
-  int wday = timeinfo.tm_wday;   
-  int hour = timeinfo.tm_hour;   
+  time_t now = time(nullptr);
+  if (now < kTimeSyncedEpoch) return true;
+  struct tm et;
+  localAt(now, isUsEasternDst(now) ? -4 : -5, &et);   // 미국 동부 시각 (EDT/EST)
 
-  // 미국 증시 (한국 시간 기준)
-  // 주말 처리: 토요일 오전 8시 이후부터 일요일 전체는 휴장
-  if (wday == 0) return false; 
-  if (wday == 6 && hour >= 8) return false; 
-  if (wday == 1 && hour < 17) return false; // 월요일 오후 5시 이전 휴장 (프리마켓 시작 전)
-
-  // 그 외 시간 (야간 및 새벽)
-  if (hour >= 17 || hour < 8) return true;
-  return false;
+  // 미국 증시: 월~금 04:00 - 20:00 ET (프리마켓 ~ 애프터마켓)
+  if (et.tm_wday < 1 || et.tm_wday > 5) return false;
+  return et.tm_hour >= 4 && et.tm_hour < 20;
 }
 
 // --- 🚀 백그라운드 데이터 수집 태스크 ---

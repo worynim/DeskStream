@@ -13,6 +13,24 @@
 #include <DeskStreamCore.h>
 extern ds::TimeSync timeSync;   // Smart_Info_Station.ino에서 정의 (NTP 재동기화 감독)
 
+/** 사용자 입력값을 HTML 속성에 넣을 수 있게 특수 문자를 이스케이프한다 */
+static String htmlEscape(const String &s) {
+  String out;
+  out.reserve(s.length() + 8);
+  for (size_t i = 0; i < s.length(); i++) {
+    char c = s[i];
+    switch (c) {
+      case '&':  out += "&amp;"; break;
+      case '<':  out += "&lt;"; break;
+      case '>':  out += "&gt;"; break;
+      case '"':  out += "&quot;"; break;
+      case '\'': out += "&#39;"; break;
+      default:   out += c; break;
+    }
+  }
+  return out;
+}
+
 void handleRoot() {
   String html;
   html.reserve(10000);
@@ -71,10 +89,10 @@ void handleRoot() {
 
   // 나머지 입력 필드 템플릿 적용
   String settingsHtml = INDEX_HTML_SETTINGS;
-  settingsHtml.replace("%CHANNEL%", youtube_channel);
-  settingsHtml.replace("%LOCATION%", dust_location);
-  settingsHtml.replace("%WEATHER%", weather_location_code);
-  settingsHtml.replace("%TZ%", String(timezone_offset));
+  settingsHtml.replace("%CHANNEL%", htmlEscape(youtube_channel));
+  settingsHtml.replace("%LOCATION%", htmlEscape(dust_location));
+  settingsHtml.replace("%WEATHER%", htmlEscape(weather_location_code));
+  settingsHtml.replace("%TZ%", (timezone_offset >= 0 ? "+" : "") + String(timezone_offset));   // 예: +9, -5
 
   html += settingsHtml;
   server.send(200, "text/html", html);
@@ -96,7 +114,8 @@ void handleSet() {
     }
     if (server.hasArg("location") && server.arg("location").length() > 0) {
       dust_location = server.arg("location");
-      dust_10_num = -1;
+      dust_10_num = -1;   // 새 지역 값을 받기 전까지 "--" 표시
+      dust_2_5_num = -1;
       changed = true;
     }
     if (server.hasArg("weather_code") && server.arg("weather_code").length() > 0) {
@@ -129,7 +148,7 @@ void handleSet() {
     String argName = "sm" + String(i);
     if (server.hasArg(argName)) {
       int newVal = server.arg(argName).toInt();
-      if (newVal < 0 || newVal > MAX_WIDGET_TYPE) newVal = 0;  // 범위 초과 방지
+      if (newVal < 0 || newVal > MAX_WIDGET_TYPE) newVal = W_NONE;  // 범위 밖 값은 "사용 안 함"
       if ((int)SCREEN_MAP[i] != newVal) {
         SCREEN_MAP[i] = (WidgetType)newVal;
         changed = true;

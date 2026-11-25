@@ -445,7 +445,9 @@ void setup() {
   timezone_offset = preferences.getInt("tz_offset", 9);
   if (timezone_offset < -12 || timezone_offset > 14) timezone_offset = 9;   // 범위 밖 저장값 → 기본값 (UTC+9)
   currentFlipMode = preferences.getInt("flip", 2);
+  if (currentFlipMode < 0 || currentFlipMode > 3) currentFlipMode = 2;                  // 범위 밖 저장값 → 기본값 (180°)
   currentBrightnessLevel = preferences.getInt("bright", 0);
+  if (currentBrightnessLevel < 0 || currentBrightnessLevel > 3) currentBrightnessLevel = 0;  // 범위 밖 저장값 → 기본값 (1단계)
   isLoopingMode = preferences.getBool("loop", false);
   preferences.end();
 
@@ -456,7 +458,8 @@ void setup() {
   preferences.begin("screen_map", true);
   for (int i = 0; i < MAX_DATA_PAGE * 4; i++) {
     String key = "s" + String(i);
-    SCREEN_MAP[i] = (WidgetType)preferences.getInt(key.c_str(), SCREEN_MAP[i]);
+    int v = preferences.getInt(key.c_str(), SCREEN_MAP[i]);
+    if (v >= 0 && v <= MAX_WIDGET_TYPE) SCREEN_MAP[i] = (WidgetType)v;   // 범위 밖 저장값은 기본 배치 유지
   }
   preferences.end();
 
