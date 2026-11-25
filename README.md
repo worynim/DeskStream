@@ -210,7 +210,7 @@ A launcher that lets you switch projects on the board without a PC. The launcher
 1. In the web flasher, choose **Launcher (esp-launcher)** and flash it once. The current app is erased; Wi-Fi settings and fonts (LittleFS) are kept.
 2. On the launcher's **Wi-Fi** screen, scan the QR code with your phone to open the setup portal and save an AP (it uses the same storage as the apps, so apps use it too).
 3. In **Firmware**, download the list ([`firmware/manifest.launcher.json`](./firmware/manifest.launcher.json)), pick a project and install it — the board reboots into that app.
-4. To return to the launcher, **hold BTN1 and press and release RESET**, then keep holding BTN1 for **2 more seconds**.
+4. To return to the launcher, unplug USB, then **plug USB back in while holding BTN1** and keep holding BTN1 for **2 more seconds**. (The RESET button is not reachable once the board is in a case, so power it up by plugging in USB.)
 5. When a new launcher is released, update it on the device from the launcher's **Info → Update** (installed apps are erased, so reinstall them). For launcher 0.1.x, install "Launcher" from the Firmware list.
 
 - If you flash another project with the web flasher onto a board that has the launcher, the flasher reads the board's partition table and installs **only the app** into ota_0, **keeping the launcher**.
