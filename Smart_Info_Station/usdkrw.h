@@ -12,8 +12,12 @@
 
 // --- 환율 데이터 선언 (정의는 data_manager.cpp 에서 담당) ---
 extern MarketData usdkrw_data;
+extern MarketData jpy_data;   // 100엔당 원
+extern MarketData eur_data;
+extern MarketData cny_data;
 
 // --- 함수 프로토타입 ---
 bool get_usdkrw();  // 성공 시 true
+bool get_fx();      // 엔·유로·위안 모두 받으면 true
 
 #endif

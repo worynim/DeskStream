@@ -17,6 +17,8 @@ extern WebServer server;
 extern Preferences preferences;
 extern int timezone_offset;
 extern bool isLoopingMode;
+extern int loopIntervalSec;                 // 자동 페이지 전환 간격(초)
+constexpr int LOOP_SECONDS[] = {3, 5, 10, 15, 30, 60};   // 웹에서 고를 수 있는 간격
 extern WidgetType SCREEN_MAP[MAX_DATA_PAGE * 4];
 
 // --- 외부 함수 참조 ---

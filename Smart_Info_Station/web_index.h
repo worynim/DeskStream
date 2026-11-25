@@ -49,23 +49,60 @@ const char INDEX_HTML_START[] PROGMEM = R"rawliteral(
 
 /**
  * --- 웹 설정 폼 섹션 (사용자 입력 필드) ---
- * 유튜브 커스터마이징, 미세먼지 관측소, 기상청 동네 코드, 시간대 설정을 담당합니다.
+ * 유튜브 커스터마이징, 미세먼지 관측소, 기상청 동네 코드, 해외 날씨 도시, 시간대 설정을 담당합니다.
+ * 해외 날씨·세계 시계 도시는 브라우저가 Open-Meteo 도시 검색을 직접 불러 고르고, 이름(영문)·좌표만 기기로 보낸다.
+ * 동네 날씨도 브라우저가 기상청 동네 검색을 직접 불러 고르고, 10자리 코드만 weather_code로 보낸다.
+ * data-widgets 가 있는 칸은 화면 배치(PAGE 1~3)에 그 위젯이 하나라도 있을 때만 보인다 (값은 web_handlers.cpp가 채움).
  */
 const char INDEX_HTML_SETTINGS[] PROGMEM = R"rawliteral(
-            <div class="section">
+            <div class="section" data-widgets="%WID_YOUTUBE%">
                 <h3>▶️ YouTube 채널 설정</h3>
                 <p>구독자 수를 확인할 유튜브 채널명을 입력하세요.</p>
                 <input type="text" name="channel" placeholder="현재: %CHANNEL%">
             </div>
-            <div class="section">
+            <div class="section" data-widgets="%WID_DUST%">
                 <h3>😷 미세먼지 측정소 위치</h3>
                 <p>네이버 미세먼지 검색 기준 지역(예: 가산동/읍/면)을 입력하세요.</p>
                 <input type="text" name="location" placeholder="현재: %LOCATION%">
             </div>
-            <div class="section">
-                <h3>☀️ 날씨 동네 (법정동코드)</h3>
-                <p>기상청 예보 기준 10자리 법정동코드를 입력하세요.</p>
-                <input type="text" name="weather_code" placeholder="현재: %WEATHER%">
+            <div class="section" data-widgets="%WID_WEATHER%">
+                <h3>☀️ 동네 날씨 (법정동코드)</h3>
+                <p>동 이름(예: 역삼, 가산동)으로 검색한 뒤 목록에서 고르면 코드가 채워집니다. 코드를 직접 입력해도 됩니다.</p>
+                <input type="text" id="dong_q" placeholder="예: 역삼, 가산동">
+                <button type="button" onclick="dongSearch()" style="margin-top:8px; padding:8px 16px;">🔍 검색</button>
+                <select id="dong_list" onchange="dongPick()" style="display:none; margin-top:8px;"></select>
+                <p id="dong_msg"></p>
+                <input type="text" name="weather_code" id="weather_code" placeholder="현재: %WEATHER%">
+                <input type="hidden" name="weather_name" id="weather_name">
+            </div>
+            <div class="section" data-widgets="%WID_INTL%">
+                <h3>🌍 해외 날씨 도시</h3>
+                <p>도시 이름(한글·영문)으로 검색한 뒤 목록에서 고르세요. 현재: %INTL%</p>
+                <input type="text" id="intl_q" placeholder="예: 도쿄, Paris">
+                <button type="button" onclick="citySearch('intl')" style="margin-top:8px; padding:8px 16px;">🔍 검색</button>
+                <select id="intl_list" onchange="cityPick('intl')" style="display:none; margin-top:8px;"></select>
+                <p id="intl_msg"></p>
+                <input type="hidden" name="intl_name" id="intl_name">
+                <input type="hidden" name="intl_lat" id="intl_lat">
+                <input type="hidden" name="intl_lon" id="intl_lon">
+            </div>
+            <div class="section" data-widgets="%WID_WC%">
+                <h3>🕐 세계 시계 도시</h3>
+                <p>세계 시계를 놓은 화면마다 도시를 따로 고를 수 있습니다. 시차·서머타임은 자동입니다. (처음에는 New York)</p>
+                <div id="wc_rows"></div>
+            </div>
+            <div class="section" data-widgets="%WID_CLOCKS%">
+                <h3>🕰️ 시계 표시 형식</h3>
+                <p>한국 시계·세계 시계에 함께 적용됩니다. 12시간제에서는 왼쪽 위에 AM/PM이 보입니다.</p>
+                <select name="clock12">
+                    <option value="0" %CLOCK24_SEL%>24시간제 (14:05:09)</option>
+                    <option value="1" %CLOCK12_SEL%>12시간제 (2:05:09 PM)</option>
+                </select>
+            </div>
+            <div class="section" data-widgets="%WID_DDAY%">
+                <h3>📅 D-day</h3>
+                <p>D-day를 놓은 화면마다 이름과 날짜를 따로 정합니다. 남은 날(D-23)이나 지난 날(D+5)이 보입니다. 날짜를 지우면 미설정.</p>
+                <div id="dday_rows"></div>
             </div>
             <div class="section">
                 <h3>⏰ 시간대 (Timezone) 설정</h3>
@@ -75,6 +112,159 @@ const char INDEX_HTML_SETTINGS[] PROGMEM = R"rawliteral(
             <input type="submit" class="btn" value="💾 설정 저장 후 즉시 반영">
         </form>
     </div>
+    <script>
+        const GEO = 'https://geocoding-api.open-meteo.com/v1/';
+        const $ = (id) => document.getElementById(id);
+
+        // --- 화면 배치에 놓인 위젯이 쓰는 설정 칸만 보인다 (숨긴 칸의 값은 그대로 저장된다) ---
+        const slotSelects = document.querySelectorAll('select[name^="sm"]');
+        function updateSections() {
+            const used = new Set([...slotSelects].map((s) => s.value));
+            document.querySelectorAll('.section[data-widgets]').forEach((sec) => {
+                const show = sec.dataset.widgets.split(',').some((w) => used.has(w));
+                sec.style.display = show ? '' : 'none';
+            });
+        }
+        slotSelects.forEach((s) => s.addEventListener('change', updateSections));
+
+        // --- 동네 날씨: 기상청 날씨누리의 동네 검색(행정동, src=A1)으로 10자리 코드를 찾는다 ---
+        const DONG = 'https://www.weather.go.kr/w/renew2021/rest/main/place-search.do?start=1&src=A1&query=';
+        const dongMsg = (t) => { $('dong_msg').textContent = t; };
+        const dongFetch = (q) => fetch(DONG + encodeURIComponent(q)).then((r) => r.json());
+        function dongSearch() {
+            const q = $('dong_q').value.trim();
+            if (!q) return;
+            dongMsg('검색 중...');
+            dongFetch(q)
+                .then((d) => {
+                    // "신정동"처럼 1동·2동으로 나뉜 곳은 결과가 없다 → 끝의 동·읍·면을 떼고 한 번 더 찾는다
+                    const short = q.replace(/[동읍면]$/, '');
+                    return (d.length || short === q || !short) ? d : dongFetch(short);
+                })
+                .then((d) => {
+                    const list = $('dong_list');
+                    list.innerHTML = '';
+                    if (!d.length) { list.style.display = 'none'; dongMsg('검색 결과가 없습니다.'); return; }
+                    list.add(new Option('동네를 고르세요 (' + d.length + '곳)', ''));
+                    d.forEach((x) => list.add(new Option(x.address, x.dongCode)));   // 같은 동 이름도 시·구까지 보여 구분한다
+                    list.style.display = 'block';
+                    dongMsg(d.length >= 10 ? '결과가 많습니다 — 찾는 곳이 없으면 시·구 이름을 함께 넣어 보세요.' : '');
+                })
+                .catch(() => dongMsg('검색 실패 — 이 기기(휴대폰·PC)의 인터넷 연결을 확인하세요.'));
+        }
+        function dongPick() {
+            const list = $('dong_list');
+            if (!list.value) return;
+            $('weather_code').value = list.value;
+            const addr = list.options[list.selectedIndex].text;
+            $('weather_name').value = addr.split(' ').pop();   // OLED 윗줄용 동 이름 (예: 신정1동)
+            dongMsg('선택: ' + addr + ' (' + list.value + ') — 아래 저장 버튼을 누르세요.');
+        }
+        // 코드를 직접 고치면 고른 동 이름과 맞지 않으므로 이름을 지운다 (OLED에는 코드가 보인다)
+        $('weather_code').addEventListener('input', () => { $('weather_name').value = ''; });
+        $('dong_q').addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            setTimeout(dongSearch, 0);
+        });
+        // --- 해외 날씨·세계 시계 도시: Open-Meteo 도시 검색 (p = 'intl' 또는 'wc', 칸 id 접두어) ---
+        const cityMsg = (p, t) => { $(p + '_msg').textContent = t; };
+        // 1. 한글·영문 이름으로 도시 후보를 찾는다 (목록은 한글 이름)
+        function citySearch(p) {
+            const q = $(p + '_q').value.trim();
+            if (!q) return;
+            cityMsg(p, '검색 중...');
+            fetch(GEO + 'search?count=10&language=ko&name=' + encodeURIComponent(q))
+                .then((r) => r.json())
+                .then((d) => {
+                    const list = $(p + '_list');
+                    list.innerHTML = '';
+                    const rs = d.results || [];
+                    if (!rs.length) { list.style.display = 'none'; cityMsg(p, '검색 결과가 없습니다.'); return; }
+                    list.add(new Option('도시를 고르세요', ''));
+                    rs.forEach((r) => list.add(new Option([r.name, r.admin1, r.country].filter(Boolean).join(', '), r.id)));
+                    list.style.display = 'block';
+                    cityMsg(p, '');
+                })
+                .catch(() => cityMsg(p, '검색 실패 — 이 기기(휴대폰·PC)의 인터넷 연결을 확인하세요.'));
+        }
+        // 2. 고른 도시의 영문 이름(OLED 표시용)과 좌표를 폼에 채운다
+        function cityPick(p) {
+            const id = $(p + '_list').value;
+            if (!id) return;
+            fetch(GEO + 'get?language=en&id=' + encodeURIComponent(id))
+                .then((r) => r.json())
+                .then((r) => {
+                    $(p + '_name').value = r.name;
+                    $(p + '_lat').value = r.latitude;
+                    $(p + '_lon').value = r.longitude;
+                    cityMsg(p, '선택: ' + r.name + ', ' + r.country + ' — 아래 저장 버튼을 누르세요.');
+                })
+                .catch(() => cityMsg(p, '도시 정보를 불러오지 못했습니다.'));
+        }
+        // 검색 칸에서 엔터 → 폼 저장 대신 검색 (한글 입력 중 엔터도 조합이 끝난 뒤 검색)
+        const enterSearch = (p) => $(p + '_q').addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            setTimeout(() => citySearch(p), 0);
+        });
+        enterSearch('intl');
+
+        // --- 칸별 설정 줄 (세계 시계·D-day) — 그 위젯이 놓인 칸의 줄만 보인다 ---
+        const slotTitle = (i) => 'PAGE ' + (Math.floor(i / 4) + 1) + ' · 화면 ' + (i % 4 + 1);
+        function addSlotRow(box, p, i, html) {
+            const row = document.createElement('div');
+            row.id = p + '_row';
+            row.style.marginBottom = '14px';
+            row.innerHTML = '<b>' + slotTitle(i) + '</b> ' + html;
+            $(box).appendChild(row);
+            return row;
+        }
+        function showSlotRows(prefix, widgetId) {
+            slotSelects.forEach((s, i) => { $(prefix + i + '_row').style.display = s.value === widgetId ? '' : 'none'; });
+        }
+
+        // 세계 시계: 칸마다 도시 검색 (폼 이름 wcN_name·lat·lon)
+        const WC_ID = '%WID_WC%';
+        const WC_CITIES = %WC_CITIES%;   // 칸별 현재 도시 (web_handlers.cpp)
+        WC_CITIES.forEach((name, i) => {
+            const p = 'wc' + i;
+            const row = addSlotRow('wc_rows', p, i, '<span id="' + p + '_cur"></span>' +
+                '<input type="text" id="' + p + '_q" placeholder="예: 뉴욕, London" style="margin-top:6px;">' +
+                '<button type="button" style="margin-top:8px; padding:8px 16px;">🔍 검색</button>' +
+                '<select id="' + p + '_list" style="display:none; margin-top:8px;"></select>' +
+                '<p id="' + p + '_msg"></p>' +
+                '<input type="hidden" name="' + p + '_name" id="' + p + '_name">' +
+                '<input type="hidden" name="' + p + '_lat" id="' + p + '_lat">' +
+                '<input type="hidden" name="' + p + '_lon" id="' + p + '_lon">');
+            $(p + '_cur').textContent = '— 현재: ' + name;
+            row.querySelector('button').addEventListener('click', () => citySearch(p));
+            $(p + '_list').addEventListener('change', () => cityPick(p));
+            enterSearch(p);
+        });
+
+        // D-day: 칸마다 이름·날짜 (폼 이름 ddayN_label·date)
+        const DDAY_ID = '%WID_DDAY%';
+        const DDAYS = %DDAYS%;   // 칸별 현재 값 (web_handlers.cpp)
+        DDAYS.forEach((x, i) => {
+            const p = 'dday' + i;
+            addSlotRow('dday_rows', p, i,
+                '<input type="text" name="' + p + '_label" id="' + p + '_label" placeholder="예: 크리스마스" style="margin-top:6px;">' +
+                '<input type="date" name="' + p + '_date" id="' + p + '_date" style="margin-top:8px; padding:8px; font-size:15px;">');
+            $(p + '_label').value = x.l;
+            $(p + '_date').value = x.d;
+        });
+
+        // 칸 배치가 바뀌면 그 칸의 줄도 보이거나 숨긴다
+        const updateSlotRows = () => { showSlotRows('wc', WC_ID); showSlotRows('dday', DDAY_ID); };
+        slotSelects.forEach((s) => s.addEventListener('change', updateSlotRows));
+        updateSections();
+        updateSlotRows();
+        // 다른 입력 칸에서도 엔터로 저장되지 않게 한다 — 저장은 "설정 저장" 버튼으로만
+        document.querySelector('form').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && e.target.matches('input[type="text"]')) e.preventDefault();
+        });
+    </script>
 </body>
 </html>
 )rawliteral";

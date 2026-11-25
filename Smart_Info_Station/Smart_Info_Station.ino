@@ -18,6 +18,7 @@
 #include "market.h"
 #include "btc.h"
 #include "usdkrw.h"
+#include "world_clock.h"
 #include "web_handlers.h"
 #include "config.h"         // 전역 설정 및 핀 정의
 #include "display_utils.h"  // 그리기 관련 헬퍼 함수 분리
@@ -33,7 +34,6 @@ static ds::Buzzer buzzer;
 static ds::WifiService wifi;
 ds::TimeSync timeSync;               // web_handlers.cpp도 쓴다 (시간대 변경 시 재적용)
 
-// 물리적 GPIO 핀 번호 설정
 // 루프 상태 저장용 정적 변수
 static bool prev_updating_states[MAX_WIDGET_RECORDS] = {false};
 static unsigned long last_animation_tick[MAX_WIDGET_RECORDS] = {0};
@@ -49,7 +49,7 @@ int currentFlipMode = 2; // 0:Normal, 1:Mirror H, 2:180(HV), 3:Mirror V
 int currentBrightnessLevel = 0; // (디폴트 1단계 설정)
 bool isLoopingMode = false;     // 자동 페이지 전환 모드
 unsigned long lastPageCycleTime = 0;
-const unsigned long CYCLE_INTERVAL = 5000; 
+int loopIntervalSec = 5;        // 자동 페이지 전환 간격(초) — 웹에서 설정 (LOOP_SECONDS)
 int current_page = 1;
 
 /**
@@ -232,7 +232,7 @@ static void l1() { buzzer.beep(200, 2000); btn2_long(); }
 static void l2() { buzzer.beep(200, 2000); btn3_long(); }
 static void l3() { buzzer.beep(200, 2000); btn4_long(); }
 
-// 4번째 페이지: 버튼 기능 안내 (Short/Long Press 설명)
+// 5번째 페이지: 버튼 기능 안내 (Short/Long Press 설명)
 void display_button_help_page() {
   for (int i = 1; i <= 4; i++) {
     // Flip Mode(역방향 매핑) 속성을 무시하고, 버튼 설정 가이드는 항상 기존 물리 순서(1,2,3,4)대로 표시
@@ -292,7 +292,7 @@ void display_button_help_page() {
   }
 }
 
-// 5번째 페이지: 설정 웹서버 IP 주소를 4개의 OLED에 크게 분산 표시
+// 4번째 페이지: 설정 웹서버 IP 주소를 4개의 OLED에 크게 분산 표시
 void display_ip_page() {
   IPAddress ip = WiFi.localIP();
   for (int i = 1; i <= 4; i++) {
@@ -326,6 +326,17 @@ static void renderWidget(const WidgetUpdateInfo &info, U8G2 &screen) {
   info.render(screen);
 }
 
+/** 1초마다 다시 그리는 위젯(시계·달력·세계 시계·D-day)을 그린다 */
+static void renderTickWidget(WidgetType type, U8G2 &screen, int slot) {
+  switch (type) {
+    case W_TIME:        display_clock_oled(screen); break;
+    case W_CALENDAR:    display_calendar_oled(screen); break;
+    case W_WORLD_CLOCK: { DataLock lock; display_world_clock_oled(screen, slot); break; }   // 수집 태스크가 쓰는 오프셋을 읽는다
+    case W_DDAY:        display_dday_oled(screen, slot); break;
+    default:            screen.clearBuffer(); display.push(); break;   // W_NONE
+  }
+}
+
 void redraw_current_page() {
   // 페이지 전환 시 태스크만 깨워 가시성 변화 확인 (강제 수집 제외)
   if (dataTaskHandle != NULL && is_waiting) xTaskAbortDelay(dataTaskHandle);
@@ -346,20 +357,9 @@ void redraw_current_page() {
     int slot_num = i + 1;
     WidgetType type = SCREEN_MAP[i];
 
-    if (type == W_NONE) {
-      U8G2 &u8g2 = getScreen(slot_num);
-      u8g2.clearBuffer();
-      display.push();
-      continue;
-    }
-
-    // 시계 및 달력은 별도 처리 (widgets_info 테이블에 없음)
-    if (type == W_TIME) {
-      display_clock_oled(getScreen(slot_num));
-      continue;
-    }
-    if (type == W_CALENDAR) {
-      display_calendar_oled(getScreen(slot_num));
+    // 1초마다 다시 그리는 위젯은 별도 처리 (수집 중 표시 없이 바로 그린다)
+    if (isTickWidget(type)) {
+      renderTickWidget(type, getScreen(slot_num), i);
       continue;
     }
 
@@ -442,6 +442,23 @@ void setup() {
   youtube_channel = preferences.getString("channel", "@worynim");
   dust_location = preferences.getString("dust_loc", "가산동");
   weather_location_code = preferences.getString("weather_code", "1154551000");
+  weather_location_name = preferences.getString("weather_name", "가산동");   // 기본 코드 1154551000 = 가산동
+  intl_city = preferences.getString("intl_city", "");   // 해외 날씨 도시 (비어 있으면 미설정)
+  intl_lat = preferences.getFloat("intl_lat", 0);
+  intl_lon = preferences.getFloat("intl_lon", 0);
+  // 세계 시계 도시 — 칸마다 (키 wcN_n·wcN_a·wcN_o), 저장된 것이 없으면 뉴욕
+  for (int i = 0; i < WC_SLOTS; i++) {
+    char key[12];
+    snprintf(key, sizeof(key), "wc%d_n", i);
+    String name = preferences.getString(key, "");
+    if (name.length() == 0) { wcSetDefault(i); continue; }
+    wc[i].name = name;
+    snprintf(key, sizeof(key), "wc%d_a", i);
+    wc[i].lat = preferences.getFloat(key, 0);
+    snprintf(key, sizeof(key), "wc%d_o", i);
+    wc[i].lon = preferences.getFloat(key, 0);
+    wc[i].valid = false;
+  }
   timezone_offset = preferences.getInt("tz_offset", 9);
   if (timezone_offset < -12 || timezone_offset > 14) timezone_offset = 9;   // 범위 밖 저장값 → 기본값 (UTC+9)
   currentFlipMode = preferences.getInt("flip", 2);
@@ -449,6 +466,16 @@ void setup() {
   currentBrightnessLevel = preferences.getInt("bright", 0);
   if (currentBrightnessLevel < 0 || currentBrightnessLevel > 3) currentBrightnessLevel = 0;  // 범위 밖 저장값 → 기본값 (1단계)
   isLoopingMode = preferences.getBool("loop", false);
+  clock12h = preferences.getBool("clock12", false);   // 시계 12/24시간제
+  loopIntervalSec = preferences.getInt("loop_sec", 5);
+  if (loopIntervalSec < 3 || loopIntervalSec > 60) loopIntervalSec = 5;   // 범위 밖 저장값 → 기본값
+  for (int i = 0; i < DDAY_SLOTS; i++) {   // D-day — 칸마다 (키 ddN_l·ddN_d)
+    char key[12];
+    snprintf(key, sizeof(key), "dd%d_l", i);
+    dday[i].label = preferences.getString(key, "");
+    snprintf(key, sizeof(key), "dd%d_d", i);
+    dday[i].date = preferences.getString(key, "");
+  }
   preferences.end();
 
   // 저장된 반전 모드 및 밝기 즉시 적용
@@ -502,7 +529,7 @@ void loop() {
       int start_idx = (current_page - 1) * 4;
       for (int i = start_idx; i < start_idx + 4; i++) {
         WidgetType type = SCREEN_MAP[i];
-        if (type == W_NONE || type == W_TIME || type == W_CALENDAR) continue;
+        if (isTickWidget(type)) continue;   // 시계류는 로딩 표시가 없다
         for (int w = 0; w < WIDGET_COUNT; w++) {
           if (widgets_info[w].type == type && *widgets_info[w].is_updating) {
             is_current_page_loading = true;
@@ -516,7 +543,7 @@ void loop() {
     if (is_current_page_loading) {
       // 현재 페이지의 데이터가 로딩 중이면 전환 타이머 초기화 (지연)
       lastPageCycleTime = now_ms;
-    } else if (now_ms - lastPageCycleTime >= CYCLE_INTERVAL) {
+    } else if (now_ms - lastPageCycleTime >= (unsigned long)loopIntervalSec * 1000) {
       if (current_page < 4) { // 현재 데이터 페이지를 보고 있을 때만 자동 전환
         current_page = (current_page % 3) + 1;
         redraw_current_page();
@@ -525,24 +552,29 @@ void loop() {
     }
   }
 
-  // [표시 1] 시계 전용 업데이트 (1초마다 무조건 갱신, 3페이지 제외)
+  // [표시 1] 시계 전용 업데이트 (1초마다 무조건 갱신, 데이터 페이지 1~3만)
   static unsigned long last_clock_ms = 0;
   if (now_ms - last_clock_ms >= 1000) {
     if (current_page <= 3) {
       int start_idx = (current_page - 1) * 4;
       for (int i = start_idx; i < start_idx + 4; i++) {
-         if (SCREEN_MAP[i] == W_TIME) display_clock_oled(getScreen(i + 1));
-         if (SCREEN_MAP[i] == W_CALENDAR) display_calendar_oled(getScreen(i + 1));
+        if (SCREEN_MAP[i] != W_NONE && isTickWidget(SCREEN_MAP[i])) renderTickWidget(SCREEN_MAP[i], getScreen(i + 1), i);
       }
     }
     last_clock_ms = now_ms;
   }
 
-  // [표시 2] 데이터 위젯 통합 상태 엔진 (1, 2, 3페지만 해당)
+  // [표시 2] 데이터 위젯 통합 상태 엔진 (1, 2, 3페이지만 해당)
   if (current_page <= 3) {
     int start_idx = (current_page - 1) * 4;
     for (int w = 0; w < WIDGET_COUNT; w++) {
     const WidgetUpdateInfo &info = widgets_info[w];
+    if (isTickWidget(info.type)) {   // 세계 시계 — 위 [표시 1]이 1초마다 그리므로 수집 완료 표시만 지운다
+      portENTER_CRITICAL(&updateMux);
+      update_flag &= ~info.flag_mask;
+      portEXIT_CRITICAL(&updateMux);
+      continue;
+    }
 
     if (*info.is_updating) {
       // 데이터 수집 중일 때: 로딩 메시지 또는 애니메이션 표시

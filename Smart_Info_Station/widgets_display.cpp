@@ -4,6 +4,10 @@
  * @brief 정보 타입별 전용 위젯 렌더링 구현
  * @details 날씨, 시세, 뉴스 등의 데이터를 각각의 UI 컴포넌트로 시각화하는 로직 처리
  */
+// 갈무리7 한글 글꼴은 64KB 를 넘어 U8g2 가 큰 글꼴 지원을 켜야 한다 — U8g2lib.h 보다 먼저 정의
+#ifndef U8G2_USE_LARGE_FONTS
+#define U8G2_USE_LARGE_FONTS
+#endif
 #include "widgets_display.h"
 #include <time.h>
 #include <WiFi.h>
@@ -14,8 +18,47 @@
 #include "youtube.h"
 #include "btc.h"
 #include "usdkrw.h"
+#include "world_clock.h"
+#include "u8g2_font_galmuri7_kr.h"   // 갈무리7 (SIL OFL 1.1) — 동네 날씨·미세먼지 윗줄의 지명, D-day 이름 (한글)
 
 // --- 렌더링 함수 구현 ---
+
+bool clock12h = false;
+DdaySetting dday[DDAY_SLOTS];
+
+static const time_t kTimeSyncedEpoch = 1600000000;   // 2020-09 이후면 NTP로 맞춰진 시각으로 본다
+
+/** 설정이 없을 때의 안내 화면 (제목 + 두 줄) */
+static void drawSetupHint(U8G2 &u8g2, const char *title, const char *line1, const char *line2) {
+  u8g2.setFont(u8g2_font_6x10_tf);
+  u8g2.drawStr(0, 0, title);
+  u8g2.drawStr(0, 22, line1);
+  u8g2.drawStr(0, 34, line2);
+}
+
+/** 6x10 글꼴로 가운데 정렬 (UTF-8 라틴 문자 포함) */
+static void drawCenteredUTF8(U8G2 &u8g2, int y, const char *s) {
+  int x = (128 - u8g2.getUTF8Width(s)) / 2;
+  u8g2.drawUTF8(x < 0 ? 0 : x, y, s);
+}
+
+/**
+ * 시계 숫자를 그린다 — 24시간제 "14:05:09", 12시간제 "2:05:09" + 좌측 상단 AM/PM
+ * @details AM/PM은 윗줄(y 0~12)과 시각 숫자(y 22~) 사이 빈자리(y 13)에 둔다
+ */
+static void drawClockTime(U8G2 &u8g2, const struct tm &t) {
+  char buf[12];
+  if (clock12h) {
+    int h = t.tm_hour % 12;
+    snprintf(buf, sizeof(buf), "%d:%02d:%02d", h == 0 ? 12 : h, t.tm_min, t.tm_sec);
+    u8g2.setFont(u8g2_font_6x10_tf);
+    u8g2.drawStr(0, 13, t.tm_hour < 12 ? "AM" : "PM");
+  } else {
+    snprintf(buf, sizeof(buf), "%02d:%02d:%02d", t.tm_hour, t.tm_min, t.tm_sec);
+  }
+  u8g2.setFont(MAIN_NUM_FONT);
+  drawCenteredText(u8g2, buf, 22);
+}
 
 void display_clock_oled(U8G2 &u8g2) {
   u8g2_prepare(u8g2);
@@ -25,8 +68,9 @@ void display_clock_oled(U8G2 &u8g2) {
   u8g2.setFont(u8g2_font_bytesize_tr);
   String dateLine = t_str.substring(20, 24) + " " + t_str.substring(4, 10) + " " + t_str.substring(0, 3);
   drawCenteredText(u8g2, dateLine, 0);
-  u8g2.setFont(MAIN_NUM_FONT);
-  drawCenteredText(u8g2, t_str.substring(11, 19), 22);
+  struct tm lt;
+  localtime_r(&now, &lt);
+  drawClockTime(u8g2, lt);
 
   u8g2.setFont(u8g2_font_6x10_tf);
   u8g2.drawStr(10, 56, "Set: ");
@@ -104,37 +148,191 @@ void display_calendar_oled(U8G2 &u8g2) {
   display.push();
 }
 
+/**
+ * 3칸 예보의 i번째 칸(폭 43px)에 시각·날씨 문구·아이콘·기온을 칸 가운데에 맞춰 그린다.
+ * @param text nullptr이면 아직 받지 못한 칸 — 시각 줄에 "--"만 그린다
+ */
+static void drawForecastColumn(U8G2 &u8g2, int i, int hour, const char *text, int icon, int temp) {
+  const int cx = 43 * i + 21;   // 칸 가운데 (128px를 3칸으로)
+  char buf[12];
+  u8g2.setFont(u8g2_font_6x10_tf);
+  if (text == nullptr) {
+    u8g2.drawStr(cx - u8g2.getStrWidth("--") / 2, 13, "--");
+    return;
+  }
+  snprintf(buf, sizeof(buf), "%d:00", hour);
+  u8g2.drawStr(cx - u8g2.getStrWidth(buf) / 2, 13, buf);
+  u8g2.drawStr(cx - u8g2.getStrWidth(text) / 2, 23, text);
+  snprintf(buf, sizeof(buf), "%d\xB0" "C", temp);   // 6x10_tf의 0xB0 = °
+  u8g2.drawStr(cx - u8g2.getStrWidth(buf) / 2, 53, buf);
+  u8g2.setFont(u8g2_font_open_iconic_weather_2x_t);
+  u8g2.drawGlyph(cx - 8, 33, icon);   // 아이콘 폭 16px
+}
+
 void display_weather_oled(U8G2 &u8g2) {
   u8g2_prepare(u8g2);
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_6x10_tf);
-  u8g2.drawStr(0, 0, ("Ann.Time: " + announcement_time.substring(0, 5) + " " + announcement_time.substring(announcement_time.length() - 5)).c_str());
+  // 윗줄: 동네 이름 (갈무리7) — 이름을 모르면(코드를 직접 입력) 코드를 보여 준다
+  u8g2.setFont(u8g2_font_galmuri7_kr);
+  u8g2.drawUTF8(0, 0, (weather_location_name.length() > 0 ? weather_location_name : weather_location_code).c_str());
+  // 오른쪽: 기상청 발표 시각 — "11.26.(목) 03:50" → "11.26 03:50" (아직 받지 못했으면 생략)
+  if (announcement_time.length() >= 10) {
+    String ann = announcement_time.substring(0, 5) + " " + announcement_time.substring(announcement_time.length() - 5);
+    u8g2.drawUTF8(128 - u8g2.getUTF8Width(ann.c_str()), 0, ann.c_str());
+  }
   for (int i = 0; i < 3; i++) {
-    u8g2.setFont(u8g2_font_6x10_tf);
-    if (forecast[i].type == 0) {   // 아직 받지 못한 시간대 (날씨 코드는 1부터)
-      u8g2.drawStr(43 * i, 13, "--");
+    int type = forecast[i].type;
+    if (type == 0) {   // 아직 받지 못한 시간대 (날씨 코드는 1부터)
+      drawForecastColumn(u8g2, i, 0, nullptr, 0, 0);
       continue;
     }
-    u8g2.drawStr(43 * i, 13, (String(forecast[i].time) + ":00").c_str());
-    if (forecast[i].type == 1) u8g2.drawStr(43 * i, 23, "Clear");
-    else if (forecast[i].type == 2) u8g2.drawStr(43 * i, 23, "Partly");
-    else if (forecast[i].type == 3) u8g2.drawStr(43 * i, 23, "Mostly");
-    else if (forecast[i].type == 4) u8g2.drawStr(43 * i, 23, "Cloudy");
-    else if (forecast[i].type == 5) u8g2.drawStr(43 * i, 23, "Rain");
-    else if (forecast[i].type <= 9) u8g2.drawStr(43 * i, 23, "Shower");
-    else u8g2.drawStr(43 * i, 23, "Unknown");
-    u8g2.setFont(u8g2_font_open_iconic_weather_2x_t);
+    const char *text = "Unknown";
+    if (type == 1) text = "Clear";
+    else if (type == 2) text = "Partly";
+    else if (type == 3) text = "Mostly";
+    else if (type == 4) text = "Cloudy";
+    else if (type == 5) text = "Rain";
+    else if (type <= 9) text = "Shower";
     int icon = 68;
-    if (forecast[i].type == 1) icon = 69;
-    else if (forecast[i].type <= 3) icon = 65;
-    else if (forecast[i].type == 4) icon = 64;
-    else if (forecast[i].type >= 5) icon = 67;
-    u8g2.drawGlyph(43 * i + 2, 33, icon);
-    u8g2.setFont(u8g2_font_6x10_tf);
-    u8g2.setCursor(43 * i, 53);
-    u8g2.print(forecast[i].temp);
-    u8g2.write(0xB0);
-    u8g2.print("C");
+    if (type == 1) icon = 69;
+    else if (type <= 3) icon = 65;
+    else if (type == 4) icon = 64;
+    else if (type >= 5) icon = 67;
+    drawForecastColumn(u8g2, i, forecast[i].time, text, icon, forecast[i].temp);
+  }
+  display.push();
+}
+
+/** WMO 날씨 코드 → 표시 문구·아이콘 (open_iconic_weather_2x: 64 구름, 65 구름 조금, 67 비, 69 해) */
+static void wmoLook(int code, const char *&text, int &icon) {
+  if (code == 0)                                   { text = "Clear";  icon = 69; }
+  else if (code <= 2)                              { text = "Partly"; icon = 65; }   // 1 대체로 맑음, 2 구름 조금
+  else if (code == 3)                              { text = "Cloudy"; icon = 64; }
+  else if (code == 45 || code == 48)               { text = "Fog";    icon = 64; }
+  else if ((code >= 71 && code <= 77) || code == 85 || code == 86) { text = "Snow"; icon = 67; }
+  else if (code >= 95)                             { text = "Storm";  icon = 67; }   // 95~99 뇌우
+  else if (code >= 80)                             { text = "Shower"; icon = 67; }   // 80~82 소나기
+  else                                             { text = "Rain";   icon = 67; }   // 51~67 이슬비·비
+}
+
+void display_intl_weather_oled(U8G2 &u8g2) {
+  u8g2_prepare(u8g2);
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_6x10_tf);
+
+  if (intl_city.length() == 0) {   // 도시 미설정
+    u8g2.drawStr(0, 0, "World Weather");
+    u8g2.drawStr(0, 22, "Set a city on the");
+    u8g2.drawStr(0, 34, "settings web page");
+    display.push();
+    return;
+  }
+
+  u8g2.drawUTF8(0, 0, intl_city.c_str());   // 영문 이름 (é 등 라틴 문자 포함)
+  for (int i = 0; i < 3; i++) {
+    if (!intl_valid) {   // 아직 받지 못함
+      drawForecastColumn(u8g2, i, 0, nullptr, 0, 0);
+      continue;
+    }
+    const char *text;
+    int icon;
+    wmoLook(intl_forecast[i].code, text, icon);
+    drawForecastColumn(u8g2, i, intl_forecast[i].time, text, icon, intl_forecast[i].temp);
+  }
+  display.push();
+}
+
+void display_world_clock_oled(U8G2 &u8g2, int slot) {
+  u8g2_prepare(u8g2);
+  u8g2.clearBuffer();
+  const WorldClockCity &c = wc[slot];   // 칸마다 도시가 다르다 (기본 뉴욕)
+  u8g2.setFont(u8g2_font_6x10_tf);
+  drawCenteredUTF8(u8g2, 0, c.name.c_str());
+
+  time_t now = time(nullptr);
+  u8g2.setFont(MAIN_NUM_FONT);
+  if (!c.valid || now < kTimeSyncedEpoch) {   // 오프셋이나 시각을 아직 모름
+    drawCenteredText(u8g2, "--:--:--", 22);
+    display.push();
+    return;
+  }
+  time_t t = now + c.offset;   // 도시 현지 시각 (서머타임은 30분마다 오프셋을 다시 받아 반영)
+  struct tm lt;
+  gmtime_r(&t, &lt);
+  drawClockTime(u8g2, lt);
+
+  // 아랫줄: 요일·날짜·UTC 오프셋 — 예: "Thu Nov 26  UTC-5", "UTC+5:30"
+  char buf[24], date[16], off[12];
+  strftime(date, sizeof(date), "%a %b %d", &lt);
+  long m = labs(c.offset) / 60;
+  if (m % 60) snprintf(off, sizeof(off), "UTC%c%ld:%02ld", c.offset < 0 ? '-' : '+', m / 60, m % 60);
+  else snprintf(off, sizeof(off), "UTC%c%ld", c.offset < 0 ? '-' : '+', m / 60);
+  snprintf(buf, sizeof(buf), "%s  %s", date, off);
+  u8g2.setFont(u8g2_font_6x10_tf);
+  drawCenteredUTF8(u8g2, 54, buf);
+  display.push();
+}
+
+/** 그레고리력 날짜의 일 번호 (1970-01-01 = 0) — 날짜 차이 계산용 */
+static long daysFromCivil(int y, int m, int d) {
+  y -= m <= 2;
+  long era = (y >= 0 ? y : y - 399) / 400;
+  long yoe = y - era * 400;
+  long doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+  long doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+  return era * 146097 + doe - 719468;
+}
+
+void display_dday_oled(U8G2 &u8g2, int slot) {
+  u8g2_prepare(u8g2);
+  u8g2.clearBuffer();
+  const String &dday_label = dday[slot].label;   // 칸마다 이름·날짜가 다르다
+  const String &dday_date = dday[slot].date;
+  if (dday_date.length() != 10) {
+    drawSetupHint(u8g2, "D-day", "Set a date on the", "settings web page");
+    display.push();
+    return;
+  }
+  // 윗줄: 이름 (갈무리7, 한글 가능)
+  u8g2.setFont(u8g2_font_galmuri7_kr);
+  const char *label = dday_label.length() > 0 ? dday_label.c_str() : "D-day";
+  int x = (128 - u8g2.getUTF8Width(label)) / 2;
+  u8g2.drawUTF8(x < 0 ? 0 : x, 0, label);
+
+  char buf[16];
+  struct tm now;
+  if (time(nullptr) < kTimeSyncedEpoch || !getLocalTime(&now, 0)) {   // 시각을 아직 모름 (기다리지 않는다)
+    snprintf(buf, sizeof(buf), "D-?");
+  } else {
+    long diff = daysFromCivil(atoi(dday_date.c_str()), atoi(dday_date.c_str() + 5), atoi(dday_date.c_str() + 8)) -
+                daysFromCivil(now.tm_year + 1900, now.tm_mon + 1, now.tm_mday);
+    if (diff == 0) snprintf(buf, sizeof(buf), "D-DAY");
+    else if (diff > 0) snprintf(buf, sizeof(buf), "D-%ld", diff);    // 남은 날
+    else snprintf(buf, sizeof(buf), "D+%ld", -diff);                 // 지난 날
+  }
+  u8g2.setFont(MAIN_NUM_FONT);
+  drawCenteredText(u8g2, buf, 20);
+  u8g2.setFont(u8g2_font_6x10_tf);
+  drawCenteredUTF8(u8g2, 54, dday_date.c_str());
+  display.push();
+}
+
+void display_fx_oled(U8G2 &u8g2) {
+  u8g2_prepare(u8g2);
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_bytesize_tr);
+  drawCenteredText(u8g2, "FX (KRW)", 2);
+  // 한 줄에 통화·환율(오른쪽 맞춤 x=86)·등락률(오른쪽 끝)
+  const struct { const char *label; const MarketData &d; } rows[] = {
+    {"JPY100", jpy_data}, {"EUR", eur_data}, {"CNY", cny_data},
+  };
+  u8g2.setFont(u8g2_font_6x10_tf);
+  for (int i = 0; i < 3; i++) {
+    int y = 22 + i * 14;
+    u8g2.drawStr(0, y, rows[i].label);
+    u8g2.drawStr(86 - u8g2.getStrWidth(rows[i].d.price.c_str()), y, rows[i].d.price.c_str());
+    u8g2.drawStr(128 - u8g2.getStrWidth(rows[i].d.percent.c_str()), y, rows[i].d.percent.c_str());
   }
   display.push();
 }
@@ -143,7 +341,9 @@ void display_dust_oled(U8G2 &u8g2) {
   u8g2_prepare(u8g2);
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_6x10_tf);
-  u8g2.drawStr(0, 0, "Air pollution ");
+  u8g2.setFont(u8g2_font_galmuri7_kr);   // 윗줄: "가산동 Air pollution" (지명은 한글)
+  u8g2.drawUTF8(0, 0, (dust_location + " Air pollution").c_str());
+  u8g2.setFont(u8g2_font_6x10_tf);
   u8g2.drawStr(0, 18, "PM10: ");
   u8g2.drawStr(0, 43, "PM2.5: ");
   if (dust_10_num < 0 || dust_2_5_num < 0) {   // 아직 받지 못함 — 등급 대신 "--"
@@ -213,6 +413,9 @@ void display_nasdaq_oled(U8G2 &u8g2) {
 }
 void display_futures_oled(U8G2 &u8g2) {
   display_market_oled(u8g2, "FUTURES", futures_data.price, futures_data.change, futures_data.percent);
+}
+void display_eth_oled(U8G2 &u8g2) {
+  display_market_oled(u8g2, "Ethereum(ETH $)", eth_data.price, eth_data.change, eth_data.percent);
 }
 void display_kpi200_oled(U8G2 &u8g2) {
   display_market_oled(u8g2, "KOSPI200", kpi200_data.price, kpi200_data.change, kpi200_data.percent);

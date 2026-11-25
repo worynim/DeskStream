@@ -2,7 +2,7 @@
 
 # ESP32-C3 4-OLED Smart Info Station (Smart_Info_Station)
 
-A desktop information display that uses an **ESP32 C3 SuperMini** board to drive four OLED displays independently and monitor a variety of information in real time: **time, weather, fine dust, YouTube subscriber count, stock markets (KOSPI, KOSDAQ, S&P 500), Bitcoin (BTC) and the KRW/USD exchange rate**.
+A desktop information display that uses an **ESP32 C3 SuperMini** board to drive four OLED displays independently and monitor a variety of information in real time: **Korean and world time, local and overseas weather, fine dust, YouTube subscriber count, stock markets (KOSPI, KOSDAQ, S&P 500), Bitcoin and Ethereum, exchange rates (USD, JPY, EUR, CNY) and D-day**.
 
 https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
@@ -33,7 +33,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
     - **Initial loading priority**: At boot the current page's widgets load first and immediately show "Updating...", while the rest are collected in the background, improving the initial loading experience.
     - **BTN 1 (Flip/HUD)**: Cycles the whole screen through [Normal -> Mirror H -> 180° -> Mirror V] to suit HUD mounting and stand orientation. (**v2.8.0**: The help page shows the current mode name as text. / Holding it at power-on resets the WiFi settings.)
     - **BTN 2 (Brightness)**: 4 brightness levels from 25% to 100% to prevent OLED burn-in and protect night vision. (**v2.8.0**: The help page shows the current brightness level as a bar.)
-    - **BTN 3 (Auto Loop)**: Page rollover that automatically cycles through pages 1–3 every 5 seconds. (Toggled with a long press)
+    - **BTN 3 (Auto Loop)**: Page rollover that automatically cycles through pages 1–3 at a set interval (3–60 s on the web page, default 5 s). (Toggled with a long press)
     - **BTN 4 (Page/Refresh)**: A short press switches pages manually; holding it for more than 1 second forces an immediate refresh of the current data. (**v2.7.1**: Forces market data to be read even outside trading hours and refreshes the widgets on every page at once.)
     - **Button help page**: Page 5 on the device shows the current function of each button in real time. (**v2.8.0**: Added flip mode and brightness status display)
 
@@ -42,6 +42,14 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 7.  **Shared display engine (DeskStreamCore, v2.10.0)**
     - Display transfer, buttons, buzzer, WiFi and NTP supervision use the shared library [DeskStreamCore](../libraries/DeskStreamCore/) — run `bash scripts/link-arduino-lib.sh` once from the repository root before building.
     - HW I2C 1.1MHz + fast SW I2C with direct register control (about 1.15MHz effective) send only changed tiles to the 4 screens in parallel (previously: synchronous full-frame transfer at HW 400kHz).
+8.  **More widgets and easier web settings (v2.11.0)** — all without API keys.
+    - **New widgets**: overseas weather (Open-Meteo), world clock, exchange rates (JPY/EUR/CNY), Ethereum and D-day. World clock and D-day can be placed on several screens with **a different city or date per screen** (world clock defaults to New York).
+    - **12/24-hour Korean and world clocks**: in 12-hour mode AM/PM appears at the top left.
+    - **Search by name**: local weather by neighborhood name (KMA neighborhood search), overseas weather and world clock by city name (Korean or English), then pick from a list.
+    - **Only the settings you need**: the web page shows only the setting sections used by widgets in the screen layout. Pressing Enter in a text box no longer saves; only the save button does.
+    - **Display**: the local-weather top line shows the neighborhood name and forecast time, and the fine-dust top line shows the area name (e.g. "가산동 Air pollution") in the [Galmuri7](https://github.com/quiple/galmuri) font; the three weather columns are centered.
+    - **YouTube subscribers**: instead of reading the channel page (about 2.5MB), it reads about 10KB using the internal request the YouTube web page itself makes (the channel's "Search" tab).
+    - **Exchange-rate updates**: follow the FX market — 24 hours on weekdays (closed only from Fri 17:00 to Sun 17:00 New York time).
 
 ## 🛠 Hardware Components
 
@@ -71,7 +79,9 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 - `data_manager.h / .cpp` : The main collection engine; manages the headers with the network parsing functions for weather, fine dust, stocks, coins, etc., collects data through the background `dataTask`, and manages the state (`update_flag`).
 - `web_handlers.h / .cpp` : Generates the internal settings web page UI reachable after connecting to WiFi, and saves the entered settings (channel, region, etc.) to flash (`handleRoot`, `handleSet`).
 - `weather.h`, `dust.h`, `youtube.h`, `market.h`, `btc.h`, `usdkrw.h` : Declarations of the parsing function for each individual data source. (With their own include guards and extern variable declarations)
-- `stream_scanner.h` : Scanner that reads the weather, fine-dust and YouTube pages through a fixed-size buffer and extracts the value after each key, so even a multi-megabyte line uses no extra memory.
+- `world_clock.h` : Per-screen world-clock city and UTC offset declarations (fetched by `get_world_clock()` in `data_manager.cpp`).
+- `stream_scanner.h` : Scanner that reads the weather and fine-dust pages and the YouTube response through a fixed-size buffer and extracts the value after each key, so even a multi-megabyte line uses no extra memory.
+- `u8g2_font_galmuri7_kr.h` : Galmuri7 Korean font (same as Agent_Monitor, SIL OFL 1.1) — for place names and D-day labels.
 
 ## 📝 Quick Start
 

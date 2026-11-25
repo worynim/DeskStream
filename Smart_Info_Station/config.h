@@ -11,7 +11,7 @@
 #include <DeskStreamCore.h>   // 공통 핀 맵·화면 엔진·NTP 감독 (libraries/DeskStreamCore)
 
 // --- 설정 상수 (OLED 페이지 및 위젯) ---
-#define MAX_WIDGET_TYPE 13
+#define MAX_WIDGET_TYPE 18   // 위젯 값 최댓값 (W_DDAY)
 #define MAX_DATA_PAGE   3   // 데이터 페이지 수 (4번: IP, 5번: 도움말은 고정 시스템 페이지)
 #define MAX_PAGE        5   // 전체 페이지 수
 #define MAIN_NUM_FONT u8g2_font_maniac_tr
@@ -36,7 +36,18 @@ const unsigned long INTERVAL_RETRY = 60 * 1000;      // 수집 실패 시 다시
 enum WidgetType {
   W_CALENDAR = 0, W_TIME, W_WEATHER, W_DUST, W_YOUTUBE, 
   W_KOSPI, W_KOSDAQ, W_KPI200, W_FUTURES, W_SNP500, 
-  W_NASDAQ, W_BTC, W_USDKRW, W_NONE
+  W_NASDAQ, W_BTC, W_USDKRW, W_NONE,
+  // 아래는 W_NONE(13) 뒤에 붙여 저장된 화면 배치 값이 바뀌지 않게 한다
+  W_INTL_WEATHER,  // 14 해외 날씨
+  W_WORLD_CLOCK,   // 15 세계 시계 (따로 고른 도시의 현지 시각)
+  W_FX,            // 16 엔·유로·위안 환율
+  W_ETH,           // 17 이더리움
+  W_DDAY           // 18 D-day
 };
+
+/** 1초마다 다시 그리는 위젯 — 시각에 따라 바뀐다 (W_NONE 포함). 이 중 세계 시계만 수집(UTC 오프셋)도 한다 */
+inline bool isTickWidget(WidgetType t) {
+  return t == W_NONE || t == W_TIME || t == W_CALENDAR || t == W_WORLD_CLOCK || t == W_DDAY;
+}
 
 #endif

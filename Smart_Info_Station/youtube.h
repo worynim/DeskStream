@@ -1,8 +1,8 @@
 // worynim@gmail.com
 /**
  * @file youtube.h
- * @brief YouTube Data API를 이용한 채널 구독자 수 정보 처리
- * @details 지정된 채널 ID의 실시간 구독자 데이터를 수집하여 통계 위젯에 제공
+ * @brief YouTube 채널 구독자 수 데이터 선언
+ * @details YouTube 웹 페이지가 쓰는 내부 요청(youtubei, API 키 불필요)으로 채널 헤더의 구독자 수를 읽는다
  */
 #ifndef YOUTUBE_H
 #define YOUTUBE_H

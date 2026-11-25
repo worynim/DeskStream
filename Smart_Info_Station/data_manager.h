@@ -65,11 +65,16 @@ extern volatile bool is_updating_usdkrw;
 extern volatile bool is_updating_nasdaq;
 extern volatile bool is_updating_futures;
 extern volatile bool is_updating_kpi200;
+extern volatile bool is_updating_intl;
+extern volatile bool is_updating_fx;
+extern volatile bool is_updating_eth;
+extern volatile bool is_updating_wc;
 
 // --- 함수 프로토타입 ---
 bool isWidgetActive(WidgetType type);
 bool isDomesticMarketOpen();
 bool isUsMarketOpen();
+bool isFxMarketOpen();
 
 void dataTask(void *pvParameters);
 

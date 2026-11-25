@@ -12,9 +12,11 @@
 
 // --- 비트코인 데이터 선언 (정의는 data_manager.cpp 에서 담당) ---
 extern MarketData btc_data;
+extern MarketData eth_data;   // 이더리움 (같은 Binance 시세)
 
 // --- 함수 프로토타입 ---
 String addCommas(String val);
 bool get_btc();  // 성공 시 true
+bool get_eth();  // 성공 시 true
 
 #endif

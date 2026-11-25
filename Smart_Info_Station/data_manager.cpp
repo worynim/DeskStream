@@ -15,6 +15,7 @@
 #include "market.h"
 #include "btc.h"
 #include "usdkrw.h"
+#include "world_clock.h"
 
 // --- 전역 데이터 변수 실제 정의 (Definition) ---
 String dust_location = "대전";
@@ -23,9 +24,22 @@ int dust_10_num = -1;   // -1: 아직 받지 못함 (화면에 "--")
 int dust_2_5_num = -1;
 
 String weather_location_code = "4211054500";
+String weather_location_name = "";
 String weather_host = "http://apis.data.go.kr";
 String announcement_time = "0000";
 Forecast forecast[3];
+
+String intl_city = "";
+float intl_lat = 0;
+float intl_lon = 0;
+IntlForecast intl_forecast[3];
+bool intl_valid = false;
+
+WorldClockCity wc[WC_SLOTS];
+
+void wcSetDefault(int i) {
+  wc[i] = {"New York", 40.71427f, -74.00597f, 0, false};
+}
 
 String youtube_channel = "";
 String subscribe_num = "";
@@ -39,6 +53,10 @@ MarketData kpi200_data = {"0.00", "0.00", "0.00%"};
 MarketData futures_data = {"0.00", "0.00", "0.00%"};
 MarketData btc_data = {"0.00", "0.00", "0.00%"};
 MarketData usdkrw_data = {"0.00", "0.00", "0.00%"};
+MarketData eth_data = {"0.00", "0.00", "0.00%"};
+MarketData jpy_data = {"0.00", "0.00", "0.00%"};
+MarketData eur_data = {"0.00", "0.00", "0.00%"};
+MarketData cny_data = {"0.00", "0.00", "0.00%"};
 
 // --- Smart_Info_Station.ino 에 정의된 메인 상태 참조 ---
 extern WidgetType SCREEN_MAP[12];
@@ -60,6 +78,10 @@ volatile bool is_updating_usdkrw = false;
 volatile bool is_updating_nasdaq = false;
 volatile bool is_updating_futures = false;
 volatile bool is_updating_kpi200 = false;
+volatile bool is_updating_intl = false;
+volatile bool is_updating_fx = false;
+volatile bool is_updating_eth = false;
+volatile bool is_updating_wc = false;
 volatile bool force_update = false;  
 volatile bool is_waiting = false;    
 TaskHandle_t dataTaskHandle = NULL;  
@@ -77,7 +99,12 @@ const WidgetUpdateInfo widgets_info[] = {
   { W_NASDAQ,  &is_updating_nasdaq,  0x100, "Updating NASDAQ",  display_nasdaq_oled,  get_nasdaq,    true,  false },
   { W_BTC,     &is_updating_btc,     0x40, "Updating BTC",     display_btc_oled,     get_btc,       true,  false },
   { W_USDKRW,  &is_updating_usdkrw,  0x80, "Updating USD/KRW", display_usdkrw_oled,  get_usdkrw,    true,  false },
+  { W_FX,      &is_updating_fx,      0x1000, "Updating FX",    display_fx_oled,      get_fx,        true,  false },
+  { W_ETH,     &is_updating_eth,     0x2000, "Updating ETH",   display_eth_oled,     get_eth,       true,  false },
+  // 세계 시계는 1초마다 따로 그린다 (isTickWidget) — 여기서는 30분마다 UTC 오프셋만 받는다
+  { W_WORLD_CLOCK, &is_updating_wc,  0x4000, "Updating Clock", nullptr,              get_world_clock, false, false },
   { W_WEATHER, &is_updating_weather, 0x02, "Updating Weather", display_weather_oled, get_weather,   false, false },
+  { W_INTL_WEATHER, &is_updating_intl, 0x800, "Updating World Wx", display_intl_weather_oled, get_intl_weather, false, false },
   { W_DUST,    &is_updating_dust,    0x01, "Updating Dust",    display_dust_oled,    get_dust,      false, true  },
   { W_YOUTUBE, &is_updating_youtube, 0x04, "Updating YouTube", display_youtube_oled, get_subscribe, false, true  }
 };
@@ -270,45 +297,248 @@ bool get_weather() {
   return false;
 }
 
+// --- 해외 날씨: Open-Meteo 예보 (API 키 불필요, 응답 약 400B) ---
+
+/** payload의 from 이후 key 배열에서 숫자 n개를 읽는다 — 예: "temperature_2m":[5.2,4.2,7.7] */
+static bool parseNumberArray(const String &payload, int from, const char *key, float *out, int n) {
+  int k = payload.indexOf(key, from);
+  if (k < 0) return false;
+  const char *p = payload.c_str() + k + strlen(key);
+  for (int i = 0; i < n; i++) {
+    char *end;
+    out[i] = strtof(p, &end);
+    if (end == p) return false;   // null 등 숫자가 아님
+    p = end;
+    if (i < n - 1) {
+      if (*p != ',') return false;
+      p++;
+    }
+  }
+  return true;
+}
+
+/** "time":["2026-11-26T03:00",...]에서 시(hour) n개를 읽는다 */
+static bool parseHourArray(const String &payload, int from, int *out, int n) {
+  int k = payload.indexOf("\"time\":[", from);
+  if (k < 0) return false;
+  const char *p = payload.c_str() + k + 8;
+  for (int i = 0; i < n; i++) {
+    p = strchr(p, 'T');
+    if (!p) return false;
+    out[i] = atoi(++p);
+  }
+  return true;
+}
+
+bool get_intl_weather() {
+  if (WiFi.status() != WL_CONNECTED) return false;
+
+  String city;
+  float lat, lon;
+  { DataLock lock; city = intl_city; lat = intl_lat; lon = intl_lon; }
+  if (city.length() == 0) return true;   // 도시 미설정 — 화면에 설정 안내만 표시
+
+  // 3시간 간격 3개 시각의 기온·날씨 코드, 시각은 도시 현지 시각(timezone=auto)
+  String url = "https://api.open-meteo.com/v1/forecast?latitude=" + String(lat, 4) +
+               "&longitude=" + String(lon, 4) +
+               "&hourly=temperature_2m,weather_code&forecast_hours=9&temporal_resolution=hourly_3&timezone=auto";
+
+  for (int retry = 0; retry < 3; retry++) {
+    Serial.printf("\n[HTTP] get World Weather %s (Attempt %d/3)...\n", city.c_str(), retry + 1);
+
+    WiFiClientSecure client;
+    client.setInsecure();
+    client.setTimeout(5000);
+
+    HTTPClient https;
+    https.begin(client, url);
+    https.setTimeout(5000);
+
+    bool success = false;
+    IntlForecast fc[3];
+    if (https.GET() == 200) {
+      String payload = https.getString();
+      int h = payload.indexOf("\"hourly\":{");   // hourly_units에도 같은 키가 있어 hourly 뒤에서 찾는다
+      int hours[3];
+      float temps[3], codes[3];
+      if (h >= 0 && parseHourArray(payload, h, hours, 3) &&
+          parseNumberArray(payload, h, "\"temperature_2m\":[", temps, 3) &&
+          parseNumberArray(payload, h, "\"weather_code\":[", codes, 3)) {
+        for (int i = 0; i < 3; i++) fc[i] = {hours[i], (int)codes[i], (int)lroundf(temps[i])};
+        success = true;
+      }
+    }
+    https.end();
+
+    if (success) {
+      {
+        DataLock lock;
+        if (intl_city == city) {   // 수집 중 도시가 바뀌었으면 버린다 (다음 갱신에서 새 도시를 받는다)
+          for (int i = 0; i < 3; i++) intl_forecast[i] = fc[i];
+          intl_valid = true;
+        }
+      }
+      Serial.printf("[SUCCESS] World Weather: %s %d°C\n", city.c_str(), fc[0].temp);
+      return true;
+    }
+    Serial.println("[ERROR] World Weather: Fail to fetch, retrying...");
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+  }
+  return false;
+}
+
+// --- 세계 시계: Open-Meteo가 도시 시간대로 계산한 현재 UTC 오프셋 (응답 약 200B) ---
+
+/** 좌표의 현재 UTC 오프셋(초)을 받는다 */
+static bool fetchUtcOffset(const String &city, float lat, float lon, long &offset) {
+  String url = "https://api.open-meteo.com/v1/forecast?latitude=" + String(lat, 4) +
+               "&longitude=" + String(lon, 4) + "&timezone=auto&forecast_days=1";
+
+  for (int retry = 0; retry < 3; retry++) {
+    Serial.printf("\n[HTTP] get World Clock %s (Attempt %d/3)...\n", city.c_str(), retry + 1);
+
+    WiFiClientSecure client;
+    client.setInsecure();
+    client.setTimeout(5000);
+
+    HTTPClient https;
+    https.begin(client, url);
+    https.setTimeout(5000);
+
+    bool success = false;
+    if (https.GET() == 200) {
+      String payload = https.getString();
+      int o = payload.indexOf("\"utc_offset_seconds\":");
+      if (o >= 0) {
+        offset = atol(payload.c_str() + o + 21);
+        success = true;
+      }
+    }
+    https.end();
+
+    if (success) {
+      Serial.printf("[SUCCESS] World Clock: %s UTC%+ld s\n", city.c_str(), offset);
+      return true;
+    }
+    Serial.println("[ERROR] World Clock: Fail to fetch, retrying...");
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+  }
+  return false;
+}
+
+bool get_world_clock() {
+  if (WiFi.status() != WL_CONNECTED) return false;
+
+  bool all_ok = true;
+  bool fetched[WC_SLOTS] = {false};   // 이번에 받은 칸 — 같은 도시는 다시 받지 않는다
+  long got[WC_SLOTS] = {0};
+  for (int i = 0; i < WC_SLOTS; i++) {
+    if (SCREEN_MAP[i] != W_WORLD_CLOCK) continue;
+
+    String city;
+    float lat, lon;
+    { DataLock lock; city = wc[i].name; lat = wc[i].lat; lon = wc[i].lon; }
+
+    long offset = 0;
+    bool ok = false;
+    for (int j = 0; j < i && !ok; j++) {
+      if (!fetched[j]) continue;
+      DataLock lock;
+      if (wc[j].lat == lat && wc[j].lon == lon) { offset = got[j]; ok = true; }
+    }
+    if (!ok) ok = fetchUtcOffset(city, lat, lon, offset);
+    if (!ok) { all_ok = false; continue; }
+
+    fetched[i] = true;
+    got[i] = offset;
+    DataLock lock;
+    if (wc[i].name == city) {   // 수집 중 도시가 바뀌었으면 버린다
+      wc[i].offset = offset;
+      wc[i].valid = true;
+    }
+  }
+  return all_ok;
+}
+
+// --- YouTube 구독자 수: YouTube 웹 페이지가 쓰는 내부 요청(youtubei) — API 키 불필요 ---
+// 채널 페이지(약 2.5MB, 구독자 문구가 1.62MB 지점)를 읽는 대신, 채널의 "검색" 탭을 요청한다.
+// 검색 탭은 본문이 거의 비어 있어 채널 헤더(구독자 수)가 응답 앞 약 10KB 안에 온다.
+static const char *YT_API = "https://www.youtube.com/youtubei/v1/";
+static const char *YT_CONTEXT = "\"context\":{\"client\":{\"clientName\":\"WEB\",\"clientVersion\":\"2.20241126.01.00\",\"hl\":\"ko\"}}";
+static const char *YT_SEARCH_TAB = "EgZzZWFyY2jyBgQKAloA";   // browse params: 채널의 "검색" 탭
+
+static String yt_cached_channel = "";   // yt_cached_id를 얻은 채널 입력값 (dataTask 전용)
+static String yt_cached_id = "";        // 채널 ID (UC…) — 채널이 바뀔 때만 다시 얻는다
+
+/**
+ * youtubei 요청을 보내고 응답을 scanner로 훑는다.
+ * @return onValue가 멈춤을 요청했으면 true (원하는 값을 찾음)
+ */
+template <typename F>
+static bool youtubePost(const char *endpoint, const String &body, StreamScanner &scanner, F onValue) {
+  WiFiClientSecure client;
+  client.setInsecure();
+  client.setTimeout(youtube_timeout);
+
+  HTTPClient https;
+  https.begin(client, String(YT_API) + endpoint + "?prettyPrint=false");
+  https.setTimeout(youtube_timeout);
+  https.addHeader("Content-Type", "application/json");
+
+  bool found = false;
+  if (https.POST(body) == 200) found = scanResponse(https, scanner, youtube_timeout, onValue);
+  https.end();
+  return found;
+}
+
+/** 채널 입력값(@핸들, 핸들, channel/UC…, c/이름)을 채널 ID로 바꾼다 — navigation/resolve_url (응답 약 1KB) */
+static bool resolveChannelId(const String &channel, String &id) {
+  String encoded = channel.startsWith("@") ? "@" + urlEncode(channel.substring(1)) : urlEncode(channel);
+  String body = String("{") + YT_CONTEXT + ",\"url\":\"https://www.youtube.com/" + encoded + "\"}";
+
+  static const ScanKey keys[] = {{"\"browseId\":\"", 31, '"'}};
+  StreamScanner scanner(keys, 1);
+  return youtubePost("navigation/resolve_url", body, scanner, [&](int, const char *v) {
+    id = v;
+    return false;
+  });
+}
+
 bool get_subscribe() {
   if (WiFi.status() != WL_CONNECTED) return false;
 
   String channel;
   { DataLock lock; channel = youtube_channel; }  // 웹 설정 변경과 겹치지 않도록 사본으로 작업
 
-  // 채널 페이지의 구독자 문구 — 예: {"content":"구독자 4680만명"} → "4680만명"
+  // 채널 헤더의 구독자 문구 — 예: {"content":"구독자 4680만명"} → "4680만명"
   static const ScanKey keys[] = {
     {"{\"content\":\"구독자 ", 31, '"'},
   };
 
   for (int retry = 0; retry < 3; retry++) {
-    String encoded_channel = channel.startsWith("@") ? "@" + urlEncode(channel.substring(1)) : urlEncode(channel);
-    String url = "https://www.youtube.com/" + encoded_channel + "?hl=ko";
-
     Serial.printf("\n[HTTP] get YouTube (Attempt %d/3)...\n", retry + 1);
 
-    WiFiClientSecure client;
-    client.setInsecure();
-    client.setTimeout(youtube_timeout); 
-
-    HTTPClient https;
-    https.begin(client, url);
-    https.setTimeout(youtube_timeout);
-    https.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36");
-    https.addHeader("Accept-Language", "ko-KR");
-
-    String raw = "";
-    bool success = false;
-    if (https.GET() == 200) {
-      StreamScanner scanner(keys, 1);
-      success = scanResponse(https, scanner, youtube_timeout, [&](int, const char *v) {
-        String s = v;
-        if (!s.endsWith("명")) return true;   // 구독자 수 문구가 아니면 계속 찾는다
-        raw = s;
-        return false;
-      });
+    if (channel != yt_cached_channel || yt_cached_id.length() == 0) {
+      String id;
+      if (!resolveChannelId(channel, id)) {
+        Serial.println("[ERROR] YouTube: channel not found, retrying...");
+        vTaskDelay(500 / portTICK_PERIOD_MS);
+        continue;
+      }
+      yt_cached_channel = channel;
+      yt_cached_id = id;
+      Serial.printf("[YouTube] %s -> %s\n", channel.c_str(), id.c_str());
     }
-    https.end();
+
+    String body = String("{") + YT_CONTEXT + ",\"browseId\":\"" + yt_cached_id + "\",\"params\":\"" + YT_SEARCH_TAB + "\"}";
+    String raw = "";
+    StreamScanner scanner(keys, 1);
+    bool success = youtubePost("browse", body, scanner, [&](int, const char *v) {
+      String s = v;
+      if (!s.endsWith("명")) return true;   // 구독자 수 문구가 아니면 계속 찾는다
+      raw = s;
+      return false;
+    });
 
     if (success) {
       String subs = formatSubscribers(raw);
@@ -316,6 +546,7 @@ bool get_subscribe() {
       Serial.print("[SUCCESS] YouTube: "); Serial.println(subs);
       return true;
     }
+    yt_cached_id = "";   // 채널 ID가 바뀌었을 수 있으니 다음 시도에서 다시 얻는다
     Serial.println("[ERROR] YouTube: Fail to parse, retrying...");
     vTaskDelay(500 / portTICK_PERIOD_MS);
   }
@@ -400,12 +631,13 @@ bool get_futures() { return fetchMarketData("FUTURES", "https://polling.finance.
 bool get_SnP500() { return fetchMarketData("S&P 500", "https://polling.finance.naver.com/api/realtime/worldstock/index/.INX", snp500_data); }
 bool get_nasdaq() { return fetchMarketData("NASDAQ", "https://polling.finance.naver.com/api/realtime/worldstock/index/.IXIC", nasdaq_data); }
 
-bool get_btc() {
+/** Binance 24시간 시세(USDT) — symbol 예: BTCUSDT. 가격은 정수 달러로 표시한다 */
+static bool fetchBinance(const char *name, const char *symbol, MarketData &target) {
   if (WiFi.status() != WL_CONNECTED) return false;
   
   for (int retry = 0; retry < 3; retry++) {
     bool success = false;
-    String url = "https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT";
+    String url = String("https://api.binance.com/api/v3/ticker/24hr?symbol=") + symbol;
     
     WiFiClientSecure client;
     client.setInsecure();
@@ -415,7 +647,7 @@ bool get_btc() {
     https.begin(client, url);
     https.setTimeout(5000);
 
-    Serial.printf("\n[HTTP] get BTC (Attempt %d/3)...\n", retry + 1);
+    Serial.printf("\n[HTTP] get %s (Attempt %d/3)...\n", name, retry + 1);
     int httpCode = https.GET();
     if (httpCode == 200) {
       String payload = https.getString();
@@ -424,7 +656,7 @@ bool get_btc() {
       int price_idx = payload.indexOf("\"lastPrice\":\"");
       if (price_idx != -1) {
         MarketData data;
-        { DataLock lock; data = btc_data; }   // 지역 사본에서 파싱 — 화면이 읽는 중인 String을 직접 바꾸지 않는다
+        { DataLock lock; data = target; }   // 지역 사본에서 파싱 — 화면이 읽는 중인 String을 직접 바꾸지 않는다
         int price_end = payload.indexOf("\"", price_idx + 13);
         String rawPrice = payload.substring(price_idx + 13, price_end);
         
@@ -458,26 +690,32 @@ bool get_btc() {
           else if (percent < 0) data.percent = String(percent, 2) + "%";
           else data.percent = "0.00%";
         }
-        Serial.printf("[SUCCESS] BTC: %s\n", data.price.c_str());
-        { DataLock lock; btc_data = data; }
+        Serial.printf("[SUCCESS] %s: %s\n", name, data.price.c_str());
+        { DataLock lock; target = data; }
         success = true;
       }
     }
     https.end();
 
     if (success) return true;
-    Serial.println("[ERROR] BTC: Fail to fetch, retrying...");
+    Serial.printf("[ERROR] %s: Fail to fetch, retrying...\n", name);
     vTaskDelay(500 / portTICK_PERIOD_MS);
   }
   return false;
 }
 
-bool get_usdkrw() {
+bool get_btc() { return fetchBinance("BTC", "BTCUSDT", btc_data); }
+bool get_eth() { return fetchBinance("ETH", "ETHUSDT", eth_data); }
+
+/**
+ * Yahoo 환율 차트 — symbol 예: KRW=X(USD/KRW), JPYKRW=X. scale배 해서 표시한다 (엔화는 100엔당 100).
+ */
+static bool fetchYahooFx(const char *name, const char *symbol, float scale, MarketData &target) {
   if (WiFi.status() != WL_CONNECTED) return false;
   
   for (int retry = 0; retry < 3; retry++) {
     bool success = false;
-    String url = "https://query1.finance.yahoo.com/v8/finance/chart/KRW=X?interval=1d";
+    String url = String("https://query1.finance.yahoo.com/v8/finance/chart/") + symbol + "?interval=1d";
     
     WiFiClientSecure client;
     client.setInsecure();
@@ -488,7 +726,7 @@ bool get_usdkrw() {
     https.setTimeout(5000);
     https.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36");
 
-    Serial.printf("\n[HTTP] get USD/KRW (Attempt %d/3)...\n", retry + 1);
+    Serial.printf("\n[HTTP] get %s (Attempt %d/3)...\n", name, retry + 1);
     int httpCode = https.GET();
     if (httpCode == 200) {
       String payload = https.getString();
@@ -498,10 +736,10 @@ bool get_usdkrw() {
       float currentPrice = 0;
       if (price_idx != -1) {
         MarketData data;
-        { DataLock lock; data = usdkrw_data; }   // 지역 사본에서 파싱 — 화면이 읽는 중인 String을 직접 바꾸지 않는다
+        { DataLock lock; data = target; }   // 지역 사본에서 파싱 — 화면이 읽는 중인 String을 직접 바꾸지 않는다
         int price_end = payload.indexOf(",", price_idx);
         String rawPrice = payload.substring(price_idx + 21, price_end);
-        currentPrice = rawPrice.toFloat();
+        currentPrice = rawPrice.toFloat() * scale;
         data.price = String(currentPrice, 2); 
 
         // 2. 전일 종가(chartPreviousClose) 추출 (등락폭 계산용)
@@ -510,7 +748,7 @@ bool get_usdkrw() {
         if (prev_idx != -1) {
           int prev_end = payload.indexOf(",", prev_idx);
           String rawPrev = payload.substring(prev_idx + 21, prev_end);
-          prevPrice = rawPrev.toFloat();
+          prevPrice = rawPrev.toFloat() * scale;
         }
 
         // 3. 등락폭 및 등락률 계산
@@ -529,18 +767,28 @@ bool get_usdkrw() {
             data.percent = "0.00%";
           }
         }
-        Serial.printf("[SUCCESS] USD/KRW: %s\n", data.price.c_str());
-        { DataLock lock; usdkrw_data = data; }
+        Serial.printf("[SUCCESS] %s: %s\n", name, data.price.c_str());
+        { DataLock lock; target = data; }
         success = true;
       }
     }
     https.end();
 
     if (success) return true;
-    Serial.println("[ERROR] USD/KRW: Fail to fetch, retrying...");
+    Serial.printf("[ERROR] %s: Fail to fetch, retrying...\n", name);
     vTaskDelay(500 / portTICK_PERIOD_MS);
   }
   return false;
+}
+
+bool get_usdkrw() { return fetchYahooFx("USD/KRW", "KRW=X", 1, usdkrw_data); }
+
+/** 엔·유로·위안 환율 위젯 — 세 통화를 모두 받아야 성공 (하나라도 실패하면 재시도 간격으로 다시 받는다) */
+bool get_fx() {
+  bool jpy = fetchYahooFx("JPY/KRW", "JPYKRW=X", 100, jpy_data);   // 100엔당
+  bool eur = fetchYahooFx("EUR/KRW", "EURKRW=X", 1, eur_data);
+  bool cny = fetchYahooFx("CNY/KRW", "CNYKRW=X", 1, cny_data);
+  return jpy && eur && cny;
 }
 
 // --- 가시성 판단 로직 ---
@@ -613,6 +861,19 @@ bool isUsMarketOpen() {
   return et.tm_hour >= 4 && et.tm_hour < 20;
 }
 
+bool isFxMarketOpen() {
+  time_t now = time(nullptr);
+  if (now < kTimeSyncedEpoch) return true;
+  struct tm et;
+  localAt(now, isUsEasternDst(now) ? -4 : -5, &et);   // 외환시장 주간 개폐는 뉴욕 17:00 기준
+
+  // 외환: 평일 24시간 — 금요일 17:00 ET 마감 ~ 일요일 17:00 ET 개장 사이만 쉰다
+  if (et.tm_wday == 6) return false;
+  if (et.tm_wday == 5 && et.tm_hour >= 17) return false;
+  if (et.tm_wday == 0 && et.tm_hour < 17) return false;
+  return true;
+}
+
 // --- 🚀 백그라운드 데이터 수집 태스크 ---
 
 /**
@@ -659,7 +920,7 @@ void dataTask(void *pvParameters) {
           int start_idx = (current_page - 1) * 4;
           for (int i = start_idx; i < start_idx + 4; i++) {
             WidgetType type = SCREEN_MAP[i];
-            if (type == W_NONE || type == W_TIME || type == W_CALENDAR) continue;
+            if (type == W_NONE) continue;   // 수집할 데이터가 없는 위젯은 아래 표에 없어 건너뛴다
             for (int w = 0; w < WIDGET_COUNT; w++) {
               if (widgets_info[w].type == type) {
                 if (!(processed_mask & widgets_info[w].flag_mask)) {
@@ -689,7 +950,7 @@ void dataTask(void *pvParameters) {
         int start_idx = (current_page - 1) * 4;
         for (int i = start_idx; i < start_idx + 4; i++) {
           WidgetType type = SCREEN_MAP[i];
-          if (type == W_NONE || type == W_TIME || type == W_CALENDAR) continue;
+          if (type == W_NONE) continue;   // 수집할 데이터가 없는 위젯은 아래 표에 없어 건너뛴다
 
           for (int w = 0; w < WIDGET_COUNT; w++) {
             if (widgets_info[w].type == type) {
@@ -700,7 +961,8 @@ void dataTask(void *pvParameters) {
               if (needs_update) {
                 // 시장 개폐 시간에 따른 예외 처리 (정기 업데이트 시에만 적용)
                 if ((type == W_KOSPI || type == W_KOSDAQ || type == W_KPI200 || type == W_FUTURES) && !isDomesticMarketOpen()) needs_update = false;
-                if ((type == W_SNP500 || type == W_NASDAQ || type == W_USDKRW) && !isUsMarketOpen()) needs_update = false;
+                if ((type == W_SNP500 || type == W_NASDAQ) && !isUsMarketOpen()) needs_update = false;
+                if ((type == W_USDKRW || type == W_FX) && !isFxMarketOpen()) needs_update = false;
               }
 
               if (needs_update) {
