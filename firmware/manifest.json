@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-25T08:06:43.661Z",
+  "generatedAt": "2026-11-25T09:49:08.293Z",
   "chip": "ESP32-C3",
   "board": "DeskStream (ESP32-C3 SuperMini · 4× OLED)",
   "flashDefaults": {
@@ -301,7 +301,7 @@
     {
       "id": "Smart_Info_Station",
       "name": "스마트 정보 스테이션",
-      "version": "2.10.1",
+      "version": "2.10.2",
       "icon": "🌤️",
       "order": 6,
       "description": "시간·날씨·미세먼지·유튜브·증시·환율을 4개 OLED에 실시간으로 보여주는 정보 스테이션",
@@ -316,9 +316,9 @@
         "freq": "80m",
         "size": "4MB"
       },
-      "exportedAt": "2026-11-09T15:44:11.692Z",
+      "exportedAt": "2026-11-25T09:49:03.902Z",
       "sourcePath": "Smart_Info_Station",
-      "sourceCommit": "9b663375b5ed9b503a3137e7bc183ab677b294be",
+      "sourceCommit": "4c191a2dd1e8053ce435fefe9fccc46ca4eaab78",
       "images": [
         {
           "offset": "0x0",
@@ -341,8 +341,8 @@
         {
           "offset": "0x10000",
           "path": "firmware/Smart_Info_Station/Smart_Info_Station.ino.bin",
-          "size": 1330368,
-          "sha256": "b106d67159cebf1bd6fc409d1804e1edb008b65fc6ff262cd7ee60f1a9a58232"
+          "size": 1331600,
+          "sha256": "6f30c9699eda696acaf234a918b4e053ee005a9b99d72c68f0902ee28e410f73"
         }
       ]
     },

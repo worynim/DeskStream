@@ -95,7 +95,7 @@
     {
       "id": "Smart_Info_Station",
       "name": "스마트 정보 스테이션",
-      "version": "2.10.1",
+      "version": "2.10.2",
       "icon": "🌤️",
       "order": 6,
       "sourcePath": "Smart_Info_Station",

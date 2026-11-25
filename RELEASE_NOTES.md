@@ -1,3 +1,8 @@
+## [v4.51.1] - 2026-11-25
+### 📦 웹 플래셔 배포본 — 스마트 정보 스테이션 2.10.2
+- `firmware/Smart_Info_Station/`를 2.10.2(데이터 경합·갱신 요청 유실·실패 재시도 수정, v4.50.1) 빌드로 바꿨습니다. 앱 이미지 1,330,368 → 1,331,600 B.
+- `firmware/projects.json` 버전, `manifest.json`·런처 목록 `manifest.launcher.json`의 해당 항목만 갱신했습니다(다른 프로젝트 그대로). `--check` 통과(17개).
+
 ## [v4.51.0] - 2026-11-25
 ### 📜 라이선스 명시 — 소프트웨어 MIT · 하드웨어 CERN-OHL-S-2.0
 - 루트에 `LICENSE`(MIT)와 `LICENSE-HARDWARE`(CERN-OHL-S-2.0 원문)를 추가했습니다. 하드웨어 설계(회로도 `DeskStream_Schematic.pdf`, `hardware.md`)는 CERN-OHL-S-2.0, 그 밖의 펌웨어·라이브러리·PC 클라이언트·웹 플래셔·스크립트는 MIT입니다.
