@@ -18,7 +18,7 @@
 #include "youtube.h"
 #include "btc.h"
 #include "usdkrw.h"
-#include "world_clock.h"
+#include "slot_city.h"
 #include "u8g2_font_galmuri7_kr.h"   // 갈무리7 (SIL OFL 1.1) — 동네 날씨·미세먼지 윗줄의 지명, D-day 이름 (한글)
 
 // --- 렌더링 함수 구현 ---
@@ -246,9 +246,9 @@ void display_intl_weather_oled(U8G2 &u8g2) {
 void display_world_clock_oled(U8G2 &u8g2, int slot) {
   u8g2_prepare(u8g2);
   u8g2.clearBuffer();
-  const WorldClockCity &c = wc[slot];   // 칸마다 도시가 다르다 (기본 뉴욕)
+  const WorldClockTime &c = wcTime[slot];   // 칸마다 도시가 다르다 (기본 뉴욕)
   u8g2.setFont(u8g2_font_6x10_tf);
-  drawCenteredUTF8(u8g2, 0, c.name.c_str());
+  drawCenteredUTF8(u8g2, 0, cityFor(slot, W_WORLD_CLOCK).name.c_str());
 
   time_t now = time(nullptr);
   u8g2.setFont(MAIN_NUM_FONT);
@@ -271,6 +271,98 @@ void display_world_clock_oled(U8G2 &u8g2, int slot) {
   snprintf(buf, sizeof(buf), "%s  %s", date, off);
   u8g2.setFont(u8g2_font_6x10_tf);
   drawCenteredUTF8(u8g2, 54, buf);
+  display.push();
+}
+
+/** 달의 위상 0~1 (0 삭, 0.5 망) — 2000-01-06 18:14 UTC 삭 기준, 삭망월 29.530588853일 (오차 ±1일 이내) */
+static double moonPhase(time_t utc) {
+  double p = fmod((utc - 947182440L) / 86400.0 / 29.530588853, 1.0);
+  return p < 0 ? p + 1 : p;
+}
+
+/**
+ * 달 모양을 그린다 — 테두리 원 + 밝은 부분 채움 (OLED 흰색 = 빛나는 면)
+ * @param south 남반구면 좌우를 뒤집는다 (보이는 모양이 반대)
+ */
+static void drawMoon(U8G2 &u8g2, int cx, int cy, int r, double phase, bool south) {
+  u8g2.drawCircle(cx, cy, r);
+  double k = cos(2 * M_PI * phase);   // 줄마다 빛나는 구간: 차는 달 [k·w, w], 기우는 달 [-w, -k·w]
+  for (int dy = -r; dy <= r; dy++) {
+    double w = sqrt((double)r * r - dy * dy);
+    double x0, x1;
+    if (phase < 0.5) { x0 = k * w; x1 = w; }
+    else { x0 = -w; x1 = -k * w; }
+    if (south) { double t = -x1; x1 = -x0; x0 = t; }
+    int a = (int)lround(x0), b = (int)lround(x1);
+    if (b > a) u8g2.drawHLine(cx + a, cy + dy, b - a + 1);
+  }
+}
+
+void display_sun_oled(U8G2 &u8g2, int slot) {
+  u8g2_prepare(u8g2);
+  u8g2.clearBuffer();
+  SlotCity city = cityFor(slot, W_SUN);
+  const SunInfo &s = sunInfo[slot];
+  u8g2.setFont(u8g2_font_6x10_tf);
+  drawCenteredUTF8(u8g2, 0, city.name.c_str());
+
+  // 왼쪽: 해 뜨는·지는 시각, 낮 길이 (도시 현지 시각)
+  char buf[16];
+  snprintf(buf, sizeof(buf), "Rise %s", s.valid ? s.rise : "--:--");
+  u8g2.drawStr(0, 16, buf);
+  snprintf(buf, sizeof(buf), "Set  %s", s.valid ? s.set : "--:--");
+  u8g2.drawStr(0, 28, buf);
+  int day = (atoi(s.set) * 60 + atoi(s.set + 3)) - (atoi(s.rise) * 60 + atoi(s.rise + 3));
+  if (s.valid && s.rise[0] != '-' && day > 0) snprintf(buf, sizeof(buf), "Day  %d:%02d", day / 60, day % 60);
+  else snprintf(buf, sizeof(buf), "Day  --:--");
+  u8g2.drawStr(0, 40, buf);
+
+  // 오른쪽: 달 모양 + 이름, 왼쪽 아래: 밝은 면 비율 — 날짜로 계산 (네트워크 불필요)
+  time_t now = time(nullptr);
+  if (now >= kTimeSyncedEpoch) {
+    double p = moonPhase(now);
+    static const char *names[] = {"New", "Wax Cr", "1st Q", "Wax Gb", "Full", "Wan Gb", "3rd Q", "Wan Cr"};
+    drawMoon(u8g2, 105, 30, 13, p, city.lat < 0);
+    u8g2.setFont(u8g2_font_5x7_tr);
+    const char *name = names[(int)(p * 8 + 0.5) % 8];
+    u8g2.drawStr(105 - u8g2.getStrWidth(name) / 2, 48, name);
+    u8g2.setFont(u8g2_font_6x10_tf);
+    snprintf(buf, sizeof(buf), "Moon %d%%", (int)lround((1 - cos(2 * M_PI * p)) / 2 * 100));
+    u8g2.drawStr(0, 52, buf);
+  }
+  display.push();
+}
+
+void display_weekly_oled(U8G2 &u8g2, int slot) {
+  u8g2_prepare(u8g2);
+  u8g2.clearBuffer();
+  const WeeklyInfo &w = weekly[slot];
+  u8g2.setFont(u8g2_font_6x10_tf);
+  drawCenteredUTF8(u8g2, 0, cityFor(slot, W_WEEKLY).name.c_str());
+  if (!w.valid) {   // 아직 받지 못함
+    drawCenteredUTF8(u8g2, 28, "--");
+    display.push();
+    return;
+  }
+  // 5칸(약 25px) — 요일(갈무리7, 첫 칸 "오늘")·날씨 아이콘·최고·최저 기온
+  static const char *wdays[] = {"일", "월", "화", "수", "목", "금", "토"};
+  for (int i = 0; i < WEEK_DAYS; i++) {
+    int cx = (2 * i + 1) * 128 / (2 * WEEK_DAYS);   // 칸 가운데
+    const char *day = i == 0 ? "오늘" : wdays[w.wday[i]];
+    u8g2.setFont(u8g2_font_galmuri7_kr);
+    u8g2.drawUTF8(cx - u8g2.getUTF8Width(day) / 2, 11, day);
+    const char *text;
+    int icon;
+    wmoLook(w.code[i], text, icon);
+    u8g2.setFont(u8g2_font_open_iconic_weather_2x_t);
+    u8g2.drawGlyph(cx - 8, 21, icon);
+    char buf[8];
+    u8g2.setFont(u8g2_font_5x7_tf);
+    snprintf(buf, sizeof(buf), "%d\xB0", w.tmax[i]);   // 5x7_tf의 0xB0 = °
+    u8g2.drawStr(cx - u8g2.getStrWidth(buf) / 2, 41, buf);
+    snprintf(buf, sizeof(buf), "%d\xB0", w.tmin[i]);
+    u8g2.drawStr(cx - u8g2.getStrWidth(buf) / 2, 51, buf);
+  }
   display.push();
 }
 

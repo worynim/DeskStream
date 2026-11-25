@@ -19,6 +19,8 @@ void display_weather_oled(U8G2 &u8g2);
 void display_intl_weather_oled(U8G2 &u8g2);
 void display_world_clock_oled(U8G2 &u8g2, int slot);   // slot: 화면 배치 칸 번호. 호출 측이 DataLock을 잡는다
 void display_dday_oled(U8G2 &u8g2, int slot);   // slot: 화면 배치 칸 번호
+void display_sun_oled(U8G2 &u8g2, int slot);      // 일출·일몰·달 모양 — 호출 측이 DataLock을 잡는다
+void display_weekly_oled(U8G2 &u8g2, int slot);   // 주간 날씨 5일 — 호출 측이 DataLock을 잡는다
 void display_fx_oled(U8G2 &u8g2);
 void display_eth_oled(U8G2 &u8g2);
 
@@ -26,7 +28,7 @@ void display_eth_oled(U8G2 &u8g2);
 extern bool clock12h;
 
 // D-day 설정 — 화면 배치 칸마다 따로 (웹에서 저장, NVS)
-constexpr int DDAY_SLOTS = MAX_DATA_PAGE * 4;   // SCREEN_MAP과 같은 칸 번호
+constexpr int DDAY_SLOTS = SCREEN_SLOTS;
 struct DdaySetting {
   String label;   // 이름 (한글 가능)
   String date;    // "YYYY-MM-DD", 비어 있으면 미설정

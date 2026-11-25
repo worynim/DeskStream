@@ -11,9 +11,10 @@
 #include <DeskStreamCore.h>   // 공통 핀 맵·화면 엔진·NTP 감독 (libraries/DeskStreamCore)
 
 // --- 설정 상수 (OLED 페이지 및 위젯) ---
-#define MAX_WIDGET_TYPE 18   // 위젯 값 최댓값 (W_DDAY)
+#define MAX_WIDGET_TYPE 20   // 위젯 값 최댓값 (W_WEEKLY)
 #define MAX_DATA_PAGE   3   // 데이터 페이지 수 (4번: IP, 5번: 도움말은 고정 시스템 페이지)
 #define MAX_PAGE        5   // 전체 페이지 수
+#define SCREEN_SLOTS    (MAX_DATA_PAGE * 4)   // 화면 배치 칸 수 (SCREEN_MAP과 같은 번호)
 #define MAIN_NUM_FONT u8g2_font_maniac_tr
 
 // --- 하드웨어 핀 ---
@@ -42,7 +43,9 @@ enum WidgetType {
   W_WORLD_CLOCK,   // 15 세계 시계 (따로 고른 도시의 현지 시각)
   W_FX,            // 16 엔·유로·위안 환율
   W_ETH,           // 17 이더리움
-  W_DDAY           // 18 D-day
+  W_DDAY,          // 18 D-day
+  W_SUN,           // 19 일출·일몰 (달 모양)
+  W_WEEKLY         // 20 주간 날씨 (5일)
 };
 
 /** 1초마다 다시 그리는 위젯 — 시각에 따라 바뀐다 (W_NONE 포함). 이 중 세계 시계만 수집(UTC 오프셋)도 한다 */

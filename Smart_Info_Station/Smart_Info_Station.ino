@@ -18,7 +18,7 @@
 #include "market.h"
 #include "btc.h"
 #include "usdkrw.h"
-#include "world_clock.h"
+#include "slot_city.h"
 #include "web_handlers.h"
 #include "config.h"         // 전역 설정 및 핀 정의
 #include "display_utils.h"  // 그리기 관련 헬퍼 함수 분리
@@ -82,6 +82,21 @@ void updateDisplayFlip() {
     display.screen(i).sendF("c", seg);
     display.screen(i).sendF("c", com);
   }
+}
+
+// 개발 중 버전이 쓰던 키를 지운다 — 남아 있으면 저장 공간(NVS 20KB, 다른 펌웨어와 공유)을 채워 새 설정 저장이 실패한다
+//   wc_city·wc_lat·wc_lon·dday_label·dday_date (칸 하나), wcN_n/a/o·ctN_n/a/o·ddN_l/d (칸마다 여러 키)
+void removeOldSettingKeys() {
+  preferences.begin("settings", false);
+  for (const char* key : {"wc_city", "wc_lat", "wc_lon", "dday_label", "dday_date"}) preferences.remove(key);
+  for (int i = 0; i < SCREEN_SLOTS; i++) {
+    for (const char* fmt : {"wc%d_n", "wc%d_a", "wc%d_o", "ct%d_n", "ct%d_a", "ct%d_o", "dd%d_l", "dd%d_d"}) {
+      char key[12];
+      snprintf(key, sizeof(key), fmt, i);
+      preferences.remove(key);
+    }
+  }
+  preferences.end();
 }
 
 void saveGeneralSettings() {
@@ -320,10 +335,15 @@ void display_ip_page() {
   }
 }
 
-/** 수집 데이터를 잠근 채 위젯을 그린다 — dataTask가 같은 String을 바꾸는 중에 읽지 않도록 */
-static void renderWidget(const WidgetUpdateInfo &info, U8G2 &screen) {
+/**
+ * 수집 데이터를 잠근 채 위젯을 그린다 — dataTask가 같은 String을 바꾸는 중에 읽지 않도록
+ * @param slot 화면 배치 칸 번호 — 칸마다 도시가 다른 위젯(render 없음)이 쓴다
+ */
+static void renderWidget(const WidgetUpdateInfo &info, U8G2 &screen, int slot) {
   DataLock lock;
-  info.render(screen);
+  if (info.render) info.render(screen);
+  else if (info.type == W_SUN) display_sun_oled(screen, slot);
+  else if (info.type == W_WEEKLY) display_weekly_oled(screen, slot);
 }
 
 /** 1초마다 다시 그리는 위젯(시계·달력·세계 시계·D-day)을 그린다 */
@@ -369,7 +389,7 @@ void redraw_current_page() {
         if (*widgets_info[w].is_updating) {
           showUpdateMessage(getScreen(slot_num), String(widgets_info[w].update_msg) + "...");
         } else {
-          renderWidget(widgets_info[w], getScreen(slot_num));
+          renderWidget(widgets_info[w], getScreen(slot_num), i);
         }
         break;
       }
@@ -437,6 +457,8 @@ void setup() {
   wifiCfg.onPortal = onWifiPortal;
   wifi.begin(wifiCfg);
 
+  removeOldSettingKeys();
+
   // 기본 설정 및 OLED 배치 정보 읽기
   preferences.begin("settings", true);
   youtube_channel = preferences.getString("channel", "@worynim");
@@ -446,18 +468,14 @@ void setup() {
   intl_city = preferences.getString("intl_city", "");   // 해외 날씨 도시 (비어 있으면 미설정)
   intl_lat = preferences.getFloat("intl_lat", 0);
   intl_lon = preferences.getFloat("intl_lon", 0);
-  // 세계 시계 도시 — 칸마다 (키 wcN_n·wcN_a·wcN_o), 저장된 것이 없으면 뉴욕
-  for (int i = 0; i < WC_SLOTS; i++) {
-    char key[12];
-    snprintf(key, sizeof(key), "wc%d_n", i);
-    String name = preferences.getString(key, "");
-    if (name.length() == 0) { wcSetDefault(i); continue; }
-    wc[i].name = name;
-    snprintf(key, sizeof(key), "wc%d_a", i);
-    wc[i].lat = preferences.getFloat(key, 0);
-    snprintf(key, sizeof(key), "wc%d_o", i);
-    wc[i].lon = preferences.getFloat(key, 0);
-    wc[i].valid = false;
+  // 칸별 값 — 칸마다 문자열 하나, 없으면 미설정 (web_handlers.cpp handleSet이 쓴다)
+  //   화면별 도시 ctN = "위도|경도|이름" (없으면 위젯 기본 도시, slot_city.h), D-day ddN = "YYYY-MM-DD|이름"
+  for (int i = 0; i < SCREEN_SLOTS; i++) {
+    char key[8];
+    snprintf(key, sizeof(key), "ct%d", i);
+    String v = preferences.getString(key, "");
+    int a = v.indexOf('|'), b = v.indexOf('|', a + 1);
+    if (a > 0 && b > a) slotCity[i] = {v.substring(b + 1), v.substring(0, a).toFloat(), v.substring(a + 1, b).toFloat()};
   }
   timezone_offset = preferences.getInt("tz_offset", 9);
   if (timezone_offset < -12 || timezone_offset > 14) timezone_offset = 9;   // 범위 밖 저장값 → 기본값 (UTC+9)
@@ -469,12 +487,12 @@ void setup() {
   clock12h = preferences.getBool("clock12", false);   // 시계 12/24시간제
   loopIntervalSec = preferences.getInt("loop_sec", 5);
   if (loopIntervalSec < 3 || loopIntervalSec > 60) loopIntervalSec = 5;   // 범위 밖 저장값 → 기본값
-  for (int i = 0; i < DDAY_SLOTS; i++) {   // D-day — 칸마다 (키 ddN_l·ddN_d)
-    char key[12];
-    snprintf(key, sizeof(key), "dd%d_l", i);
-    dday[i].label = preferences.getString(key, "");
-    snprintf(key, sizeof(key), "dd%d_d", i);
-    dday[i].date = preferences.getString(key, "");
+  for (int i = 0; i < DDAY_SLOTS; i++) {
+    char key[8];
+    snprintf(key, sizeof(key), "dd%d", i);
+    String v = preferences.getString(key, "");
+    int a = v.indexOf('|');
+    if (a >= 0) dday[i] = {v.substring(a + 1), v.substring(0, a)};
   }
   preferences.end();
 
@@ -597,7 +615,7 @@ void loop() {
     } else if (update_flag & info.flag_mask) {
       // 데이터 수집 완료됨: 즉시 해당 화면들 렌더링
       for (int i = start_idx; i < start_idx + 4; i++) {
-        if (SCREEN_MAP[i] == info.type) renderWidget(info, getScreen(i + 1));
+        if (SCREEN_MAP[i] == info.type) renderWidget(info, getScreen(i + 1), i);
       }
       portENTER_CRITICAL(&updateMux);
       update_flag &= ~info.flag_mask;

@@ -30,7 +30,7 @@ typedef bool (*FetchFn)();   // 수집 성공 시 true
 struct WidgetUpdateInfo {
   WidgetType type;
   volatile bool *is_updating;
-  uint16_t flag_mask;
+  uint32_t flag_mask;
   const char *update_msg;
   void (*render)(U8G2 &); // RenderFn
   FetchFn fetch;
@@ -43,7 +43,7 @@ extern const WidgetUpdateInfo widgets_info[];
 extern const int WIDGET_COUNT;
 
 // --- 전역 상태 변수 (extern) ---
-extern volatile uint16_t update_flag;
+extern volatile uint32_t update_flag;
 extern portMUX_TYPE updateMux;
 extern volatile bool force_update;
 extern volatile bool is_waiting;
@@ -69,6 +69,8 @@ extern volatile bool is_updating_intl;
 extern volatile bool is_updating_fx;
 extern volatile bool is_updating_eth;
 extern volatile bool is_updating_wc;
+extern volatile bool is_updating_sun;
+extern volatile bool is_updating_weekly;
 
 // --- 함수 프로토타입 ---
 bool isWidgetActive(WidgetType type);
@@ -78,6 +80,6 @@ bool isFxMarketOpen();
 
 void dataTask(void *pvParameters);
 
-#define MAX_WIDGET_RECORDS 16
+#define MAX_WIDGET_RECORDS 24   // widgets_info 항목 수 상한 (data_manager.cpp에서 static_assert로 확인)
 
 #endif

@@ -15,7 +15,7 @@
 #include "market.h"
 #include "btc.h"
 #include "usdkrw.h"
-#include "world_clock.h"
+#include "slot_city.h"
 
 // --- 전역 데이터 변수 실제 정의 (Definition) ---
 String dust_location = "대전";
@@ -35,10 +35,21 @@ float intl_lon = 0;
 IntlForecast intl_forecast[3];
 bool intl_valid = false;
 
-WorldClockCity wc[WC_SLOTS];
+SlotCity slotCity[SCREEN_SLOTS];
+WorldClockTime wcTime[SCREEN_SLOTS];
+SunInfo sunInfo[SCREEN_SLOTS];
+WeeklyInfo weekly[SCREEN_SLOTS];
 
-void wcSetDefault(int i) {
-  wc[i] = {"New York", 40.71427f, -74.00597f, 0, false};
+SlotCity cityFor(int slot, WidgetType type) {
+  if (slotCity[slot].name.length() > 0) return slotCity[slot];
+  if (type == W_WORLD_CLOCK) return {"New York", 40.71427f, -74.00597f};
+  return {"Seoul", 37.566f, 126.9784f};
+}
+
+void clearSlotData(int slot) {
+  wcTime[slot].valid = false;
+  sunInfo[slot].valid = false;
+  weekly[slot].valid = false;
 }
 
 String youtube_channel = "";
@@ -63,7 +74,7 @@ extern WidgetType SCREEN_MAP[12];
 extern int current_page;
 
 // --- 전역 제어 상태 변수 정의 ---
-volatile uint16_t update_flag = 0x00;
+volatile uint32_t update_flag = 0x00;
 portMUX_TYPE updateMux = portMUX_INITIALIZER_UNLOCKED;
 SemaphoreHandle_t dataMutex = NULL;   // setup()에서 생성 (data_manager.h DataLock)
 
@@ -82,6 +93,8 @@ volatile bool is_updating_intl = false;
 volatile bool is_updating_fx = false;
 volatile bool is_updating_eth = false;
 volatile bool is_updating_wc = false;
+volatile bool is_updating_sun = false;
+volatile bool is_updating_weekly = false;
 volatile bool force_update = false;  
 volatile bool is_waiting = false;    
 TaskHandle_t dataTaskHandle = NULL;  
@@ -103,12 +116,16 @@ const WidgetUpdateInfo widgets_info[] = {
   { W_ETH,     &is_updating_eth,     0x2000, "Updating ETH",   display_eth_oled,     get_eth,       true,  false },
   // 세계 시계는 1초마다 따로 그린다 (isTickWidget) — 여기서는 30분마다 UTC 오프셋만 받는다
   { W_WORLD_CLOCK, &is_updating_wc,  0x4000, "Updating Clock", nullptr,              get_world_clock, false, false },
+  // 칸마다 도시가 달라 render가 없다 — Smart_Info_Station.ino renderWidget이 칸 번호로 그린다
+  { W_SUN,     &is_updating_sun,     0x8000, "Updating Sun",   nullptr,              get_sun,       false, false },
+  { W_WEEKLY,  &is_updating_weekly,  0x10000, "Updating Weekly", nullptr,             get_weekly,    false, false },
   { W_WEATHER, &is_updating_weather, 0x02, "Updating Weather", display_weather_oled, get_weather,   false, false },
   { W_INTL_WEATHER, &is_updating_intl, 0x800, "Updating World Wx", display_intl_weather_oled, get_intl_weather, false, false },
   { W_DUST,    &is_updating_dust,    0x01, "Updating Dust",    display_dust_oled,    get_dust,      false, true  },
   { W_YOUTUBE, &is_updating_youtube, 0x04, "Updating YouTube", display_youtube_oled, get_subscribe, false, true  }
 };
 const int WIDGET_COUNT = sizeof(widgets_info) / sizeof(widgets_info[0]);
+static_assert(sizeof(widgets_info) / sizeof(widgets_info[0]) <= MAX_WIDGET_RECORDS, "MAX_WIDGET_RECORDS를 늘리세요");
 
 // --- [구현부 이전] 유틸리티 및 수집 함수들 ---
 
@@ -387,15 +404,17 @@ bool get_intl_weather() {
   return false;
 }
 
-// --- 세계 시계: Open-Meteo가 도시 시간대로 계산한 현재 UTC 오프셋 (응답 약 200B) ---
+// --- 칸별 도시 데이터: 세계 시계·일출일몰·주간 날씨 (Open-Meteo, 응답 약 200~500B) ---
 
-/** 좌표의 현재 UTC 오프셋(초)을 받는다 */
-static bool fetchUtcOffset(const String &city, float lat, float lon, long &offset) {
-  String url = "https://api.open-meteo.com/v1/forecast?latitude=" + String(lat, 4) +
-               "&longitude=" + String(lon, 4) + "&timezone=auto&forecast_days=1";
+static int dayOfWeek(int y, int m, int d);   // 아래 장 시간 판단 로직에 정의
+
+/** 도시 좌표로 Open-Meteo 예보 요청 — query는 timezone 뒤에 붙일 항목 (예: "&forecast_days=1") */
+static bool openMeteoGet(const SlotCity &c, const char *what, const String &query, String &payload) {
+  String url = "https://api.open-meteo.com/v1/forecast?latitude=" + String(c.lat, 4) +
+               "&longitude=" + String(c.lon, 4) + "&timezone=auto" + query;
 
   for (int retry = 0; retry < 3; retry++) {
-    Serial.printf("\n[HTTP] get World Clock %s (Attempt %d/3)...\n", city.c_str(), retry + 1);
+    Serial.printf("\n[HTTP] get %s %s (Attempt %d/3)...\n", what, c.name.c_str(), retry + 1);
 
     WiFiClientSecure client;
     client.setInsecure();
@@ -404,60 +423,113 @@ static bool fetchUtcOffset(const String &city, float lat, float lon, long &offse
     HTTPClient https;
     https.begin(client, url);
     https.setTimeout(5000);
-
-    bool success = false;
-    if (https.GET() == 200) {
-      String payload = https.getString();
-      int o = payload.indexOf("\"utc_offset_seconds\":");
-      if (o >= 0) {
-        offset = atol(payload.c_str() + o + 21);
-        success = true;
-      }
-    }
+    bool ok = https.GET() == 200;
+    if (ok) payload = https.getString();
     https.end();
 
-    if (success) {
-      Serial.printf("[SUCCESS] World Clock: %s UTC%+ld s\n", city.c_str(), offset);
-      return true;
-    }
-    Serial.println("[ERROR] World Clock: Fail to fetch, retrying...");
+    if (ok) return true;
+    Serial.printf("[ERROR] %s: Fail to fetch, retrying...\n", what);
     vTaskDelay(500 / portTICK_PERIOD_MS);
   }
   return false;
 }
 
-bool get_world_clock() {
+/**
+ * type 위젯이 놓인 칸마다 그 칸의 도시로 parse(도시, 칸 번호)를 부른다.
+ * @return 모든 칸이 성공하면 true
+ */
+template <typename F>
+static bool forEachCitySlot(WidgetType type, F parse) {
   if (WiFi.status() != WL_CONNECTED) return false;
-
   bool all_ok = true;
-  bool fetched[WC_SLOTS] = {false};   // 이번에 받은 칸 — 같은 도시는 다시 받지 않는다
-  long got[WC_SLOTS] = {0};
-  for (int i = 0; i < WC_SLOTS; i++) {
-    if (SCREEN_MAP[i] != W_WORLD_CLOCK) continue;
-
-    String city;
-    float lat, lon;
-    { DataLock lock; city = wc[i].name; lat = wc[i].lat; lon = wc[i].lon; }
-
-    long offset = 0;
-    bool ok = false;
-    for (int j = 0; j < i && !ok; j++) {
-      if (!fetched[j]) continue;
-      DataLock lock;
-      if (wc[j].lat == lat && wc[j].lon == lon) { offset = got[j]; ok = true; }
-    }
-    if (!ok) ok = fetchUtcOffset(city, lat, lon, offset);
-    if (!ok) { all_ok = false; continue; }
-
-    fetched[i] = true;
-    got[i] = offset;
-    DataLock lock;
-    if (wc[i].name == city) {   // 수집 중 도시가 바뀌었으면 버린다
-      wc[i].offset = offset;
-      wc[i].valid = true;
-    }
+  for (int i = 0; i < SCREEN_SLOTS; i++) {
+    if (SCREEN_MAP[i] != type) continue;
+    SlotCity c;
+    { DataLock lock; c = cityFor(i, type); }
+    if (!parse(c, i)) all_ok = false;
   }
   return all_ok;
+}
+
+/** 수집 중에 칸의 도시가 바뀌지 않았는가 — DataLock 안에서 부른다 (바뀌었으면 받은 값을 버린다) */
+static bool sameCity(int slot, WidgetType type, const SlotCity &c) {
+  SlotCity now = cityFor(slot, type);
+  return now.name == c.name && now.lat == c.lat && now.lon == c.lon;
+}
+
+bool get_world_clock() {
+  return forEachCitySlot(W_WORLD_CLOCK, [](const SlotCity &c, int i) {
+    String payload;
+    if (!openMeteoGet(c, "World Clock", "&forecast_days=1", payload)) return false;
+    int o = payload.indexOf("\"utc_offset_seconds\":");
+    if (o < 0) return false;
+    long offset = atol(payload.c_str() + o + 21);
+    { DataLock lock; if (sameCity(i, W_WORLD_CLOCK, c)) wcTime[i] = {offset, true}; }
+    Serial.printf("[SUCCESS] World Clock: %s UTC%+ld s\n", c.name.c_str(), offset);
+    return true;
+  });
+}
+
+/** "sunrise":["2026-11-26T07:22"] 에서 "07:22"를 꺼낸다 */
+static bool parseDailyTime(const String &payload, int from, const char *key, char out[6]) {
+  int k = payload.indexOf(key, from);
+  if (k < 0) return false;
+  int t = payload.indexOf('T', k + strlen(key));
+  if (t < 0 || t + 6 > (int)payload.length()) return false;
+  memcpy(out, payload.c_str() + t + 1, 5);
+  out[5] = '\0';
+  return true;
+}
+
+bool get_sun() {
+  return forEachCitySlot(W_SUN, [](const SlotCity &c, int i) {
+    String payload;
+    if (!openMeteoGet(c, "Sun", "&daily=sunrise,sunset&forecast_days=1", payload)) return false;
+    int d = payload.indexOf("\"daily\":{");   // daily_units에도 같은 키가 있어 daily 뒤에서 찾는다
+    SunInfo info;
+    if (d < 0 || !parseDailyTime(payload, d, "\"sunrise\":[", info.rise) ||
+        !parseDailyTime(payload, d, "\"sunset\":[", info.set)) return false;
+    if (strcmp(info.rise, info.set) == 0) {   // 극야·백야 — Open-Meteo는 둘 다 00:00을 준다
+      strcpy(info.rise, "--:--");
+      strcpy(info.set, "--:--");
+    }
+    info.valid = true;
+    { DataLock lock; if (sameCity(i, W_SUN, c)) sunInfo[i] = info; }
+    Serial.printf("[SUCCESS] Sun: %s %s~%s\n", c.name.c_str(), info.rise, info.set);
+    return true;
+  });
+}
+
+bool get_weekly() {
+  return forEachCitySlot(W_WEEKLY, [](const SlotCity &c, int i) {
+    String payload;
+    String query = "&daily=weather_code,temperature_2m_max,temperature_2m_min&forecast_days=" + String(WEEK_DAYS);
+    if (!openMeteoGet(c, "Weekly", query, payload)) return false;
+    int d = payload.indexOf("\"daily\":{");
+    float codes[WEEK_DAYS], tmax[WEEK_DAYS], tmin[WEEK_DAYS];
+    if (d < 0 || !parseNumberArray(payload, d, "\"weather_code\":[", codes, WEEK_DAYS) ||
+        !parseNumberArray(payload, d, "\"temperature_2m_max\":[", tmax, WEEK_DAYS) ||
+        !parseNumberArray(payload, d, "\"temperature_2m_min\":[", tmin, WEEK_DAYS)) return false;
+    // "time":["2026-11-26",...] → 요일
+    int t = payload.indexOf("\"time\":[", d);
+    if (t < 0) return false;
+    WeeklyInfo info;
+    const char *p = payload.c_str() + t + 8;
+    for (int k = 0; k < WEEK_DAYS; k++) {
+      p = strchr(p, '"');   // 여는 따옴표
+      if (!p || strlen(p) < 12) return false;
+      p++;
+      info.wday[k] = dayOfWeek(atoi(p), atoi(p + 5), atoi(p + 8));
+      p += 11;              // "YYYY-MM-DD" + 닫는 따옴표 다음
+      info.code[k] = (int)codes[k];
+      info.tmax[k] = (int)lroundf(tmax[k]);
+      info.tmin[k] = (int)lroundf(tmin[k]);
+    }
+    info.valid = true;
+    { DataLock lock; if (sameCity(i, W_WEEKLY, c)) weekly[i] = info; }
+    Serial.printf("[SUCCESS] Weekly: %s %d/%d\n", c.name.c_str(), info.tmax[0], info.tmin[0]);
+    return true;
+  });
 }
 
 // --- YouTube 구독자 수: YouTube 웹 페이지가 쓰는 내부 요청(youtubei) — API 키 불필요 ---
@@ -901,7 +973,7 @@ void dataTask(void *pvParameters) {
 
   for (;;) {
     if (WiFi.status() == WL_CONNECTED) {
-      uint16_t processed_mask = 0;
+      uint32_t processed_mask = 0;
 
       // --- 강제 업데이트 플래그 확인 ---
       // 읽는 즉시 지운다 — 수집 도중 들어온 새 요청은 다음 바퀴에서 처리된다 (끝에서 지우면 그 요청이 사라진다)

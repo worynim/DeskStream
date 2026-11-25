@@ -2,7 +2,7 @@
 
 # ESP32-C3 4-OLED Smart Info Station (Smart_Info_Station)
 
-A desktop information display that uses an **ESP32 C3 SuperMini** board to drive four OLED displays independently and monitor a variety of information in real time: **Korean and world time, local and overseas weather, fine dust, YouTube subscriber count, stock markets (KOSPI, KOSDAQ, S&P 500), Bitcoin and Ethereum, exchange rates (USD, JPY, EUR, CNY) and D-day**.
+A desktop information display that uses an **ESP32 C3 SuperMini** board to drive four OLED displays independently and monitor a variety of information in real time: **Korean and world time, local and overseas weather, fine dust, YouTube subscriber count, stock markets (KOSPI, KOSDAQ, S&P 500), Bitcoin and Ethereum, exchange rates (USD, JPY, EUR, CNY), D-day, sunrise/sunset with moon phase, and a weekly forecast**.
 
 https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
@@ -23,8 +23,9 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 4.  **Powerful web dashboard and live settings**
     - Change the router, YouTube channel, dust measuring station, time zone and more in real time from a web browser, without editing the source code.
     - **Integrated screen layout system**: A 4-column UI that matches the actual OLED arrangement lets you configure widgets per slot intuitively.
+    - **Korean / English page**: Pick 한국어 or EN at the top right of the web page. The choice is remembered in that browser; at first the page follows the browser language.
 5.  **Stability and persistent storage**
-    - **NVS persistence**: All settings are stored safely inside the ESP32 and kept across power cycles.
+    - **NVS persistence**: All settings are stored safely inside the ESP32 and kept across power cycles. The 20KB store is shared with other firmware, so per-screen settings are packed into one string per screen, and the web page reports "Save failed" if a write fails (**v2.13.0**).
     - **Retry everywhere**: Every data widget retries up to 3 times and resets its state automatically for maximum stability.
 6.  **User interaction and 4-button navigation (v2.7.3)**
     - **Audio feedback (non-blocking)**: Every button press gives audible feedback through the passive buzzer (GPIO 7). (Short: 3000Hz, Long: 2000Hz)
@@ -50,6 +51,10 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
     - **Display**: the local-weather top line shows the neighborhood name and forecast time, and the fine-dust top line shows the area name (e.g. "가산동 Air pollution") in the [Galmuri7](https://github.com/quiple/galmuri) font; the three weather columns are centered.
     - **YouTube subscribers**: instead of reading the channel page (about 2.5MB), it reads about 10KB using the internal request the YouTube web page itself makes (the channel's "Search" tab).
     - **Exchange-rate updates**: follow the FX market — 24 hours on weekdays (closed only from Fri 17:00 to Sun 17:00 New York time).
+9.  **Sunrise/sunset and weekly forecast (v2.13.0)** — Open-Meteo, no API key.
+    - **Sunrise/sunset**: sunrise and sunset times, day length, moon illumination (%), a drawn moon phase and its name. The moon phase is computed from the date and mirrored in the southern hemisphere.
+    - **Weekly forecast**: weekday, weather icon and high/low for the next 5 days, starting today.
+    - **Per-screen city**: world clock, sunrise/sunset and weekly forecast each take a city chosen per screen under "City per Screen" on the web page (defaults: New York for the world clock, Seoul for the others).
 
 ## 🛠 Hardware Components
 
@@ -79,7 +84,7 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 - `data_manager.h / .cpp` : The main collection engine; manages the headers with the network parsing functions for weather, fine dust, stocks, coins, etc., collects data through the background `dataTask`, and manages the state (`update_flag`).
 - `web_handlers.h / .cpp` : Generates the internal settings web page UI reachable after connecting to WiFi, and saves the entered settings (channel, region, etc.) to flash (`handleRoot`, `handleSet`).
 - `weather.h`, `dust.h`, `youtube.h`, `market.h`, `btc.h`, `usdkrw.h` : Declarations of the parsing function for each individual data source. (With their own include guards and extern variable declarations)
-- `world_clock.h` : Per-screen world-clock city and UTC offset declarations (fetched by `get_world_clock()` in `data_manager.cpp`).
+- `slot_city.h` : Per-screen city and the data of the widgets that use it — world clock, sunrise/sunset, weekly forecast (fetched by `get_world_clock()`, `get_sun()` and `get_weekly()` in `data_manager.cpp`).
 - `stream_scanner.h` : Scanner that reads the weather and fine-dust pages and the YouTube response through a fixed-size buffer and extracts the value after each key, so even a multi-megabyte line uses no extra memory.
 - `u8g2_font_galmuri7_kr.h` : Galmuri7 Korean font (same as Agent_Monitor, SIL OFL 1.1) — for place names and D-day labels.
 
