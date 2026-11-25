@@ -21,7 +21,8 @@
 
 // --- 데이터 업데이트 주기 ---
 const unsigned long INTERVAL_FINANCE = 60 * 1000;    
-const unsigned long INTERVAL_SLOW = 30 * 60 * 1000;  
+const unsigned long INTERVAL_SLOW = 30 * 60 * 1000;
+const unsigned long INTERVAL_RETRY = 60 * 1000;      // 수집 실패 시 다시 시도할 때까지의 간격
 
 // --- NTP 시각 동기화 ---
 // 시계 위젯(display_clock_oled)이 시스템 시각을 그대로 표시하므로 누적 오차 방지가 필요하다.

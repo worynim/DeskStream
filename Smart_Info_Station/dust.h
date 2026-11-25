@@ -16,6 +16,6 @@ extern int dust_10_num;
 extern int dust_2_5_num;
 
 // --- 함수 프로토타입 ---
-void get_dust();
+bool get_dust();  // 성공 시 true
 
 #endif

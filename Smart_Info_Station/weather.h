@@ -23,6 +23,6 @@ extern String announcement_time;
 extern Forecast forecast[3];
 
 // --- 함수 프로토타입 ---
-void get_weather();
+bool get_weather();  // 성공 시 true
 
 #endif

@@ -320,6 +320,12 @@ void display_ip_page() {
   }
 }
 
+/** 수집 데이터를 잠근 채 위젯을 그린다 — dataTask가 같은 String을 바꾸는 중에 읽지 않도록 */
+static void renderWidget(const WidgetUpdateInfo &info, U8G2 &screen) {
+  DataLock lock;
+  info.render(screen);
+}
+
 void redraw_current_page() {
   // 페이지 전환 시 태스크만 깨워 가시성 변화 확인 (강제 수집 제외)
   if (dataTaskHandle != NULL && is_waiting) xTaskAbortDelay(dataTaskHandle);
@@ -363,7 +369,7 @@ void redraw_current_page() {
         if (*widgets_info[w].is_updating) {
           showUpdateMessage(getScreen(slot_num), String(widgets_info[w].update_msg) + "...");
         } else {
-          widgets_info[w].render(getScreen(slot_num));
+          renderWidget(widgets_info[w], getScreen(slot_num));
         }
         break;
       }
@@ -465,6 +471,8 @@ void setup() {
   timeSync.begin(timeCfg);
   timeSync.applyTimezone();
 
+  dataMutex = xSemaphoreCreateMutex();   // 웹 핸들러·데이터 태스크보다 먼저 만든다
+
   server.on("/", HTTP_GET, handleRoot);
   server.on("/set", HTTP_POST, handleSet);
   server.begin();
@@ -554,7 +562,7 @@ void loop() {
     } else if (update_flag & info.flag_mask) {
       // 데이터 수집 완료됨: 즉시 해당 화면들 렌더링
       for (int i = start_idx; i < start_idx + 4; i++) {
-        if (SCREEN_MAP[i] == info.type) info.render(getScreen(i + 1));
+        if (SCREEN_MAP[i] == info.type) renderWidget(info, getScreen(i + 1));
       }
       portENTER_CRITICAL(&updateMux);
       update_flag &= ~info.flag_mask;

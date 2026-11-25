@@ -9,11 +9,23 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 #include "config.h"
 #include "widgets_display.h"
 
+// --- 수집 데이터 잠금 ---
+// dataTask가 쓰고 loop()가 그리는 전역 데이터(시세·구독자·날씨·미세먼지)와
+// 웹에서 바꾸는 수집 설정(채널·지역·날씨 코드)은 이 잠금 안에서만 읽고 쓴다 (String 해제 중 읽기 방지).
+extern SemaphoreHandle_t dataMutex;
+
+struct DataLock {
+  DataLock() { xSemaphoreTake(dataMutex, portMAX_DELAY); }
+  ~DataLock() { xSemaphoreGive(dataMutex); }
+};
+
 // --- 데이터 업데이트 관리 구조체 ---
-typedef void (*FetchFn)();
+typedef bool (*FetchFn)();   // 수집 성공 시 true
 
 struct WidgetUpdateInfo {
   WidgetType type;

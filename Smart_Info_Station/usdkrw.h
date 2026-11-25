@@ -14,6 +14,6 @@
 extern MarketData usdkrw_data;
 
 // --- 함수 프로토타입 ---
-void get_usdkrw();
+bool get_usdkrw();  // 성공 시 true
 
 #endif

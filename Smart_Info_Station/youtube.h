@@ -16,6 +16,6 @@ extern const unsigned long youtube_timeout;
 
 // --- 함수 프로토타입 ---
 String formatSubscribers(String subscribers);
-void get_subscribe();
+bool get_subscribe();  // 성공 시 true
 
 #endif

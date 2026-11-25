@@ -15,6 +15,6 @@ extern MarketData btc_data;
 
 // --- 함수 프로토타입 ---
 String addCommas(String val);
-void get_btc();
+bool get_btc();  // 성공 시 true
 
 #endif

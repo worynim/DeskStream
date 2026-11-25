@@ -46,6 +46,7 @@ extern int current_page;
 // --- 전역 제어 상태 변수 정의 ---
 volatile uint16_t update_flag = 0x00;
 portMUX_TYPE updateMux = portMUX_INITIALIZER_UNLOCKED;
+SemaphoreHandle_t dataMutex = NULL;   // setup()에서 생성 (data_manager.h DataLock)
 
 volatile bool is_updating_dust = false;
 volatile bool is_updating_weather = false;
@@ -131,12 +132,15 @@ String formatSubscribers(String subscribers) {
   return formattedString;
 }
 
-void get_dust() {
-  if (WiFi.status() != WL_CONNECTED) return;
+bool get_dust() {
+  if (WiFi.status() != WL_CONNECTED) return false;
+
+  String location;
+  { DataLock lock; location = dust_location; }  // 웹 설정 변경과 겹치지 않도록 사본으로 작업
 
   for (int retry = 0; retry < 3; retry++) {
     bool success = false;
-    String query = urlEncode(dust_location) + urlEncode(" 미세먼지");
+    String query = urlEncode(location) + urlEncode(" 미세먼지");
     dust_host = "https://m.search.naver.com/search.naver?where=m&query=" + query;
 
     Serial.printf("\n[HTTP] get dust (Attempt %d/3)...\n", retry + 1);
@@ -169,14 +173,15 @@ void get_dust() {
           if (line.indexOf(keyword1) >= 0 && line.indexOf(keyword2) >= 0) {
             // [PM10] 미세먼지 수치 추출 (키워드 이후 4자리 추출 후 변환)
             int k1Pos = line.indexOf(keyword1);
-            dust_10_num = line.substring(k1Pos + keyword1.length(), k1Pos + keyword1.length() + 4).toInt();
+            int pm10 = line.substring(k1Pos + keyword1.length(), k1Pos + keyword1.length() + 4).toInt();
 
             // [PM2.5] 초미세먼지 수치 추출
             int k2Pos = line.indexOf(keyword2);
-            dust_2_5_num = line.substring(k2Pos + keyword2.length(), k2Pos + keyword2.length() + 4).toInt();
-            
-            Serial.printf("\n[SUCCESS] dust 10um: %d\n", dust_10_num);
-            Serial.printf("[SUCCESS] dust 2.5um: %d\n", dust_2_5_num);
+            int pm25 = line.substring(k2Pos + keyword2.length(), k2Pos + keyword2.length() + 4).toInt();
+
+            { DataLock lock; dust_10_num = pm10; dust_2_5_num = pm25; }
+            Serial.printf("\n[SUCCESS] dust 10um: %d\n", pm10);
+            Serial.printf("[SUCCESS] dust 2.5um: %d\n", pm25);
             success = true;
             break; // 데이터 발견 시 즉시 종료
           }
@@ -188,19 +193,25 @@ void get_dust() {
     }
     https.end();
 
-    if (success) return;
-    
+    if (success) return true;
+
     Serial.println("[ERROR] Dust: Fail to parse, retrying...");
     vTaskDelay(500 / portTICK_PERIOD_MS);
   }
+  return false;
 }
 
-void get_weather() {
-  if (WiFi.status() != WL_CONNECTED) return;
-  
+bool get_weather() {
+  if (WiFi.status() != WL_CONNECTED) return false;
+
+  String code;
+  { DataLock lock; code = weather_location_code; }  // 웹 설정 변경과 겹치지 않도록 사본으로 작업
+
   for (int retry = 0; retry < 3; retry++) {
     bool success = false;
-    weather_host = "https://www.weather.go.kr/w/wnuri-fct2021/main/digital-forecast.do?code=" + weather_location_code;
+    Forecast fc[3] = {};   // 3개 시간대를 모두 찾았을 때만 전역 forecast에 반영한다
+    String ann = "";
+    weather_host = "https://www.weather.go.kr/w/wnuri-fct2021/main/digital-forecast.do?code=" + code;
     
     WiFiClientSecure client;
     client.setInsecure();
@@ -229,19 +240,19 @@ void get_weather() {
           
           // 1. 발표 시각 추출
           if (line.indexOf(announcement_keyword) >= 0) {
-            announcement_time = line.substring(line.indexOf(announcement_keyword) + announcement_keyword.length(), line.indexOf(announcement_keyword) + announcement_keyword.length() + 17);
+            ann = line.substring(line.indexOf(announcement_keyword) + announcement_keyword.length(), line.indexOf(announcement_keyword) + announcement_keyword.length() + 17);
           }
           // 2. 예보 시각 추출
           if (line.indexOf(time_keyword) >= 0) {
-            forecast[idx].time = line.substring(line.indexOf(time_keyword) + time_keyword.length(), line.indexOf(time_keyword) + time_keyword.length() + 2).toInt();
+            fc[idx].time = line.substring(line.indexOf(time_keyword) + time_keyword.length(), line.indexOf(time_keyword) + time_keyword.length() + 2).toInt();
           } 
           // 3. 날씨 아이콘 타입 추출
           else if (line.indexOf(type_keyword) >= 0) {
-            forecast[idx].type = line.substring(line.indexOf(type_keyword) + type_keyword.length(), line.indexOf(type_keyword) + type_keyword.length() + 2).toInt();
+            fc[idx].type = line.substring(line.indexOf(type_keyword) + type_keyword.length(), line.indexOf(type_keyword) + type_keyword.length() + 2).toInt();
           } 
           // 4. 기온 값 추출
           else if (line.indexOf(temp_keyword) >= 0) {
-            forecast[idx].temp = line.substring(line.indexOf(temp_keyword) + temp_keyword.length(), line.indexOf(temp_keyword) + temp_keyword.length() + 3).toInt();
+            fc[idx].temp = line.substring(line.indexOf(temp_keyword) + temp_keyword.length(), line.indexOf(temp_keyword) + temp_keyword.length() + 3).toInt();
             idx++; // 한 시간대 데이터 수집 완료 시 인덱스 증가
             if (idx >= 3) {
               success = true; // 총 3개 시간대 데이터를 모두 찾으면 성공
@@ -256,20 +267,29 @@ void get_weather() {
     https.end();
 
     if (success) {
-      Serial.print("[SUCCESS] Weather Time: "); Serial.println(announcement_time);
-      return;
+      {
+        DataLock lock;
+        for (int i = 0; i < 3; i++) forecast[i] = fc[i];
+        if (ann.length() > 0) announcement_time = ann;
+      }
+      Serial.print("[SUCCESS] Weather Time: "); Serial.println(ann);
+      return true;
     }
     Serial.println("[ERROR] Weather: Fail to fetch, retrying...");
     vTaskDelay(500 / portTICK_PERIOD_MS);
   }
+  return false;
 }
 
-void get_subscribe() {
-  if (WiFi.status() != WL_CONNECTED) return;
+bool get_subscribe() {
+  if (WiFi.status() != WL_CONNECTED) return false;
+
+  String channel;
+  { DataLock lock; channel = youtube_channel; }  // 웹 설정 변경과 겹치지 않도록 사본으로 작업
 
   for (int retry = 0; retry < 3; retry++) {
     bool success = false;
-    String encoded_channel = youtube_channel.startsWith("@") ? "@" + urlEncode(youtube_channel.substring(1)) : urlEncode(youtube_channel);
+    String encoded_channel = channel.startsWith("@") ? "@" + urlEncode(channel.substring(1)) : urlEncode(channel);
     String url = "https://www.youtube.com/" + encoded_channel + "?hl=ko";
 
     Serial.printf("\n[HTTP] get YouTube (Attempt %d/3)...\n", retry + 1);
@@ -302,8 +322,9 @@ void get_subscribe() {
             int end = line.indexOf(kw2);
             String raw = line.substring(start, end);
             
-            subscribe_num = formatSubscribers(raw);
-            Serial.print("\n[SUCCESS] YouTube: "); Serial.println(subscribe_num);
+            String subs = formatSubscribers(raw);
+            { DataLock lock; subscribe_num = subs; }
+            Serial.print("\n[SUCCESS] YouTube: "); Serial.println(subs);
             success = true;
             break;
           }
@@ -316,15 +337,16 @@ void get_subscribe() {
 
     if (success) {
       Serial.println();
-      return;
+      return true;
     }
     Serial.println("\n[ERROR] YouTube: Fail to parse, retrying...");
     vTaskDelay(500 / portTICK_PERIOD_MS);
   }
+  return false;
 }
 
-void fetchMarketData(const String& name, const String& url, MarketData& data) {
-  if (WiFi.status() != WL_CONNECTED) return;
+bool fetchMarketData(const String& name, const String& url, MarketData& target) {
+  if (WiFi.status() != WL_CONNECTED) return false;
 
   for (int retry = 0; retry < 3; retry++) {
     bool success = false;
@@ -345,6 +367,8 @@ void fetchMarketData(const String& name, const String& url, MarketData& data) {
       // 파싱 시도 (최소한 가격 정보는 있어야 성공으로 간주)
       int price_idx = payload.indexOf("\"closePriceRaw\":\"");
       if (price_idx != -1) {
+        MarketData data;
+        { DataLock lock; data = target; }   // 지역 사본에서 파싱 — 화면이 읽는 중인 String을 직접 바꾸지 않는다
         int price_end = payload.indexOf("\"", price_idx + 17);
         data.price = payload.substring(price_idx + 17, price_end);
         
@@ -376,29 +400,31 @@ void fetchMarketData(const String& name, const String& url, MarketData& data) {
         }
 
         if (data.percent.indexOf("%") == -1) data.percent = data.percent + "%";
-        
+        { DataLock lock; target = data; }
+
         Serial.printf("[SUCCESS] %s: %s\n", name.c_str(), data.price.c_str());
         success = true;
       }
     }
     https.end();
 
-    if (success) return;
+    if (success) return true;
     
     Serial.printf("[ERROR] %s: Fail to fetch, retrying...\n", name.c_str());
     vTaskDelay(500 / portTICK_PERIOD_MS);
   }
+  return false;
 }
 
-void get_kospi() { fetchMarketData("KOSPI", "https://polling.finance.naver.com/api/realtime/domestic/index/KOSPI", kospi_data); }
-void get_kosdaq() { fetchMarketData("KOSDAQ", "https://polling.finance.naver.com/api/realtime/domestic/index/KOSDAQ", kosdaq_data); }
-void get_kpi200() { fetchMarketData("KOSPI200", "https://polling.finance.naver.com/api/realtime/domestic/index/KPI200", kpi200_data); }
-void get_futures() { fetchMarketData("FUTURES", "https://polling.finance.naver.com/api/realtime/domestic/index/FUT", futures_data); }
-void get_SnP500() { fetchMarketData("S&P 500", "https://polling.finance.naver.com/api/realtime/worldstock/index/.INX", snp500_data); }
-void get_nasdaq() { fetchMarketData("NASDAQ", "https://polling.finance.naver.com/api/realtime/worldstock/index/.IXIC", nasdaq_data); }
+bool get_kospi() { return fetchMarketData("KOSPI", "https://polling.finance.naver.com/api/realtime/domestic/index/KOSPI", kospi_data); }
+bool get_kosdaq() { return fetchMarketData("KOSDAQ", "https://polling.finance.naver.com/api/realtime/domestic/index/KOSDAQ", kosdaq_data); }
+bool get_kpi200() { return fetchMarketData("KOSPI200", "https://polling.finance.naver.com/api/realtime/domestic/index/KPI200", kpi200_data); }
+bool get_futures() { return fetchMarketData("FUTURES", "https://polling.finance.naver.com/api/realtime/domestic/index/FUT", futures_data); }
+bool get_SnP500() { return fetchMarketData("S&P 500", "https://polling.finance.naver.com/api/realtime/worldstock/index/.INX", snp500_data); }
+bool get_nasdaq() { return fetchMarketData("NASDAQ", "https://polling.finance.naver.com/api/realtime/worldstock/index/.IXIC", nasdaq_data); }
 
-void get_btc() {
-  if (WiFi.status() != WL_CONNECTED) return;
+bool get_btc() {
+  if (WiFi.status() != WL_CONNECTED) return false;
   
   for (int retry = 0; retry < 3; retry++) {
     bool success = false;
@@ -420,13 +446,15 @@ void get_btc() {
       // 1. 현재 가격(lastPrice) 추출
       int price_idx = payload.indexOf("\"lastPrice\":\"");
       if (price_idx != -1) {
+        MarketData data;
+        { DataLock lock; data = btc_data; }   // 지역 사본에서 파싱 — 화면이 읽는 중인 String을 직접 바꾸지 않는다
         int price_end = payload.indexOf("\"", price_idx + 13);
         String rawPrice = payload.substring(price_idx + 13, price_end);
         
         // 소수점 이하는 버리고 정수 부분만 사용 (가독성)
         int dot_idx = rawPrice.indexOf(".");
         if (dot_idx != -1) rawPrice = rawPrice.substring(0, dot_idx);
-        btc_data.price = addCommas(rawPrice);
+        data.price = addCommas(rawPrice);
 
         // 2. 24시간 변동폭(priceChange) 추출
         int change_idx = payload.indexOf("\"priceChange\":\"");
@@ -437,11 +465,11 @@ void get_btc() {
           if (dot_c_idx != -1) rawChange = rawChange.substring(0, dot_c_idx);
           
           float chgVal = rawChange.toFloat();
-          if (chgVal > 0) btc_data.change = "+" + addCommas(rawChange); 
+          if (chgVal > 0) data.change = "+" + addCommas(rawChange); 
           else if (chgVal < 0) {
             rawChange.replace("-", ""); 
-            btc_data.change = "-" + addCommas(rawChange);
-          } else btc_data.change = "0";
+            data.change = "-" + addCommas(rawChange);
+          } else data.change = "0";
         }
 
         // 3. 24시간 변동률(priceChangePercent) 추출
@@ -449,24 +477,26 @@ void get_btc() {
         if (percent_idx != -1) {
           int percent_end = payload.indexOf("\"", percent_idx + 22);
           float percent = payload.substring(percent_idx + 22, percent_end).toFloat();
-          if (percent > 0) btc_data.percent = "+" + String(percent, 2) + "%";
-          else if (percent < 0) btc_data.percent = String(percent, 2) + "%";
-          else btc_data.percent = "0.00%";
+          if (percent > 0) data.percent = "+" + String(percent, 2) + "%";
+          else if (percent < 0) data.percent = String(percent, 2) + "%";
+          else data.percent = "0.00%";
         }
-        Serial.printf("[SUCCESS] BTC: %s\n", btc_data.price.c_str());
+        Serial.printf("[SUCCESS] BTC: %s\n", data.price.c_str());
+        { DataLock lock; btc_data = data; }
         success = true;
       }
     }
     https.end();
 
-    if (success) return;
+    if (success) return true;
     Serial.println("[ERROR] BTC: Fail to fetch, retrying...");
     vTaskDelay(500 / portTICK_PERIOD_MS);
   }
+  return false;
 }
 
-void get_usdkrw() {
-  if (WiFi.status() != WL_CONNECTED) return;
+bool get_usdkrw() {
+  if (WiFi.status() != WL_CONNECTED) return false;
   
   for (int retry = 0; retry < 3; retry++) {
     bool success = false;
@@ -490,10 +520,12 @@ void get_usdkrw() {
       int price_idx = payload.indexOf("\"regularMarketPrice\":");
       float currentPrice = 0;
       if (price_idx != -1) {
+        MarketData data;
+        { DataLock lock; data = usdkrw_data; }   // 지역 사본에서 파싱 — 화면이 읽는 중인 String을 직접 바꾸지 않는다
         int price_end = payload.indexOf(",", price_idx);
         String rawPrice = payload.substring(price_idx + 21, price_end);
         currentPrice = rawPrice.toFloat();
-        usdkrw_data.price = String(currentPrice, 2); 
+        data.price = String(currentPrice, 2); 
 
         // 2. 전일 종가(chartPreviousClose) 추출 (등락폭 계산용)
         int prev_idx = payload.indexOf("\"chartPreviousClose\":");
@@ -510,26 +542,28 @@ void get_usdkrw() {
           float percentVal = (changeVal / prevPrice) * 100.0;
           
           if (changeVal > 0) {
-            usdkrw_data.change = "+" + String(changeVal, 2);
-            usdkrw_data.percent = "+" + String(percentVal, 2) + "%";
+            data.change = "+" + String(changeVal, 2);
+            data.percent = "+" + String(percentVal, 2) + "%";
           } else if (changeVal < 0) {
-            usdkrw_data.change = String(changeVal, 2);
-            usdkrw_data.percent = String(percentVal, 2) + "%";
+            data.change = String(changeVal, 2);
+            data.percent = String(percentVal, 2) + "%";
           } else {
-            usdkrw_data.change = "0.00";
-            usdkrw_data.percent = "0.00%";
+            data.change = "0.00";
+            data.percent = "0.00%";
           }
         }
-        Serial.printf("[SUCCESS] USD/KRW: %s\n", usdkrw_data.price.c_str());
+        Serial.printf("[SUCCESS] USD/KRW: %s\n", data.price.c_str());
+        { DataLock lock; usdkrw_data = data; }
         success = true;
       }
     }
     https.end();
 
-    if (success) return;
+    if (success) return true;
     Serial.println("[ERROR] USD/KRW: Fail to fetch, retrying...");
     vTaskDelay(500 / portTICK_PERIOD_MS);
   }
+  return false;
 }
 
 // --- 가시성 판단 로직 ---
@@ -586,17 +620,39 @@ bool isUsMarketOpen() {
 }
 
 // --- 🚀 백그라운드 데이터 수집 태스크 ---
+
+/**
+ * 위젯 하나를 수집하고 다음 수집 예정 시각을 정한다.
+ * @param show_progress true면 수집 중 OLED에 "Updating..."을 표시한다
+ * @details 성공하면 정기 주기(금융 1분·기타 30분) 뒤, 실패하면 INTERVAL_RETRY 뒤에 다시 수집한다.
+ *          실패해도 update_flag를 세워 "Updating..." 화면을 이전 값으로 되돌린다.
+ */
+static void fetchWidget(int w, bool show_progress, unsigned long next_due[]) {
+  const WidgetUpdateInfo &info = widgets_info[w];
+  if (show_progress) *info.is_updating = true;
+  bool ok = info.fetch();
+  if (show_progress) *info.is_updating = false;
+
+  unsigned long interval = info.is_finance ? INTERVAL_FINANCE : INTERVAL_SLOW;
+  next_due[w] = millis() + (ok ? interval : INTERVAL_RETRY);
+
+  portENTER_CRITICAL(&updateMux);
+  update_flag |= info.flag_mask;
+  portEXIT_CRITICAL(&updateMux);
+}
+
 void dataTask(void *pvParameters) {
-  static unsigned long last_widget_fetches[MAX_WIDGET_RECORDS] = {0};
+  static unsigned long next_due[MAX_WIDGET_RECORDS] = {0};   // 위젯별 다음 수집 예정 시각 (millis)
 
   for (;;) {
-    unsigned long now = millis();
     if (WiFi.status() == WL_CONNECTED) {
       uint16_t processed_mask = 0;
 
       // --- 강제 업데이트 플래그 확인 ---
+      // 읽는 즉시 지운다 — 수집 도중 들어온 새 요청은 다음 바퀴에서 처리된다 (끝에서 지우면 그 요청이 사라진다)
       portENTER_CRITICAL(&updateMux);
       bool local_force = force_update;
+      force_update = false;
       portEXIT_CRITICAL(&updateMux);
 
       // --- 초기 로딩 또는 강제 업데이트 시 처리 (모든 활성화된 위젯 대상) ---
@@ -612,14 +668,10 @@ void dataTask(void *pvParameters) {
             if (type == W_NONE || type == W_TIME || type == W_CALENDAR) continue;
             for (int w = 0; w < WIDGET_COUNT; w++) {
               if (widgets_info[w].type == type) {
-                *widgets_info[w].is_updating = true;   // OLED에 "Updating..." 표시
-                widgets_info[w].fetch();
-                *widgets_info[w].is_updating = false;  // 완료 후 해제
-                last_widget_fetches[w] = now;
-                portENTER_CRITICAL(&updateMux);
-                update_flag |= widgets_info[w].flag_mask;
-                portEXIT_CRITICAL(&updateMux);
-                processed_mask |= widgets_info[w].flag_mask;
+                if (!(processed_mask & widgets_info[w].flag_mask)) {
+                  fetchWidget(w, true, next_due);
+                  processed_mask |= widgets_info[w].flag_mask;
+                }
                 break;
               }
             }
@@ -629,11 +681,7 @@ void dataTask(void *pvParameters) {
         // Pass 2: 나머지 모든 활성화된 위젯들 배경에서 조용히 수집 (시장 시간 무관)
         for (int w = 0; w < WIDGET_COUNT; w++) {
           if (!(processed_mask & widgets_info[w].flag_mask) && isWidgetActive(widgets_info[w].type)) {
-            widgets_info[w].fetch();
-            last_widget_fetches[w] = now;
-            portENTER_CRITICAL(&updateMux);
-            update_flag |= widgets_info[w].flag_mask;
-            portEXIT_CRITICAL(&updateMux);
+            fetchWidget(w, false, next_due);
             processed_mask |= widgets_info[w].flag_mask;
           }
         }
@@ -643,6 +691,7 @@ void dataTask(void *pvParameters) {
       // --- 정기 주기별 개별 업데이트 체크 (현재 페이지 위젯 대상) ---
       // 주의: 강제 업데이트 시에는 이미 위에서 처리되었으므로 processed_mask에 의해 스킵됨
       if (current_page <= MAX_DATA_PAGE) {
+        unsigned long now = millis();
         int start_idx = (current_page - 1) * 4;
         for (int i = start_idx; i < start_idx + 4; i++) {
           WidgetType type = SCREEN_MAP[i];
@@ -652,8 +701,7 @@ void dataTask(void *pvParameters) {
             if (widgets_info[w].type == type) {
               if (processed_mask & widgets_info[w].flag_mask) break;
 
-              unsigned long interval = widgets_info[w].is_finance ? INTERVAL_FINANCE : INTERVAL_SLOW;
-              bool needs_update = (now - last_widget_fetches[w] >= interval);
+              bool needs_update = (long)(now - next_due[w]) >= 0;   // millis 넘침에도 안전한 비교
 
               if (needs_update) {
                 // 시장 개폐 시간에 따른 예외 처리 (정기 업데이트 시에만 적용)
@@ -662,14 +710,7 @@ void dataTask(void *pvParameters) {
               }
 
               if (needs_update) {
-                *widgets_info[w].is_updating = true;
-                widgets_info[w].fetch();
-                last_widget_fetches[w] = now;
-                *widgets_info[w].is_updating = false;
-                
-                portENTER_CRITICAL(&updateMux);
-                update_flag |= widgets_info[w].flag_mask;
-                portEXIT_CRITICAL(&updateMux);
+                fetchWidget(w, true, next_due);
                 processed_mask |= widgets_info[w].flag_mask;
               }
               break;
@@ -678,9 +719,6 @@ void dataTask(void *pvParameters) {
         }
       }
     }
-    portENTER_CRITICAL(&updateMux);  // force_update 쓰기 보호
-    force_update = false;
-    portEXIT_CRITICAL(&updateMux);
     is_waiting = true;
     vTaskDelay(pdMS_TO_TICKS(1000));
     is_waiting = false;

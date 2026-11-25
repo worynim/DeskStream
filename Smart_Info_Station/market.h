@@ -25,11 +25,11 @@ extern MarketData kpi200_data;
 extern MarketData futures_data;
 
 // --- 함수 프로토타입 ---
-void get_kospi();
-void get_kosdaq();
-void get_kpi200();
-void get_futures();
-void get_SnP500();
-void get_nasdaq();
+bool get_kospi();  // 성공 시 true
+bool get_kosdaq();  // 성공 시 true
+bool get_kpi200();  // 성공 시 true
+bool get_futures();  // 성공 시 true
+bool get_SnP500();  // 성공 시 true
+bool get_nasdaq();  // 성공 시 true
 
 #endif

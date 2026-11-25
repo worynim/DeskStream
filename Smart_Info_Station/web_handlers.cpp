@@ -84,23 +84,26 @@ void handleSet() {
   bool changed = false;
   bool tz_changed = false;
 
-  if (server.hasArg("channel") && server.arg("channel").length() > 0) {
-    String new_channel = server.arg("channel");
-    if (new_channel != youtube_channel) {
-      youtube_channel = new_channel;
-      subscribe_num = "";
+  {
+    DataLock lock;   // 수집 설정·데이터는 dataTask도 읽고 쓴다 — 바꾸는 동안 잠근다
+    if (server.hasArg("channel") && server.arg("channel").length() > 0) {
+      String new_channel = server.arg("channel");
+      if (new_channel != youtube_channel) {
+        youtube_channel = new_channel;
+        subscribe_num = "";
+        changed = true;
+      }
+    }
+    if (server.hasArg("location") && server.arg("location").length() > 0) {
+      dust_location = server.arg("location");
+      dust_10_num = -1;
       changed = true;
     }
-  }
-  if (server.hasArg("location") && server.arg("location").length() > 0) {
-    dust_location = server.arg("location");
-    dust_10_num = -1;
-    changed = true;
-  }
-  if (server.hasArg("weather_code") && server.arg("weather_code").length() > 0) {
-    weather_location_code = server.arg("weather_code");
-    announcement_time = "";
-    changed = true;
+    if (server.hasArg("weather_code") && server.arg("weather_code").length() > 0) {
+      weather_location_code = server.arg("weather_code");
+      announcement_time = "";
+      changed = true;
+    }
   }
   if (server.hasArg("tz_offset") && server.arg("tz_offset").length() > 0) {
     // [보안] 범위 검사 — 실제 시간대는 UTC-12 ~ UTC+14다. 범위 밖 값은 무시하고 기존 값을 유지한다.
