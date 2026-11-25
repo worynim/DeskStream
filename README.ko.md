@@ -253,4 +253,16 @@ PC 없이 보드에서 프로젝트를 바꿀 수 있게 해 주는 런처입니
 
 ---
 
+## 📜 라이선스
+
+| 대상 | 라이선스 | 파일 |
+|---|---|---|
+| 하드웨어 설계 (회로도 [`DeskStream_Schematic.pdf`](./DeskStream_Schematic.pdf), [`hardware.md`](./hardware.md)) | CERN-OHL-S-2.0 | [`LICENSE-HARDWARE`](./LICENSE-HARDWARE) |
+| 소프트웨어 (펌웨어, DeskStreamCore 라이브러리, PC 클라이언트, 웹 플래셔, 스크립트 등 그 밖의 전부) | MIT | [`LICENSE`](./LICENSE) |
+
+- 저장소에 포함된 외부 글꼴 데이터(갈무리7, Noto Sans KR/SC, Source Han Sans, Roboto Condensed, 나눔 등을 변환한 것)는 각 글꼴의 원래 라이선스를 따릅니다. 갈무리7은 SIL OFL 1.1입니다.
+- 이 설계로 보드를 만들어 배포할 때는 CERN-OHL-S-2.0에 따라 설계 소스 위치(이 저장소 주소)를 함께 표기해야 합니다.
+
+---
+
 © 2026 DeskStream Project.

@@ -253,4 +253,16 @@ Set the repository's **Settings → Pages → Build and deployment → Source** 
 
 ---
 
+## 📜 License
+
+| Scope | License | File |
+|---|---|---|
+| Hardware design (schematic [`DeskStream_Schematic.pdf`](./DeskStream_Schematic.pdf), [`hardware.md`](./hardware.md)) | CERN-OHL-S-2.0 | [`LICENSE-HARDWARE`](./LICENSE-HARDWARE) |
+| Software (firmware, the DeskStreamCore library, PC clients, the web flasher, scripts, and everything else) | MIT | [`LICENSE`](./LICENSE) |
+
+- Bundled third-party font data (converted from Galmuri7, Noto Sans KR/SC, Source Han Sans, Roboto Condensed, Nanum and others) remains under each font's original license. Galmuri7 is under SIL OFL 1.1.
+- If you make and distribute boards from this design, CERN-OHL-S-2.0 requires you to mark them with the design's source location (this repository's URL).
+
+---
+
 © 2026 DeskStream Project.
