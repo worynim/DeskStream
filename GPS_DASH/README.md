@@ -1,63 +1,64 @@
-# ESP32-C3 4-OLED GPS 대시보드 (GPS_DASH)
+**English** | [한국어](README.ko.md)
 
-이 프로젝트는 **ESP32 C3 SuperMini** 보드와 4개의 OLED 디스플레이를 사용하여 실시간 GPS 정보를 시각화하는 하드웨어 대시보드입니다. 모든 데이터 수집 및 웹 서버 기능을 제거하고 오직 **하드웨어 제어와 GPS 데이터 디스플레이**에 집중하도록 리팩토링되었습니다.
+# ESP32-C3 4-OLED GPS Dashboard (GPS_DASH)
+
+A hardware dashboard that visualizes real-time GPS information using an **ESP32 C3 SuperMini** board and four OLED displays. It was refactored to remove all data collection and web server features and focus solely on **hardware control and GPS data display**.
 
 https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
-## 🚀 주요 기능 및 특징
+## 🚀 Key Features
 
-1.  **실시간 GPS 정보 시각화 (8개 모드 순환)**
-    - **통합 대시보드**: 4개의 OLED에 각각 원하는 정보를 독립적으로 배치 가능.
-    - **제공 모드**: 시계(날짜포함), 속도계, 나침반, 위성 상태(DOP), 위도/경도, 고도, 달력(그리드), 주행 통계(Timer/Dist).
-2.  **독립적 화면 제어 (4포인트 버튼)**
-    - 각 OLED 하단에 배치된 버튼을 통해 독립적으로 표시 정보를 변경할 수 있습니다.
-3.  **하이브리드 I2C 아키텍처**
+1.  **Real-time GPS visualization (cycles through 8 modes)**
+    - **Integrated dashboard**: Place the information you want independently on each of the 4 OLEDs.
+    - **Modes**: Clock (with date), speedometer, compass, satellite status (DOP), latitude/longitude, altitude, calendar (grid), trip statistics (timer/distance).
+2.  **Independent screen control (4-point buttons)**
+    - The button below each OLED changes what that screen shows independently.
+3.  **Hybrid I2C architecture**
     - **OLED 1, 2 (Hardware I2C)**: SDA(5), SCL(6)
     - **OLED 3, 4 (Software I2C)**: SDA(2), SCL(3)
-4.  **GPS 인터페이스 (UART)**
-    - Pin 20(RX), 21(TX)번을 통해 **NEO-6M** 모듈로부터 5Hz 고속 데이터를 수신합니다.
-    - **GPS 신뢰성 최적화**:
-        - **UBX 바이너리 직접 제어**: NMEA 명령 대신 u-blox 전용 UBX 메시지(CFG-MSG, CFG-RATE)를 사용합니다.
-        - **이중 초기화 방지**: 라이브러리 내부 초기화 충돌을 제거하여 핀 매핑 안정성을 확보했습니다.
-        - **GSV 직접 파싱**: 표준 라이브러리에서 지원하지 않는 '하늘에 보이는 전체 위성 수'를 실시간 파싱하여 표시합니다.
-        - **시간 우선 표시**: 위치 고정(Fix) 전이라도 위성 신호가 감지되면 즉시 시간을 업데이트합니다.
-5.  **비휘발성 설정 보존 (NVS)**
-    - 각 화면의 표시 모드와 반전 설정을 내부 메모리에 저장하여, 재부팅 후에도 마지막 설정을 자동으로 복구합니다.
+4.  **GPS interface (UART)**
+    - Receives 5Hz high-rate data from a **NEO-6M** module on pins 20 (RX) and 21 (TX).
+    - **GPS reliability optimizations**:
+        - **Direct UBX binary control**: Uses u-blox UBX messages (CFG-MSG, CFG-RATE) instead of NMEA commands.
+        - **No double initialization**: Removing the conflict with the library's internal initialization keeps the pin mapping stable.
+        - **Direct GSV parsing**: Parses and shows in real time the 'total number of satellites in view', which the standard library does not provide.
+        - **Time first**: Updates the time as soon as satellite signals are detected, even before a position fix.
+5.  **Non-volatile settings (NVS)**
+    - Each screen's display mode and inversion setting are saved in internal memory and restored automatically after a reboot.
 
-## 🛠 하드웨어 구성 요소
+## 🛠 Hardware Components
 
 -   **Main Board**: ESP32 C3 SuperMini
--   **Display**: 0.96 inch SSD1306 OLED (128x64) x 4개
--   **GPS Module**: **U-blox NEO-6M** (9600bps 초기화 후 5Hz 상향 고정)
-- **구성**: 짧게 누르면 모드 전환, 1초 이상 길게 누르면 특수 기능 실행.
-- **오디오 피드백**: 부저(GPIO 7)를 통해 시스템 상태 및 버튼 입력에 대한 다양한 멜로디 제공.
-    - **시스템 시작**: "띠리리링~" 라이징 스타트업 사운드 (4단계 상승음).
-    - **GPS Lock**: 위성 고정 성공 시 기분 좋은 상승 알림음.
-    - **GPS Unlock**: 위성 신호 상실 시 주의를 환기하는 하강 알림음.
-    - **버튼 입력**: 숏 프레스(3000Hz), 롱 프레스(2000Hz) 구별 발성.
-- **연결 핀 및 기능**:
-    - **BTN 1 (Pin 1)**: (Short) OLED 1 모드 순환 / (Long) 화면 전체 반전(Normal/Mirror/180/Flip) 루핑 제어.
-    - **BTN 2 (Pin 4)**: (Short) OLED 2 모드 순환 / (Long) **버튼 기능 도움말(INFO)** 모드 토글.
-    - **BTN 3 (Pin 10)**: (Short) OLED 3 모드 순환 / (Long) 주행 통계(Trip) 리셋.
-    - **BTN 4 (Pin 9)**: (Short) OLED 4 모드 순환 / (Long) 데모 시뮬레이션 모드 토글.
-    - **통합 배선**: GPS UART: RX(20), TX(21) / I2C: SDA(5/2), SCL(6/3) / Buzzer(7).
+-   **Display**: 0.96 inch SSD1306 OLED (128x64) x 4
+-   **GPS Module**: **U-blox NEO-6M** (initialized at 9600bps, then fixed at 5Hz)
+- **Layout**: Short press switches modes; holding for more than 1 second runs a special function.
+- **Audio feedback**: The buzzer (GPIO 7) plays various melodies for system state and button input.
+    - **System start**: A rising "dee-ree-ree-ring~" startup sound (4 ascending steps).
+    - **GPS Lock**: A pleasant rising tone when a satellite fix is acquired.
+    - **GPS Unlock**: A falling warning tone when the satellite signal is lost.
+    - **Button input**: Distinct tones for short press (3000Hz) and long press (2000Hz).
+- **Pins and functions**:
+    - **BTN 1 (Pin 1)**: (Short) cycle OLED 1 mode / (Long) loop through whole-screen orientation (Normal/Mirror/180/Flip).
+    - **BTN 2 (Pin 4)**: (Short) cycle OLED 2 mode / (Long) toggle **button help (INFO)** mode.
+    - **BTN 3 (Pin 10)**: (Short) cycle OLED 3 mode / (Long) reset trip statistics.
+    - **BTN 4 (Pin 9)**: (Short) cycle OLED 4 mode / (Long) toggle demo simulation mode.
+    - **Wiring summary**: GPS UART: RX(20), TX(21) / I2C: SDA(5/2), SCL(6/3) / Buzzer(7).
 
-## ⚙️ 소프트웨어 설정
+## ⚙️ Software Setup
 
-1.  **필수 라이브러리**:
+1.  **Required libraries**:
     - `U8g2`
-    - `Adafruit GPS Library` (GPS 파싱용)
-    - 공통 라이브러리 [DeskStreamCore](../libraries/DeskStreamCore/) — 빌드 전 저장소 루트에서 `bash scripts/link-arduino-lib.sh` 1회 (화면 전송·버튼·부저, v2.7.0)
-2.  **보드 설정**:
+    - `Adafruit GPS Library` (for GPS parsing)
+    - Shared library [DeskStreamCore](../libraries/DeskStreamCore/) — run `bash scripts/link-arduino-lib.sh` once from the repository root before building (display transfer, buttons, buzzer, v2.7.0)
+2.  **Board settings**:
     - Board: `ESP32C3 Dev Module`
-    - USB CDC On Boot: `Enabled` (디버그 로그 확인용)
+    - USB CDC On Boot: `Enabled` (for debug logs)
 
-## 📁 파일 구조
+## 📁 Files
 
-- `GPS_DASH.ino`: 메인 제어 루프, 버튼 입력 처리 및 주행 통계 관리.
-- `display_handler.h`: 4개 OLED 초기화, 8종류 화면 렌더링 엔진 및 UI 그래픽.
-- `gps_handler.h`: GPS 데이터 수신, UBX 설정 및 NMEA/GSV 파싱 전용 모듈.
-- `ota_handler.h`: WiFi AP 모드, OTA 펌웨어 업데이트 및 실시간 디버그 로그.
+- `GPS_DASH.ino`: Main control loop, button input handling and trip statistics.
+- `display_handler.h`: Initialization of the 4 OLEDs, rendering engine for the 8 screen types and UI graphics.
+- `gps_handler.h`: Dedicated module for GPS data reception, UBX configuration and NMEA/GSV parsing.
+- `ota_handler.h`: WiFi AP mode, OTA firmware updates and real-time debug log.
 
 ---
-

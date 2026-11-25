@@ -1,3 +1,4 @@
+import type { Locale } from "./i18n";
 import type { ClientEntry, ClientPlatform } from "./types";
 
 /** DeskStream 저장소 정보 (README·클라이언트 다운로드 링크 생성에 사용) */
@@ -21,7 +22,8 @@ export function clientDownloadUrl(client: ClientEntry, platform: ClientPlatform)
   return `${REPOSITORY_URL}/releases/download/${encodeURIComponent(tag)}/${encodeURIComponent(file)}`;
 }
 
-/** 프로젝트별 README 링크 (GitHub) */
-export function readmeUrl(projectId: string): string {
-  return `${REPOSITORY_URL}/blob/${REPOSITORY_BRANCH}/${encodeURIComponent(projectId)}/README.md`;
+/** 프로젝트별 README 링크 (GitHub). 한국어는 README.ko.md, 영어는 README.md */
+export function readmeUrl(projectId: string, locale: Locale): string {
+  const file = locale === "ko" ? "README.ko.md" : "README.md";
+  return `${REPOSITORY_URL}/blob/${REPOSITORY_BRANCH}/${encodeURIComponent(projectId)}/${file}`;
 }

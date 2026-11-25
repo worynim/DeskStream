@@ -1,234 +1,236 @@
-# 🤖 Agent_Monitor — AI 개발 에이전트 모니터 (v0.8.2)
+**English** | [한국어](README.ko.md)
 
-Claude Code 세션의 작업 상태를 DeskStream 4-OLED에 실시간으로 보여주는 책상 위 모니터입니다.
-OLED 한 장이 세션 하나를 맡아 **생각 중 / 실행 중(도구·명령) / 승인 대기 / 입력 대기 / 완료 / 오류**를 표시하고,
-상태가 바뀌면 부저로 알려 줍니다. 권한 요청은 **장치 버튼으로 승인/거절**하고, 버튼을 길게 눌러 **PC 명령**(앱 앞으로 · 셸 명령 · 키 입력)을 실행할 수 있습니다. USB 케이블 또는 **BLE 무선**으로 연결되고, 메뉴 막대 **트레이 아이콘**으로 실행할 수 있습니다.
+# 🤖 Agent_Monitor — AI Coding Agent Monitor (v0.8.2)
 
-> 현재 단계: **P4 — BLE · 서명 · 트레이 · 웹 플래셔** 완료. 계획·조사: `PLAN.md`, 훅 검증 결과: [p0_spike/RESULTS.md](./p0_spike/RESULTS.md)
+A desk monitor that shows the working state of Claude Code sessions live on the DeskStream 4-OLED.
+Each OLED handles one session and shows **thinking / running (tool · command) / awaiting approval / awaiting input / done / error**,
+and the buzzer alerts you when the state changes. Permission requests can be **approved or denied with the device buttons**, and long-pressing a button runs a **PC command** (bring app to front · shell command · key input). It connects over a USB cable or **BLE wireless**, and can be started from a menu bar **tray icon**.
 
-## 구성
+> Current stage: **P4 — BLE · signing · tray · web flasher** complete. Plan and research: `PLAN.md`, hook verification results: [p0_spike/RESULTS.md](./p0_spike/RESULTS.md)
+
+## Architecture
 
 ```
-Claude Code ──HTTP 훅──▶ bridge_py/agent_bridge.py (PC 데몬) ──USB 시리얼 또는 BLE(JSON Lines)──▶ DeskStream
-                         127.0.0.1:9230                                                          OLED 4 · 버튼 · 부저
+Claude Code ──HTTP hooks──▶ bridge_py/agent_bridge.py (PC daemon) ──USB serial or BLE (JSON Lines)──▶ DeskStream
+                            127.0.0.1:9230                                                          4 OLEDs · buttons · buzzer
 ```
 
-- 연결은 **USB 우선, 없으면 BLE**("DeskStream Agent")입니다. BLE 사용 중 USB가 꽂히면 USB로 바꿉니다.
-- Claude Code CLI 와 **데스크톱 앱(Code 탭) 세션** 모두 훅을 보냅니다 (전역 훅 설치 시).
+- Connection is **USB first, BLE otherwise** ("DeskStream Agent"). If USB is plugged in while using BLE, it switches to USB.
+- Both the Claude Code CLI and **desktop app (Code tab) sessions** send hooks (when hooks are installed globally).
 
-- 상태 훅에는 **즉시 빈 응답**을 돌려줍니다. 데몬이나 장치가 꺼져 있어도 Claude Code 작업에는 영향이 없습니다.
-- 권한 요청(PermissionRequest)은 장치가 연결돼 있을 때만 최대 **290초** 응답을 붙잡고 버튼 결정을 기다립니다.
-  그동안에도 터미널 대화상자가 함께 떠 있어 **먼저 답한 쪽**이 결정합니다.
-  장치 미연결 · 시간 초과 · LATER 이면 빈 응답 → 터미널에서 결정합니다 (**자동 허용·자동 거절 없음**).
-- 터미널에서 먼저 결정하면 같은 세션의 다음 이벤트(도구 실행 완료·턴 종료 등)로 장치 승인 화면이 닫힙니다.
-- 화면 글꼴은 **갈무리7**(8px, OFL-1.1) 하나로 영문·한글(11,172자)을 표시합니다. 글꼴에 없는 글자(한자·이모지 등)는 그려지지 않습니다. 글자 수 제한은 바이트 기준이라 한글은 이름·도구 6~7자, 개요 요약 32자(2줄), 승인 화면 요약 80자, 상세 답변 한글 576자(4페이지) 정도입니다.
+- State hooks get an **immediate empty response**. Claude Code work is unaffected even if the daemon or device is off.
+- A permission request (PermissionRequest) holds the response for up to **290 seconds** waiting for a button decision, but only while the device is connected.
+  The terminal dialog is shown at the same time, and **whichever answers first** decides.
+  If the device is disconnected, times out or LATER is chosen, an empty response is returned → you decide in the terminal (**no auto-allow or auto-deny**).
+- If you decide in the terminal first, the device's approval screen closes on the session's next event (tool completed, turn ended, etc.).
+- A single font, **Galmuri7** (8px, OFL-1.1), displays both English and Korean (11,172 syllables). Characters not in the font (Chinese characters, emoji, etc.) are not drawn. Text limits are in bytes, so in Korean that is about 6–7 characters for names and tools, 32 characters (2 lines) for the overview summary, 80 characters for the approval summary, and 576 characters (4 pages) for the detail reply.
 
-### BLE 보안 — USB 로 키 등록 + 서명
+### BLE Security — Key Registration over USB + Signing
 
-BLE 는 근처 누구나 접속할 수 있어, 같은 이름의 **가짜 장치**가 데몬에 "승인"이나 "PC 명령" 신호를 보낼 위험이 있습니다.
-(macOS 의 BLE 라이브러리는 페어링된 장치인지 확인할 수 없어 BLE 페어링만으로는 막지 못합니다.)
+Anyone nearby can connect over BLE, so a **fake device** with the same name could send "approve" or "PC command" signals to the daemon.
+(macOS's BLE library cannot tell whether a device is paired, so BLE pairing alone cannot prevent this.)
 
-1. **USB 로 처음 연결**하면 데몬이 32바이트 비밀키를 만들어 `~/.deskstream/device_key`(권한 600)에 두고 장치에 등록합니다. 장치는 키 등록을 **USB 에서만** 받습니다.
-2. BLE 로 연결될 때마다 데몬이 새 무작위 값(nonce)을 보냅니다.
-3. BLE 로 오는 버튼·승인 신호에는 `HMAC-SHA256(키, nonce + 본문)` 서명과 증가 카운터가 붙고, 데몬은 둘 다 맞을 때만 받습니다. 가짜 장치 · 변조 · 재전송은 거부됩니다.
+1. On the **first USB connection**, the daemon creates a 32-byte secret key, stores it in `~/.deskstream/device_key` (mode 600) and registers it with the device. The device accepts key registration **over USB only**.
+2. On every BLE connection, the daemon sends a new random value (nonce).
+3. Button and approval signals arriving over BLE carry an `HMAC-SHA256(key, nonce + body)` signature and an increasing counter, and the daemon accepts them only when both are valid. Fake devices, tampering and replays are rejected.
 
-- 데몬이 BLE 전용(기본)으로 실행 중이어도, 장치 키가 다르면 **USB 포트를 잠깐 열어 키만 등록하고 바로 닫습니다**. USB 가 꽂혀 있지 않으면 30초마다 다시 시도하므로 나중에 케이블을 꽂아도 됩니다.
-- 장치는 키를 **하나만** 저장합니다. PC 를 바꿔 쓰면 마지막으로 등록한 PC 의 키가 남습니다 — 여러 PC 에서 BLE 로 쓰려면 `~/.deskstream/device_key` 를 같은 파일로 맞추세요.
-- 키가 없는(또는 다른) 장치를 BLE 로 쓰면 승인 화면에 `PAIR VIA USB` 가 뜨고 버튼 신호(상세 화면·승인·PC 명령)는 거부됩니다 → USB 로 한 번 연결하세요.
-- 데몬 → 장치 방향(화면 표시)은 서명하지 않습니다. 근처 기기가 장치에 접속해 **가짜 화면을 띄울 수는** 있지만 PC 쪽 동작을 일으킬 수는 없습니다.
+- Even when the daemon runs BLE-only (the default), if the device key differs it **briefly opens the USB port just to register the key and closes it right away**. If USB is not plugged in, it retries every 30 seconds, so you can plug in the cable later.
+- The device stores **only one** key. If you switch PCs, the key of the last PC that registered remains — to use BLE from several PCs, make `~/.deskstream/device_key` the same file on each.
+- If a device with no (or a different) key is used over BLE, the approval screen shows `PAIR VIA USB` and button signals (detail screen, approval, PC commands) are rejected → connect once over USB.
+- The daemon → device direction (screen display) is not signed. A nearby device could connect and **show a fake screen**, but it cannot trigger anything on the PC.
 
-## 화면
+## Screens
 
-| 상태 | 아이콘 | 표시 |
+| State | Icon | Shows |
 |:--|:--|:--|
-| IDLE | 빈 원 | 대기 |
-| THINKING | 점 3개 애니메이션 | 프롬프트 처리 중 |
-| RUNNING | 회전 스피너 | 도구 이름 + 명령/파일 요약 |
-| APPROVE? | `!` | 권한 요청 — 화면 전체 반전 깜빡임 + 알림음 |
-| NEED INPUT | `?` | 질문·입력 대기 — 반전 깜빡임 + 알림음 |
-| DONE | 체크 + 구분선 아래 반전 | 마지막 답변 요약 + 완료음 |
-| ERROR | X | API 오류로 턴 종료 + 오류음 |
+| IDLE | Empty circle | Waiting |
+| THINKING | 3-dot animation | Processing the prompt |
+| RUNNING | Rotating spinner | Tool name + command/file summary |
+| APPROVE? | `!` | Permission request — whole screen blinks inverted + alert sound |
+| NEED INPUT | `?` | Waiting for a question/input — inverted blinking + alert sound |
+| DONE | Check + inverted below the divider | Last reply summary + done sound |
+| ERROR | X | Turn ended with an API error + error sound |
 
-- 오른쪽 위: 현재 상태가 시작된 뒤 경과 시간. 도구 실패가 있으면 도구 줄 오른쪽에 `E<횟수>`.
-- 세션이 5개 이상이면 승인/입력 대기가 아닌 가장 오래된 세션 자리를 새 세션이 씁니다.
-- PC 데몬 신호(2초 하트비트)가 6초 동안 없으면 "PC link lost".
+- Top right: time elapsed since the current state started. If a tool failed, `E<count>` appears at the right of the tool line.
+- With 5 or more sessions, a new session takes the slot of the oldest session that is not awaiting approval/input.
+- If there is no PC daemon signal (2-second heartbeat) for 6 seconds, "PC link lost" is shown.
 
-### 승인 화면 (권한 요청 대기 중 — 4화면이 한 장으로)
+### Approval Screen (while a permission request is pending — 4 screens as one)
 
 ```
 ┌──────────────┬──────────────┬──────────────┬──────────────┐
-│APPROVE?      │web-app       │Bash          │1/2 0:12      │  ← 반전 바, 깜빡임
-│rm -rf node_mo│dules && npm i│nstall        │              │  ← 명령 요약 (화면당 한 줄 128px × 2줄)
+│APPROVE?      │web-app       │Bash          │1/2 0:12      │  ← inverted bar, blinking
+│rm -rf node_mo│dules && npm i│nstall        │              │  ← command summary (one 128px line per screen × 2 lines)
 │  [APPROVE]   │   [NEXT >]   │    [DENY]    │   [LATER]    │
 └──────────────┴──────────────┴──────────────┴──────────────┘
      BTN1           BTN2           BTN3           BTN4
 ```
 
-### 상세 화면 (개요에서 슬롯 버튼 짧게)
+### Detail Screen (short press of a slot button on the overview)
 
-| 화면 1 | 화면 2 | 화면 3 · 4 |
+| Screen 1 | Screen 2 | Screens 3 · 4 |
 |:--|:--|:--|
-| 이름 · 상태 · 경과 · 권한 모드(`mode plan` 등) · 하위 에이전트/오류 수 | 최근 도구 4개 — `>` 실행 중 · `+` 성공 · `!` 실패 | 마지막 답변 — 최대 4페이지(한글 약 576자·영문 약 750자), 한 페이지 = 9줄 |
+| Name · state · elapsed time · permission mode (`mode plan` etc.) · sub-agent/error counts | Last 4 tools — `>` running · `+` succeeded · `!` failed | Last reply — up to 4 pages (about 576 Korean / 750 English characters), one page = 9 lines |
 
-- 아래 버튼: **BTN1 = BACK**(개요로) · **BTN2 = CLOSE**(세션 닫기) · **BTN3 = < PREV** · **BTN4 = NEXT >** — 마지막 답변 **페이지 넘김**(넘길 페이지가 있을 때만 라벨이 보이고, 화면 3 오른쪽 위에 `1/4` 같은 쪽수가 나옵니다). 다른 세션은 BACK 으로 개요에 나가 그 슬롯의 버튼을 눌러 봅니다.
-- 60초 동안 버튼을 누르지 않거나 세션이 끝나면 개요로 돌아갑니다.
-- PC 명령 결과는 해당 버튼 화면 아래에 `RUN …` → `OK … exit 0` / `FAIL … exit 2` 띠로 4초간 보입니다.
-- 음소거(설정 파일 `[device] mute = true`) 중에는 개요의 OLED 4 오른쪽 위에 스피커+X 아이콘이 보이고, 버튼음·알림음·부팅음이 모두 꺼집니다.
-- **빈 슬롯**: 빈 OLED 에 **Claude Code 사용량**을 보여줍니다 — 빈 화면 중 뒤쪽 두 개에 앞에서부터 5시간(`5H USAGE`) · 주간(`WEEK USAGE`) 사용률(숫자 + 막대)과 그 아래 리셋까지 남은 시간(`reset 2h 05m`). 예: 모두 비면 OLED 3 = 5시간 · 4 = 주간, OLED 2·4 만 비면 2 = 5시간 · 4 = 주간, 하나만 비면 그 화면에 5시간. 나머지 빈 화면은 `SLOT n  empty`, 아직 받은 값이 없으면 `--`. 세션이 끝나 슬롯이 비면 다시 나타납니다.
-  - 사용량은 Claude Code 가 **상태줄(statusLine) 명령**에만 넘겨주는 값이라, 훅 설치 때 `~/.claude/settings.json` 의 `statusLine` 에 데몬으로 전달하는 명령을 함께 등록합니다 (출력이 없어 터미널 상태줄은 비어 있습니다). **이미 쓰는 statusLine 이 있으면 덮어쓰지 않으며**, 그 경우 사용량은 표시되지 않습니다.
-  - 사용량은 **Claude 구독 계정(Pro/Max)으로 로그인**했을 때만 들어옵니다. `ANTHROPIC_API_KEY` · `ANTHROPIC_AUTH_TOKEN` · `ANTHROPIC_BASE_URL` 로 API 과금(시작 화면에 `API Usage Billing`)이나 다른 모델 서버로 실행하면 값이 없어 `--` 로 남습니다. 셸 설정에 이 변수가 있다면 `env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u ANTHROPIC_BASE_URL claude` 로 실행하세요.
-  - 상태줄이 갱신될 때(Claude Code 세션이 응답을 주고받을 때)만 값이 바뀝니다. 데몬을 다시 켜면 다음 갱신까지 `--` 이고, 리셋 시각이 지나면 새 값이 올 때까지 0% 로 보입니다.
-  - **Claude 데스크톱 앱(Code 탭)만 쓰면 상태줄이 실행되지 않아 값이 멈춥니다.** 이때는 설정 파일에 `[usage] poll = true` 를 넣으면 데몬이 5분마다 사용량을 직접 조회합니다 (아래 [설정 파일](#설정-파일-선택) 참고).
+- Bottom buttons: **BTN1 = BACK** (to overview) · **BTN2 = CLOSE** (close session) · **BTN3 = < PREV** · **BTN4 = NEXT >** — **page through** the last reply (the labels appear only when there are pages to turn, and a page count like `1/4` shows at the top right of screen 3). To see another session, go BACK to the overview and press that slot's button.
+- It returns to the overview after 60 seconds without a button press or when the session ends.
+- PC command results appear for 4 seconds as a `RUN …` → `OK … exit 0` / `FAIL … exit 2` strip at the bottom of that button's screen.
+- While muted (config file `[device] mute = true`), a speaker+X icon appears at the top right of OLED 4 on the overview, and button, alert and boot sounds are all off.
+- **Empty slots**: empty OLEDs show **Claude Code usage** — the last two empty screens show, in order, 5-hour (`5H USAGE`) and weekly (`WEEK USAGE`) usage (number + bar) with the time until reset below (`reset 2h 05m`). For example: if all are empty, OLED 3 = 5-hour · 4 = weekly; if only OLED 2 and 4 are empty, 2 = 5-hour · 4 = weekly; if only one is empty, it shows 5-hour. Other empty screens show `SLOT n  empty`, and `--` until a value has been received. They reappear when a session ends and its slot empties.
+  - Usage is a value Claude Code passes only to the **statusLine command**, so installing hooks also registers a command in `statusLine` of `~/.claude/settings.json` that forwards it to the daemon (it prints nothing, so the terminal status line stays empty). **If you already use a statusLine, it is not overwritten**, and usage is not shown in that case.
+  - Usage arrives only when you are **logged in with a Claude subscription account (Pro/Max)**. If you run with API billing (`API Usage Billing` on the start screen) or another model server via `ANTHROPIC_API_KEY` · `ANTHROPIC_AUTH_TOKEN` · `ANTHROPIC_BASE_URL`, there is no value and it stays `--`. If your shell config sets these variables, run `env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u ANTHROPIC_BASE_URL claude`.
+  - The value changes only when the status line updates (when a Claude Code session exchanges replies). After restarting the daemon it shows `--` until the next update, and after the reset time passes it shows 0% until a new value arrives.
+  - **If you use only the Claude desktop app (Code tab), the status line never runs and the value freezes.** In that case add `[usage] poll = true` to the config file and the daemon queries usage itself every 5 minutes (see [config file](#4-config-file--mute--brightness--usage-polling--pc-commands-optional) below).
 
-## 버튼
+## Buttons
 
-| 화면 | 동작 | 기능 |
+| Screen | Action | Function |
 |:--|:--|:--|
-| 개요 | BTN i 짧게 | 슬롯 i 상세 화면 (완료 표시도 확인 처리 → IDLE) |
-| 개요·상세 | BTN i 길게 | 설정 파일의 PC 명령 i 실행 |
-| 상세 | BTN1 / BTN2 | 개요로 / **세션 닫기** — 보던 세션을 장치에서 지움 (새 질문·승인 요청이 오기 전까지 다시 안 보임, 승인 대기는 터미널로) |
-| 상세 | BTN3 / BTN4 | 이전 / 다음 세션 |
-| 승인 | BTN1 | **승인** — 도구가 바로 실행됨 |
-| 승인 | BTN2 | 다음 대기 요청 보기 (대기 2개 이상일 때만) |
-| 승인 | BTN3 | **거절** — Claude에게 "장치에서 거절" 메시지 전달 |
-| 승인 | BTN4 | 나중에 — 장치에서 결정하지 않고 터미널 대화상자에 맡김 |
+| Overview | BTN i short | Slot i detail screen (also acknowledges a done state → IDLE) |
+| Overview · detail | BTN i long | Run PC command i from the config file |
+| Detail | BTN1 / BTN2 | Back to overview / **close session** — removes the session from the device (hidden until a new question or approval request arrives; pending approvals go to the terminal) |
+| Detail | BTN3 / BTN4 | Previous / next session |
+| Approval | BTN1 | **Approve** — the tool runs immediately |
+| Approval | BTN2 | Show the next pending request (only with 2 or more pending) |
+| Approval | BTN3 | **Deny** — sends Claude a "denied on device" message |
+| Approval | BTN4 | Later — don't decide on the device; leave it to the terminal dialog |
 
-- 새 승인 요청이 뜬 직후 0.7초 동안은 버튼을 무시합니다 (다른 걸 누르려다 승인되는 것 방지).
-- "항상 허용"은 없습니다. 허용 규칙은 터미널에서 직접 추가하세요.
+- Buttons are ignored for 0.7 seconds right after a new approval request appears (prevents approving by accident while pressing something else).
+- There is no "always allow". Add allow rules yourself in the terminal.
 
-## 사용 방법
+## Usage
 
-### 1. 펌웨어
-- 필요 라이브러리: **DeskStreamCore**(저장소 `libraries/`, 루트 README "최초 설정"), **U8g2**
-- 보드: `esp32:esp32:makergo_c3_supermini`, USB CDC On Boot = Enabled, CPU 160MHz, Partition = Default
+### 1. Firmware
+- Required libraries: **DeskStreamCore** (repository `libraries/`, see "First-Time Setup" in the root README), **U8g2**
+- Board: `esp32:esp32:makergo_c3_supermini`, USB CDC On Boot = Enabled, CPU 160MHz, Partition = Default
 
 ```bash
 arduino-cli compile --fqbn "esp32:esp32:makergo_c3_supermini:CDCOnBoot=default,CPUFreq=160,PartitionScheme=default" Agent_Monitor
 ```
 
-### 2. PC 데몬
+### 2. PC Daemon
 
-**실행 파일로 (Python 불필요)** — [웹 플래셔](https://worynim.github.io/DeskStream/)에서 Agent Monitor 를 고르면 macOS(Apple Silicon)·Windows(x64) 앱을 받을 수 있습니다 (GitHub Release `Agent_Monitor-client-v<버전>`).
-- 더블클릭하면 트레이 모드(BLE)로 실행됩니다. 트레이 메뉴의 **Claude Code 훅 설치 / 제거** 로 3단계의 `install-hooks`·`uninstall-hooks` 와 같은 일을 합니다 (결과는 메뉴 한 줄에 표시).
-- 서명하지 않은 앱이라 처음 실행 때 macOS 는 **시스템 설정 → 개인정보 보호 및 보안 → "그래도 열기"**, Windows 는 SmartScreen 의 **추가 정보 → 실행** 이 필요합니다.
-- macOS 에서 Bluetooth·손쉬운 사용(`keys` 명령) 권한은 **AgentMonitor 앱**에 허용합니다. 서명이 없어 앱을 새 버전으로 바꾸면 권한을 다시 허용해야 할 수 있습니다.
-- 처음 한 번 USB 로 서명 키를 등록하려면 USB 모드로 실행합니다 (트레이 메뉴 "종료"로 끝냄):
+**As an executable (no Python needed)** — Choose Agent Monitor in the [web flasher](https://worynim.github.io/DeskStream/) to download the macOS (Apple Silicon) or Windows (x64) app (GitHub Release `Agent_Monitor-client-v<version>`).
+- Double-click to run in tray mode (BLE). The tray menu's **Install / Remove Claude Code hooks** does the same as `install-hooks` · `uninstall-hooks` in step 3 (the result is shown on a menu line).
+- The app is unsigned, so on first launch macOS needs **System Settings → Privacy & Security → "Open Anyway"**, and Windows needs SmartScreen's **More info → Run anyway**.
+- On macOS, grant the Bluetooth and Accessibility (`keys` command) permissions to the **AgentMonitor app**. Because it is unsigned, you may need to grant them again after replacing the app with a new version.
+- To register the signing key over USB the first time, run in USB mode (quit with "Quit" in the tray menu):
   ```bash
   open /Applications/AgentMonitor.app --args tray --transport usb      # macOS
-  AgentMonitor-0.6.1-windows-x64.exe tray --transport usb               # Windows (명령 프롬프트)
+  AgentMonitor-0.6.1-windows-x64.exe tray --transport usb               # Windows (Command Prompt)
   ```
-- 직접 빌드: `cd bridge_py && pip install -r requirements.txt pyinstaller && pyinstaller agent_monitor.spec`
+- Build it yourself: `cd bridge_py && pip install -r requirements.txt pyinstaller && pyinstaller agent_monitor.spec`
 
-**소스로 (Python 3.11+, macOS에서 검증)**
+**From source (Python 3.11+, verified on macOS)**
 
 ```bash
 cd Agent_Monitor/bridge_py
-pip install -r requirements.txt          # pyserial · bleak(BLE) · pystray/Pillow(트레이)
-python3 agent_bridge.py tray             # 메뉴 막대 아이콘과 함께 실행 (권장) — 명령 없이 실행해도 tray
-python3 agent_bridge.py run -v           # 터미널에서 실행 · 이벤트 출력
+pip install -r requirements.txt          # pyserial · bleak (BLE) · pystray/Pillow (tray)
+python3 agent_bridge.py tray             # run with a menu bar icon (recommended) — running with no command also starts tray
+python3 agent_bridge.py run -v           # run in the terminal · print events
 ```
 
-- 연결 선택: `--transport ble`(**기본**: BLE 만) · `usb`(USB 만) · `auto`(USB 우선, 없으면 BLE), 포트 지정: `--serial /dev/cu.usbmodemXXXX`(USB 만). BLE 신호는 장치에 서명 키가 등록돼 있어야 받아들여지므로 **처음 한 번은 `--transport usb`(또는 `auto`)로 연결해** 키를 등록하세요.
-- 트레이 아이콘(막대 4개) 색: **회색** 장치 없음 · **초록** USB · **파랑** BLE · **주황** 승인 대기 · **빨강** 시작 실패(훅 포트 사용 중 — 이미 실행 중인 데몬을 먼저 종료). 메뉴: 상태 · **부저 소리**(체크 = 켜짐, 누르면 설정 파일 `[device] mute` 를 바꿔 장치에 바로 반영) · 설정 파일 열기 · Claude Code 훅 설치/제거 · 종료
-- BLE 는 macOS **Bluetooth 권한**이 필요합니다. 데몬을 실행한 앱(터미널 등)에서 처음 한 번 허용하세요.
-- 펌웨어는 [웹 플래셔](https://worynim.github.io/DeskStream/)에서도 설치할 수 있습니다.
+- Connection: `--transport ble` (**default**: BLE only) · `usb` (USB only) · `auto` (USB first, BLE otherwise); port: `--serial /dev/cu.usbmodemXXXX` (USB only). BLE signals are accepted only when a signing key is registered on the device, so **connect once with `--transport usb` (or `auto`)** to register the key.
+- Tray icon (4 bars) colors: **gray** no device · **green** USB · **blue** BLE · **orange** awaiting approval · **red** failed to start (hook port in use — quit the daemon that is already running first). Menu: status · **Buzzer sound** (checked = on; clicking toggles `[device] mute` in the config file and applies it to the device right away) · open config file · install/remove Claude Code hooks · quit
+- BLE needs the macOS **Bluetooth permission**. Allow it once in the app that runs the daemon (Terminal etc.).
+- The firmware can also be installed from the [web flasher](https://worynim.github.io/DeskStream/).
 
-> ⚠️ **AgentDeck 등 다른 앱이 보드의 시리얼 포트를 열고 있으면** 업로드도 데몬 연결도 실패합니다. 그 앱을 먼저 종료하세요.
+> ⚠️ **If another app such as AgentDeck has the board's serial port open**, both uploading and the daemon connection fail. Quit that app first.
 
-### 3. Claude Code 훅 연결
+### 3. Connect Claude Code Hooks
 
-전역 설정을 건드리지 않고 한 세션에만 적용:
+Apply to a single session without touching global settings:
 ```bash
 python3 agent_bridge.py settings > ~/agent_monitor_hooks.json
 claude --settings ~/agent_monitor_hooks.json
 ```
 
-모든 세션에 적용 (`~/.claude/settings.json`에 훅과 사용량용 `statusLine` 추가, 기존 훅·statusLine 보존·백업 생성):
+Apply to all sessions (adds hooks and a usage `statusLine` to `~/.claude/settings.json`, keeps existing hooks/statusLine and creates a backup):
 ```bash
 python3 agent_bridge.py install-hooks
-python3 agent_bridge.py uninstall-hooks   # 추가한 항목만 제거
+python3 agent_bridge.py uninstall-hooks   # removes only the added entries
 ```
 
-### 4. 설정 파일 — 음소거 · 밝기 · 사용량 조회 · PC 명령 (선택)
+### 4. Config File — Mute · Brightness · Usage Polling · PC Commands (optional)
 
 ```bash
-python3 agent_bridge.py init-config     # 예시 → ~/.deskstream/agent_monitor.toml (권한 600)
+python3 agent_bridge.py init-config     # example → ~/.deskstream/agent_monitor.toml (mode 600)
 ```
 
 ```toml
 [device]
-mute = false            # true = 알림음·버튼음 모두 끔
-brightness = 40         # OLED 밝기 % (1~100) — 낮출수록 번인(잔상)이 줄어듭니다
+mute = false            # true = turn off all alert and button sounds
+brightness = 40         # OLED brightness % (1–100) — lower reduces burn-in (image retention)
 
 [usage]
-poll = false            # true = 5분마다 Claude 사용량 직접 조회
+poll = false            # true = query Claude usage directly every 5 minutes
 
-[[commands]]            # 버튼 길게 누르기 — button = 1~4
+[[commands]]            # long button press — button = 1–4
 button = 2
 label = "npm test"
-type = "shell"          # focus(app 앞으로) | shell(command 실행) | keys(text 입력 + key)
+type = "shell"          # focus (bring app to front) | shell (run command) | keys (type text + key)
 command = "npm test"
 cwd = "~/work/web-app"
 timeout = 300
 ```
 
-- `[device]` 의 음소거·밝기는 장치에 저장돼 데몬이 꺼져 있어도 유지됩니다 (값이 범위 밖이면 장치는 이전 값을 유지합니다 — 오류 내용은 데몬 로그에 남습니다).
-- `[usage] poll = true` (기본 꺼짐): 데몬이 Claude Code 가 쓰는 사용량 주소(`api.anthropic.com/api/oauth/usage`)를 Claude Code 의 로그인 토큰으로 5분마다 조회합니다.
-  - 토큰 위치: macOS 는 키체인(`Claude Code-credentials`), Windows·Linux 는 `~/.claude/.credentials.json` (`CLAUDE_CONFIG_DIR` 를 쓰면 그 폴더). **터미널 `claude` 로 구독 계정에 한 번 로그인**해야 토큰이 생깁니다 — 데스크톱 앱 로그인만으로는 없을 수 있고, 그때 로그는 `[usage] Claude Code 로그인 토큰 없음·만료` 입니다.
-  - 토큰은 **읽기만** 합니다 — 갱신·저장·로그 출력하지 않고, 만료됐으면 조회를 쉬었다가 Claude Code 를 다시 쓰면(토큰 갱신) 이어서 조회합니다.
-  - 공식 API 가 아니라 Claude Code 업데이트로 바뀔 수 있고, 구독 로그인 토큰을 Claude Code 밖에서 쓰는 방식이라 기본은 꺼 두었습니다. 처음 조회할 때 macOS 가 키체인 접근을 물으면 허용하세요.
-  - 결과는 데몬 로그에 `[usage] 직접 조회 성공` / `[usage] 조회 실패: …` 로 남습니다 (같은 내용은 한 번만). 상태줄 값도 함께 받으며 나중에 받은 값을 씁니다.
-- 장치는 **버튼 번호만** 보냅니다. 실행 내용은 이 파일에만 있고, 버튼을 누를 때마다 다시 읽습니다 (데몬 재시작 불필요).
-- 파일을 다른 사용자도 쓸 수 있는 권한이면(group/other write) 실행하지 않습니다.
-- `keys` 는 ASCII 텍스트와 `return · escape · tab · space · ctrl+c` 만 지원하고, macOS **손쉬운 사용** 권한(데몬을 실행한 터미널 앱)이 필요합니다. `app` 을 지정하면 그 앱을 먼저 앞으로 가져옵니다.
-  권한이 없으면 장치에 `FAIL … no access` 가 뜹니다 → **시스템 설정 > 개인정보 보호 및 보안 > 손쉬운 사용**에서 데몬을 실행한 앱(터미널, 또는 Claude 앱 터미널 패널이면 Claude)을 허용하세요.
-- 전체 예시: [bridge_py/agent_monitor.example.toml](./bridge_py/agent_monitor.example.toml). 다른 위치의 설정은 `run --config 경로`.
+- Mute and brightness in `[device]` are stored on the device and persist while the daemon is off (if a value is out of range, the device keeps the previous value — the error is recorded in the daemon log).
+- `[usage] poll = true` (off by default): the daemon queries the usage endpoint Claude Code uses (`api.anthropic.com/api/oauth/usage`) with Claude Code's login token every 5 minutes.
+  - Token location: the Keychain (`Claude Code-credentials`) on macOS, `~/.claude/.credentials.json` on Windows/Linux (or that folder if you use `CLAUDE_CONFIG_DIR`). The token exists only after you **log in to a subscription account once with the terminal `claude`** — logging in to the desktop app alone may not create it, in which case the log says `[usage] Claude Code 로그인 토큰 없음·만료` (login token missing/expired).
+  - The token is **read only** — never refreshed, stored or logged. If it has expired, polling pauses and resumes once you use Claude Code again (which refreshes the token).
+  - This is not an official API and may change with Claude Code updates, and it uses the subscription login token outside Claude Code, so it is off by default. If macOS asks for Keychain access on the first query, allow it.
+  - Results are recorded in the daemon log as `[usage] 직접 조회 성공` (query succeeded) / `[usage] 조회 실패: …` (query failed) (the same message only once). Status line values are still received, and the most recent value is used.
+- The device sends **only the button number**. What runs lives only in this file, which is re-read on every press (no daemon restart needed).
+- If the file is writable by other users (group/other write), commands are not run.
+- `keys` supports only ASCII text and `return · escape · tab · space · ctrl+c`, and needs the macOS **Accessibility** permission (for the terminal app that runs the daemon). If `app` is set, that app is brought to the front first.
+  Without the permission the device shows `FAIL … no access` → allow the app that runs the daemon (Terminal, or Claude if it is the Claude app's terminal panel) in **System Settings > Privacy & Security > Accessibility**.
+- Full example: [bridge_py/agent_monitor.example.toml](./bridge_py/agent_monitor.example.toml). For a config in another location, use `run --config <path>`.
 
-### 5. 화면 확인 (Claude Code 없이)
+### 5. Check the Screens (without Claude Code)
 ```bash
-python3 demo_hooks.py        # 슬롯 4개를 실행 중 / 승인 대기 / 완료 / 생각 중으로
+python3 demo_hooks.py        # puts 4 slots into running / awaiting approval / done / thinking
 python3 demo_hooks.py --end
 ```
 
-### Windows (실기 미검증)
+### Windows (not tested on real hardware)
 
-코드는 Windows 에서도 돌도록 정리했지만 실제 Windows 에서는 확인하지 않았습니다.
+The code is written to run on Windows too, but it has not been checked on actual Windows.
 
-- 데몬·USB·BLE·트레이·훅 서버는 OS 공통 코드입니다. 설정 파일 권한 검사는 Windows 에서는 하지 않습니다(ACL 사용).
-- `SessionStart` 훅은 `curl … || true` 셸 명령이라 **Git Bash** 가 필요합니다 (Windows 용 Claude Code 요구 사항과 같음).
-- PC 명령 중 `focus`·`keys` 는 **macOS 전용**입니다 (Windows 에서는 `macOS only` 로 실패 표시). `shell` 은 동작합니다.
+- The daemon, USB, BLE, tray and hook server are cross-platform code. The config file permission check is skipped on Windows (ACLs are used).
+- The `SessionStart` hook is a `curl … || true` shell command, so **Git Bash** is required (same as Claude Code's own Windows requirement).
+- Of the PC commands, `focus` and `keys` are **macOS only** (they fail with `macOS only` on Windows). `shell` works.
 
-## 파일 구성
+## Files
 
-| 파일 | 내용 |
+| File | Contents |
 |:--|:--|
-| `Agent_Monitor.ino` | USB·BLE 줄 수신 · 버튼 · 알림음 · 100ms 주기 렌더링 |
+| `Agent_Monitor.ino` | USB/BLE line reception · buttons · alert sounds · 100ms render cycle |
 | `agent_ble.h/.cpp` | BLE UART (NimBLE, Nordic UART UUID) |
-| `agent_auth.h/.cpp` | 서명 키(NVS) · nonce · HMAC-SHA256 서명 |
-| `agent_state.h/.cpp` | 슬롯 모델과 메시지 해석 (순수 C++, 호스트 테스트) |
-| `agent_ui.h/.cpp` | 슬롯 · 승인 · 상세 · 오프라인 화면, PC 명령 결과 띠, 음소거 아이콘 |
-| `config.h` | 링크 timeout · 프레임 주기 · 깜빡임 주기 · 승인 오조작 방지 · 상세 화면 복귀 시간 등 |
-| `bridge_py/agent_bridge.py` | 데몬 (훅 서버 · 송신 루프 · 훅 설정 명령) |
-| `bridge_py/sessions.py` | 훅 이벤트 → 세션 상태 · 슬롯 배정 |
-| `bridge_py/approvals.py` | 권한 요청 대기열 (결정 · 다음 · 터미널 선결정 정리) |
-| `bridge_py/commands.py` | 사용자 설정 파일 · PC 명령 실행 |
-| `bridge_py/usage_poll.py` | Claude 사용량 직접 조회 (`[usage] poll`) |
-| `bridge_py/agent_monitor.example.toml` | 설정 예시 |
-| `bridge_py/protocol.py` | 시리얼 메시지 형식 (프로토콜 설명 포함) |
-| `bridge_py/transport.py` | USB 시리얼 · BLE(bleak) · USB 우선 자동 선택 |
-| `bridge_py/security.py` | 서명 키 생성·등록 · BLE 신호 서명·카운터 검증 |
-| `bridge_py/tray.py` | 메뉴 막대 트레이 아이콘 |
-| `bridge_py/hooks_config.py` | 훅 설정 생성 · 설치 · 제거 |
-| `bridge_py/demo_hooks.py` | 화면 확인용 가짜 훅 |
-| `bridge_py/agent_monitor.spec` | PC 클라이언트 실행 파일 빌드 (PyInstaller) |
-| `p0_spike/` | P0 훅 동작 검증 도구와 결과 |
+| `agent_auth.h/.cpp` | Signing key (NVS) · nonce · HMAC-SHA256 signatures |
+| `agent_state.h/.cpp` | Slot model and message parsing (pure C++, host tests) |
+| `agent_ui.h/.cpp` | Slot · approval · detail · offline screens, PC command result strip, mute icon |
+| `config.h` | Link timeout · frame period · blink period · approval misclick guard · detail screen return time, etc. |
+| `bridge_py/agent_bridge.py` | Daemon (hook server · send loop · hook config commands) |
+| `bridge_py/sessions.py` | Hook events → session state · slot assignment |
+| `bridge_py/approvals.py` | Permission request queue (decide · next · cleanup when decided in the terminal) |
+| `bridge_py/commands.py` | User config file · PC command execution |
+| `bridge_py/usage_poll.py` | Direct Claude usage query (`[usage] poll`) |
+| `bridge_py/agent_monitor.example.toml` | Config example |
+| `bridge_py/protocol.py` | Serial message format (includes protocol description) |
+| `bridge_py/transport.py` | USB serial · BLE (bleak) · USB-first auto selection |
+| `bridge_py/security.py` | Signing key generation/registration · BLE signal signature and counter verification |
+| `bridge_py/tray.py` | Menu bar tray icon |
+| `bridge_py/hooks_config.py` | Hook config generation · install · removal |
+| `bridge_py/demo_hooks.py` | Fake hooks for checking the screens |
+| `bridge_py/agent_monitor.spec` | PC client executable build (PyInstaller) |
+| `p0_spike/` | P0 hook behavior verification tools and results |
 
-## 테스트
+## Tests
 
 ```bash
-cd Agent_Monitor/bridge_py && python3 -m unittest discover -s tests -v      # 데몬 51건
+cd Agent_Monitor/bridge_py && python3 -m unittest discover -s tests -v      # daemon, 51 tests
 
-# 펌웨어 상태 해석 (저장소 루트에서)
+# Firmware state parsing (from the repository root)
 L=libraries/DeskStreamCore/src
 g++ -std=c++17 -IAgent_Monitor -I$L Agent_Monitor/test/test_agent_state.cpp Agent_Monitor/agent_state.cpp \
     $L/util/ds_json_lite.cpp -o /tmp/test_agent_state && /tmp/test_agent_state

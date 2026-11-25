@@ -1,3 +1,10 @@
+## [v4.49.0] - 2026-11-25
+### 🌐 README 영문판 — 영문 `README.md` · 한국어 `README.ko.md`
+- 루트·16개 프로젝트·Chiptune_Buzzer·`ENG_Clock/test`·`Hangeul_Clock/test`·`libraries/DeskStreamCore` 의 README 21개를 두 벌로 나눴습니다. `README.md` 는 영문, 기존 한국어 내용은 `README.ko.md` 로 옮겼고, 두 파일 맨 위에 서로 가는 링크를 두었습니다.
+- 한국어판 안에서 다른 프로젝트·라이브러리로 거는 링크는 `README.ko.md` 를 가리킵니다.
+- 웹 플래셔 1.9.1: 프로젝트 카드의 **README ↗** 링크가 화면 언어를 따라 `README.ko.md`(한국어) / `README.md`(English)를 엽니다. 이력은 `web/RELEASE_NOTES.md`.
+- `AI_GUIDE.md` 새 프로젝트 체크리스트에 README 두 벌 작성 규칙을 추가했습니다.
+
 ## [v4.48.1] - 2026-11-23
 ### ✨ 런처 0.2.1 — 기다리는 동안 움직이는 막대
 - Wi-Fi 연결·목록 불러오기·설치 시작·Run처럼 시간이 걸리는 화면에서 화면 아래 막대 안을 덩어리가 좌우로 오갑니다. 멈춘 것처럼 보이던 대기 화면을 고쳤습니다(실기 확인).

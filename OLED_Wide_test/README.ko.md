@@ -1,0 +1,53 @@
+[English](README.md) | **한국어**
+
+# ESP32-C3 Ultra-Wide OLED (512x64) Matrix
+
+이 프로젝트는 4개의 128x64 OLED(SSD1306)를 가로로 배치하여 하나의 **512x64 초광폭(Ultra-Wide) 디스플레이**로 제어하는 Arduino 프로젝트입니다. ESP32-C3의 하드웨어 및 소프트웨어 자원을 극한으로 활용하여 부드러운 고속 그래픽 출력을 구현했습니다.
+
+https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
+
+## 🚀 주요 특징 및 성능 최적화
+
+### 1. 하이브리드 I2C 드라이버
+*   **HW I2C (Display 1, 2)**: ESP32-C3의 하드웨어 I2C 엔진을 사용하며, 클럭을 상향 조정하여 전송 속도를 최적화했습니다.
+*   **High-Speed SW I2C (Display 3, 4)**: 표준 GPIO 함수 대신 **레지스터 직접 제어(Direct Register Access - W1TS/W1TC)** 방식을 적용였습니다.
+
+### 2. 지능형 렌더링 엔진 (Smart Flush)
+*   **Shadow Buffering**: 512x64 가상 캔버스의 내용을 별도의 그림자 버퍼와 비교하여 **바뀐 부분(Dirty Page)만** I2C로 전송합니다.
+*   **LovyanGFX + DeskStreamCore 조합**: 그리기는 LovyanGFX가, 전치·바뀐 타일만 4화면 병렬 전송은 DeskStreamCore `ds::DisplayCore::pushCanvas()`가 담당합니다 (v1.3.0).
+
+### 3. 안정적인 프레임 제어 (Frame Pacing)
+*   **Target FPS (30 FPS)**: 성능이 남을 때 속도를 제어하는 프레임 제한기를 적용하여, 애니메이션이 급격히 빨라지거나 느려지는 현상을 방지했습니다.
+*   **smartDelay**: 지연 시간(Pause) 중에도 화면 갱신 엔진을 계속 구동하여 실시간 FPS 수치를 일정하게 유지합니다.
+*   **FPS 인터럽트 모니터링**: Ticker 라이브러리를 사용해 1초마다 시리얼 모니터에 정확한 실시간 FPS를 보고합니다.
+
+## 🛠 하드웨어 구성
+- **MCU**: ESP32-C3
+- **Display**: SSD1306 128x64 OLED x 4
+  - HW I2C: SDA(GPIO 5), SCL(GPIO 6)
+  - SW I2C: SDA(GPIO 2), SCL(GPIO 3)
+  - **BTN 1 (Pin 1)**: 화면 180도 회전 (Flip)
+  - **Buzzer (Pin 7)**: 조작 피드백
+
+## 📦 설치가 필요한 라이브러리
+이 소스 코드를 컴파일하려면 아두이노 라이브러리 매니저에서 다음 라이브러리들을 설치해야 합니다:
+*   **U8g2**: OLED 디스플레이 드라이버 및 폰트 제어
+*   **DeskStreamCore**: 저장소 `libraries/DeskStreamCore` — 4-OLED 전송·버튼·부저 (빌드 전 루트에서 `bash scripts/link-arduino-lib.sh` 1회) (v1.3.0~)
+*   **LovyanGFX**: 고속 그리기 및 가상 캔버스 라이브러리
+
+## 🕹️ 조작 및 버튼 기능 (Interface)
+이 프로젝트는 실시간 설정 및 햅틱 피드백을 지원합니다.
+
+*   **BTN 1 (GPIO 1)**:
+    *   **짧게 누름**: 화면 180도 회전(Flip) 토글.
+    *   **스마트 스왑**: 화면이 뒤집힐 때 OLED 전송 순서도 자동 스왑(`1-2-3-4` ↔ `4-3-2-1`)되어 가로 방향 그래픽의 연속성을 유지합니다.
+*   **오디오 피드백 (Buzzer)**:
+    *   조작 시 3000Hz의 짧은 비프음이 발생합니다.
+    *   설정 상태는 비휘발성 메모리(NVS)에 자동 저장되어 재부팅 시 복원됩니다.
+
+## 📺 포함된 데모 (Adafruit Style)
+- 가로 512픽셀 전 영역 선 그리기 애니메이션
+- 사각형 및 채우기 그래픽 테스트
+- 중앙 기준 동심원 및 채우기 테스트
+- 둥근 사각형 및 삼각형 데모
+- 다양한 폰트 크기 및 512픽셀 너비의 흐르는 자막(Ticker)

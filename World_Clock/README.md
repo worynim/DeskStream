@@ -1,92 +1,94 @@
-# 🌍 World_Clock: 세계 4곳 시계 (v0.1.0)
+**English** | [한국어](README.ko.md)
 
-DeskStream 보드의 OLED 4개에 **지구 위 4곳의 현재 시각**을 하나씩 보여주는 시계입니다.
-장소는 웹 페이지 없이 **화면을 눌러서** 고릅니다 (이 보드는 OLED 화면을 누르면 그 화면의 버튼이 눌립니다).
+# 🌍 World_Clock: Four-City World Clock (v0.1.0)
+
+A clock that shows **the current time of four places on Earth**, one on each of the DeskStream board's four OLEDs.
+You choose the places **by pressing the screens**, with no web page (on this board, pressing an OLED screen presses that screen's button).
 
 https://youtu.be/2hlVDkWg71k
 
-> 개발 계획과 설계 근거는 [PLAN.md](./PLAN.md)를 참고하세요.
-> [웹 플래셔](https://worynim.github.io/DeskStream/)에서 "세계 시계"를 골라 바로 설치할 수 있습니다.
-> **0.1.0은 PC 화면 미리보기·호스트 테스트·빌드까지만 확인한 첫 배포본입니다. 실제 보드 동작 확인은 아직입니다.**
+> See [PLAN.md](./PLAN.md) for the development plan and design rationale.
+> Install it directly by choosing "World Clock" in the [web flasher](https://worynim.github.io/DeskStream/).
+> **0.1.0 is the first release, checked only with the PC screen preview, host tests and builds. It has not yet been checked on a real board.**
 
-## 시계 화면
+## Clock Screen
 
-화면 하나 = 도시 하나. 1번 화면이 **기준 도시**입니다.
+One screen = one city. Screen 1 is the **reference city**.
 
-| 요소 | 내용 |
+| Element | Contents |
 |:--|:--|
-| 맨 윗줄 | 도시 이름 · 현지 날짜·요일 · 기준 도시와 날짜가 다르면 `+1일` / `-1일` |
-| 큰 `AM` / `PM` | 굵은 영문 17px. AM은 위쪽, PM은 아래쪽 자리에 놓여 위치로도 구분됩니다 (24시 표기에서도 표시) |
-| 해 / 달 아이콘 | 현지 06~18시는 해, 그 밖은 달 (고정 시각 기준 — 실제 일출·일몰이 아님) |
-| 큰 숫자 | 시:분 28px. `:`가 0.5초마다 깜빡입니다 |
-| 하루 막대 | 맨 아래 0~24시 막대. 낮 구간(6~18시)을 채우고 지금 시각에 세로 표시 — 4화면을 나란히 보면 시차가 보입니다 |
+| Top line | City name · local date and weekday · `+1d` / `-1d` (`+1일` / `-1일` in Korean) when the date differs from the reference city |
+| Large `AM` / `PM` | Bold 17px English. AM sits in the upper position and PM in the lower one, so the position also tells them apart (shown in 24-hour format too) |
+| Sun / moon icon | Sun from 06 to 18 local time, moon otherwise (fixed hours — not actual sunrise/sunset) |
+| Large digits | Hour:minute at 28px. The `:` blinks every 0.5 seconds |
+| Day bar | A 0–24h bar at the bottom. The daytime part (6–18h) is filled with a vertical mark at the current time — putting the 4 screens side by side shows the time differences |
 
-시각을 아직 받지 못했으면 `--:--`를 표시합니다.
+`--:--` is shown until the time has been received.
 
-## 누르기
+## Pressing
 
-| 상태 | 화면 | 짧게 | 길게 / 누르고 있기 |
+| State | Screen | Short | Long / hold |
 |:--|:--|:--|:--|
-| 시계 | 화면 1 | 12시 ↔ 24시 표기 | 이 화면의 장소 설정 |
-| 시계 | 화면 2 | 밝기 4단계 (10 → 50 → 128 → 255) | 이 화면의 장소 설정 |
-| 시계 | 화면 3 | 정보 카드 3초 (4화면 모두 연도 포함 날짜 · UTC 차이 · 기준 도시와의 시차) | 이 화면의 장소 설정 |
-| 시계 | 화면 4 | 표시 언어 한글 ↔ 영문 (도시 이름·요일·설정 화면 글자) | 이 화면의 장소 설정 |
-| 설정 | 고치는 화면 | **저장하고 나가기** | — |
-| 설정 | 지도 화면 | 취소 (저장 안 함) | — |
-| 설정 | 서쪽 화면 | 서쪽 도시 하나 | 서쪽 시간대로 계속 건너뛰기 |
-| 설정 | 동쪽 화면 | 동쪽 도시 하나 | 동쪽 시간대로 계속 건너뛰기 |
+| Clock | Screen 1 | 12-hour ↔ 24-hour format | Set this screen's place |
+| Clock | Screen 2 | 4 brightness levels (10 → 50 → 128 → 255) | Set this screen's place |
+| Clock | Screen 3 | Info card for 3 seconds (on all 4 screens: date with year · UTC offset · time difference from the reference city) | Set this screen's place |
+| Clock | Screen 4 | Display language Korean ↔ English (city names, weekdays, setup screen text) | Set this screen's place |
+| Setup | Screen being edited | **Save and exit** | — |
+| Setup | Map screen | Cancel (do not save) | — |
+| Setup | West screen | One city west | Keep skipping west by time zone |
+| Setup | East screen | One city east | Keep skipping east by time zone |
 
-### 장소 설정
+### Setting a Place
 
-고치고 싶은 화면을 **1초 길게** 누르면 그 화면이 테두리가 깜빡이는 미리보기(도시 이름 · 현재 시각 · UTC 차이 · 기준 도시와의 시차)로 바뀝니다.
-나머지 세 화면은 왼쪽부터 **세계 지도(취소) · ◀ 서쪽 · 동쪽 ▶** 버튼이 되고, 각 화면에 누르면 일어나는 일이 그려집니다.
+**Long-press (1 second)** the screen you want to change and it turns into a preview with a blinking border (city name · current time · UTC offset · time difference from the reference city).
+The other three screens become, from the left, **world map (cancel) · ◀ west · east ▶** buttons, and each shows what happens when you press it.
 
-- 도시는 경도 순서(서→동)로 한 줄이며 양 끝이 이어집니다. 서쪽/동쪽 화면에는 누르면 갈 도시가 미리 보입니다.
-- 누르고 있으면 0.5초 뒤부터 0.15초마다 **UTC 차이가 달라지는 다음 도시**로 건너뜁니다.
-- 지도에는 고른 도시 위치에 점이 깜빡이고 그 경도에 세로선이 그려집니다.
-- 20초 동안 입력이 없으면 저장하지 않고 시계로 돌아갑니다.
+- Cities are in one line ordered by longitude (west → east), with the two ends connected. The west/east screens preview the city you will move to.
+- Holding a button skips, after 0.5 seconds and then every 0.15 seconds, to **the next city with a different UTC offset**.
+- The map shows a blinking dot at the chosen city's location and a vertical line at its longitude.
+- After 20 seconds without input, it returns to the clock without saving.
 
-도시 4곳 · 12/24시 · 밝기 · 표시 언어는 저장돼 다시 켜도 유지됩니다 (바꾼 뒤 5초 후 저장). 처음 켜면 서울 · 런던 · 뉴욕 · 시드니입니다.
+The 4 cities, 12/24-hour format, brightness and display language are saved and kept across power cycles (saved 5 seconds after a change). On first power-up the cities are Seoul · London · New York · Sydney.
 
-## 도시와 시간대
+## Cities and Time Zones
 
-- 113개 도시 (한글·영문 이름). 30분·45분 단위 시간대(인도 +5:30, 네팔 +5:45 등)를 포함합니다.
-- 서머타임을 자동으로 반영합니다: 미국·캐나다, 유럽, 호주, 뉴질랜드, 칠레, 이집트, 이스라엘 규칙.
-- 시간대 규칙은 **tzdata 2026f** 기준으로 펌웨어에 들어 있습니다. 각국 정책이 바뀌면 펌웨어를 갱신해야 합니다.
-  모로코처럼 라마단에 따라 바뀌는 곳은 넣지 않았습니다.
+- 113 cities (Korean and English names), including 30- and 45-minute time zones (India +5:30, Nepal +5:45, etc.).
+- Daylight saving time is applied automatically: US/Canada, Europe, Australia, New Zealand, Chile, Egypt and Israel rules.
+- The time zone rules are built into the firmware based on **tzdata 2026f**. If a country's policy changes, the firmware has to be updated.
+  Places that change with Ramadan, such as Morocco, are not included.
 
 ## WiFi
 
-시각은 NTP로 받습니다 (보드에 RTC·배터리가 없어 켤 때마다 WiFi가 필요합니다).
-저장된 WiFi에 10초 안에 접속하지 못하면 설정 포털이 열립니다 — 휴대폰으로 WiFi `World_Clock_Setup`에 접속해
-`192.168.4.1`에서 SSID·비밀번호를 넣습니다. 2분 안에 설정하지 않으면 재부팅해 다시 시도합니다.
-WiFi 정보는 다른 DeskStream 프로젝트와 공유되므로, 이미 다른 프로젝트를 쓰던 보드라면 포털 없이 바로 접속됩니다.
-도시를 고르는 웹 페이지는 없습니다 (웹 서버를 띄우지 않습니다).
+The time is received via NTP (the board has no RTC or battery, so WiFi is needed at every power-on).
+If it cannot connect to the saved WiFi within 10 seconds, a setup portal opens — connect your phone to WiFi `World_Clock_Setup`
+and enter the SSID and password at `192.168.4.1`. If it is not set up within 2 minutes, it reboots and tries again.
+WiFi information is shared with other DeskStream projects, so a board that already ran another project connects right away without the portal.
+There is no web page for choosing cities (no web server is started).
 
-## 파일 구성
+## Files
 
-| 파일 | 내용 |
+| File | Contents |
 |:--|:--|
-| `World_Clock.ino` | setup/loop, WiFi 포털 안내, 누르기 처리, 시계 ↔ 설정 전환, NVS 설정 |
-| `config.h` | 버전, 타임아웃, 밝기 단계 등 상수 |
-| `tz_calc.cpp/.h` | 순수 로직: UTC epoch + 시간대 규칙 → 현지 시각·서머타임·UTC 차이 |
-| `city_table.cpp/.h` | 도시 표(고정 ID · 이름 · 경위도 · 시간대)와 서/동 이동, 시간대 건너뛰기 |
-| `clock_view.cpp/.h` | 시계 화면 렌더러 |
-| `setup_view.cpp/.h` | 설정 화면 렌더러(미리보기 · 지도 · 서쪽/동쪽)와 화면 역할 배정 |
-| `misc_view.cpp/.h` | WiFi 안내문 · 알림 딱지 · 정보 카드 |
-| `lang.h` | 표시 언어 (한글/영문) |
-| `world_map.h` | 128x64 세계 지도 비트맵 (`tools/gen_world_map.py`가 생성) |
-| `fonts.cpp/.h` · `u8g2_font_galmuri7_kr.h` | 갈무리7 한글 글꼴 (SIL OFL 1.1) |
-| `test/run_all.sh` | 호스트 테스트: 단위 테스트 + 시간대 규칙을 시스템 zoneinfo와 대조 |
-| `test/render/run.sh` | 화면 미리보기: 장치와 같은 렌더러를 PC에서 돌려 PNG로 저장 |
+| `World_Clock.ino` | setup/loop, WiFi portal guide, press handling, clock ↔ setup switching, NVS settings |
+| `config.h` | Constants such as version, timeouts and brightness levels |
+| `tz_calc.cpp/.h` | Pure logic: UTC epoch + time zone rules → local time, daylight saving, UTC offset |
+| `city_table.cpp/.h` | City table (fixed ID · name · latitude/longitude · time zone), west/east movement, time zone skipping |
+| `clock_view.cpp/.h` | Clock screen renderer |
+| `setup_view.cpp/.h` | Setup screen renderers (preview · map · west/east) and screen role assignment |
+| `misc_view.cpp/.h` | WiFi guide text · notification badge · info card |
+| `lang.h` | Display language (Korean/English) |
+| `world_map.h` | 128x64 world map bitmap (generated by `tools/gen_world_map.py`) |
+| `fonts.cpp/.h` · `u8g2_font_galmuri7_kr.h` | Galmuri7 Korean font (SIL OFL 1.1) |
+| `test/run_all.sh` | Host tests: unit tests + comparison of the time zone rules with the system zoneinfo |
+| `test/render/run.sh` | Screen preview: runs the same renderers as the device on the PC and saves PNGs |
 
-렌더러는 U8g2 C API(`u8g2_t*`)로 그려 장치와 PC 미리보기가 같은 코드를 씁니다.
+The renderers draw with the U8g2 C API (`u8g2_t*`), so the device and the PC preview share the same code.
 
-## 빌드
+## Build
 
-- 보드: `esp32:esp32:makergo_c3_supermini`, CPU 160MHz
-- **Partition Scheme = Huge APP** (스케치 폴더의 DeskStream 공통 `partitions.csv` 사용). 앱 약 1.26MB — 기본 파티션(1.31MB)에는 여유가 없습니다.
-- 라이브러리: DeskStreamCore(저장소 `libraries/`), U8g2
+- Board: `esp32:esp32:makergo_c3_supermini`, CPU 160MHz
+- **Partition Scheme = Huge APP** (uses the shared DeskStream `partitions.csv` in the sketch folder). The app is about 1.26MB — the default partition (1.31MB) leaves no room.
+- Libraries: DeskStreamCore (repository `libraries/`), U8g2
 
 ```bash
 arduino-cli compile --fqbn "esp32:esp32:makergo_c3_supermini:CDCOnBoot=default,CPUFreq=160,PartitionScheme=huge_app" World_Clock

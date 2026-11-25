@@ -231,7 +231,7 @@ function renderProjects(projects: ManifestProject[]): void {
     // 런처는 저장소에 프로젝트 폴더(README)가 없다
     if (project.kind !== "launcher") {
       const readme = el("a", "card__readme");
-      readme.href = readmeUrl(project.id);
+      readme.href = readmeUrl(project.id, state.locale);
       readme.target = "_blank";
       readme.rel = "noopener noreferrer";
       readme.title = strings.readmeTitle;

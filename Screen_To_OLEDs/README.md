@@ -1,80 +1,81 @@
+**English** | [한국어](README.ko.md)
+
 # Screen_To_OLEDs (Screen Streamer)
 
-모니터(mac)의 화면을 실시간으로 캡처하여 DeskStream 하드웨어(4개의 OLED 매트릭스)로 스트리밍하는 프로젝트입니다.
+A project that captures the monitor (Mac) screen in real time and streams it to the DeskStream hardware (a matrix of 4 OLEDs).
 
 https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
-## 🏗 아키텍처 (Architecture)
+## 🏗 Architecture
 
-본 프로젝트는 고성능 스트리밍을 위해 기능별로 모듈화된 설계를 따릅니다.
+The project follows a design modularized by function for high-performance streaming.
 
-- **`screen_streamer.py`**: 메인 애플리케이션. UI 구동, 화면 캡처(Producer), 데이터 송신(Sender) 스레드 관리 및 전체 파이프라인 제어를 담당합니다.
-- **`image_processor.py`**: 이미지 처리 전문 모듈. Numba JIT를 활용한 고속 디더링 알고리즘 및 1-bit 패킹 로직이 집약되어 있습니다.
-- **`network_manager.py`**: 통신 계층 모듈. ESP32 검색(IP Discovery) 및 UDP 데이터 스트리밍 루프를 관리합니다.
-- **`overlay_manager.py`**: UI 보조 모듈. 캡처 영역을 시각화하는 오버레이 창과 드래그 제어 로직을 담당합니다.
-- **`config.json`**: 사용자 외부 설정 파일. 소스 수정 없이 IP 및 시스템 파라미터를 조정합니다. (실행 파일은 `~/.deskstream/screen_to_oleds.json`)
-- **`screen_to_oleds.spec`** · **`requirements.txt`**: PC 클라이언트 실행 파일 빌드 (PyInstaller)와 의존 패키지.
+- **`screen_streamer.py`**: Main application. Runs the UI, manages the screen capture (producer) and data sending (sender) threads, and controls the whole pipeline.
+- **`image_processor.py`**: Image processing module. Concentrates the fast dithering algorithms and 1-bit packing logic accelerated with Numba JIT.
+- **`network_manager.py`**: Communication layer. Manages ESP32 discovery (IP discovery) and the UDP data streaming loop.
+- **`overlay_manager.py`**: UI helper module. Handles the overlay window that visualizes the capture area and the drag control logic.
+- **`config.json`**: External user settings file. Adjust the IP and system parameters without editing the source. (The executable uses `~/.deskstream/screen_to_oleds.json`)
+- **`screen_to_oleds.spec`** · **`requirements.txt`**: PC client executable build (PyInstaller) and dependencies.
 
-## 🚀 주요 기능
+## 🚀 Key Features
 
-### macOS 스트리머 (`screen_streamer.py`)
-- **지능형 캡처 엔진 (Intelligent Capture)**:
-    - **자동 모니터 감지**: 'Full' 설정 시 캡처 핸들이 위치한 모니터를 자동으로 인식하여 전체 영역을 확보합니다.
-    - **핸들 고정 리사이징**: 좌상단 핸들 좌표를 고정한 상태에서 정교하게 캡처 너비를 조절할 수 있습니다.
-    - **경계 자유화**: 화면 경계 밖으로의 박스 배치를 허용하여 멀티 모니터 사용성을 극대화했습니다.
-    - **실시간 좌표 표시**: 핸들 옆에 현재의 `(x, y)` 위치를 표시하는 전용 정보창을 제공합니다.
-- **실시간 소스 설정 파이프라인**: 
-    - 스트리밍 중단 없이 **캡처 너비, 레이아웃(가로/세로), 오버레이 표시 여부**를 실시간으로 즉시 변경할 수 있습니다.
-- **Numba JIT 가속 엔진**: 수치 연산 전용 컴파일러를 통해 복잡한 디더링 알고리즘도 C 수준의 속도로 실시간 처리합니다.
-- **Direct Mode (1:1)**: 지정된 IP 주소의 기기에 화면을 직접 전송합니다 (기본 설정).
-- **Broadcast Mode (1:N)**: 단일 기기가 아닌 네트워크상의 모든 DeskStream 기기에 화면을 동시에 송출할 수 있습니다.
-- **다양한 이진화 알고리즘**: Atkinson(기본값), Threshold, Floyd-Steinberg, Stucki, Sierra, Ordered(Bayer) 등 6가지 모드 지원.
-- **고성능 및 안정성 최적화**: 
-    - **스레드 세이프 설정 캐시**: 메인-백그라운드 스레드 간 UI 변수 경합을 해결하여 FPS 급락을 방지했습니다.
-    - **세대별 GC(Generational GC) 전략**: 짧은 주기의 부분 수집과 긴 주기의 전체 수집을 이원화하여 GC 스파이크로 인한 끊김을 최소화했습니다.
-    - **표준 로깅 및 상태 진단**: `logging` 모듈 도입으로 시스템 상태를 실시간 기록하며, 네트워크 오류 시 UI를 통해 즉각적인 피드백을 제공합니다.
-    - **설정 외부화 (`config.json`)**: IP 주소 및 시스템 한계치 등을 소스 코드 수정 없이 간편하게 변경할 수 있습니다.
-    - **Retina 고해상도 최적화**: macOS Retina 디스플레이의 물리 픽셀 처리 부하를 4배 감소시키는 자동 다운샘플링 적용.
-    - **네트워크 페이싱**: UDP 청크 간 미세 지연(500μs)을 통한 패킷 손실 최소화.
-    - **정적 프레임 스킵 (Static Frame Skipping)**: 화면에 변화가 없을 때 시스템 자원(CPU, 네트워크) 소모를 극한으로 낮추는 지능형 대기 모드 구현 (100% 무결점 감지 및 1초 KeepAlive 기능 포함).
+### macOS Streamer (`screen_streamer.py`)
+- **Intelligent capture engine**:
+    - **Automatic monitor detection**: With 'Full', it automatically recognizes the monitor the capture handle is on and captures its whole area.
+    - **Handle-anchored resizing**: Adjust the capture width precisely while the top-left handle position stays fixed.
+    - **Free boundaries**: The box may be placed beyond the screen edge, maximizing multi-monitor usability.
+    - **Live coordinate display**: A dedicated info box next to the handle shows the current `(x, y)` position.
+- **Live source settings pipeline**:
+    - Change **capture width, layout (horizontal/vertical) and overlay visibility** instantly without stopping the stream.
+- **Numba JIT acceleration**: A numeric compiler processes even complex dithering algorithms in real time at C-level speed.
+- **Direct Mode (1:1)**: Sends the screen directly to the device at the given IP address (default).
+- **Broadcast Mode (1:N)**: Sends the screen simultaneously to every DeskStream device on the network, not just one.
+- **Multiple binarization algorithms**: 6 modes — Atkinson (default), Threshold, Floyd-Steinberg, Stucki, Sierra, Ordered (Bayer).
+- **Performance and stability optimizations**:
+    - **Thread-safe settings cache**: Resolves UI variable contention between the main and background threads, preventing FPS drops.
+    - **Generational GC strategy**: Splits short-cycle partial collections from long-cycle full collections to minimize stutter from GC spikes.
+    - **Standard logging and status diagnostics**: The `logging` module records system status in real time, and network errors give immediate feedback in the UI.
+    - **Externalized settings (`config.json`)**: Change the IP address and system limits easily without editing the source code.
+    - **Retina high-resolution optimization**: Automatic downsampling cuts the physical pixel processing load of macOS Retina displays by 4×.
+    - **Network pacing**: A small delay between UDP chunks (500μs) minimizes packet loss.
+    - **Static frame skipping**: A smart idle mode that drives system resource use (CPU, network) to a minimum when the screen does not change (with 100% exact change detection and a 1-second KeepAlive).
 
-### ESP32 펌웨어
-- **고속 UDP 수신**: 프레임을 1024바이트 청크로 분할 수신하여 4096바이트 1-bit 비트맵 복원.
-- **Dirty-Tile 렌더링**: 변경된 타일만 HW·SW 버스 병렬로 전송 — DeskStreamCore `ds::DisplayCore::pushCanvas()` (v2.3.0~).
-- **WiFi 설정 포털**: 저장된 공유기가 없으면 설정용 AP(`ESP_SCREEN_OLED`)를 열어 휴대폰으로 SSID·비밀번호를 입력받습니다 (DeskStreamCore 내장).
-- **비차단 부저**: 동작 상태를 부드러운 소리로 안내.
+### ESP32 Firmware
+- **Fast UDP reception**: Receives each frame split into 1024-byte chunks and rebuilds the 4096-byte 1-bit bitmap.
+- **Dirty-tile rendering**: Sends only changed tiles over the HW and SW buses in parallel — DeskStreamCore `ds::DisplayCore::pushCanvas()` (v2.3.0+).
+- **WiFi setup portal**: If no router is saved, it opens a setup AP (`ESP_SCREEN_OLED`) to receive the SSID and password from your phone (built into DeskStreamCore).
+- **Non-blocking buzzer**: Indicates the operating state with gentle sounds.
 
-## 🛠 설치 및 사용 방법
+## 🛠 Installation and Usage
 
-### 실행 파일로 (Python 불필요)
-[웹 플래셔](https://worynim.github.io/DeskStream/)에서 Screen To OLEDs 를 고르면 macOS(Apple Silicon)·Windows(x64) 앱을 받을 수 있습니다 (GitHub Release `Screen_To_OLEDs-client-v<버전>`).
-- 서명하지 않은 앱이라 처음 실행 때 macOS 는 **시스템 설정 → 개인정보 보호 및 보안 → "그래도 열기"**, Windows 는 SmartScreen 의 **추가 정보 → 실행** 이 필요합니다.
-- macOS 에서는 **화면 기록**과 **로컬 네트워크** 권한을 앱에 허용해야 합니다. 화면 기록 권한이 없으면 다른 앱 창이 빠지고 바탕화면만 스트리밍되며, 창 맨 위에 설정 방법이 빨간 띠로 표시됩니다. 서명이 없어 앱을 새 버전으로 바꾸면 다시 허용해야 할 수 있습니다.
-- 앱은 설정 파일을 `~/.deskstream/screen_to_oleds.json` 에서 읽습니다 (형식은 `config.json` 과 같음, 없으면 기본값).
-- Numba 가 포함돼 있지만 실행 파일에서는 디스크 캐시를 쓰지 못해 시작할 때마다 몇 초 JIT 컴파일을 합니다.
-- 직접 빌드: `pip install -r requirements.txt pyinstaller && pyinstaller screen_to_oleds.spec`
+### As an Executable (no Python needed)
+Choose Screen To OLEDs in the [web flasher](https://worynim.github.io/DeskStream/) to download the macOS (Apple Silicon) or Windows (x64) app (GitHub Release `Screen_To_OLEDs-client-v<version>`).
+- The app is unsigned, so on first launch macOS needs **System Settings → Privacy & Security → "Open Anyway"**, and Windows needs SmartScreen's **More info → Run anyway**.
+- On macOS, grant the app the **Screen Recording** and **Local Network** permissions. Without Screen Recording, other apps' windows are left out and only the desktop is streamed, and a red bar at the top of the window explains how to set it. Because it is unsigned, you may need to grant them again after replacing the app with a new version.
+- The app reads its settings from `~/.deskstream/screen_to_oleds.json` (same format as `config.json`; defaults are used if it does not exist).
+- Numba is included, but the executable cannot use the disk cache, so it JIT-compiles for a few seconds on every start.
+- Build it yourself: `pip install -r requirements.txt pyinstaller && pyinstaller screen_to_oleds.spec`
 
 
-### macOS 환경 (Python)
-1. 필요한 라이브러리 설치 (성능 최적화 필수):
+### macOS (Python)
+1. Install the required libraries (essential for performance):
    ```bash
    pip install Pillow mss numpy numba
    ```
-2. 스트리머 실행:
+2. Run the streamer:
    ```bash
    python screen_streamer.py
    ```
-3. ESP32의 IP를 입력하거나 `Scan` 버튼을 눌러 자동으로 찾습니다.
-4. `START STREAMING` 버튼을 눌러 스트리밍을 시작합니다.
+3. Enter the ESP32's IP or press the `Scan` button to find it automatically.
+4. Press the `START STREAMING` button to start streaming.
 
-### 하드웨어 환경 (ESP32)
-1. `Screen_To_OLEDs` 폴더의 `.ino` 파일을 Arduino IDE 로 업로드합니다. (필요 라이브러리: U8g2·LovyanGFX + 저장소 `libraries/DeskStreamCore` — 루트에서 `bash scripts/link-arduino-lib.sh` 1회)
-2. 부팅 시 OLED에 표시되는 WiFi AP(`ESP_SCREEN_OLED`)에 접속하여 네트워크 설정을 완료합니다.
-3. 연결 성공 시 표시되는 IP 주소를 스트리머에 입력합니다.
+### Hardware (ESP32)
+1. Upload the `.ino` file in the `Screen_To_OLEDs` folder with the Arduino IDE. (Required libraries: U8g2 · LovyanGFX + repository `libraries/DeskStreamCore` — run `bash scripts/link-arduino-lib.sh` once from the root)
+2. At boot, connect to the WiFi AP shown on the OLED (`ESP_SCREEN_OLED`) and complete the network setup.
+3. Enter the IP address shown after a successful connection into the streamer.
 
-## 🕹 하드웨어 제어 (버튼 기능)
-- **BTN1**: 롱 프레스 - 화면 180도 회전 (Flip) / 숏 프레스 - (Reserved)
-- **BTN2**: 숏 프레스 - **밝기 4단계 순환 조절** / 롱 프레스 - **도움말 화면 표시**
-- **BTN3**: (Not Used)
-- **BTN4**: 숏 프레스 - 도움말/대기 화면 종료 (Exit) / 롱 프레스 - (Reserved)
-
+## 🕹 Hardware Controls (buttons)
+- **BTN1**: Long press - rotate the screen 180 degrees (flip) / Short press - (reserved)
+- **BTN2**: Short press - **cycle through 4 brightness levels** / Long press - **show the help screen**
+- **BTN3**: (not used)
+- **BTN4**: Short press - exit the help/idle screen / Long press - (reserved)

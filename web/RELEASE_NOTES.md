@@ -22,6 +22,12 @@ ESP32-C3 DeskStream 보드용 웹 플래셔 **https://worynim.github.io/DeskStre
 
 ---
 
+## [v1.9.1] - 2026-11-25
+
+### 🔗 README 링크 언어 연동
+
+- 프로젝트 카드의 **README ↗** 링크가 화면 언어를 따릅니다. 한국어는 `README.ko.md`, English는 `README.md`(영문)를 엽니다. 저장소 README가 영문 `README.md` · 한국어 `README.ko.md` 두 벌로 나뉜 데 맞춘 변경입니다.
+
 ## [v1.9.0] - 2026-11-23
 
 ### 🚀 런처(esp-launcher) 항목 · 런처 자동 감지

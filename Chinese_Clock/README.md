@@ -1,216 +1,218 @@
-# Chinese Clock (중국어 단어 시계) - v1.1.1
+**English** | [한국어](README.ko.md)
 
-NTP 서버로부터 시간을 동기화하여 4개의 OLED 디스플레이에 **중국어 한자**로 시·분·초를 표시하는 ESP32-C3 기반 프리미엄 데스크 가젯입니다. `Hangeul_Clock` / `ENG_Clock`의 하드웨어·UI·애니메이션·웹 파이프라인을 그대로 승계하고, **텍스트 생성부만 중국어로 교체**한 포트입니다.
+# Chinese Clock (Chinese Word Clock) - v1.1.1
+
+A premium ESP32-C3 desk gadget that syncs time from an NTP server and shows hours, minutes and seconds in **Chinese characters** on four OLED displays. It inherits the hardware, UI, animation and web pipeline of `Hangeul_Clock` / `ENG_Clock` as-is and is a port that **replaces only the text generator with Chinese**.
 
 https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
-설계 근거와 구현 기록(계획 정정·가정·결함)은 [`PLAN.md`](./PLAN.md)에 있습니다. 이 문서는 **다루는 방법**만 담습니다.
+Design rationale and implementation records (plan corrections, assumptions, defects) are in [`PLAN.md`](./PLAN.md). This document covers **how to use it** only.
 
-## ✨ 핵심 기능 (Major Features)
+## ✨ Major Features
 
-### 1. 4화면 구조 (한글판·영어판과 1:1)
+### 1. 4-Screen Structure (1:1 with the Korean and English editions)
 
-한 화면에 **32×32 정사각형 셀 4개**가 정확히 들어갑니다(4 × 32 = 128px = 화면 폭).
+Each screen fits exactly **four 32×32 square cells** (4 × 32 = 128px = screen width).
 
-| 화면 | 12시간제 | 24시간제 |
+| Screen | 12-hour | 24-hour |
 |:--:|:--|:--|
-| 0 | `上午` / `下午` | `星期六` (요일만) |
-| 1 | 시 — `三點` | 시 — `十三点` / `十三點` |
-| 2 | 분 — `四十五分` | 분 — `四十五分` |
-| 3 | 초 — `四十五秒` | 초 — `四十五秒` |
+| 0 | `上午` / `下午` | `星期六` (weekday only) |
+| 1 | Hour — `三點` | Hour — `十三点` / `十三點` |
+| 2 | Minute — `四十五分` | Minute — `四十五分` |
+| 3 | Second — `四十五秒` | Second — `四十五秒` |
 
-최장 표현이 **4자**이므로 줄바꿈이 없습니다. 영어판이 `SEVENTEEN`(9자) 때문에 도입한 2줄 레이아웃·피치 사다리·잉크 폭 측정이 **전부 불필요해집니다.**
+The longest expression is **4 characters**, so there are no line breaks. The two-line layout, pitch ladder and ink width measurement that the English edition introduced because of `SEVENTEEN` (9 letters) are **all unnecessary.**
 
-### 2. 표준형 한자 표현 (Standard Form)
+### 2. Standard Chinese Expressions (Standard Form)
 
-| 규칙 | 예시 | 왜 필요한가 |
+| Rule | Example | Why it matters |
 |:--|:--|:--|
-| ① `点` = 시 | `三点四十五分` | 순서가 "큰 단위 → 작은 단위" |
-| ② 2는 `二`가 아니라 **`两`** | `两点` | 초보자가 가장 자주 틀리는 지점 |
-| ③ 10분 미만은 십의 자리에 `零` | `三点零五分` (❌ `三点五分`) | 이것이 없으면 `3:5`/`3:35`로 오독된다 |
-| ④ 30분은 `三十`이 아니라 **`半`** | 3:30 → `三点半` / 3:31 → `三点三十一分` | 형식문서가 늘 `半`을 쓴다 |
-| ⑤ 정각은 `整` | `九点整` | 분/초 단위의 0 |
-| ⑥ 오전/오후는 2자 | `上午` (0~11) / `下午` (12~23) | 자정(0시)이 `上午`인 것은 중국 실무 관행 |
-| ⑦ 요일은 3자 | `星期日`~`星期六` | 간체·번체 동일 |
-| ⑧ `秒`는 `分`과 완전히 대칭 | `四十五秒` | 코드가 두 갈래로 벌어지지 않는다 |
+| ① `点` = hour | `三点四十五分` | Order is "larger unit → smaller unit" |
+| ② 2 is **`两`**, not `二` | `两点` | The most common beginner mistake |
+| ③ `零` in the tens place for minutes under 10 | `三点零五分` (❌ `三点五分`) | Without it, it reads as `3:5`/`3:35` |
+| ④ 30 minutes is **`半`**, not `三十` | 3:30 → `三点半` / 3:31 → `三点三十一分` | Formal writing always uses `半` |
+| ⑤ On the hour is `整` | `九点整` | Zero in the minute/second unit |
+| ⑥ AM/PM are 2 characters | `上午` (0–11) / `下午` (12–23) | Midnight (0h) as `上午` follows common Chinese practice |
+| ⑦ Weekday is 3 characters | `星期日`–`星期六` | Same in Simplified and Traditional |
+| ⑧ `秒` is fully symmetric with `分` | `四十五秒` | Keeps the code from splitting into two branches |
 
-기각한 표현: 구어체(`四点差一刻` — `差` 생략 시 뜻이 뒤집힘), 시진(`申时` — 2시간 단위라 **초 단위를 잃음**).
+Rejected expressions: colloquial forms (`四点差一刻` — omitting `差` flips the meaning) and traditional double-hours (`申时` — 2-hour units **lose seconds**).
 
-> ⚠ **미검증 항목**: 위 표는 구현·테스트의 기준값입니다. 실기 OLED 앞에서 읽히는지는
-> 아직 확인하지 않았습니다. 아래 **「⚠️ 미완료 — 실기 확인 필요」** 절을 보세요.
+> ⚠ **Unverified**: The table above is the reference for implementation and tests. Whether it reads well on a real OLED
+> has not been checked yet. See the **"⚠️ Incomplete — Needs Hardware Check"** section below.
 
-### 3. 간체 / 번체 병용 (简体 ⇄ 繁體)
+### 3. Simplified / Traditional (简体 ⇄ 繁體)
 
-차이는 **3글자뿐**입니다 — `点`/`點`, `时`/`時`, `两`/`兩`. 전체 문자열을 2벌로 두지 않고
-치환표 하나로 처리하므로, 규칙이 어긋날 지점이 코드 전체에 단 하나뿐입니다.
+Only **3 characters** differ — `点`/`點`, `时`/`時`, `两`/`兩`. Instead of keeping two copies of every string,
+one substitution table handles it, so there is exactly one place in the code where the rules could diverge.
 
-- **표시 방식 3단계 순환** — `简体 → 繁體 → 數字` (BTN2 short / 웹 3번 항목)
-- **문자판 ↔ 폰트 슬롯은 독립**입니다. 슬롯에는 **두 문자판의 합집합 37자**를 올리므로,
-  슬롯 하나가 어느 문자판이든 됩니다(차이 3글자 = 864 B).
-- 슬롯에 그 문자판 전용 글자가 없으면 전환을 **거부**하고 `No Trad Font` / `No Simp Font`를 표시합니다.
+- **3-step display cycle** — `简体 → 繁體 → 數字` (BTN2 short / web item 3)
+- **Character set ↔ font slot are independent.** A slot holds **the union of both sets, 37 characters**,
+  so any slot works for either character set (the 3 differing characters = 864 B).
+- If a slot lacks the characters specific to a character set, switching is **refused** and `No Trad Font` / `No Simp Font` is shown.
 
-### 4. POSIX TZ 시간대 시스템
+### 4. POSIX TZ Time Zone System
 
-- **DST 자동 처리**: 고정 오프셋 대신 POSIX TZ 문자열(`CST-8`, `KST-9` 등)을 씁니다.
-- **웹 UI 시간대 선택**: 지역 프리셋 + Custom 직접 입력, NVS(Preferences) 영속 저장.
-- **입력 검증**: `ds::isValidTimezone` 화이트리스트 검증으로 잘못된 설정이 시스템 시간을 망가뜨리지 않습니다.
-- 기본값은 `CST-8`(중국)입니다.
+- **Automatic DST**: Uses POSIX TZ strings (`CST-8`, `KST-9`, etc.) instead of fixed offsets.
+- **Time zone selection in the web UI**: Regional presets + custom input, persisted in NVS (Preferences).
+- **Input validation**: Whitelist validation with `ds::isValidTimezone` keeps bad settings from breaking the system time.
+- The default is `CST-8` (China).
 
-### 5. Font Studio (브라우저 폰트 스튜디오)
+### 5. Font Studio (in-browser font studio)
 
-- **TTF → 비트맵 원스톱 변환**: 브라우저에서 TTF를 올리면 **37자**(간체 34 ∪ 번체 전용 3)를
-  **288 B(48×48) 래스터**로 구워 기기에 업로드합니다.
-- **폰트 슬롯 5개**: LittleFS `/f0`~`/f4`. 슬롯마다 다른 폰트를 저장하고 웹에서 선택합니다.
-- **슬롯 저장은 "이 슬롯은 어떤 폰트로 구웠다"는 이름까지**입니다. `.ttf` 원본은 용량상 들어가지 않습니다
-  (LittleFS 1.37 MB 남는 공간 ≈ 1.32 MB, 중문 TTF는 5~20 MB).
-- **실시간 미리보기·시뮬레이션**: 업로드 전 캔버스 미리보기 + 기기 설정 5초 폴링 동기화.
+- **One-stop TTF → bitmap conversion**: Upload a TTF in the browser and it bakes **37 characters** (34 Simplified ∪ 3 Traditional-only)
+  into **288 B (48×48) rasters** and uploads them to the device.
+- **5 font slots**: LittleFS `/f0`–`/f4`. Store a different font in each slot and select it on the web.
+- **A slot stores only the name of "the font this slot was baked from".** The `.ttf` source does not fit
+  (free LittleFS space of 1.37 MB ≈ 1.32 MB, while Chinese TTFs are 5–20 MB).
+- **Live preview and simulation**: Canvas preview before upload + device settings synced by 5-second polling.
 
-### 6. 인터랙티브 제어 & 애니메이션
+### 6. Interactive Control & Animation
 
-**4버튼** (GPIO 1 / 4 / 10 / 9) — 모든 동작은 웹 UI와 동일한 함수를 거칩니다.
+**4 buttons** (GPIO 1 / 4 / 10 / 9) — every action goes through the same functions as the web UI.
 
-| 버튼 | Short | Long |
+| Button | Short | Long |
 |:--|:--|:--|
-| BTN1 | 시보 ON/OFF | 화면 반전(180°) |
-| **BTN2** | **표시 방식 简体 → 繁體 → 數字** | 12H ⇄ 24H |
-| BTN3 | 애니메이션 순환 (6종) | **폰트 슬롯 순환 (0~4)** |
-| BTN4 | 페이지 전환 (시계 → IP → 도움말) | 색상 반전 |
+| BTN1 | Hourly chime ON/OFF | Screen flip (180°) |
+| **BTN2** | **Display mode 简体 → 繁體 → 數字** | 12H ⇄ 24H |
+| BTN3 | Cycle animation (6 kinds) | **Cycle font slot (0–4)** |
+| BTN4 | Switch page (clock → IP → help) | Color invert |
 
-**6가지 애니메이션**: OFF · Scroll Up · Scroll Down · Vertical Flip · Dithered Fade · Zoom.
-`loop()`를 블로킹하지 않는 비차단 구조이며, I2C 전송 중에는 `on_yield()`로 웹·입력을 먼저 처리합니다.
+**6 animations**: OFF · Scroll Up · Scroll Down · Vertical Flip · Dithered Fade · Zoom.
+It is non-blocking and never blocks `loop()`; during I2C transfers, `on_yield()` handles web and input first.
 
-### 7. 모듈형 아키텍처
+### 7. Modular Architecture
 
-- **순수 로직 분리**: `chinese_time_core` · `layout_engine` · `renderer_geometry`를 Arduino 의존 없이 분리해 **호스트에서 단위 테스트**가 가능합니다.
-- **HAL**: HW/SW I2C 드라이버를 `I2CPlatform`으로 분리 + `recoverBus()` 자가 복구.
-- **Static Allocation**: 비트맵은 `flatBuffer` 연속 블록에 올려 힙 파편화와 누수를 원천 차단.
-- **1줄 전용 레이아웃 엔진**: `layoutLine()` 한 함수(60~70 LOC)만 규칙을 갖습니다.
+- **Pure logic separated**: `chinese_time_core` · `layout_engine` · `renderer_geometry` have no Arduino dependency, so they can be **unit-tested on the host**.
+- **HAL**: HW/SW I2C drivers separated into `I2CPlatform` + `recoverBus()` self-recovery.
+- **Static allocation**: Bitmaps live in one contiguous `flatBuffer` block, eliminating heap fragmentation and leaks.
+- **Single-line layout engine**: Only one function, `layoutLine()` (60–70 LOC), holds the rules.
 
-## 📁 디렉터리 구조
+## 📁 Directory Structure
 
 ```
 Chinese_Clock/
-├── Chinese_Clock.ino      메인 엔트리 (Setup / 루프 제어, 4화면 텍스트 조합)
-├── config.h               전역 상수 (기하 32/48/6 · 애니메이션 · 문자판)
-├── config_manager.h/.cpp  설정 필드 테이블 (NVS 키·검증·웹 적용 순서) — 저장은 ds::ConfigStore
-├── chinese_time.h/.cpp    시간 → 중국어 텍스트 (Arduino String 래퍼)
-├── chinese_time_core.h/.cpp ★ 시간 → 중국어 텍스트 순수 로직 (네이티브 테스트 대상)
-├── layout_engine.h/.cpp   ★ 1줄 레이아웃 엔진 (ENG판 2줄 엔진의 대체)
-├── renderer_geometry.*    글자 기하 판별 (288B → glyphW 32 / drawW 48 / xOffset −8)
-├── renderer.*             비트맵 렌더러 + 디더/줌/스쿼시 픽셀 연산
-├── renderer_layout.*      공용 레이아웃 헬퍼
-├── display_manager.*      4-OLED 병렬 출력, UI 스테이지, 애니메이션, 슬롯/문자판 전환
-├── web_manager.*          페이지·폰트 업로드 API + presentation 키 (/api/config는 ds::WebConfigApi)
-├── web_pages.h            Font Studio 웹 UI (HTML/JS 내장 PROGMEM)
-├── test/                  호스트 단위·교차 검증 (아래 "테스트")
-├── PLAN.md                설계 문서 + 구현 기록 (정정·결함·실측)
-├── README.md              본 문서
-└── RELEASE_NOTES.md       변경 이력
+├── Chinese_Clock.ino      Main entry (setup / loop control, composes the 4-screen text)
+├── config.h               Global constants (geometry 32/48/6 · animation · character set)
+├── config_manager.h/.cpp  Settings field table (NVS keys, validation, web apply order) — stored via ds::ConfigStore
+├── chinese_time.h/.cpp    Time → Chinese text (Arduino String wrapper)
+├── chinese_time_core.h/.cpp ★ Time → Chinese text pure logic (native test target)
+├── layout_engine.h/.cpp   ★ Single-line layout engine (replaces the English edition's two-line engine)
+├── renderer_geometry.*    Glyph geometry detection (288B → glyphW 32 / drawW 48 / xOffset −8)
+├── renderer.*             Bitmap renderer + dither/zoom/squash pixel operations
+├── renderer_layout.*      Shared layout helpers
+├── display_manager.*      4-OLED parallel output, UI stages, animation, slot/character set switching
+├── web_manager.*          Page and font upload API + presentation keys (/api/config is ds::WebConfigApi)
+├── web_pages.h            Font Studio web UI (embedded HTML/JS in PROGMEM)
+├── test/                  Host unit tests and cross-validation (see "Tests" below)
+├── PLAN.md                Design document + implementation records (corrections, defects, measurements)
+├── README.md              This document (Korean: README.ko.md)
+└── RELEASE_NOTES.md       Change history
 ```
 
-화면 전송(HW 1.1MHz + 고속 SW I2C)·버튼·부저·WiFi·NTP 감독·설정 저장·웹 설정 API·로그·TZ 검증은
-공통 라이브러리 [DeskStreamCore](../libraries/DeskStreamCore/)를 씁니다 (v1.1.0). 빌드 전에 저장소 루트에서
-`bash scripts/link-arduino-lib.sh`를 한 번 실행해 라이브러리를 Arduino 스케치북에 연결하세요.
+Display transfer (HW 1.1MHz + fast SW I2C), buttons, buzzer, WiFi, NTP supervision, settings storage, web settings API, logging and TZ validation
+use the shared library [DeskStreamCore](../libraries/DeskStreamCore/) (v1.1.0). Before building, run
+`bash scripts/link-arduino-lib.sh` once from the repository root to link the library into your Arduino sketchbook.
 
-## 🔌 하드웨어 (DeskStream 보드)
+## 🔌 Hardware (DeskStream board)
 
-| 항목 | 사양 |
+| Item | Spec |
 |:--|:--|
 | MCU | **ESP32-C3** (RISC-V single-core, 3.3V) |
-| 디스플레이 | 4× SSD1306 128×64 — HW I2C(GPIO 5/6) 2장, SW I2C(GPIO 2/3) 2장 |
-| I2C 주소 | 0x3C / 0x3D (버스별 1개씩) |
-| 버튼 | BTN1=GPIO 1, BTN2=GPIO 4, BTN3=GPIO 10, BTN4=GPIO 9 (`INPUT_PULLUP`) |
-| 버저 | GPIO 7 |
-| 저장 | LittleFS (spiffs `0x290000`, `0x160000` ≈ 1.37 MB) + NVS (설정) — `partitions.csv` 공통 레이아웃, app0 2.5MB |
+| Displays | 4× SSD1306 128×64 — 2 on HW I2C (GPIO 5/6), 2 on SW I2C (GPIO 2/3) |
+| I2C addresses | 0x3C / 0x3D (one per bus) |
+| Buttons | BTN1=GPIO 1, BTN2=GPIO 4, BTN3=GPIO 10, BTN4=GPIO 9 (`INPUT_PULLUP`) |
+| Buzzer | GPIO 7 |
+| Storage | LittleFS (spiffs `0x290000`, `0x160000` ≈ 1.37 MB) + NVS (settings) — shared `partitions.csv` layout, app0 2.5MB |
 
-자세한 핀맵은 상위 [`../hardware.md`](../hardware.md) 참고.
+See the parent [`../hardware.md`](../hardware.md) for the full pin map.
 
-## 🚀 빌드 & 업로드
+## 🚀 Build & Upload
 
 ```bash
-# 빌드
+# Build
 arduino-cli compile --fqbn esp32:esp32:makergo_c3_supermini:PartitionScheme=huge_app .
 
-# 업로드 (波特率 115200)
+# Upload (baud rate 115200)
 arduino-cli upload  --fqbn esp32:esp32:nologo_esp32c3_super_mini -p /dev/cu.usbmodem* .
 
-# 시리얼 로그
+# Serial log
 arduino-cli monitor -p /dev/cu.usbmodem* -c baudrate=115200
 ```
 
-**파티션**: Arduino IDE에서는 `Partition Scheme`을 **Huge APP**로 고른다 (크기 검사 상한용). 실제 테이블은 스케치 폴더의
-`partitions.csv` — DeskStream 공통 레이아웃(app0 2.5MB / spiffs `0x290000`)이라 폰트가 보존된다 (v1.1.0~).
+**Partition**: In the Arduino IDE choose **Huge APP** for `Partition Scheme` (used for the size check limit). The actual table is the sketch folder's
+`partitions.csv` — the shared DeskStream layout (app0 2.5MB / spiffs `0x290000`), so fonts are preserved (v1.1.0+).
 
-**부팅 팁**: ESP32-C3 native USB는 호스트가 포트를 읽어주지 않으면
-`HWCDC::write()`가 호출당 최대 2초를 블로킹합니다. 시리얼 모니터를 안 열어도 부팅이 멈추지
-않도록 `Serial.setTxTimeoutMs(0)`을 걸어 두었습니다.
+**Boot tip**: On the ESP32-C3 native USB, if the host does not read the port,
+`HWCDC::write()` blocks for up to 2 seconds per call. `Serial.setTxTimeoutMs(0)` is set so boot does not
+stall even without a serial monitor open.
 
-**공장 초기화**: 부팅 직후 **BTN1을 누른 채** 전원. LittleFS 포맷 + WiFi 설정 초기화 후 재부팅합니다.
+**Factory reset**: Power on **while holding BTN1** right at boot. It formats LittleFS, resets WiFi settings and reboots.
 
-## 🧪 테스트
+## 🧪 Tests
 
 ```bash
-bash test/run_all.sh      # 전체 (네이티브 C++ + JS 교차검증)
+bash test/run_all.sh      # everything (native C++ + JS cross-validation)
 ```
 
-**현재 상태: 통과 4 / 실패 0** (2026-11-09 실행 확인 — 전용 테스트 3종 + JS 교차검증).
-TZ 검증·UTF-8·I2C 재시도·NTP 정책 테스트는 공통 라이브러리로 옮겼습니다: `bash libraries/DeskStreamCore/test/run_all.sh`
+**Current status: 4 passed / 0 failed** (run on 2026-11-09 — 3 dedicated suites + JS cross-validation).
+TZ validation, UTF-8, I2C retry and NTP policy tests moved to the shared library: `bash libraries/DeskStreamCore/test/run_all.sh`
 
-| 스위트 | 단언 | 검증 내용 |
+| Suite | Assertions | What it checks |
 |:--|--:|:--|
-| `test_chinese_time` | **483** | §3 표현 규칙 전수표 전 항목 (시 24종 × 12H/24H × 2벌, 분/초 60 × 2 × 2, 요일 7 × 2, 오전오후 24 × 2) + 경계값 + 번체 치환 3글자 완전성 |
-| `test_layout` | **69** | 4자 수용 / 5자 잘림, 3바이트 CJK 좌표, `"13 时"`의 공백 셀 4칸, 가로 중앙 정렬. **§3 전수 758개 표현 순회** — 최대 4셀(한계 4, 여유 0) |
-| `test_geometry` | **34** | 288B 매핑, 287·289 거부 |
-| `layout_crosscheck` | **696행** | 배포되는 `web_pages.h`의 JS ↔ 펌웨어 C++ **전수 대조** (불일치 0) |
-| `web_fixes_test` | **92** | 업로드 배선·슬롯 고정·이름표 계약·폴링 가드 |
+| `test_chinese_time` | **483** | Every entry of the §3 expression rule table (24 hours × 12H/24H × 2 sets, minutes/seconds 60 × 2 × 2, weekdays 7 × 2, AM/PM 24 × 2) + boundary values + completeness of the 3 Traditional substitutions |
+| `test_layout` | **69** | 4 characters fit / 5 are clipped, 3-byte CJK coordinates, 4 blank cells for `"13 时"`, horizontal centering. **Iterates all 758 §3 expressions** — max 4 cells (limit 4, margin 0) |
+| `test_geometry` | **34** | 288B mapping, 287 and 289 rejected |
+| `layout_crosscheck` | **696 rows** | **Exhaustive comparison** of the JS in the shipped `web_pages.h` ↔ firmware C++ (0 mismatches) |
+| `web_fixes_test` | **92** | Upload wiring, slot pinning, name tag contract, polling guard |
 
-> **전수 순회가 있는 이유**: `layoutLine()`이 4셀 초과를 주면 `display_manager`는 **빈 화면**을 그리고
-> 로그만 남깁니다. OLED를 보기 전까지 알아낼 방법이 없습니다. 대표 문자열만 고른 검사는
-> 최장 표현을 놓칠 수 있어 758개를 전부 순회합니다. **여유가 0**이므로 표현 규칙이나 셀 수가
-> 바뀌면 즉시 깨집니다.
+> **Why iterate everything**: If `layoutLine()` returns more than 4 cells, `display_manager` draws a **blank screen**
+> and only logs it. There is no way to find out before looking at the OLED. A check using only representative strings
+> could miss the longest expression, so all 758 are iterated. **The margin is 0**, so it breaks immediately if the
+> expression rules or cell count change.
 
-> **교차검증 하네스는 `/tmp`가 아니라 `test/js/`에 있습니다.** 검증 대상은 미러 스크립트가 아니라
-> **배포되는 `web_pages.h` 자체**입니다 — 심볼이 사라지면 추출이 즉시 실패합니다.
+> **The cross-validation harness lives in `test/js/`, not `/tmp`.** It validates **the shipped `web_pages.h` itself**,
+> not a mirror script — if a symbol disappears, extraction fails immediately.
 
-## 📐 메모리 사용량 (2026-11-09 실측, v1.1.0)
+## 📐 Memory Usage (measured 2026-11-09, v1.1.0)
 
-| | 값 | 여유 |
+| | Value | Free |
 |:--|--:|--:|
-| Flash (app0 2.5MB, `partitions.csv`) | **1,307,021 B** | 약 **1.31 MB** |
-| RAM (전역) | 50,932 B (15%) | 276,748 B |
+| Flash (app0 2.5MB, `partitions.csv`) | **1,307,021 B** | about **1.31 MB** |
+| RAM (globals) | 50,932 B (15%) | 276,748 B |
 
-> v1.0.x는 `default` 스킴(app0 1.25MB)이라 Flash 여유가 8 KB였고, 그래서 **CJK 폴백 폰트를 넣지 않았습니다**.
-> v1.1.0부터 app0가 2.5MB라 여유가 생겼지만 폴백 폰트는 아직 없습니다 — **커스텀 폰트 업로드가 필수**이고,
-> 올리지 않으면 숫자 모드만 표시됩니다.
+> v1.0.x used the `default` scheme (app0 1.25MB), leaving only 8 KB of flash, which is why **no CJK fallback font was included**.
+> Since v1.1.0 app0 is 2.5MB so there is room, but there is still no fallback font — **uploading a custom font is required**,
+> otherwise only numeric mode is shown.
 
-## 🈴 폰트 업로드 절차
+## 🈴 Font Upload Procedure
 
-**반드시 해야 합니다.** 커스텀 폰트가 없으면 한자가 그려지지 않습니다.
+**This is required.** Without a custom font, Chinese characters are not drawn.
 
-1. 기기를 WiFi에 연결하고 브라우저에서 **기기 IP**로 접속합니다 (BTN4 short로 IP 화면 확인).
-2. **1. Font file** 에 `.ttf` / `.otf`를 고릅니다.
-   - 권장: **Noto Sans SC**, **Source Han Sans** — 간체·번체를 모두 포함한 CJK 폰트.
-   - ⚠ **두 문자판을 모두 포함해야 합니다.** `點`·`時`·`兩`가 없으면 번체 전환이 거부됩니다.
-3. **2. Font size** = **32px**(기본값)를 유지합니다. 40px를 넘기면 인접 글자와 겹쳐 CJK 판독이 불가능합니다.
-4. **3. Character set** — 표시 방식(简体/繁體/數字). 업로드는 이 값과 무관하게 **37자를 항상** 올립니다.
-5. **4. Storage slot** — 0~4 중 저장할 슬롯.
-6. **Convert & Upload** → 시리얼에서 `[WEB] Slot N name = ….ttf` 가 찍히면 정상입니다.
+1. Connect the device to WiFi and open the **device IP** in a browser (check the IP screen with BTN4 short).
+2. In **1. Font file**, choose a `.ttf` / `.otf`.
+   - Recommended: **Noto Sans SC**, **Source Han Sans** — CJK fonts that include both Simplified and Traditional.
+   - ⚠ **It must include both character sets.** Without `點`·`時`·`兩`, switching to Traditional is refused.
+3. Keep **2. Font size** = **32px** (default). Above 40px characters overlap their neighbors and CJK becomes unreadable.
+4. **3. Character set** — display mode (简体/繁體/數字). Uploads **always** send all 37 characters regardless of this value.
+5. **4. Storage slot** — the slot (0–4) to store into.
+6. **Convert & Upload** → if serial prints `[WEB] Slot N name = ….ttf`, it worked.
 
-> ⚠ **`Slot name rejected:` 가 찍히면 업로드가 실패한 것입니다.** 조용히 넘어가지 않습니다.
-> 원인은 폰트 이름이 64바이트를 넘는 경우입니다(`config.h`의 `FONT_NAME_MAX_LEN`).
-> `-Noncommercial-Regular` 같은 라이선스 접미사가 붙은 이름은 금방 64바이트가 넘습니다.
+> ⚠ **If `Slot name rejected:` is printed, the upload failed.** It does not fail silently.
+> The cause is a font name longer than 64 bytes (`FONT_NAME_MAX_LEN` in `config.h`).
+> Names with license suffixes like `-Noncommercial-Regular` quickly exceed 64 bytes.
 
-## 🕸️ 웹 대시보드
+## 🕸️ Web Dashboard
 
-`http://<기기 IP>/` — 설정 11개 항목과 Font Studio가 한 페이지에 있습니다.
+`http://<device IP>/` — 11 settings and Font Studio are on one page.
 
-| # | 항목 | 대응 버튼 |
+| # | Item | Matching button |
 |:--:|:--|:--|
 | 1 | Font file | — |
-| 2 | Font size (20~40px) | — |
+| 2 | Font size (20–40px) | — |
 | 3 | **Character set** (简体/繁體/數字) | BTN2 short |
-| 4 | **Storage slot** (0~4) | BTN3 long |
-| 5 | Animation (0~5) | BTN3 short |
+| 4 | **Storage slot** (0–4) | BTN3 long |
+| 5 | Animation (0–5) | BTN3 short |
 | 6 | Hour format (12H/24H) | BTN2 long |
 | 7 | Hourly chime | BTN1 short |
 | 8 | Screen flip | BTN1 long |
@@ -220,50 +222,50 @@ TZ 검증·UTF-8·I2C 재시도·NTP 정책 테스트는 공통 라이브러리�
 
 **API**
 
-| 메서드 | 경로 | 설명 |
+| Method | Path | Description |
 |:--|:--|:--|
-| `GET` | `/api/config` | 현재 설정 전체 + 슬롯 이름 목록 |
-| `POST` | `/api/config` | 설정 변경 (JSON). 정수·불리언·표시방식·시간대·폰트이름 |
-| `POST` | `/upload?slot=N&font=<이름>` | 글리프 업로드 (파일 본문) + 슬롯 이름표 |
-| `POST` | `/api/refresh_cache` | 캐시 재적재 (Font Studio 미리보기용) |
+| `GET` | `/api/config` | All current settings + list of slot names |
+| `POST` | `/api/config` | Change settings (JSON). Integers, booleans, display mode, time zone, font name |
+| `POST` | `/upload?slot=N&font=<name>` | Glyph upload (file body) + slot name tag |
+| `POST` | `/api/refresh_cache` | Reload the cache (for the Font Studio preview) |
 
-> ⚠ **웹 서버에 인증이 없습니다.** 원본(`Hangeul_Clock`/`ENG_Clock`) 동작을 승계한 것이며,
-> 공유 네트워크에서는 `/api/config`가 개방됩니다. 신뢰할 수 있는 네트워크에서만 쓰세요.
+> ⚠ **The web server has no authentication.** This behavior is inherited from the originals (`Hangeul_Clock`/`ENG_Clock`),
+> and `/api/config` is open on shared networks. Use it only on trusted networks.
 
-## ⚠️ 미완료 — 실기 확인 필요
+## ⚠️ Incomplete — Needs Hardware Check
 
-정직하게 남깁니다. 아래는 **아직 기기 앞에서 확인하지 못한 것**입니다.
+Recorded honestly. These are **things not yet checked in front of the device**.
 
-| # | 항목 | 상태 |
+| # | Item | Status |
 |:--:|:--|:--|
-| 1 | **검증 게이트** — 32px 한자 가독성, 4자 폭 정합, `三点零五分` 정확성, `三点半` 규칙, 세로 중앙 정렬 | 미통과. 32px가 빡빡하면 피치 28px가 대체안(PLAN §7) |
-| 2 | **애니메이션 5종 수동 검증** (Step 12) | 미완 |
-| 3 | **웹페이지 백지 수정 재확인** — `send()`→`send_P()` 수정 후 실기 재확인 필요 | 미확인 |
-| 4 | **슬롯 0·2 재업로드** — 이름표 결함(§12.10→12.13→12.14)을 세 차례 고쳤으므로 실기 확인 필요 | 미확인 |
-| 5 | **실제 다국어 렌더링** — 간체 폰트와 번체 폰트를 번갈아 업로드해 `点`/`點`, `时`/`時`, `两`/`兩` 차이를 눈으로 확인 | 미완 |
-| 6 | **NVS 삭제 불필요** — 문자판 검증은 전환 시점에만 걸린다. 슬롯에 37자를 올리면 어느 문자판이든 통과합니다 | 사실 확인 |
+| 1 | **Verification gate** — 32px Chinese readability, 4-character width fit, correctness of `三点零五分`, the `三点半` rule, vertical centering | Not passed. If 32px is too tight, a 28px pitch is the fallback (PLAN §7) |
+| 2 | **Manual check of the 5 animations** (Step 12) | Not done |
+| 3 | **Recheck of the blank web page fix** — needs a hardware recheck after the `send()`→`send_P()` fix | Unchecked |
+| 4 | **Re-upload slots 0 and 2** — the name tag defect (§12.10→12.13→12.14) was fixed three times, so it needs a hardware check | Unchecked |
+| 5 | **Real multilingual rendering** — alternately upload a Simplified and a Traditional font and visually check the `点`/`點`, `时`/`時`, `两`/`兩` differences | Not done |
+| 6 | **No need to erase NVS** — character set validation only applies when switching. With 37 characters in a slot, any character set passes | Confirmed |
 
-## 📌 알려진 제약
+## 📌 Known Limitations
 
-1. **커스텀 폰트가 필수** — CJK 폴백 폰트를 넣지 않았습니다(Flash 8 KB 여유). 미업로드 시 숫자 모드로만 표시됩니다.
-2. **`FALLBACK_BASELINE 42`는 계산값** — 실측이 아닙니다. 실기에서 눈으로 확인해야 합니다.
-3. **저장은 5초 지연** — 모든 저장은 `setDirty()` → 지연 타이머로만 일어납니다. 모드를 바꾼 뒤 5초가 지나기 전에
-   전원을 끄면 그 변경은 유실됩니다.
-4. **Font Studio는 슬롯 인벤토리를 알지 못합니다** — 지금 슬롯에 어떤 글자가 들어 있는지 펌웨어에 묻는 API가 없습니다.
-   슬롯을 바꾸면 배지를 "모른다"로 되돌립니다("있다"고 거짓말하지 않기 위한 선택). 정확한 인벤토리가 필요하면
-   `/api/glyphs?slot=N` 같은 조회 API를 추가해야 합니다.
-5. **`.ttf` 원본은 저장되지 않습니다** — 슬롯에는 폰트 **이름**까지만 보관합니다.
-6. **Flash 99%** — 새 기능을 넣기 전 여유를 반드시 재측정하세요.
+1. **A custom font is required** — no CJK fallback font is included (8 KB flash margin). Without an upload, only numeric mode is shown.
+2. **`FALLBACK_BASELINE 42` is a calculated value** — not measured. It must be checked by eye on hardware.
+3. **Saving is delayed 5 seconds** — all saves happen only through `setDirty()` → a delay timer. If you power off within 5 seconds
+   of changing a mode, that change is lost.
+4. **Font Studio does not know the slot inventory** — there is no API to ask the firmware which characters a slot currently holds.
+   Switching slots resets the badge to "unknown" (chosen so it never falsely claims "present"). If you need an accurate inventory,
+   a query API such as `/api/glyphs?slot=N` must be added.
+5. **The `.ttf` source is not stored** — a slot keeps only the font **name**.
+6. **Flash 99%** — always re-measure the margin before adding new features.
 
-## 🔗 관련 프로젝트
+## 🔗 Related Projects
 
-- [`../Hangeul_Clock`](../Hangeul_Clock/) — 한글판 (v2.9.1) · 본 프로젝트의 구조적 원본
-- [`../ENG_Clock`](../ENG_Clock/) — 영어판 (v1.0.1) · 2줄 레이아웃이 필요한 경우의 비교 대상
-- [`PLAN.md`](./PLAN.md) — 설계 문서, 표현 규칙 전수표, 구현 기록(정정·결함·실측)
+- [`../Hangeul_Clock`](../Hangeul_Clock/) — Korean edition (v2.9.1) · the structural original of this project
+- [`../ENG_Clock`](../ENG_Clock/) — English edition (v1.0.1) · for comparison when a two-line layout is needed
+- [`PLAN.md`](./PLAN.md) — design document, full expression rule table, implementation records (corrections, defects, measurements)
 
-> 📌 **중국어판에서 고친 결함 중 언어와 무관한 것**(웹 백지 `send_P`, 폰트 이름표 ①②③④,
-> 슬롯 배지 상태, 빈 슬롯 표기 통일)이 **영어판·한글판에도 아직 전파되지 않았습니다.**
-> 고칠 때의 순서와 정확한 파일 위치는 [`PLAN.md` §📌 언어 중립 수정](./PLAN.md)을 보세요.
+> 📌 **Language-independent defects fixed in the Chinese edition** (blank web page `send_P`, font name tags ①②③④,
+> slot badge state, unified empty slot labels) **have not yet been propagated to the English and Korean editions.**
+> For the order and exact file locations when fixing them, see [`PLAN.md` §📌 language-neutral fixes](./PLAN.md).
 
 ---
 © 2026 DeskStream Project. — worynim@gmail.com

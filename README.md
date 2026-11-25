@@ -1,252 +1,254 @@
+**English** | [한국어](README.ko.md)
+
 # 🖥️ DeskStream: ESP32-C3 4-OLED Multifunctional Board
 
-DeskStream은 ESP32-C3와 4개의 OLED 디스플레이를 활용한 다기능 데스크톱 정보 스테이션 프로젝트입니다.
+DeskStream is a multifunctional desktop information station built on an ESP32-C3 and four OLED displays.
 
 https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
-> 🌐 **웹 플래셔**: [https://worynim.github.io/DeskStream/](https://worynim.github.io/DeskStream/) — USB로 연결한 ESP32-C3 보드에 원하는 프로젝트를 브라우저에서 바로 업로드할 수 있습니다. ([사용법](#-웹-플래셔-web-flasher) · [소스](./web/))
+> 🌐 **Web Flasher**: [https://worynim.github.io/DeskStream/](https://worynim.github.io/DeskStream/) — upload any project straight from the browser to an ESP32-C3 board connected over USB. ([How to use](#-web-flasher) · [Source](./web/))
 
-## 🛠️ 하드웨어 사양 (Hardware Specification)
+## 🛠️ Hardware Specification
 - **MCU**: ESP32-C3 (SuperMini)
-- **Display**: 0.96" SSD1306 OLED (128x64) x 4개 (가로 배치 시 512x64 광폭 디스플레이 구현 가능)
-- **Buttons**: 4개의 사용자 입력 버튼 (GPIO 1, 4, 10, 9)
+- **Display**: 0.96" SSD1306 OLED (128x64) x 4 (side by side they form a 512x64 wide display)
+- **Buttons**: 4 user input buttons (GPIO 1, 4, 10, 9)
 - **Interface**:
-  - **HW I2C**: SDA(GPIO 5), SCL(GPIO 6) - OLED 1, 2 제어
-  - **SW I2C**: SDA(GPIO 2), SCL(GPIO 3) - OLED 3, 4 제어
-- 상세 정보: [hardware.md](./hardware.md) 참조
+  - **HW I2C**: SDA(GPIO 5), SCL(GPIO 6) - drives OLED 1, 2
+  - **SW I2C**: SDA(GPIO 2), SCL(GPIO 3) - drives OLED 3, 4
+- Details: see [hardware.md](./hardware.md)
 
-## 📁 주요 프로젝트 (Sub-Projects)
-본 저장소는 DeskStream 보드용으로 개발된 16가지 주요 프로그램을 포함하고 있습니다.
+## 📁 Sub-Projects
+This repository contains 16 main programs developed for the DeskStream board.
 
-### 1. [Smart_Info_Station: 스마트 정보 스테이션 (v2.10.1)](./Smart_Info_Station/)
-- **기능**: 시계, 날씨, 미세먼지, 유튜브 구독자 수, 증시 지수, 가상화폐 가격, 환율 실시간 모니터링.
-- **특징**: **전면 모듈화 아키텍처**, 웹 대시보드 실시간 설정, 비동기 데이터 갱신(FreeRTOS), 네이티브 HAL 기반 고속 SW I2C.
-- **버튼 동작**: 버튼 1을 사용하여 HUD 반전 모드 순환, 버튼 4를 사용하여 페이지를 전환합니다.
+### 1. [Smart_Info_Station: Smart Information Station (v2.10.1)](./Smart_Info_Station/)
+- **Features**: Real-time clock, weather, fine dust, YouTube subscriber count, stock indices, cryptocurrency prices and exchange rates.
+- **Highlights**: **Fully modular architecture**, live configuration from a web dashboard, asynchronous data refresh (FreeRTOS), fast SW I2C on the native HAL.
+- **Buttons**: Button 1 cycles the HUD inversion mode, button 4 switches pages.
 
-### 2. [GPS_DASH: 하드웨어 GPS 대시보드](./GPS_DASH/)
-- **기능**: 실시간 속도, 나침반, 고도, 위도/경도, 위성 상태, 주행 통계 표시.
-- **특징**: NEO-6M GPS 모듈 연동(5Hz), UBX 프로토콜 직접 제어, 8가지 디스플레이 모드 제공.
+### 2. [GPS_DASH: Hardware GPS Dashboard](./GPS_DASH/)
+- **Features**: Real-time speed, compass, altitude, latitude/longitude, satellite status and trip statistics.
+- **Highlights**: NEO-6M GPS module (5Hz), direct UBX protocol control, 8 display modes.
 
-### 3. [Sound_Visualizer_4_OLEDs: 고속 오디오 비주얼라이저](./Sound_Visualizer_4_OLEDs/)
-- **기능**: 아날로그 마이크 입력(G0)을 통한 128밴드 실시간 주파수 시각화.
-- **특징**: ESP-DSP 정수형 FFT 가속(Max 70+ FPS), 512x64 초광폭 캔버스 제어, ADC DMA 샘플링, 6가지 시각화 모드(스펙트럼·파형·미러·스펙트로그램·도트 매트릭스·파티클).
+### 3. [Sound_Visualizer_4_OLEDs: High-Speed Audio Visualizer](./Sound_Visualizer_4_OLEDs/)
+- **Features**: 128-band real-time frequency visualization from an analog microphone input (G0).
+- **Highlights**: ESP-DSP integer FFT acceleration (max 70+ FPS), 512x64 ultra-wide canvas, ADC DMA sampling, 6 visualization modes (spectrum · waveform · mirror · spectrogram · dot matrix · particles).
 
-### 4. [OLED_Wide_test: 초광폭 디스플레이 테스트](./OLED_Wide_test/)
-- **기능**: 4개의 OLED를 하나의 512x64 화면으로 제어하는 데모 및 테스트 코드.
-- **특징**: Shadow Buffering을 통한 데이터 전송 최적화, LovyanGFX 기반 고속 그래픽 렌더링.
+### 4. [OLED_Wide_test: Ultra-Wide Display Test](./OLED_Wide_test/)
+- **Features**: Demo and test code that drives the four OLEDs as one 512x64 screen.
+- **Highlights**: Transfer optimization through shadow buffering, fast graphics rendering with LovyanGFX.
 
-### 5. [Stats_Monitor: 시스템 상태 모니터](./Stats_Monitor/)
-- **기능**: PC/Mac의 CPU, GPU, RAM, SSD 상태 및 온도, 네트워크 트래픽 실시간 표시.
-- **특징**: 외부 클라이언트 연동, 하드웨어 통계 가젯 모드, 시스템 생체 정보 가시화.
+### 5. [Stats_Monitor: System Status Monitor](./Stats_Monitor/)
+- **Features**: Real-time CPU, GPU, RAM and SSD status and temperatures plus network traffic of a PC/Mac.
+- **Highlights**: External client integration, hardware statistics gadget mode, visualization of system vital signs.
 
-### 6. [DS_DECK: 프로그래머블 매크로 패드 (v1.6.1)](./DS_DECK/)
-- **기능**: 4개의 버튼에 텍스트 매크로(한/영 지원), 단축키(Combo), 미디어 컨트롤, **웹 브라우저 런처(Browser)** 할당.
-- **특징**: **macOS 프리미엄 런처 지원**(Spotlight 자동화), 초고속 BLE HID 엔진, 웹 기반 실시간 매크로 설정, F1~F12 포함 모든 특수키 지원.
+### 6. [DS_DECK: Programmable Macro Pad (v1.6.1)](./DS_DECK/)
+- **Features**: Assign text macros (Korean/English), key combos, media controls or a **web browser launcher (Browser)** to the four buttons.
+- **Highlights**: **Premium macOS launcher support** (Spotlight automation), fast BLE HID engine, web-based live macro configuration, support for every special key including F1–F12.
 
-### 7. [Screen_To_OLEDs: 실시간 화면 스트리머 (v2.3.1)](./Screen_To_OLEDs/)
-- **기능**: Mac의 화면 일부를 실시간 캡처하여 DeskStream 4-OLED 매트릭스(512x64)에 무선 전송.
-- **특징**: 지능형 캡처 엔진(Full 대응), Numba JIT 가속, 6종 디더링 알고리즘, 실시간 설정 변경.
-- **버튼 동작**: 버튼 2를 눌러 밝기를 조절하고, 버튼 1을 롱프레스하여 화면을 180도 회전(플립)합니다.
+### 7. [Screen_To_OLEDs: Real-Time Screen Streamer (v2.3.1)](./Screen_To_OLEDs/)
+- **Features**: Captures part of the Mac screen in real time and sends it wirelessly to the DeskStream 4-OLED matrix (512x64).
+- **Highlights**: Smart capture engine (full-screen aware), Numba JIT acceleration, 6 dithering algorithms, live settings changes.
+- **Buttons**: Press button 2 to adjust brightness; long-press button 1 to rotate (flip) the screen 180 degrees.
 
-### 8. [Hangeul_Clock: 고화질 폰트 한글 시계 (v2.11.1)](./Hangeul_Clock/)
-- **기능**: NTP 동기화 기반의 고화질 한글 시계 및 하이엔드 폰트 렌더링 시스템.
-- **특징**: 
-    - **제로-스터터(Zero-Stutter) 웹 API**: 폰트 슬롯 이름 메모리 캐싱으로 웹 대시보드 호출 시 시스템 멈춤 현상 근본 해결.
-    - **전문가급 안정성 및 보안**: **하드웨어 자가 치유(I2C Recovery)**, **API 입력 범위 검증(Whitelist)** 로직 탑재.
-    - **Flat Buffer 메모리 무결성**: 힙 파편화와 메모리 누수를 원천 차단하는 **Flat Buffer** 전략 사용.
-    - **비차단(Non-blocking) 엔진**: 상태 머신 기반 애니메이션 루프 및 `refreshNow()` 잔상 방지 로직.
-    - **웹 미리보기 동기화**: '색상 반전' 설정이 웹 대시보드 캔버스 미리보기에도 실시간 반영.
-    - **64px Modern Font Engine**: 글자 잘림 없는 고해상도 64px(512B) 비트맵 폰트 정식 지원.
-    - **지능형 24H 및 날짜 시스템**: 24시간제 지원.
-    - **인터랙티브 제어**: 4개의 물리 버튼을 통해 **시보, 화면 반전, 한글/숫자 모드, 시간 형식(12/24H)**을 즉각적으로 변경 가능.
-    - **Ecosystem 연동**: 실시간 웹 시뮬레이너(폰트 스튜디오) 및 3초 비동기 동기화 엔진 탑재.
- 
-### 9. [Game_Of_Life: 단독 구동형 생명 게임](./Game_Of_Life/)
-- **기능**: Conway의 생명 게임(Game of Life) 시뮬레이션을 512x64 대화면에서 무한 루프로 실행.
-- **특징**: 1-bit 메모리 최적화(총 8KB 사용), 4개 버튼을 통한 **재생/일시정지, 수동 단계 진행, 속도 조절(5/10/20 FPS), 패턴 리셋** 지원.
+### 8. [Hangeul_Clock: High-Quality Font Korean Clock (v2.11.1)](./Hangeul_Clock/)
+- **Features**: NTP-synchronized high-quality Korean (Hangeul) word clock with a high-end font rendering system.
+- **Highlights**:
+    - **Zero-Stutter web API**: Caching font slot names in memory eliminates system freezes when the web dashboard calls the API.
+    - **Robust stability and security**: **Hardware self-healing (I2C Recovery)** and **API input range validation (whitelist)**.
+    - **Flat Buffer memory integrity**: A **Flat Buffer** strategy that prevents heap fragmentation and memory leaks.
+    - **Non-blocking engine**: State-machine animation loop and `refreshNow()` ghosting prevention.
+    - **Web preview sync**: The 'invert colors' setting is reflected live in the web dashboard canvas preview.
+    - **64px Modern Font Engine**: Full support for high-resolution 64px (512B) bitmap fonts without clipping.
+    - **Smart 24H and date system**: 24-hour format support.
+    - **Interactive control**: The four physical buttons instantly toggle **hourly chime, screen inversion, Hangeul/numeric mode and time format (12/24H)**.
+    - **Ecosystem integration**: Real-time web simulator (Font Studio) and a 3-second asynchronous sync engine.
 
-### 10. [ENG_Clock: 고화질 폰트 영어 시계 (v1.1.1)](./ENG_Clock/)
-- **기능**: NTP 동기화 기반의 고화질 영어 단어 시계. `Hangeul_Clock`의 아키텍처와 품질을 유지하며 텍스트만 영어로 포트.
-- **특징**: 
-    - **2-Line Word Layout**: 영어 최장 단어(`SEVENTEEN`, 9자)를 수용하는 어절 단위 2줄 레이아웃.
-    - **POS TZ 시간대 시스템**: DST 자동 처리, 웹 UI에서 12개 지역 프리셋 + Custom 입력.
-    - **Font Studio**: 브라우저에서 TTF를 잉크 중앙 정렬 64px 비트맵으로 래스터화해 직접 업로드.
-    - **호스트 테스트 인프라**: 네이티브 C++ 단위 테스트 + 웹↔펌웨어 교차 검증(`bash test/js/run_all.sh`).
+### 9. [Game_Of_Life: Standalone Game of Life](./Game_Of_Life/)
+- **Features**: Runs Conway's Game of Life simulation endlessly on the 512x64 large screen.
+- **Highlights**: 1-bit memory optimization (8KB total), four buttons for **play/pause, single step, speed (5/10/20 FPS) and pattern reset**.
 
-### 11. [Chinese_Clock: 고화질 폰트 중국어 시계 (v1.1.1)](./Chinese_Clock/)
-- **기능**: NTP 동기화 기반의 중국어 한자 단어 시계. `Hangeul_Clock` / `ENG_Clock`의 하드웨어·UI·애니메이션·웹 파이프라인을 승계하고 텍스트 생성부만 중국어로 포트.
-- **특징**: 
-    - **4화면 32×32 셀 레이아웃**: 최장 표현이 4자(`四十五分`)라 줄바꿈 없이 화면당 정사각형 셀 4개에 표시.
-    - **표준형 한자 표현**: `两点`, `三点零五分`, `三点半`, `九点整`, `上午`/`下午`, `星期日`~`星期六` 등 표준 규칙 적용.
-    - **간체 / 번체 / 숫자 표시 순환**: `简体 → 繁體 → 數字` (차이 3글자를 치환표 하나로 처리).
-    - **POSIX TZ 시간대 시스템**: DST 자동 처리, 기본값 `CST-8`, 웹 UI 프리셋 + Custom 입력.
-    - **Font Studio**: 브라우저에서 TTF를 37자(간체 ∪ 번체) 48×48 비트맵으로 구워 5개 폰트 슬롯에 업로드.
+### 10. [ENG_Clock: High-Quality Font English Clock (v1.1.1)](./ENG_Clock/)
+- **Features**: NTP-synchronized high-quality English word clock. Keeps the architecture and quality of `Hangeul_Clock` and ports only the text to English.
+- **Highlights**:
+    - **2-Line Word Layout**: A word-based two-line layout that fits the longest English word (`SEVENTEEN`, 9 letters).
+    - **POSIX TZ time zone system**: Automatic DST handling, 12 regional presets plus custom input in the web UI.
+    - **Font Studio**: Rasterizes a TTF in the browser into ink-centered 64px bitmaps and uploads them directly.
+    - **Host test infrastructure**: Native C++ unit tests plus web↔firmware cross-validation (`bash test/js/run_all.sh`).
 
-### 12. [Universal_Timer: 4-OLED 범용 타이머 (v1.3.0)](./Universal_Timer/)
-- **기능**: 4개의 OLED에 시·분·초를 각각 표시 및 조절하고 카운트다운을 수행하는 하드웨어 타이머.
-- **특징**: 
-    - **4분할 인터랙티브 레이아웃**: OLED 1(시 / 00H), OLED 2(분 / 00M), OLED 3(초 / 00S), OLED 4(START / PAUSE / RESET).
-    - **자동 가속 반복 (Auto-Repeat)**: 버튼을 길게 누르면 60ms 간격으로 고속 연속 증가.
-    - **타임아웃 자동 복원 메모리**: 카운트다운 종료 알람 시 아무 버튼이나 누르면 처음 START한 시간으로 자동 복원 (중간 일시정지 무관).
-    - **마지막 설정 시간 기억**: 버튼으로 바꾼 시간은 START 시 NVS에 저장되어 다시 켜도 유지.
-    - **이벤트 기반 더티 체킹**: 변경된 화면만 선별 전송하여 지연 없는 즉각적 반응성 및 정확한 30ms 비프음 제공.
-    - **오르골 알람**: 종료 알람은 오르골 아르페지오, 알람·부팅 멜로디는 PWM duty를 50%에서 3%로 낮춰 종소리처럼 여운을 남김.
+### 11. [Chinese_Clock: High-Quality Font Chinese Clock (v1.1.1)](./Chinese_Clock/)
+- **Features**: NTP-synchronized Chinese character word clock. Inherits the hardware, UI, animation and web pipeline of `Hangeul_Clock` / `ENG_Clock` and ports only the text generator to Chinese.
+- **Highlights**:
+    - **4-screen 32×32 cell layout**: The longest expression is 4 characters (`四十五分`), so each screen shows 4 square cells with no line breaks.
+    - **Standard Chinese expressions**: Standard rules such as `两点`, `三点零五分`, `三点半`, `九点整`, `上午`/`下午`, `星期日`–`星期六`.
+    - **Simplified / Traditional / numeric display cycle**: `简体 → 繁體 → 數字` (the 3 differing characters are handled by one substitution table).
+    - **POSIX TZ time zone system**: Automatic DST handling, default `CST-8`, web UI presets plus custom input.
+    - **Font Studio**: Bakes a TTF in the browser into 48×48 bitmaps for 37 characters (Simplified ∪ Traditional) and uploads them to 5 font slots.
 
-### 13. [Agent_Monitor: AI 개발 에이전트 모니터 (v0.8.2)](./Agent_Monitor/)
-- **기능**: Claude Code 세션 상태(생각 중 / 실행 중 / 승인 대기 / 입력 대기 / 완료 / 오류)를 OLED 한 장에 세션 하나씩 실시간 표시하고 부저로 알림.
-- **특징**: Claude Code 훅(CLI·데스크톱 앱) → PC 데몬(Python, 트레이 아이콘) → USB 시리얼 또는 BLE(USB 로 등록한 키로 서명). 데몬이 꺼져 있어도 Claude Code 동작에 영향 없음. 권한 요청을 장치 버튼으로 승인/거절(터미널 대화상자와 동시 대기, 자동 허용 없음). 한글 표시(갈무리7 글꼴), 세션 상세 화면(마지막 답변 4페이지 넘김 · 세션 닫기), 설정 파일로 음소거·OLED 밝기, 버튼 길게 누르기로 PC 명령(앱 앞으로·셸 명령·키 입력) 실행.
+### 12. [Universal_Timer: 4-OLED Universal Timer (v1.3.0)](./Universal_Timer/)
+- **Features**: A hardware timer that shows and adjusts hours, minutes and seconds on separate OLEDs and runs a countdown.
+- **Highlights**:
+    - **4-way interactive layout**: OLED 1 (hours / 00H), OLED 2 (minutes / 00M), OLED 3 (seconds / 00S), OLED 4 (START / PAUSE / RESET).
+    - **Auto-Repeat acceleration**: Holding a button increments rapidly every 60ms.
+    - **Timeout auto-restore memory**: When the countdown alarm sounds, any button restores the time that was first STARTed (regardless of pauses in between).
+    - **Remembers the last set time**: Time changed with the buttons is saved to NVS on START and kept across power cycles.
+    - **Event-driven dirty checking**: Only changed screens are sent, giving instant response and an accurate 30ms beep.
+    - **Music-box alarm**: The end alarm is a music-box arpeggio; alarm and boot melodies lower the PWM duty from 50% to 3% so they ring out like a bell.
 
-### 14. [Wireless_Analyzer: 2.4GHz 무선 환경 분석기 (v0.5.1)](./Wireless_Analyzer/)
-- **기능**: ESP32-C3의 WiFi·BLE 무선부 자체를 측정 도구로 써서 2.4GHz 채널 1~13 혼잡도와 추천 채널, 주변 AP 신호 세기 추이·추적, 근처 BLE 기기 수를 512x64 화면에 표시. 공유기에 접속하지 않는 단독 장치.
-- **특징**: 화면 6개(채널 스펙트럼 · 채널 혼잡도 · AP 목록 · AP 추적 · BLE 기기 · 요약). 같은 채널(시간 나눠 쓰기)과 옆 채널(잡음)을 구분한 채널 비용 + 프로미스큐어스 순회로 잰 채널 활동량(초당 제어·데이터 프레임)으로 추천 채널 선택. AP 추적 모드는 그 채널만 빠르게 스캔하고 부저로 신호 세기 안내. 라디오 하나를 WiFi 스캔·순회 측정·BLE 스캔이 번갈아 쓰는 스케줄러. BLE 기기 주소는 표시·전송하지 않음. 한글 표시(갈무리7), 모드·밝기·뒤집기 NVS 저장, 버튼을 누르면 짧은 버튼음.
+### 13. [Agent_Monitor: AI Coding Agent Monitor (v0.8.2)](./Agent_Monitor/)
+- **Features**: Shows the state of each Claude Code session (thinking / running / awaiting approval / awaiting input / done / error) live, one session per OLED, with buzzer alerts.
+- **Highlights**: Claude Code hooks (CLI and desktop app) → PC daemon (Python, tray icon) → USB serial or BLE (signed with a key registered over USB). Claude Code is unaffected when the daemon is off. Approve/deny permission requests with the device buttons (waits alongside the terminal dialog, never auto-allows). Korean text display (Galmuri7 font), session detail screen (4 pages of the last reply · close session), mute and OLED brightness in a config file, and long-press buttons to run PC commands (bring app to front · shell command · key input).
 
-### 15. [World_Clock: 세계 4곳 시계 (v0.1.0)](./World_Clock/)
-- **기능**: OLED 화면 하나에 도시 하나씩 지구 위 4곳의 현지 시각을 표시. 큰 AM/PM 글자, 해/달 아이콘, 0~24시 하루 막대로 오전/오후와 낮/밤을 구분하고, 기준 도시(1번 화면)와 날짜가 다르면 `+1일`/`-1일` 표시.
-- **특징**: 웹 페이지 없이 **화면을 눌러 장소 설정** — 화면을 길게 누르면 그 화면이 미리보기가 되고 나머지 세 화면이 세계 지도(취소) · 서쪽 · 동쪽 버튼이 됨(짧게 = 도시 하나, 누르고 있기 = 시간대 건너뛰기). 도시 113개(한글·영문), 서머타임 자동 반영(tzdata 2026f 기준, 호스트 테스트가 시스템 zoneinfo와 대조). 12/24시 · 밝기 · 한글/영문 전환, NVS 저장. 0.1.0은 실제 보드 확인 전 배포본.
+### 14. [Wireless_Analyzer: 2.4GHz Wireless Environment Analyzer (v0.5.1)](./Wireless_Analyzer/)
+- **Features**: Uses the ESP32-C3's own WiFi/BLE radio as a measuring tool to show 2.4GHz channel 1–13 congestion with a recommended channel, nearby AP signal strength trends and tracking, and the number of nearby BLE devices on the 512x64 screen. A standalone device that never joins a router.
+- **Highlights**: 6 screens (channel spectrum · channel congestion · AP list · AP tracking · BLE devices · summary). The recommended channel combines a channel cost that separates same-channel (time sharing) from adjacent-channel (noise) interference with channel activity measured by a promiscuous sweep (control/data frames per second). AP tracking mode scans only that channel quickly and guides you by signal strength with the buzzer. A scheduler shares the single radio between WiFi scans, sweep measurements and BLE scans. BLE device addresses are never shown or transmitted. Korean text display (Galmuri7), mode/brightness/flip saved to NVS, short button click sounds.
 
-### 16. [Page_Turner: BLE 페이지 터너 (v1.1.0)](./Page_Turner/)
-- **기능**: 장치를 세로로 쥐고 엄지로 버튼을 눌러 웹소설·웹툰·유튜브 쇼츠를 넘기는 블루투스 리모컨. 스마트폰 카메라 셔터(딜레이 셔터 포함)와 PC 발표 슬라이드(PageUp/PageDown) 넘김도 지원.
-- **특징**: 키보드 · 미디어 키 · 마우스 휠을 합친 BLE HID(NimBLE). 앱 이름별 모드 7개(YouTube · 카카오 웹툰/소설 · 시리즈 웹툰/소설 · 카메라 · PPT)에 Android 실기 시험으로 찾은 신호와 이동량을 미리 맞춤. 연결 기기 슬롯 3개(BTN3 길게 → 슬롯 버튼 두 번으로 전환, 길게 = 새 기기). 설정·마지막 모드·슬롯 NVS 저장, 1분 화면 끄기 · 5분 딥슬립. 세로 방향 화면에 버튼 역할을 화살표·아이콘으로 표시 — 밝기 최저 · 테두리로만 그려 어두운 곳 눈부심과 전력을 줄임.
+### 15. [World_Clock: Four-City World Clock (v0.1.0)](./World_Clock/)
+- **Features**: Shows the local time of four places on Earth, one city per OLED. Large AM/PM text, sun/moon icons and a 0–24h day bar distinguish morning/afternoon and day/night, and `+1d`/`-1d` (`+1일`/`-1일` in Korean) appears when the date differs from the reference city (screen 1).
+- **Highlights**: **Set places by pressing the screens** — no web page. Long-press a screen to make it the preview while the other three become world map (cancel) · west · east buttons (short = one city, hold = skip by time zone). 113 cities (Korean/English), automatic daylight saving (based on tzdata 2026f, checked against the system zoneinfo by host tests). 12/24h · brightness · Korean/English toggle, saved to NVS. 0.1.0 is released before testing on real hardware.
 
-- **하이브리드 I2C 아키텍처**: 하드웨어 I2C와 레지스터 직접 제어 기반 고속 소프트웨어 I2C를 병렬로 사용하여 4개의 화면을 끊김 없이 제어합니다.
-- **성능 최적화**: 부드러운 애니메이션 구현을 위한 Dirty Page 체크 및 그래픽 가속 기법이 적용되었습니다.
-- **문서화 표준화**: 전 프로젝트 소스 코드에 Doxygen 스타일 헤더 및 작성자 정보를 도입하여 유지보수성을 극대화했습니다.
+### 16. [Page_Turner: BLE Page Turner (v1.1.0)](./Page_Turner/)
+- **Features**: A Bluetooth remote you hold upright and press with your thumb to page through web novels, webtoons and YouTube Shorts. Also works as a smartphone camera shutter (including delayed shutter) and a PC presentation slide clicker (PageUp/PageDown).
+- **Highlights**: BLE HID (NimBLE) combining keyboard, media keys and mouse wheel. 7 modes named after apps (YouTube · Kakao Webtoon/Novel · Series Webtoon/Novel · Camera · PPT), pre-tuned with the signals and scroll amounts found by testing on real Android devices. 3 paired-device slots (long-press BTN3 → press a slot button twice to switch, long press = new device). Settings, last mode and slot saved to NVS; screen off after 1 minute, deep sleep after 5 minutes. The portrait screen shows each button's role with arrows and icons — drawn as outlines only at minimum brightness to reduce glare in the dark and save power.
 
-## 🧩 공통 라이브러리 (DeskStreamCore)
+- **Hybrid I2C architecture**: Hardware I2C and fast software I2C with direct register control run in parallel to drive the four screens without stutter.
+- **Performance optimization**: Dirty page checking and graphics acceleration techniques for smooth animation.
+- **Standardized documentation**: Doxygen-style headers and author information in the source code of every project for better maintainability.
 
-여러 프로젝트가 함께 쓰는 기능(화면 엔진, 버튼, 부저, WiFi, NTP, 설정 저장, 웹 설정 엔진)을
-Arduino 라이브러리 [`libraries/DeskStreamCore`](./libraries/DeskStreamCore/)로 모으고 있습니다.
-**16개 프로젝트 전부**가 이 라이브러리를 씁니다 (화면 전송 HW 1.1MHz + 고속 SW I2C, 바뀐 타일만 병렬 전송 — 한글 시계 실측 4화면 45.7fps).
+## 🧩 Shared Library (DeskStreamCore)
 
-### 최초 설정 (PC마다 1회)
+Features shared by several projects (display engine, buttons, buzzer, WiFi, NTP, settings storage, web settings engine)
+are being gathered into the Arduino library [`libraries/DeskStreamCore`](./libraries/DeskStreamCore/).
+**All 16 projects** use this library (display transfer on HW 1.1MHz + fast SW I2C, sending only changed tiles in parallel — measured 45.7fps across 4 screens on the Korean clock).
 
-Arduino IDE는 `#include <DeskStreamCore.h>`를 **스케치 폴더**와 **스케치북의 `libraries/` 폴더**에서만 찾습니다.
-라이브러리 원본은 저장소의 `libraries/DeskStreamCore/`에 있으므로, 스케치북 `libraries/` 안에 이 폴더를 가리키는
-**링크(바로가기)**를 한 번 만들어 둡니다. 복사가 아니라 링크라서 저장소에서 라이브러리를 고치거나 `git pull`하면
-모든 스케치에 바로 반영됩니다.
+### First-Time Setup (once per PC)
+
+The Arduino IDE looks for `#include <DeskStreamCore.h>` only in the **sketch folder** and the **sketchbook's `libraries/` folder**.
+The library source lives in the repository's `libraries/DeskStreamCore/`, so create a **link (shortcut)** to it inside the sketchbook
+`libraries/` folder once. Because it is a link rather than a copy, editing the library in the repository or running `git pull`
+takes effect in every sketch immediately.
 
 ```
-<스케치북>/libraries/DeskStreamCore   ──(링크)──▶   DeskStream/libraries/DeskStreamCore
+<sketchbook>/libraries/DeskStreamCore   ──(link)──▶   DeskStream/libraries/DeskStreamCore
 ```
 
-**1. 스케치북 위치 확인** — Arduino IDE **Settings(환경설정) → Sketchbook location**.
-기본값은 macOS `~/Documents/Arduino`, Windows `C:\Users\<사용자>\Documents\Arduino` 입니다.
+**1. Find the sketchbook location** — Arduino IDE **Settings → Sketchbook location**.
+The default is `~/Documents/Arduino` on macOS and `C:\Users\<user>\Documents\Arduino` on Windows.
 
-**2-A. macOS / Linux** — 저장소 루트(DeskStream 폴더)에서 실행합니다.
+**2-A. macOS / Linux** — Run from the repository root (the DeskStream folder).
 
 ```bash
 bash scripts/link-arduino-lib.sh
 ```
 
-- 스케치북 경로는 인자 → `arduino-cli config get directories.user` → `~/Documents/Arduino` 순으로 찾습니다.
-  기본 위치가 아니면 인자로 넘깁니다: `bash scripts/link-arduino-lib.sh "/경로/스케치북"`
-- 성공하면 `✅ 연결 완료`, 이미 연결돼 있으면 `✅ 이미 연결됨`이 나옵니다 (여러 번 실행해도 안전).
-- 저장소를 옮겨 링크가 다른 곳을 가리키면 새 위치로 교체합니다. 링크가 아닌 **진짜 폴더**가 이미 있으면
-  덮어쓰지 않고 멈추므로, 내용을 확인해 옮기거나 지운 뒤 다시 실행합니다.
+- The sketchbook path is taken from the argument → `arduino-cli config get directories.user` → `~/Documents/Arduino`, in that order.
+  If it is not in the default location, pass it as an argument: `bash scripts/link-arduino-lib.sh "/path/to/sketchbook"`
+- On success it prints `✅ 연결 완료` (linked), or `✅ 이미 연결됨` (already linked) if the link exists (safe to run repeatedly).
+- If the repository was moved and the link points elsewhere, it is replaced with the new location. If a **real folder** (not a link)
+  already exists, the script stops without overwriting it — check its contents, move or delete it, then run again.
 
-**2-B. Windows** — `scripts/link-arduino-lib.sh`는 bash용이므로 **명령 프롬프트(cmd)**에서 디렉터리 정션을 만듭니다
-(관리자 권한 불필요). 아래 두 경로를 자기 PC에 맞게 바꿉니다.
+**2-B. Windows** — `scripts/link-arduino-lib.sh` is for bash, so create a directory junction from the **Command Prompt (cmd)**
+(no administrator rights needed). Adjust the two paths below for your PC.
 
 ```bat
 mkdir "%USERPROFILE%\Documents\Arduino\libraries"
-mklink /J "%USERPROFILE%\Documents\Arduino\libraries\DeskStreamCore" "C:\경로\DeskStream\libraries\DeskStreamCore"
+mklink /J "%USERPROFILE%\Documents\Arduino\libraries\DeskStreamCore" "C:\path\DeskStream\libraries\DeskStreamCore"
 ```
 
-- 첫 줄은 `libraries` 폴더가 없을 때만 필요합니다 (이미 있으면 "이미 있습니다" 메시지가 나와도 괜찮습니다).
-- 성공하면 `...에 대한 교차점을 만들었습니다` (영문: `Junction created for ...`)가 나옵니다.
-- PowerShell을 쓴다면: `New-Item -ItemType Junction -Path "$env:USERPROFILE\Documents\Arduino\libraries\DeskStreamCore" -Target "C:\경로\DeskStream\libraries\DeskStreamCore"`
-- Git Bash의 `ln -s`는 설정에 따라 링크 대신 **복사**를 만들 수 있으므로 쓰지 않습니다.
-- 저장소를 옮긴 경우: `rmdir "%USERPROFILE%\Documents\Arduino\libraries\DeskStreamCore"`로 정션만 지우고
-  (`rmdir`은 정션만 지우고 원본 폴더는 건드리지 않습니다) 다시 만듭니다.
+- The first line is needed only if the `libraries` folder does not exist (an "already exists" message is fine).
+- On success it prints `Junction created for ...`.
+- With PowerShell: `New-Item -ItemType Junction -Path "$env:USERPROFILE\Documents\Arduino\libraries\DeskStreamCore" -Target "C:\path\DeskStream\libraries\DeskStreamCore"`
+- Do not use `ln -s` in Git Bash — depending on settings it may create a **copy** instead of a link.
+- If you moved the repository: delete just the junction with `rmdir "%USERPROFILE%\Documents\Arduino\libraries\DeskStreamCore"`
+  (`rmdir` removes only the junction and leaves the source folder alone), then create it again.
 
-**3. 외부 라이브러리 설치** — Arduino IDE 라이브러리 매니저에서 **U8g2**를 설치합니다 (모든 프로젝트).
-WiFi 설정 포털은 DeskStreamCore에 들어 있어 WiFiManager는 필요 없습니다 (v0.6.0~).
-캔버스 프로젝트(Sound_Visualizer·Screen_To_OLEDs·OLED_Wide_test)는 **LovyanGFX**도 필요합니다.
+**3. Install external libraries** — Install **U8g2** from the Arduino IDE Library Manager (all projects).
+The WiFi setup portal is built into DeskStreamCore, so WiFiManager is not needed (v0.6.0+).
+Canvas projects (Sound_Visualizer · Screen_To_OLEDs · OLED_Wide_test) also need **LovyanGFX**.
 
-**4. 확인** — Arduino IDE를 **완전히 껐다 켠 뒤**(시작할 때 라이브러리 목록을 읽습니다) 아무 프로젝트(예: `Game_Of_Life`)를
-열어 **Verify(✓)**합니다. `DeskStreamCore.h: No such file or directory`가 나오면 링크가 1번의 스케치북 위치에 있는지 확인합니다.
+**4. Verify** — **Fully quit and restart** the Arduino IDE (it reads the library list at startup), open any project (e.g. `Game_Of_Life`)
+and click **Verify (✓)**. If you get `DeskStreamCore.h: No such file or directory`, check that the link is in the sketchbook location from step 1.
 
-- 터미널 확인: macOS `ls -l ~/Documents/Arduino/libraries | grep DeskStreamCore` (화살표 `->`가 보이면 정상),
-  Windows `dir "%USERPROFILE%\Documents\Arduino\libraries"` (`<JUNCTION>`으로 표시되면 정상)
-- 링크는 PC의 실제 경로를 가리키므로 **PC마다** 한 번씩 만듭니다 (저장소가 Google Drive 등으로 동기화돼도 링크는 따라가지 않습니다).
-- 시계 3종을 빌드·Export할 때는 `Partition Scheme = Huge APP`도 골라야 합니다 (각 프로젝트 README 참조).
-- 라이브러리 호스트 테스트: `bash libraries/DeskStreamCore/test/run_all.sh`
-- **AI로 새 프로젝트를 만들 때**: [`AI_GUIDE.md`](./AI_GUIDE.md)를 먼저 읽게 하세요 — 라이브러리 사용 규칙·모듈별 API·템플릿·체크리스트.
+- Terminal check: macOS `ls -l ~/Documents/Arduino/libraries | grep DeskStreamCore` (an arrow `->` means OK),
+  Windows `dir "%USERPROFILE%\Documents\Arduino\libraries"` (shown as `<JUNCTION>` means OK)
+- The link points to a real path on the PC, so create it once **per PC** (links are not carried over when the repository syncs via Google Drive etc.).
+- When building or exporting the three clocks, also choose `Partition Scheme = Huge APP` (see each project's README).
+- Library host tests: `bash libraries/DeskStreamCore/test/run_all.sh`
+- **When creating a new project with AI**: have it read [`AI_GUIDE.md`](./AI_GUIDE.md) first — library usage rules, per-module APIs, templates and checklists.
 
-## 🌐 웹 플래셔 (Web Flasher)
+## 🌐 Web Flasher
 
-**https://worynim.github.io/DeskStream/** — Chrome/Edge 데스크톱 또는 Android Chrome에서 USB로 연결한 ESP32-C3 보드에 16개 프로젝트를 브라우저에서 바로 플래시할 수 있습니다. 별도 프로그램 설치가 필요 없습니다.
+**https://worynim.github.io/DeskStream/** — Flash any of the 16 projects straight from the browser to an ESP32-C3 board connected over USB, using Chrome/Edge on desktop or Chrome on Android. No extra software to install.
 
-- **Web Serial + [esptool-js](https://github.com/espressif/esptool-js)** 기반. Chrome/Edge 데스크톱, **Android Chrome 148+ (USB OTG)** 지원. iPhone/iPad(Safari)·Firefox Android·인앱 브라우저는 불가
-- **한국어 / English UI** 지원 — 페이지 우측 상단에서 전환 (브라우저 언어 자동 감지, 선택값 저장)
-- 각 프로젝트 카드의 **README ↗** 링크에서 해당 프로젝트 문서를 새 탭으로 열 수 있습니다.
-- 기본 플래시는 **NVS(WiFi·표시 설정) 보존**, 필요 시 "전체 지우기" 옵션 제공
-- **런처(esp-launcher)** 항목: 보드 화면에서 펌웨어를 골라 Wi-Fi로 설치하는 런처를 설치합니다 ([아래](#-런처-esp-launcher))
-- 펌웨어 **SHA-256**(다운로드) 및 **MD5**(쓰기 후) 무결성 검증, 플래시 후 자동 재부팅
-- 16개 프로젝트: 스마트 정보 스테이션, GPS 대시보드, 사운드 비주얼라이저, 초광폭 OLED 테스트, 시스템 상태 모니터, DS DECK, 화면 스트리머, 게임 오브 라이프, 한글/영어/중국어 시계, 범용 타이머, AI 에이전트 모니터, 무선 환경 분석기, 세계 시계, 페이지 터너
-- **한글 시계 BB(Hangeul_Clock_bitbang_i2c)는 1.3" SH1106 · 4-bus 회로 구성이 달라 웹 플래셔 대상에서 제외**됩니다.
-  하드웨어가 달라 2026-11-08부터 별도 폴더 **DeskStream_V2**에서 관리합니다.
+- Based on **Web Serial + [esptool-js](https://github.com/espressif/esptool-js)**. Supports Chrome/Edge desktop and **Android Chrome 148+ (USB OTG)**. iPhone/iPad (Safari), Firefox Android and in-app browsers are not supported
+- **Korean / English UI** — switch at the top right of the page (browser language auto-detected, choice remembered)
+- The **README ↗** link on each project card opens that project's documentation in a new tab.
+- Flashing **preserves NVS (WiFi and display settings)** by default; an "Erase all" option is available when needed
+- **Launcher (esp-launcher)** entry: installs a launcher that lets you pick firmware on the board's screen and install it over Wi-Fi ([below](#-launcher-esp-launcher))
+- Firmware integrity is verified by **SHA-256** (download) and **MD5** (after writing), with automatic reboot after flashing
+- 16 projects: Smart Info Station, GPS Dashboard, Sound Visualizer, Ultra-Wide OLED Test, System Status Monitor, DS DECK, Screen Streamer, Game of Life, Korean/English/Chinese clocks, Universal Timer, AI Agent Monitor, Wireless Analyzer, World Clock, Page Turner
+- **Hangeul Clock BB (Hangeul_Clock_bitbang_i2c) uses a different 1.3" SH1106 · 4-bus circuit and is excluded from the web flasher**.
+  Because the hardware differs, it has been maintained in the separate **DeskStream_V2** folder since 2026-11-08.
 
-### 스마트폰에서 사용하기 (Android)
+### Using a Smartphone (Android)
 
-Android Chrome 148 이상 + **USB OTG 어댑터**(USB 데이터 케이블)가 있으면 스마트폰에서도 플래시할 수 있습니다.
+With Android Chrome 148 or later and a **USB OTG adapter** (plus a USB data cable) you can flash from a smartphone.
 
-1. Chrome을 최신 버전(148+)으로 업데이트합니다.
-2. USB-C OTG 어댑터에 USB 데이터 케이블을 연결하고 ESP32-C3 보드를 연결합니다.
-3. 카카오톡·네이버 등 **인앱 브라우저가 아닌 Chrome**에서 주소를 직접 입력해 엽니다.
-4. 프로젝트를 선택하고 **플래시 시작** → 포트 선택 창에서 보드를 고릅니다.
+1. Update Chrome to the latest version (148+).
+2. Connect a USB data cable to a USB-C OTG adapter and plug in the ESP32-C3 board.
+3. Open the address by typing it directly into **Chrome, not an in-app browser** such as KakaoTalk or Naver.
+4. Choose a project, tap **Start flashing**, and pick the board in the port selection dialog.
 
-> USB 장치가 Web Serial 포트 목록에 보이지 않으면, 플래시 옵션의 **USB(WebUSB) 모드**를 체크하고 다시 시도해 보세요. WebUSB(CDC-ACM)로 직접 접근하는 실험적 우회 모드입니다.
+> If the USB device does not appear in the Web Serial port list, check **USB (WebUSB) mode** in the flash options and try again. It is an experimental workaround that accesses the device directly through WebUSB (CDC-ACM).
 >
-> iPhone/iPad는 Safari(WebKit)가 Web Serial API를 지원하지 않아 브라우저 플래시가 불가능합니다. PC의 Chrome/Edge를 사용해 주세요.
+> On iPhone/iPad, Safari (WebKit) does not support the Web Serial API, so browser flashing is not possible. Please use Chrome/Edge on a PC.
 
-### 🚀 런처 (esp-launcher)
+### 🚀 Launcher (esp-launcher)
 
-PC 없이 보드에서 프로젝트를 바꿀 수 있게 해 주는 런처입니다. 런처는 factory 영역에, 고른 프로젝트는 앱 영역(ota_0)에 들어갑니다.
+A launcher that lets you switch projects on the board without a PC. The launcher lives in the factory partition and the chosen project goes into the app partition (ota_0).
 
-1. 웹 플래셔에서 **런처 (esp-launcher)** 를 골라 한 번 굽습니다. 지금 앱은 지워지고 Wi-Fi 설정·글꼴(LittleFS)은 남습니다.
-2. 런처 화면의 **Wi-Fi** 에서 폰으로 QR을 찍어 설정 포털에 접속하고 AP를 저장합니다 (앱과 같은 저장소라 앱에서도 그대로 씁니다).
-3. **Firmware** 에서 목록([`firmware/manifest.launcher.json`](./firmware/manifest.launcher.json))을 받아 프로젝트를 골라 설치하면 그 앱으로 재부팅합니다.
-4. 런처로 돌아가려면 **BTN1을 누른 채 RESET** 을 눌렀다 떼고 BTN1을 **2초** 더 누르고 있습니다.
-5. 런처가 새로 나오면 런처의 **Info → Update** 로 기기에서 바로 업데이트합니다 (설치된 앱은 지워지므로 다시 설치). 런처 0.1.x는 Firmware 목록의 "Launcher"를 설치하면 됩니다.
+1. In the web flasher, choose **Launcher (esp-launcher)** and flash it once. The current app is erased; Wi-Fi settings and fonts (LittleFS) are kept.
+2. On the launcher's **Wi-Fi** screen, scan the QR code with your phone to open the setup portal and save an AP (it uses the same storage as the apps, so apps use it too).
+3. In **Firmware**, download the list ([`firmware/manifest.launcher.json`](./firmware/manifest.launcher.json)), pick a project and install it — the board reboots into that app.
+4. To return to the launcher, **hold BTN1 and press and release RESET**, then keep holding BTN1 for **2 more seconds**.
+5. When a new launcher is released, update it on the device from the launcher's **Info → Update** (installed apps are erased, so reinstall them). For launcher 0.1.x, install "Launcher" from the Firmware list.
 
-- 런처가 설치된 보드에 웹 플래셔로 다른 프로젝트를 구우면, 플래셔가 보드의 파티션 테이블을 읽어 **런처는 남기고 앱만** ota_0에 설치합니다.
-- 런처를 없애려면 **전체 지우기**를 켜고 아무 프로젝트나 구우면 됩니다 (예전 방식으로 4개 이미지를 모두 씁니다).
-- 앱 코드에서 런처로 돌아가려면 DeskStreamCore 0.7.0의 `ds::returnToLauncher()`를 부릅니다.
-- 런처 소스는 별도 저장소 `esp-launcher`에 있습니다. 배포본은 `tools/mkbundle.py deskstream_c3 <DeskStream>/firmware/Launcher` 로 내보낸 번들입니다.
+- If you flash another project with the web flasher onto a board that has the launcher, the flasher reads the board's partition table and installs **only the app** into ota_0, **keeping the launcher**.
+- To remove the launcher, turn on **Erase all** and flash any project (all 4 images are written the old way).
+- To return to the launcher from app code, call `ds::returnToLauncher()` from DeskStreamCore 0.7.0.
+- The launcher source lives in the separate `esp-launcher` repository. The released files are a bundle exported with `tools/mkbundle.py deskstream_c3 <DeskStream>/firmware/Launcher`.
 
-### 관련 파일 및 링크
+### Related Files and Links
 
-| 항목 | 링크 |
+| Item | Link |
 |---|---|
-| 웹 플래셔 앱 (Vite + TypeScript + esptool-js) | [`web/`](./web/) |
-| **웹 플래셔 릴리즈 노트** | [`web/RELEASE_NOTES.md`](./web/RELEASE_NOTES.md) |
-| 펌웨어 수집·manifest 생성 스크립트 | [`tools/collect-firmware.mjs`](./tools/collect-firmware.mjs) |
-| 프로젝트 표시 메타데이터 (이름·버전·아이콘·설명) | [`firmware/projects.json`](./firmware/projects.json) |
-| 배포된 펌웨어 목록·오프셋·SHA-256 | [`firmware/manifest.json`](./firmware/manifest.json) |
-| 런처가 기기에서 읽는 펌웨어 목록 (자동 생성) | [`firmware/manifest.launcher.json`](./firmware/manifest.launcher.json) |
-| 웹 플래셔에 표시할 PC 클라이언트 목록 | [`firmware/clients.json`](./firmware/clients.json) |
-| PC 클라이언트 빌드·Release 워크플로 | [`.github/workflows/build-clients.yml`](./.github/workflows/build-clients.yml) |
-| GitHub Pages 배포 워크플로 | [`.github/workflows/deploy-web.yml`](./.github/workflows/deploy-web.yml) |
+| Web flasher app (Vite + TypeScript + esptool-js) | [`web/`](./web/) |
+| **Web flasher release notes** | [`web/RELEASE_NOTES.md`](./web/RELEASE_NOTES.md) |
+| Firmware collection and manifest generation script | [`tools/collect-firmware.mjs`](./tools/collect-firmware.mjs) |
+| Project display metadata (name, version, icon, description) | [`firmware/projects.json`](./firmware/projects.json) |
+| Released firmware list, offsets and SHA-256 | [`firmware/manifest.json`](./firmware/manifest.json) |
+| Firmware list read by the launcher on the device (generated) | [`firmware/manifest.launcher.json`](./firmware/manifest.launcher.json) |
+| PC client list shown in the web flasher | [`firmware/clients.json`](./firmware/clients.json) |
+| PC client build and Release workflow | [`.github/workflows/build-clients.yml`](./.github/workflows/build-clients.yml) |
+| GitHub Pages deploy workflow | [`.github/workflows/deploy-web.yml`](./.github/workflows/deploy-web.yml) |
 
-### 펌웨어 업데이트 방법
+### Updating Firmware
 
-1. Arduino IDE에서 보드 선택: **ESP32C3 Super Mini** (`makergo_c3_supermini` 보드 패키지)
-2. `Sketch → Export Compiled Binary` 실행
-3. 저장소 루트에서 수집 스크립트 실행 → `firmware/<project>/`와 `firmware/manifest.json`·`manifest.launcher.json` 갱신
+1. Select the board in the Arduino IDE: **ESP32C3 Super Mini** (`makergo_c3_supermini` board package)
+2. Run `Sketch → Export Compiled Binary`
+3. Run the collection script from the repository root → updates `firmware/<project>/` and `firmware/manifest.json` · `manifest.launcher.json`
 
    ```bash
    node tools/collect-firmware.mjs
    ```
 
-4. `firmware/` 변경분을 커밋해 `main`에 push → GitHub Actions가 웹 플래셔를 자동 빌드·배포
+4. Commit the `firmware/` changes and push to `main` → GitHub Actions builds and deploys the web flasher automatically
 
-> 웹 플래셔에 프로젝트를 추가/제외하려면 [`firmware/projects.json`](./firmware/projects.json)을 수정한 뒤 `node tools/collect-firmware.mjs`를 다시 실행하세요.
-> 로컬 미리보기: `cd web && npm install && npm run dev` → http://localhost:5173/DeskStream/
+> To add or remove a project in the web flasher, edit [`firmware/projects.json`](./firmware/projects.json) and run `node tools/collect-firmware.mjs` again.
+> Local preview: `cd web && npm install && npm run dev` → http://localhost:5173/DeskStream/
 
-### 최초 1회 설정
+### One-Time Setup
 
-저장소 **Settings → Pages → Build and deployment → Source**를 **GitHub Actions**로 지정합니다. 이후 `.github/workflows/deploy-web.yml`이 `main` push 시 자동 배포합니다.
+Set the repository's **Settings → Pages → Build and deployment → Source** to **GitHub Actions**. After that, `.github/workflows/deploy-web.yml` deploys automatically on every push to `main`.
 
 ---
 

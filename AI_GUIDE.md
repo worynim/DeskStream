@@ -266,8 +266,11 @@ server.begin();
 3. 프로젝트 전용 상수는 `config.h`에, 보드 공통 값은 `ds_board.h`에서 (복제 금지).
 4. 앱 크기가 1.25MB에 가까우면 공통 `partitions.csv` + `Huge APP` (§2).
 5. Arduino 의존 없는 순수 로직은 별도 `.h/.cpp`로 분리해 `test/`에 호스트(g++) 테스트를 둔다.
-6. `README.md`(기능·버튼·파일 구성·빌드 설정)와 `RELEASE_NOTES.md` 작성.
-7. 루트 `README.md` 프로젝트 목록, 루트 `RELEASE_NOTES.md`에 항목 추가.
+6. README는 두 벌로 쓴다 — 영문 `README.md`와 한국어 `README.ko.md`(기능·버튼·파일 구성·빌드 설정, 내용은 같게).
+   두 파일 맨 위에 서로 가는 링크를 둔다: 영문 `**English** | [한국어](README.ko.md)`, 한국어 `[English](README.md) | **한국어**`.
+   한국어판에서 다른 문서로 거는 링크는 `README.ko.md`를 가리킨다. `RELEASE_NOTES.md`도 작성.
+7. 루트 `README.md`·`README.ko.md` 프로젝트 목록, 루트 `RELEASE_NOTES.md`에 항목 추가.
+   README를 고칠 때는 영문·한국어 두 파일을 함께 고친다.
 8. 웹 플래셔에 올리려면 `firmware/projects.json`에 항목 추가 → Arduino IDE `Export Compiled Binary`
    → `node tools/collect-firmware.mjs` (전체 실행 — `--project`는 manifest를 덮어쓴다) → `--check` 통과 확인.
 

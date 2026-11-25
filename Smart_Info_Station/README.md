@@ -1,79 +1,81 @@
-# ESP32-C3 4-OLED 스마트 정보 스테이션 (Smart_Info_Station)
+**English** | [한국어](README.ko.md)
 
-이 프로젝트는 **ESP32 C3 SuperMini** 보드를 사용하여 4개의 OLED 디스플레이를 독립적으로 제어하고, **시각, 날씨, 미세먼지, 유튜브 구독자 수, 증시(코스피, 코스닥, S&P 500), 비트코인(BTC), 원/달러 환율** 등 다양한 정보를 실시간 모니터링하는 데스크탑 정보 표시기입니다. 
+# ESP32-C3 4-OLED Smart Info Station (Smart_Info_Station)
+
+A desktop information display that uses an **ESP32 C3 SuperMini** board to drive four OLED displays independently and monitor a variety of information in real time: **time, weather, fine dust, YouTube subscriber count, stock markets (KOSPI, KOSDAQ, S&P 500), Bitcoin (BTC) and the KRW/USD exchange rate**.
 
 https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
-## 🚀 주요 기능 및 특징
+## 🚀 Key Features
 
-1.  **하이브리드 I2C 아키텍처 (안정성과 속도)**
-    - **OLED 1, 2 (Hardware I2C)**: 1초마다 변경되는 시간을 가장 부드럽고 지연 없이 출력하기 위해 고속 하드웨어 컨트롤러를 배정했습니다.
-    - **OLED 3, 4 (Software I2C)**: 화면 갱신 빈도가 낮고 안정적인 디스플레이 유지를 위해 독립적인 소프트웨어 I2C로 물리적 충돌을 차단했습니다.
-2.  **FreeRTOS 태스크 기반 비동기 데이터 갱신 (Non-blocking)**
-    - 서버에서 **날씨**, **먼지**, **유튜브**, **증시** 데이터를 가져오기 위해 수 초가 걸리는 작업을 백그라운드 태스크(`dataTask`)로 완전히 분리했습니다.
-    - 이에 따라 데이터를 갱신하는 순간에도 **OLED의 시계나 화면 표시는 결코 멈추지 않고 즉각적으로 반응**합니다.
-3.  **데이터 수집 효율화 및 지능형 업데이트 정책 (v2.7.3)**
-    - **가시성 기반 파싱**: 현재 OLED 화면에 표시되지 않는 위젯은 불필요하게 서버를 호출하지 않습니다. (단, 부팅 시 최초 1회 또는 강제 업데이트 시에는 전체 데이터를 미리 가져옴)
-    - **금융 지수 시간 최적화**: 
-      - **국내 증시(KOSPI, KOSDAQ, KPI200)**: 평일(월~금) 08:30~16:10 사이에만 자동 업데이트 작동.
-      - **미국 증시(S&P 500, NASDAQ)**: 한국 시간 기준 평일(월~토 오전 8시)까지만 자동 업데이트 작동.
-    - **강제 업데이트 (Force Update)**: BTN4를 길게 누르면 시장 개폐 여부와 관계없이 활성화된 모든 위젯 데이터를 즉시 서버에서 다시 읽어옵니다.
-4.  **강력한 웹 대시보드 및 실시간 설정**
-    - 공유기 설정, 유튜브 채널, 미세먼지 측정소, 타임존 등을 소스 코드 수정 없이 웹 브라우저에서 실시간으로 변경 가능합니다.
-    - **통합 화면 배치 시스템**: 실제 OLED 배치에 맞춘 가로 4열 UI를 통해 슬롯별 위젯을 직관적으로 구성할 수 있습니다.
-5.  **안정성 및 영구 저장**
-    - **NVS 영구 저장**: 모든 설정은 ESP32 내부에 안전하게 보관되어 전원 재시작 후에도 유지됩니다.
-    - **전방위 Retry 시스템**: 모든 데이터 위젯에 최대 3회 재시도 및 상태 자동 초기화 로직을 적용하여 구동 안정성을 극대화했습니다.
-6.  **사용자 인터랙션 및 4버튼 내비게이션 (v2.7.3)**
-    - **오디오 피드백 (Non-blocking)**: 모든 버튼 조작 시 패시브 부저(GPIO 7)를 통해 청각적 피드백을 제공합니다. (Short: 3000Hz, Long: 2000Hz)
-    - **비차단 부저 엔진**: `millis()` 기반 구현으로 부저음 재생 중에도 시계나 데이터 수집이 멈추지 않습니다.
-    - **시작 멜로디 (Startup Melody)**: 전원 인가 시 경쾌한 4음 상승 멜로디(도미솔도)로 부팅 완료를 알립니다.
-    - **초기 로딩 우선순위 시스템**: 부팅 시 현재 페이지 위젯을 먼저 로드하여 화면에 즉시 "Updating..." 상태를 표시하고, 나머지는 백그라운드에서 수집하여 초기 로딩 UX를 개선했습니다.
-    - **BTN 1 (Flip/HUD)**: 화면 전체를 [Normal -> Mirror H -> 180도 -> Mirror V] 순서로 순환 전환하여 HUD 장착 및 거치 방향에 대응합니다. (**v2.8.0**: 도움말 페이지에서 현재 모드 이름을 텍스트로 확인할 수 있습니다. / 전원 인가 시 누르고 있으면 WiFi 설정을 초기화합니다.)
-    - **BTN 2 (Brightness)**: 25% ~ 100% 4단계 밝기 조절로 OLED 번인 방지 및 야간 시야를 보호합니다. (**v2.8.0**: 도움말 페이지에서 현재 밝기 단계를 시각적인 바 형태로 확인할 수 있습니다.)
-    - **BTN 3 (Auto Loop)**: 1~3페이지의 정보를 5초마다 자동으로 순환 표시하는 페이지 롤오버 기능을 담당합니다. (Long Press 시 토글)
-    - **BTN 4 (Page/Refresh)**: 짧게 누르면 수동 페이지 전환, 1초 이상 길게 누르면 현재 데이터 즉시 강제 갱신(Refresh)을 수행합니다. (**v2.7.1**: 장외 시간에도 시장 데이터를 강제로 읽어오며, 모든 페이지의 위젯을 한꺼번에 갱신합니다.)
-    - **버튼 도움말 페이지**: 기기의 5번 페이지를 통해 실시간으로 각 버튼의 최신 할당 기능을 확인할 수 있습니다. (**v2.8.0**: 플립 모드 및 밝기 설정 상태 표시 기능 추가)
+1.  **Hybrid I2C architecture (stability and speed)**
+    - **OLED 1, 2 (Hardware I2C)**: Assigned the fast hardware controller so the time, which changes every second, is shown as smoothly as possible with no lag.
+    - **OLED 3, 4 (Software I2C)**: Update less often, so a separate software I2C bus keeps the display stable and avoids physical conflicts.
+2.  **Asynchronous data refresh on a FreeRTOS task (non-blocking)**
+    - Fetching **weather**, **dust**, **YouTube** and **stock** data from servers takes several seconds, so it is fully separated into a background task (`dataTask`).
+    - As a result, **the OLED clock and display never freeze and respond immediately**, even while data is being refreshed.
+3.  **Efficient data collection and smart update policy (v2.7.3)**
+    - **Visibility-based parsing**: Widgets not currently shown on the OLEDs do not call their servers unnecessarily. (All data is still fetched once at boot or on a forced update.)
+    - **Market-hours optimization**:
+      - **Korean markets (KOSPI, KOSDAQ, KPI200)**: Auto-update only on weekdays (Mon–Fri) between 08:30 and 16:10.
+      - **US markets (S&P 500, NASDAQ)**: Auto-update only through the weekday sessions in Korean time (until 8 AM Mon–Sat).
+    - **Force update**: Long-press BTN4 to immediately re-read the data of all active widgets from the servers, whether the market is open or not.
+4.  **Powerful web dashboard and live settings**
+    - Change the router, YouTube channel, dust measuring station, time zone and more in real time from a web browser, without editing the source code.
+    - **Integrated screen layout system**: A 4-column UI that matches the actual OLED arrangement lets you configure widgets per slot intuitively.
+5.  **Stability and persistent storage**
+    - **NVS persistence**: All settings are stored safely inside the ESP32 and kept across power cycles.
+    - **Retry everywhere**: Every data widget retries up to 3 times and resets its state automatically for maximum stability.
+6.  **User interaction and 4-button navigation (v2.7.3)**
+    - **Audio feedback (non-blocking)**: Every button press gives audible feedback through the passive buzzer (GPIO 7). (Short: 3000Hz, Long: 2000Hz)
+    - **Non-blocking buzzer engine**: Implemented with `millis()`, so the clock and data collection keep running while a tone plays.
+    - **Startup melody**: A cheerful rising 4-note melody (C-E-G-C) signals that booting is complete.
+    - **Initial loading priority**: At boot the current page's widgets load first and immediately show "Updating...", while the rest are collected in the background, improving the initial loading experience.
+    - **BTN 1 (Flip/HUD)**: Cycles the whole screen through [Normal -> Mirror H -> 180° -> Mirror V] to suit HUD mounting and stand orientation. (**v2.8.0**: The help page shows the current mode name as text. / Holding it at power-on resets the WiFi settings.)
+    - **BTN 2 (Brightness)**: 4 brightness levels from 25% to 100% to prevent OLED burn-in and protect night vision. (**v2.8.0**: The help page shows the current brightness level as a bar.)
+    - **BTN 3 (Auto Loop)**: Page rollover that automatically cycles through pages 1–3 every 5 seconds. (Toggled with a long press)
+    - **BTN 4 (Page/Refresh)**: A short press switches pages manually; holding it for more than 1 second forces an immediate refresh of the current data. (**v2.7.1**: Forces market data to be read even outside trading hours and refreshes the widgets on every page at once.)
+    - **Button help page**: Page 5 on the device shows the current function of each button in real time. (**v2.8.0**: Added flip mode and brightness status display)
 
 ---
-> 💡 상세한 업데이트 내역 및 버전별 수정 사항은 [RELEASE_NOTES.md](./RELEASE_NOTES.md)에서 확인하실 수 있습니다.
-7.  **공통 화면 엔진 (DeskStreamCore, v2.10.0)**
-    - 화면 전송·버튼·부저·WiFi·NTP 감독은 공통 라이브러리 [DeskStreamCore](../libraries/DeskStreamCore/) — 빌드 전 저장소 루트에서 `bash scripts/link-arduino-lib.sh` 1회를 씁니다.
-    - HW I2C 1.1MHz + 레지스터 직접 제어 고속 SW I2C(실효 약 1.15MHz)로 바뀐 타일만 4화면에 병렬 전송합니다 (예전: HW 400kHz 전체 프레임 동기 전송).
+> 💡 Detailed update history and per-version changes are in [RELEASE_NOTES.md](./RELEASE_NOTES.md).
+7.  **Shared display engine (DeskStreamCore, v2.10.0)**
+    - Display transfer, buttons, buzzer, WiFi and NTP supervision use the shared library [DeskStreamCore](../libraries/DeskStreamCore/) — run `bash scripts/link-arduino-lib.sh` once from the repository root before building.
+    - HW I2C 1.1MHz + fast SW I2C with direct register control (about 1.15MHz effective) send only changed tiles to the 4 screens in parallel (previously: synchronous full-frame transfer at HW 400kHz).
 
-## 🛠 하드웨어 구성 요소
+## 🛠 Hardware Components
 
 -   **MCU**: ESP32 C3 SuperMini
--   **Display**: 0.96 inch SSD1306 OLED 모듈 (128x64px) x 4개
--   **Buzzer**: Passive Buzzer (GPIO 7) 연동
--   각 모듈은 I2C 주소 `0x3C`와 `0x3D`로 구성된 2개 쌍을 각각 다른 핀(5,6번 / 2,3번) 버스로 연결합니다. (Pin 8, 9는 다른 용도로 사용됨)
+-   **Display**: 0.96 inch SSD1306 OLED module (128x64px) x 4
+-   **Buzzer**: Passive buzzer (GPIO 7)
+-   The modules are connected as 2 pairs with I2C addresses `0x3C` and `0x3D`, each pair on a different pin bus (pins 5,6 / 2,3). (Pins 8 and 9 are used for other purposes)
 
-## ⚙️ 아두이노 IDE 소프트웨어 설정 주의사항
+## ⚙️ Arduino IDE Software Settings
 
-1. **Partition Scheme**: `Huge APP (3MB No OTA / 1MB SPIFFS)` 를 **반드시** 선택해야 합니다. 프로젝트에 포함된 한글 글꼴(`u8g2_font_unifont_t_korean2`)이 기본 제공 파티션 용량(~1.25MB)을 초과하기 때문입니다!
-   - 단, 스케치 폴더의 `partitions.csv`가 항상 우선 적용되므로(`platform.txt`의 prebuild 훅), 실제로는 이 파일의 **DeskStream 공통 레이아웃**(app0 2.5MB / spiffs `0x290000` 1.375MB)이 사용됩니다.
-   - spiffs 시작 주소를 `default` 스킴과 동일한 `0x290000`에 맞춰, 다른 프로젝트(한글 시계 등)와 펌웨어를 바꿔 올려도 **파일시스템 영역이 겹치지 않습니다**.
-   - 이 프로젝트는 파일시스템(LittleFS/SPIFFS)을 사용하지 않으므로, 설정은 모두 NVS(`0x9000`)에 저장되어 어느 스킴에서도 보존됩니다.
+1. **Partition Scheme**: You **must** choose `Huge APP (3MB No OTA / 1MB SPIFFS)`, because the Korean font included in the project (`u8g2_font_unifont_t_korean2`) exceeds the default partition size (~1.25MB)!
+   - However, the sketch folder's `partitions.csv` always takes precedence (prebuild hook in `platform.txt`), so in practice this file's **shared DeskStream layout** (app0 2.5MB / spiffs `0x290000` 1.375MB) is used.
+   - The spiffs start address is aligned to `0x290000`, the same as the `default` scheme, so **file system areas do not overlap** when you swap firmware with other projects (Korean clock, etc.).
+   - This project does not use a file system (LittleFS/SPIFFS); all settings are stored in NVS (`0x9000`) and preserved under any scheme.
 
-### 필수 라이브러리 목록
-- `U8g2` (강력한 그래픽 및 OLED 폰트 라이브러리)
-- `DeskStreamCore` (저장소 `libraries/DeskStreamCore` — 빌드 전 `bash scripts/link-arduino-lib.sh` 1회)
-- `UrlEncode` (HTTP 웹 요청 URL 변환 라이브러리)
+### Required Libraries
+- `U8g2` (powerful graphics and OLED font library)
+- `DeskStreamCore` (repository `libraries/DeskStreamCore` — run `bash scripts/link-arduino-lib.sh` once before building)
+- `UrlEncode` (URL encoding library for HTTP web requests)
 
-## 📁 위젯별 파일 구조 분석
+## 📁 File Structure by Widget
 
-- `Smart_Info_Station.ino` : 4버튼 이벤트 핸들링, 페이지 전환 로직, 메인 `setup()`, `loop()` 코어 모듈. (가벼운 메인 프레임워크 유지)
-- `config.h` : 전역 데이터 타입(`WidgetType`), 업데이트 상태를 담은 `WidgetUpdateInfo`, 기타 글로벌 핀/상수 정의를 담당하는 기초 설정 파일.
-- `display_utils.h / .cpp` : 텍스트 중앙 정렬, 업데이트 상태 점(`.`) 애니메이션 등 공통 그래픽 출력 헬퍼 함수 모음 (화면 전송은 `ds::DisplayCore`).
-- `widgets_display.h / .cpp` : 시계, 달력, 마크, 코인, 증시 등 실제 각 위젯들을 OLED 화면에 아름답게 `render()` 해주는 독립 렌더링 로직.
-- `data_manager.h / .cpp` : 날씨, 미세먼지, 주식, 코인 등의 네트워크 파싱 함수를 담은 헤더를 관리하며, 백그라운드 `dataTask`를 통해 데이터를 수집하고 상태(`update_flag`)를 관장하는 메인 수집 엔진.
-- `web_handlers.h / .cpp` : 와이파이 접속 후 접근 가능한 내부 설정 웹 서버 페이지 UI 생성 및 입력받은 환경 변수(채널, 지역 등) 플래시 저장(`handleRoot`, `handleSet`) 전담 유닛.
-- `weather.h`, `dust.h`, `youtube.h`, `market.h`, `btc.h`, `usdkrw.h` : 각각의 단일 소스 데이터 파싱 함수 선언부. (자체 인클루드 가드 및 외부 변수 선언 포함)
+- `Smart_Info_Station.ino` : 4-button event handling, page switching logic, and the core `setup()` and `loop()`. (Keeps the main framework lightweight)
+- `config.h` : Base settings file defining global data types (`WidgetType`), `WidgetUpdateInfo` holding update state, and other global pins/constants.
+- `display_utils.h / .cpp` : Shared graphics helpers such as text centering and the update status dot (`.`) animation (display transfer is `ds::DisplayCore`).
+- `widgets_display.h / .cpp` : Independent rendering logic that nicely `render()`s each widget — clock, calendar, icons, coins, stocks, etc. — on the OLEDs.
+- `data_manager.h / .cpp` : The main collection engine; manages the headers with the network parsing functions for weather, fine dust, stocks, coins, etc., collects data through the background `dataTask`, and manages the state (`update_flag`).
+- `web_handlers.h / .cpp` : Generates the internal settings web page UI reachable after connecting to WiFi, and saves the entered settings (channel, region, etc.) to flash (`handleRoot`, `handleSet`).
+- `weather.h`, `dust.h`, `youtube.h`, `market.h`, `btc.h`, `usdkrw.h` : Declarations of the parsing function for each individual data source. (With their own include guards and extern variable declarations)
 
-## 📝 최초 시작 방법 (Quick Start)
+## 📝 Quick Start
 
-1. 코드를 성공적으로 플래시 후, 전원을 인가하면 1번 화면에 **"WiFi Connecting..."** 메시지가 나타납니다.
-2. PC 혹은 스마트폰의 Wi-Fi 설정에서 **`Smart_Info_Station`** 핫스팟에 연결합니다.
-3. 인증 화면(혹은 `192.168.4.1`)을 통해 집이나 사무실의 공유기 정보를 입력하세요.
-4. 연결 과정이 끝나면, 1번 화면 하단에 새로 할당받은 **IP 주소(예: `192.168.0.x`)**가 표시됩니다.
-5. 동일 네트워크 망에서 스마트폰/PC의 웹 브라우저로 해당 IP 주소에 접속하면 각종 로컬 정보, 타깃 유튜브 채널, 거주 국가의 **시간대(Timezone offset)**를 자유롭게 설정할 수 있습니다! 
+1. After flashing the code successfully, power it on and screen 1 shows **"WiFi Connecting..."**.
+2. Connect to the **`Smart_Info_Station`** hotspot in the Wi-Fi settings of your PC or smartphone.
+3. Enter your home or office router details on the portal page (or `192.168.4.1`).
+4. When the connection finishes, the newly assigned **IP address (e.g. `192.168.0.x`)** appears at the bottom of screen 1.
+5. Open that IP address in a web browser on a smartphone/PC on the same network to freely set local information, the target YouTube channel and your country's **time zone (offset)**!

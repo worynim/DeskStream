@@ -1,84 +1,86 @@
+**English** | [한국어](README.ko.md)
+
 # ENG Clock (English Language Clock) - v1.1.1
 
-NTP 서버로부터 시간을 동기화하여 4개의 OLED 디스플레이에 **영어 단어**로 시, 분, 초를 표시하는 ESP32-C3 기반 프리미엄 데스크 가젯입니다. `Hangeul_Clock` v2.6.0의 기능·품질을 100% 유지하면서 텍스트만 영어로 교체한 포트입니다.
+A premium ESP32-C3 desk gadget that syncs time from an NTP server and shows hours, minutes and seconds as **English words** on four OLED displays. It is a port that keeps 100% of the features and quality of `Hangeul_Clock` v2.6.0 and replaces only the text with English.
 
 https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
-## ✨ 핵심 혁신 기능 (Major Features)
+## ✨ Major Features
 
-### 1. 2-Line Word Layout (어절 단위 2줄 레이아웃)
-- **한 화면 4자 제한 극복**: 영어 최장 단어 `SEVENTEEN`(9자)을 수용하기 위해 어절 단위 줄바꿈을 도입했습니다. 어절이 2개 이상이면 무조건 2줄로 분리하고, 각 줄은 가로 중앙 정렬됩니다.
-- **강제 줄바꿈 기각**: 글자 수 기준 강제 줄바꿈은 `WEDNESDAY`를 깨뜨리므로 배제했습니다.
-- **1줄 세로 정렬 사전 계산**: `LayoutChar::y`로 줄별 세로 위치를 미리 계산해 전달하여, 호출부에 같은 산술이 복제되지 않습니다.
+### 1. 2-Line Word Layout
+- **Beyond the 4-character-per-screen limit**: Word-based line breaking was introduced to fit the longest English word, `SEVENTEEN` (9 letters). With two or more words the text is always split into two lines, and each line is centered horizontally.
+- **No forced character breaks**: Breaking by character count would split `WEDNESDAY`, so it was rejected.
+- **Precomputed single-line vertical alignment**: `LayoutChar::y` carries the precomputed vertical position of each line, so the same arithmetic is not duplicated by callers.
 
-### 2. POSIX TZ Timezone System (시간대 시스템)
-- **DST 자동 처리**: 고정 오프셋 대신 POSIX TZ 문자열(`KST-9`, `EST5EDT,...` 등)을 사용해 서머타임이 자동으로 적용됩니다.
-- **웹 UI 시간대 선택**: 12개 지역 프리셋 + Custom 직접 입력. 설정값은 NVS(Preferences)에 영속 저장됩니다.
-- **입력 검증**: TZ 문자열 화이트리스트 검증(`ds::isValidTimezone`)으로 잘못된 설정이 시스템 시간을 망가뜨리지 않습니다.
+### 2. POSIX TZ Timezone System
+- **Automatic DST**: Uses POSIX TZ strings (`KST-9`, `EST5EDT,...`, etc.) instead of fixed offsets, so daylight saving time is applied automatically.
+- **Time zone selection in the web UI**: 12 regional presets + custom input. The setting is persisted in NVS (Preferences).
+- **Input validation**: TZ string whitelist validation (`ds::isValidTimezone`) keeps bad settings from breaking the system time.
 
-### 3. Modular Architecture (모듈형 아키텍처) — 한글판과 동일
-- **H/CPP separation**: 펌웨어 로직을 클래스별 모듈(.h/.cpp)로 완전 분리.
-- **순수 로직 분리 (Native-Testable)**: 시간 변환(`english_time_core`), 레이아웃(`layout_engine` + `renderer_geometry`)을 Arduino 의존 없는 순수 C++로 분리해 **호스트에서 단위 테스트**가 가능합니다.
-- **Hardware Abstraction Layer (HAL)**: 하드웨어 종속 I2C 드라이버 로직을 `I2CPlatform` 클래스로 분리.
-- **Flat Buffer & Static Allocation**: 힙 파편화와 메모리 누수를 원천 차단하는 Flat Buffer 전략.
+### 3. Modular Architecture — same as the Korean edition
+- **H/CPP separation**: Firmware logic fully split into per-class modules (.h/.cpp).
+- **Pure logic separation (native-testable)**: Time conversion (`english_time_core`) and layout (`layout_engine` + `renderer_geometry`) are pure C++ with no Arduino dependency, so they can be **unit-tested on the host**.
+- **Hardware Abstraction Layer (HAL)**: Hardware-dependent I2C driver logic is separated into the `I2CPlatform` class.
+- **Flat Buffer & Static Allocation**: A Flat Buffer strategy that eliminates heap fragmentation and memory leaks.
 
-### 4. Font Studio (브라우저 폰트 스튜디오)
-- **TTF → 비트맵 원스톱 변환**: 브라우저에서 TTF를 업로드하면 38개 영문 낱자(A–Z, 0–9, `,` `'` `.` 등)를 64px 고해상도 비트맵으로 래스터화해 기기에 직접 업로드합니다.
-- **잉크 중앙 정렬 래스터라이저**: em 박스 중앙이 아닌 **실측 잉크 박스 합집합**을 래스터 세로 중앙에 놓아(대문자 A–Z 기준) 크기를 키워도 위·아래 여백이 균등하게 유지됩니다.
-- **글자별 가로 중앙 정렬**: 넓은 글자(`W`)와 좁은 글자(`I`) 모두 각자의 잉크 중심이 셀 중앙에 옵니다.
-- **폰트 슬롯 5개**: LittleFS `/f0`~`/f4` 슬롯에 폰트 세트를 저장하고 웹에서 선택합니다.
-- **실시간 미리보기·시뮬레이너**: 업로드 전 캔버스 미리보기와 기기 설정 실시간 시뮬레이션.
-- **폰트 미업로드 시 동작**: 단어 모드는 커스텀 폰트 캐시가 있어야 켜집니다(없으면 숫자 모드 + `Font Required!` — 설계된 동작). 다른 프로젝트(한글·중국어판)의 256B/512B 폰트가 슬롯에 남아 있으면 영문 글리프가 없어 화면이 폴백으로 보이고, IP 화면도 기본 폰트로 표시됩니다(자세한 분석: `PLAN.md` §6.15).
+### 4. Font Studio (in-browser font studio)
+- **One-stop TTF → bitmap conversion**: Upload a TTF in the browser and it rasterizes 38 English glyphs (A–Z, 0–9, `,` `'` `.`, etc.) into high-resolution 64px bitmaps and uploads them directly to the device.
+- **Ink-centered rasterizer**: Instead of the em-box center, it places **the union of measured ink boxes** (based on uppercase A–Z) at the vertical center of the raster, so top and bottom margins stay even as the size grows.
+- **Per-glyph horizontal centering**: Both wide (`W`) and narrow (`I`) glyphs have their own ink center at the cell center.
+- **5 font slots**: Store font sets in LittleFS slots `/f0`–`/f4` and select one on the web.
+- **Live preview and simulator**: Canvas preview before upload and real-time simulation of device settings.
+- **Behavior without an uploaded font**: Word mode turns on only with a custom font cache (otherwise numeric mode + `Font Required!` — by design). If a 256B/512B font from another project (Korean or Chinese edition) remains in a slot, it has no English glyphs, so the screen shows the fallback and the IP screen also uses the default font (detailed analysis: `PLAN.md` §6.15).
 
-### 5. Interactive Control & Animation — 한글판과 동일
-- **4버튼 입력** (GPIO 1/4/10/9): 시보, 표시모드, 시간형식, 화면반전 등 즉시 변경.
-- **5가지 비차단 애니메이션**: Scroll Up/Down, Vertical Flip, Dithered Fade, Zoom. 2줄 레이아웃에서 이동량이 `LINE_HEIGHT`로 축소되고 줄 밴드 클립으로 격리됩니다.
-- **12/24시간제 + 영문 요일**: 12H(AM/PM), 24H 모두 지원하며 요일은 모드 무관하게 영문(`MONDAY`)으로 표기합니다.
-- **숫자 모드 단위 표기**: `02 H 15 M 30 S`처럼 단위 접미사가 인라인으로 붙습니다.
+### 5. Interactive Control & Animation — same as the Korean edition
+- **4-button input** (GPIO 1/4/10/9): Instantly change hourly chime, display mode, time format, screen flip and more.
+- **5 non-blocking animations**: Scroll Up/Down, Vertical Flip, Dithered Fade, Zoom. In the two-line layout, the travel distance shrinks to `LINE_HEIGHT` and each line is isolated with a band clip.
+- **12/24-hour + English weekdays**: Both 12H (AM/PM) and 24H are supported, and weekdays are always in English (`MONDAY`) regardless of mode.
+- **Unit labels in numeric mode**: Unit suffixes are attached inline, as in `02 H 15 M 30 S`.
 
 ### 6. Hardware Self-Healing & Test Infrastructure
-- **I2C Recovery System**: 버스 에러 감지 시 자동 재초기화 및 주소 재할당.
-- **호스트 테스트 인프라**: 네이티브 C++ 단위 테스트 3종 + 웹↔펌웨어 교차 검증 6종 (공통 모듈 테스트는 DeskStreamCore) (`test/` 참고 — `bash test/js/run_all.sh` 한 번에 전체 검증).
+- **I2C Recovery System**: Automatic re-initialization and address reassignment when a bus error is detected.
+- **Host test infrastructure**: 3 native C++ unit test suites + 6 web↔firmware cross-validation checks (shared module tests live in DeskStreamCore) (see `test/` — `bash test/js/run_all.sh` verifies everything at once).
 
-## 📁 디렉터리 구조
+## 📁 Directory Structure
 
 ```
 ENG_Clock/
-├── ENG_Clock.ino        메인 엔트리 (Setup / 루프 제어)
-├── config.h / config_manager.*   전역 상수 / 설정 필드 테이블 (NVS 키·검증·웹 적용 순서)
-├── english_time.*       시간 → 영어 텍스트 변환 (Arduino String 인터페이스)
-├── english_time_core.*  순수 시간 변환 로직 (네이티브 테스트 대상)
-├── layout_engine.*      어절 단위 2줄 레이아웃 엔진
-├── renderer_geometry.*  글자 기하 판별 (192B/384B)
-├── renderer.*           U8g2 렌더러 (밴드 클립, 겹침 렌더링)
-├── display_manager.*    4-OLED 병렬 출력, 시간대 적용, 애니메이션
-├── web_manager.*        페이지·폰트 업로드 (/api/config는 ds::WebConfigApi)
-├── web_pages.h          Font Studio 웹 UI (HTML/JS 내장)
-├── PLAN.md              설계 문서
-├── 수정할 사항.md        버그/개선 추적
-└── test/                호스트 단위·교차 검증 (test/README.md)
+├── ENG_Clock.ino        Main entry (setup / loop control)
+├── config.h / config_manager.*   Global constants / settings field table (NVS keys, validation, web apply order)
+├── english_time.*       Time → English text conversion (Arduino String interface)
+├── english_time_core.*  Pure time conversion logic (native test target)
+├── layout_engine.*      Word-based two-line layout engine
+├── renderer_geometry.*  Glyph geometry detection (192B/384B)
+├── renderer.*           U8g2 renderer (band clip, overlap rendering)
+├── display_manager.*    4-OLED parallel output, time zone application, animation
+├── web_manager.*        Page and font upload (/api/config is ds::WebConfigApi)
+├── web_pages.h          Font Studio web UI (embedded HTML/JS)
+├── PLAN.md              Design document
+├── 수정할 사항.md        Bug/improvement tracking
+└── test/                Host unit tests and cross-validation (test/README.md)
 ```
 
-화면 전송(HW 1.1MHz + 고속 SW I2C)·버튼·부저·WiFi·NTP 감독·설정 저장·웹 설정 API·로그·TZ 검증은
-공통 라이브러리 [DeskStreamCore](../libraries/DeskStreamCore/)를 씁니다 (v1.1.0). 빌드 전에 저장소 루트에서
-`bash scripts/link-arduino-lib.sh`를 한 번 실행해 라이브러리를 Arduino 스케치북에 연결하세요.
+Display transfer (HW 1.1MHz + fast SW I2C), buttons, buzzer, WiFi, NTP supervision, settings storage, web settings API, logging and TZ validation
+use the shared library [DeskStreamCore](../libraries/DeskStreamCore/) (v1.1.0). Before building, run
+`bash scripts/link-arduino-lib.sh` once from the repository root to link the library into your Arduino sketchbook.
 
-## 🚀 빌드
+## 🚀 Build
 
 ```bash
 arduino-cli compile --fqbn esp32:esp32:makergo_c3_supermini:PartitionScheme=huge_app .
 ```
 
-- Arduino IDE에서는 `Partition Scheme`을 **`Huge APP`**로 선택한다 (크기 검사 상한을 넓히기 위해서다).
-- 실제 파티션은 스케치 폴더의 `partitions.csv` — **DeskStream 공통 레이아웃**(app0 2.5MB / spiffs `0x290000` 1.375MB, OTA 없음)이
-  항상 우선 적용된다. spiffs 위치가 `default` 스킴과 같아서 다른 프로젝트와 바꿔 올려도 업로드한 폰트가 보존된다.
-- v1.1.0부터다 — `default` 스킴(app0 1.25MB)은 DeskStreamCore 전환 후 여유가 141 B뿐이었다.
+- In the Arduino IDE, choose **`Huge APP`** for `Partition Scheme` (to raise the size check limit).
+- The actual partitions come from the sketch folder's `partitions.csv` — the **shared DeskStream layout** (app0 2.5MB / spiffs `0x290000` 1.375MB, no OTA)
+  always takes precedence. The spiffs location matches the `default` scheme, so uploaded fonts are preserved when swapping firmware with other projects.
+- Since v1.1.0 — with the `default` scheme (app0 1.25MB), only 141 B were left after switching to DeskStreamCore.
 
-## 🧪 테스트
+## 🧪 Tests
 
 ```bash
-bash test/js/run_all.sh   # JS ↔ 펌웨어 교차 검증 전체
-cd test && g++ -std=c++11 -I.. test_english_time.cpp ../english_time_core.cpp -o /tmp/t && /tmp/t   # 네이티브 단위 테스트
+bash test/js/run_all.sh   # all JS ↔ firmware cross-validation
+cd test && g++ -std=c++11 -I.. test_english_time.cpp ../english_time_core.cpp -o /tmp/t && /tmp/t   # native unit test
 ```
 
 ---
