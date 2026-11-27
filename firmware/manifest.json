@@ -301,7 +301,7 @@
     {
       "id": "Smart_Info_Station",
       "name": "스마트 정보 스테이션",
-      "version": "2.13.0",
+      "version": "2.14.0",
       "icon": "🌤️",
       "order": 6,
       "description": "시간·날씨·미세먼지·유튜브·증시·환율을 4개 OLED에 실시간으로 보여주는 정보 스테이션",
@@ -316,9 +316,9 @@
         "freq": "80m",
         "size": "4MB"
       },
-      "exportedAt": "2026-11-25T20:39:18.368Z",
+      "exportedAt": "2026-11-27T07:47:35.916Z",
       "sourcePath": "Smart_Info_Station",
-      "sourceCommit": "b8a058014e7bd8e3329e122241e088e48e289ff6",
+      "sourceCommit": "a0921063b84f9d6f46f7dc0a3b3a4a458e20def2",
       "images": [
         {
           "offset": "0x0",
@@ -341,8 +341,8 @@
         {
           "offset": "0x10000",
           "path": "firmware/Smart_Info_Station/Smart_Info_Station.ino.bin",
-          "size": 1556544,
-          "sha256": "86dac1d603ca844d30fb6854eeece9806eec3d2286f8d37bae2a82ec8962c212"
+          "size": 1862496,
+          "sha256": "1d2ab2ee0a27bc8f43411a59a9574bc90d39672c7d27f0e3f4137f18268e4900"
         }
       ]
     },

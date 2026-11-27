@@ -11,6 +11,10 @@
 #include "dust.h"
 #include "weather.h"
 #include "slot_city.h"
+#include "stock.h"
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
+#include <UrlEncode.h>
 #include <DeskStreamCore.h>
 extern ds::TimeSync timeSync;   // Smart_Info_Station.ino에서 정의 (NTP 재동기화 감독)
 
@@ -73,12 +77,12 @@ void handleRoot() {
 
   // WidgetType 값 순서 (config.h)
   const char *w_names[] = { "달력", "한국 시계", "동네 날씨", "미세먼지", "유튜브", "코스피", "코스닥", "코스피200", "선물지수", "S&P 500", "나스닥", "비트코인", "환율(달러)", "사용 안 함",
-                            "해외 날씨", "세계 시계", "환율(엔·유로·위안)", "이더리움", "D-day", "일출·일몰", "주간 날씨" };
+                            "해외 날씨", "세계 시계", "환율(엔·유로·위안)", "이더리움", "D-day", "일출·일몰", "주간 날씨", "기온 그래프", "관심 종목" };
   const char *w_names_en[] = { "Calendar", "Korea Clock", "Local Weather", "Fine Dust", "YouTube", "KOSPI", "KOSDAQ", "KOSPI 200", "Futures", "S&amp;P 500", "NASDAQ", "Bitcoin", "USD/KRW", "None",
-                               "Intl. Weather", "World Clock", "FX (JPY·EUR·CNY)", "Ethereum", "D-day", "Sunrise/Sunset", "Weekly Weather" };
+                               "Intl. Weather", "World Clock", "FX (JPY·EUR·CNY)", "Ethereum", "D-day", "Sunrise/Sunset", "Weekly Weather", "Temp Graph", "Stock" };
   // 목록 표시 순서 — 비슷한 위젯끼리 모으고 "사용 안 함"(13)은 맨 끝
-  const int w_order[] = { W_CALENDAR, W_TIME, W_WORLD_CLOCK, W_DDAY, W_WEATHER, W_INTL_WEATHER, W_WEEKLY, W_SUN, W_DUST, W_YOUTUBE,
-                          W_KOSPI, W_KOSDAQ, W_KPI200, W_FUTURES, W_SNP500, W_NASDAQ, W_BTC, W_ETH, W_USDKRW, W_FX, W_NONE };
+  const int w_order[] = { W_CALENDAR, W_TIME, W_WORLD_CLOCK, W_DDAY, W_WEATHER, W_INTL_WEATHER, W_WEEKLY, W_TEMP_GRAPH, W_SUN, W_DUST, W_YOUTUBE,
+                          W_KOSPI, W_KOSDAQ, W_KPI200, W_FUTURES, W_SNP500, W_NASDAQ, W_STOCK, W_BTC, W_ETH, W_USDKRW, W_FX, W_NONE };
   const char *pageTitles[MAX_DATA_PAGE] = {
     "[PAGE 1] 기본 화면",
     "[PAGE 2] 버튼 클릭 시 전환 화면",
@@ -143,6 +147,8 @@ void handleRoot() {
   settingsHtml.replace("%WID_WC%", String(W_WORLD_CLOCK));
   settingsHtml.replace("%WID_SUN%", String(W_SUN));
   settingsHtml.replace("%WID_WEEKLY%", String(W_WEEKLY));
+  settingsHtml.replace("%WID_TGRAPH%", String(W_TEMP_GRAPH));
+  settingsHtml.replace("%WID_STOCK%", String(W_STOCK));
   settingsHtml.replace("%WID_DDAY%", String(W_DDAY));
   settingsHtml.replace("%WID_CLOCKS%", String(W_TIME) + "," + String(W_WORLD_CLOCK));
   settingsHtml.replace("%CLOCK24_SEL%", clock12h ? "" : "selected");
@@ -153,15 +159,73 @@ void handleRoot() {
   settingsHtml.replace("%INTL%", intl_city.length() > 0 ? htmlEscape(intl_city) : String("미설정"));
   settingsHtml.replace("%INTL_EN%", intl_city.length() > 0 ? htmlEscape(intl_city) : String("Not set"));
   // 칸별 설정 — 스크립트 배열. 화면별 도시 ["New York", "", ...] ("" = 위젯 기본 도시), D-day [{l:"이름", d:"YYYY-MM-DD"}, ...]
-  String cities = "[", ddays = "[";
+  String cities = "[", ddays = "[", stocks = "[";
   for (int i = 0; i < SCREEN_SLOTS; i++) cities += (i ? "," : "") + jsString(slotCity[i].name);
+  for (int i = 0; i < SCREEN_SLOTS; i++) stocks += (i ? "," : "") + jsString(slotStock[i].name);
   for (int i = 0; i < DDAY_SLOTS; i++) ddays += String(i ? "," : "") + "{l:" + jsString(dday[i].label) + ",d:" + jsString(dday[i].date) + "}";
   settingsHtml.replace("%CITIES%", cities + "]");
   settingsHtml.replace("%DDAYS%", ddays + "]");
+  settingsHtml.replace("%STOCKS%", stocks + "]");
   settingsHtml.replace("%TZ%", (timezone_offset >= 0 ? "+" : "") + String(timezone_offset));   // 예: +9, -5
 
   html += settingsHtml;
   server.send(200, "text/html", html);
+}
+
+/** 문자열 JSON 값 "key":"..."를 from 이후에서 찾아 따옴표 안을 그대로(이스케이프 유지) 돌려준다 — 없으면 -1 */
+static int jsonRaw(const String &s, int from, const char *key, String &out) {
+  String k = String("\"") + key + "\":\"";
+  int a = s.indexOf(k, from);
+  if (a < 0) return -1;
+  a += k.length();
+  int b = a;
+  while (b < (int)s.length() && s[b] != '"') b += s[b] == '\\' ? 2 : 1;   // \" 는 건너뛴다
+  out = s.substring(a, b);
+  return b;
+}
+
+/**
+ * 관심 종목 이름 검색 — 네이버 종목 자동완성(ac.stock.naver.com)을 기기가 대신 부른다.
+ * @details 브라우저에서 바로 부르면 네이버가 막는다(다른 사이트의 요청). 응답 [{n:이름, p:시세 경로, m:시장}, ...]
+ */
+void handleStockSearch() {
+  String q = server.arg("q");
+  q.trim();
+  if (q.length() == 0 || q.length() > 40 || WiFi.status() != WL_CONNECTED) {
+    server.send(400, "application/json", "[]");
+    return;
+  }
+  WiFiClientSecure client;
+  client.setInsecure();
+  client.setTimeout(5000);
+  HTTPClient https;
+  https.begin(client, "https://ac.stock.naver.com/ac?target=stock&q=" + urlEncode(q));
+  https.setTimeout(5000);
+  https.setUserAgent("Mozilla/5.0");
+  String payload = https.GET() == 200 ? https.getString() : "";
+  https.end();
+  if (payload.length() == 0) {
+    server.send(502, "application/json", "[]");
+    return;
+  }
+  // 항목마다 "name" → "typeName" → "url" 순서로 온다. url "/domestic/stock/005930/total" → 시세 경로 "domestic/stock/005930"
+  String out = "[";
+  int pos = payload.indexOf("\"items\":[");
+  for (int n = 0; pos >= 0 && n < 10; n++) {
+    String name, market, url;
+    pos = jsonRaw(payload, pos, "name", name);
+    if (pos < 0) break;
+    pos = jsonRaw(payload, pos, "typeName", market);
+    if (pos < 0) break;
+    pos = jsonRaw(payload, pos, "url", url);
+    if (pos < 0) break;
+    String path = url.substring(1);
+    if (path.endsWith("/total")) path.remove(path.length() - 6);
+    if (!isStockPath(path)) continue;   // 종목이 아닌 결과는 뺀다
+    if (out.length() > 1) out += ",";
+    out += "{\"n\":\"" + name + "\",\"p\":\"" + path + "\",\"m\":\"" + market + "\"}";
+  }
+  server.send(200, "application/json", out + "]");
 }
 
 void handleSet() {
@@ -204,6 +268,18 @@ void handleSet() {
       if (!readCityArgs("city" + String(i), name, lat, lon)) continue;
       slotCity[i] = {name, lat, lon};
       clearSlotData(i);   // 새 도시 값을 받기 전까지 "--" 표시
+      changed = true;
+    }
+    for (int i = 0; i < SCREEN_SLOTS; i++) {   // 관심 종목 (검색으로 고른 칸만 값이 온다)
+      String p = "stock" + String(i);
+      String path = server.arg(p + "_path"), sname = server.arg(p + "_name");
+      if (path.length() == 0) continue;
+      if (!isStockPath(path) || sname.length() == 0 || sname.length() > 60) {
+        Serial.printf("[WEB] Rejected %s (path %s)\n", p.c_str(), path.c_str());
+        continue;
+      }
+      slotStock[i] = {sname, path};
+      stockQuote[i].valid = false;   // 새 종목 값을 받기 전까지 "--" 표시
       changed = true;
     }
   }
@@ -287,6 +363,12 @@ void handleSet() {
       snprintf(key, sizeof(key), "ct%d", i);
       if (slotCity[i].name.length() == 0) preferences.remove(key);
       else putStr(key, String(slotCity[i].lat, 5) + "|" + String(slotCity[i].lon, 5) + "|" + slotCity[i].name);
+    }
+    for (int i = 0; i < SCREEN_SLOTS; i++) {   // 관심 종목 skN = "시세 경로|이름"
+      char key[8];
+      snprintf(key, sizeof(key), "sk%d", i);
+      if (slotStock[i].path.length() == 0) preferences.remove(key);
+      else putStr(key, slotStock[i].path + "|" + slotStock[i].name);
     }
     for (int i = 0; i < DDAY_SLOTS; i++) {
       char key[8];

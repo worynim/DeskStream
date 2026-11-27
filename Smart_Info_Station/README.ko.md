@@ -2,7 +2,7 @@
 
 # ESP32-C3 4-OLED 스마트 정보 스테이션 (Smart_Info_Station)
 
-이 프로젝트는 **ESP32 C3 SuperMini** 보드를 사용하여 4개의 OLED 디스플레이를 독립적으로 제어하고, **한국·세계 시각, 동네·해외 날씨, 미세먼지, 유튜브 구독자 수, 증시(코스피, 코스닥, S&P 500), 비트코인·이더리움, 환율(달러·엔·유로·위안), D-day, 일출·일몰·달 모양, 주간 날씨** 등 다양한 정보를 실시간 모니터링하는 데스크탑 정보 표시기입니다. 
+이 프로젝트는 **ESP32 C3 SuperMini** 보드를 사용하여 4개의 OLED 디스플레이를 독립적으로 제어하고, **한국·세계 시각, 동네·해외 날씨, 미세먼지, 유튜브 구독자 수, 증시(코스피, 코스닥, S&P 500), 비트코인·이더리움, 환율(달러·엔·유로·위안), D-day, 일출·일몰·달 모양, 주간 날씨, 기온 그래프, 관심 종목** 등 다양한 정보를 실시간 모니터링하는 데스크탑 정보 표시기입니다. 
 
 https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
@@ -55,6 +55,10 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
     - **일출·일몰**: 해 뜨고 지는 시각, 낮 길이, 달 밝기(%)와 달 모양 그림·위상 이름. 달 모양은 날짜로 계산하고 남반구에서는 좌우를 뒤집어 그립니다.
     - **주간 날씨**: 오늘부터 5일의 요일·날씨 아이콘·최고/최저 기온.
     - **화면별 도시**: 세계 시계·일출일몰·주간 날씨는 웹의 "화면별 도시"에서 화면마다 도시를 검색해 고릅니다 (기본: 세계 시계 New York, 나머지 Seoul).
+10. **기온 그래프와 관심 종목 (v2.14.0)** — API 키 없음.
+    - **기온 그래프**: 화면별 도시의 오늘 0~23시 예보 기온 선 그래프(Open-Meteo). 지금 시각에 세로 점선, 오른쪽 위에 지금 기온.
+    - **관심 종목**: 화면마다 국내·해외 종목 하나(네이버 증권). 웹에서 이름(예: 삼성전자, 애플)으로 검색해 고르고, 장이 열려 있을 때 1분마다 갱신합니다.
+    - **D-day 이름**을 갈무리11(12px) 글꼴로 크게 보여 줍니다.
 
 ## 🛠 하드웨어 구성 요소
 
@@ -84,9 +88,11 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 - `data_manager.h / .cpp` : 날씨, 미세먼지, 주식, 코인 등의 네트워크 파싱 함수를 담은 헤더를 관리하며, 백그라운드 `dataTask`를 통해 데이터를 수집하고 상태(`update_flag`)를 관장하는 메인 수집 엔진.
 - `web_handlers.h / .cpp` : 와이파이 접속 후 접근 가능한 내부 설정 웹 서버 페이지 UI 생성 및 입력받은 환경 변수(채널, 지역 등) 플래시 저장(`handleRoot`, `handleSet`) 전담 유닛.
 - `weather.h`, `dust.h`, `youtube.h`, `market.h`, `btc.h`, `usdkrw.h` : 각각의 단일 소스 데이터 파싱 함수 선언부. (자체 인클루드 가드 및 외부 변수 선언 포함)
-- `slot_city.h` : 화면별 도시와 그 도시를 쓰는 위젯(세계 시계·일출일몰·주간 날씨)의 데이터 선언 (수집은 `data_manager.cpp`의 `get_world_clock()`·`get_sun()`·`get_weekly()`).
+- `slot_city.h` : 화면별 도시와 그 도시를 쓰는 위젯(세계 시계·일출일몰·주간 날씨·기온 그래프)의 데이터 선언 (수집은 `data_manager.cpp`의 `get_world_clock()`·`get_sun()`·`get_weekly()`·`get_temp_graph()`).
+- `stock.h` : 화면별 관심 종목과 시세 데이터 선언 (수집은 `data_manager.cpp`의 `get_stock()`, 이름 검색은 `web_handlers.cpp`의 `/stock_search`).
 - `stream_scanner.h` : 날씨·미세먼지 페이지와 YouTube 응답을 고정 크기 버퍼로 훑으며 키 뒤의 값을 꺼내는 스캐너. 한 줄이 수 MB여도 메모리를 더 쓰지 않습니다.
-- `u8g2_font_galmuri7_kr.h` : 갈무리7 한글 글꼴 (Agent_Monitor와 같음, SIL OFL 1.1) — 지명·D-day 이름 표시용.
+- `u8g2_font_galmuri7_kr.h` : 갈무리7 한글 글꼴 (Agent_Monitor와 같음, SIL OFL 1.1) — 지명·요일·종목 이름 표시용.
+- `u8g2_font_galmuri11_kr.h` : 갈무리11 12px 한글 글꼴 (한글 11,172자, 약 283KB, SIL OFL 1.1) — D-day 이름 표시용.
 
 ## 📝 최초 시작 방법 (Quick Start)
 

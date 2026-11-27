@@ -27,5 +27,6 @@ extern void redraw_current_page();
 // --- 웹 서버 핸들러 함수 ---
 void handleRoot();
 void handleSet();
+void handleStockSearch();   // GET /stock_search?q=이름 — 네이버 종목 자동완성을 대신 불러 준다
 
 #endif

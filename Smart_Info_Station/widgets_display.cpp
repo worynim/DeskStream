@@ -4,7 +4,7 @@
  * @brief 정보 타입별 전용 위젯 렌더링 구현
  * @details 날씨, 시세, 뉴스 등의 데이터를 각각의 UI 컴포넌트로 시각화하는 로직 처리
  */
-// 갈무리7 한글 글꼴은 64KB 를 넘어 U8g2 가 큰 글꼴 지원을 켜야 한다 — U8g2lib.h 보다 먼저 정의
+// 갈무리7·갈무리11 한글 글꼴은 64KB 를 넘어 U8g2 가 큰 글꼴 지원을 켜야 한다 — U8g2lib.h 보다 먼저 정의
 #ifndef U8G2_USE_LARGE_FONTS
 #define U8G2_USE_LARGE_FONTS
 #endif
@@ -19,7 +19,9 @@
 #include "btc.h"
 #include "usdkrw.h"
 #include "slot_city.h"
-#include "u8g2_font_galmuri7_kr.h"   // 갈무리7 (SIL OFL 1.1) — 동네 날씨·미세먼지 윗줄의 지명, D-day 이름 (한글)
+#include "stock.h"
+#include "u8g2_font_galmuri7_kr.h"    // 갈무리7 (SIL OFL 1.1) — 지명·요일·종목 이름 등 작은 한글
+#include "u8g2_font_galmuri11_kr.h"   // 갈무리11 12px (SIL OFL 1.1) — D-day 이름 (한글)
 
 // --- 렌더링 함수 구현 ---
 
@@ -366,6 +368,91 @@ void display_weekly_oled(U8G2 &u8g2, int slot) {
   display.push();
 }
 
+/**
+ * 오늘 0~23시 예보 기온 선 그래프 — 위: 도시 이름·지금 기온, 왼쪽: 최고·최저 눈금, 아래: 0·6·12·18시
+ * @details 지금 시각(도시 현지)에 세로 점선, 그 위 지금 기온 높이에 점을 찍는다
+ */
+void display_temp_graph_oled(U8G2 &u8g2, int slot) {
+  u8g2_prepare(u8g2);
+  u8g2.clearBuffer();
+  const TempGraph &g = tempGraph[slot];
+  u8g2.setFont(u8g2_font_6x10_tf);
+  u8g2.drawUTF8(0, 0, cityFor(slot, W_TEMP_GRAPH).name.c_str());
+  if (!g.valid) {   // 아직 받지 못함
+    drawCenteredUTF8(u8g2, 28, "--");
+    display.push();
+    return;
+  }
+
+  float lo = g.now, hi = g.now;   // 지금 기온도 눈금 안에 들어오게 한다
+  for (float t : g.temp) { lo = min(lo, t); hi = max(hi, t); }
+  int top = (int)ceilf(hi), bottom = (int)floorf(lo);
+  if (top == bottom) top++;
+  const int X0 = 18, X1 = 127, Y0 = 13, Y1 = 54;   // 그래프 영역
+  auto px = [&](float h) { return X0 + (int)lroundf(h * (X1 - X0) / 23.0f); };
+  auto py = [&](float t) { return Y1 - (int)lroundf((t - bottom) * (Y1 - Y0) / (top - bottom)); };
+
+  // 눈금: 최고·최저 기온(왼쪽), 0·6·12·18시(아래)
+  char buf[12];
+  u8g2.setFont(u8g2_font_5x7_tf);
+  snprintf(buf, sizeof(buf), "%d\xB0", top);
+  u8g2.drawStr(0, Y0, buf);
+  snprintf(buf, sizeof(buf), "%d\xB0", bottom);
+  u8g2.drawStr(0, Y1 - 6, buf);
+  for (int h = 0; h < 24; h += 6) {
+    snprintf(buf, sizeof(buf), "%d", h);
+    int x = px(h) - (h ? u8g2.getStrWidth(buf) / 2 : 0);
+    u8g2.drawStr(x, 57, buf);
+    u8g2.drawPixel(px(h), Y1 + 1);
+  }
+  for (int h = 0; h < 23; h++) u8g2.drawLine(px(h), py(g.temp[h]), px(h + 1), py(g.temp[h + 1]));
+
+  // 오른쪽 위에 지금 기온, 지금 시각에 세로 점선 + 지금 기온 높이에 점
+  u8g2.setFont(u8g2_font_6x10_tf);
+  snprintf(buf, sizeof(buf), "%.1f\xB0", g.now);
+  u8g2.drawStr(127 - u8g2.getStrWidth(buf), 0, buf);
+  time_t now = time(nullptr);
+  if (now >= kTimeSyncedEpoch) {
+    time_t local = now + g.offset;
+    struct tm t;
+    gmtime_r(&local, &t);
+    float hour = t.tm_hour + t.tm_min / 60.0f;
+    for (int y = Y0; y <= Y1; y += 3) u8g2.drawPixel(px(hour), y);
+    u8g2.drawDisc(px(hour), py(g.now), 2);
+  }
+  display.push();
+}
+
+/** 관심 종목 — 위: 종목 이름(갈무리7), 가운데: 가격, 아래: 등락폭(등락률). 장이 닫혀 있으면 오른쪽 위에 점 */
+void display_stock_oled(U8G2 &u8g2, int slot) {
+  const SlotStock &s = slotStock[slot];
+  if (s.path.length() == 0) {
+    u8g2_prepare(u8g2);
+    u8g2.clearBuffer();
+    drawSetupHint(u8g2, "Stock", "Pick a stock on", "the web settings");
+    display.push();
+    return;
+  }
+  const StockQuote &q = stockQuote[slot];
+  u8g2_prepare(u8g2);
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_galmuri7_kr);
+  drawCenteredUTF8(u8g2, 3, s.name.c_str());
+  if (!q.valid) {
+    u8g2.setFont(u8g2_font_6x10_tf);
+    drawCenteredUTF8(u8g2, 28, "--");
+    display.push();
+    return;
+  }
+  if (q.closed) u8g2.drawFrame(124, 4, 4, 4);   // 장 마감 표시 (빈 네모)
+  u8g2.setFont(MAIN_NUM_FONT);
+  if (u8g2.getStrWidth(q.data.price.c_str()) > 128) u8g2.setFont(u8g2_font_10x20_tf);   // 긴 가격 (예: 1,234,000)
+  drawCenteredText(u8g2, q.data.price, 25);
+  u8g2.setFont(u8g2_font_6x10_tf);
+  drawCenteredText(u8g2, q.data.change + " (" + q.data.percent + ")", 56);
+  display.push();
+}
+
 /** 그레고리력 날짜의 일 번호 (1970-01-01 = 0) — 날짜 차이 계산용 */
 static long daysFromCivil(int y, int m, int d) {
   y -= m <= 2;
@@ -386,8 +473,8 @@ void display_dday_oled(U8G2 &u8g2, int slot) {
     display.push();
     return;
   }
-  // 윗줄: 이름 (갈무리7, 한글 가능)
-  u8g2.setFont(u8g2_font_galmuri7_kr);
+  // 윗줄: 이름 (갈무리11, 한글 가능)
+  u8g2.setFont(u8g2_font_galmuri11_kr);
   const char *label = dday_label.length() > 0 ? dday_label.c_str() : "D-day";
   int x = (128 - u8g2.getUTF8Width(label)) / 2;
   u8g2.drawUTF8(x < 0 ? 0 : x, 0, label);

@@ -16,6 +16,7 @@
 #include "btc.h"
 #include "usdkrw.h"
 #include "slot_city.h"
+#include "stock.h"
 
 // --- 전역 데이터 변수 실제 정의 (Definition) ---
 String dust_location = "대전";
@@ -23,7 +24,7 @@ String dust_host = "http://apis.data.go.kr";
 int dust_10_num = -1;   // -1: 아직 받지 못함 (화면에 "--")
 int dust_2_5_num = -1;
 
-String weather_location_code = "4211054500";
+String weather_location_code = "5111054500";
 String weather_location_name = "";
 String weather_host = "http://apis.data.go.kr";
 String announcement_time = "0000";
@@ -39,6 +40,9 @@ SlotCity slotCity[SCREEN_SLOTS];
 WorldClockTime wcTime[SCREEN_SLOTS];
 SunInfo sunInfo[SCREEN_SLOTS];
 WeeklyInfo weekly[SCREEN_SLOTS];
+TempGraph tempGraph[SCREEN_SLOTS];
+SlotStock slotStock[SCREEN_SLOTS];
+StockQuote stockQuote[SCREEN_SLOTS];
 
 SlotCity cityFor(int slot, WidgetType type) {
   if (slotCity[slot].name.length() > 0) return slotCity[slot];
@@ -50,6 +54,7 @@ void clearSlotData(int slot) {
   wcTime[slot].valid = false;
   sunInfo[slot].valid = false;
   weekly[slot].valid = false;
+  tempGraph[slot].valid = false;
 }
 
 String youtube_channel = "";
@@ -95,6 +100,8 @@ volatile bool is_updating_eth = false;
 volatile bool is_updating_wc = false;
 volatile bool is_updating_sun = false;
 volatile bool is_updating_weekly = false;
+volatile bool is_updating_tgraph = false;
+volatile bool is_updating_stock = false;
 volatile bool force_update = false;  
 volatile bool is_waiting = false;    
 TaskHandle_t dataTaskHandle = NULL;  
@@ -119,6 +126,9 @@ const WidgetUpdateInfo widgets_info[] = {
   // 칸마다 도시가 달라 render가 없다 — Smart_Info_Station.ino renderWidget이 칸 번호로 그린다
   { W_SUN,     &is_updating_sun,     0x8000, "Updating Sun",   nullptr,              get_sun,       false, false },
   { W_WEEKLY,  &is_updating_weekly,  0x10000, "Updating Weekly", nullptr,             get_weekly,    false, false },
+  { W_TEMP_GRAPH, &is_updating_tgraph, 0x20000, "Updating Temp", nullptr,             get_temp_graph, false, false },
+  // 관심 종목도 칸마다 종목이 달라 render가 없다. 1분마다 부르지만 장이 닫힌 종목은 STOCK_CLOSED_INTERVAL마다만 받는다
+  { W_STOCK,   &is_updating_stock,   0x40000, "Updating Stock", nullptr,               get_stock,     true,  false },
   { W_WEATHER, &is_updating_weather, 0x02, "Updating Weather", display_weather_oled, get_weather,   false, false },
   { W_INTL_WEATHER, &is_updating_intl, 0x800, "Updating World Wx", display_intl_weather_oled, get_intl_weather, false, false },
   { W_DUST,    &is_updating_dust,    0x01, "Updating Dust",    display_dust_oled,    get_dust,      false, true  },
@@ -259,12 +269,12 @@ bool get_weather() {
   String code;
   { DataLock lock; code = weather_location_code; }  // 웹 설정 변경과 겹치지 않도록 사본으로 작업
 
-  // 기상청 디지털 예보 — 발표 시각 17바이트, 시간대별 시각 2·날씨 코드 2·기온 3바이트
+  // 기상청 디지털 예보 — 발표 시각 17바이트(도움말 팝업), 시간대별 시각 2·날씨 코드 2·기온 3바이트(인라인 JSON rawDailyItems)
   static const ScanKey keys[] = {
-    {"3시간간격예보(현재부터 +일까지) : <span>", 17, 0},
-    {"hid\">시각: </span><span>", 2, 0},
-    {"hid\">날씨: </span><span class=\"wic DB", 2, 0},
-    {"hid\">기온 : </span><span class=\"hid feel\">", 3, 0},
+    {"단기예보(현재부터 +<span>3</span>일까지): <b>", 17, 0},
+    {"\"time\":\"", 2, 0},
+    {"\"weatherIcon\":\"DB", 2, 0},
+    {"\"temp\":\"", 3, 0},
   };
 
   for (int retry = 0; retry < 3; retry++) {
@@ -532,6 +542,24 @@ bool get_weekly() {
   });
 }
 
+bool get_temp_graph() {
+  return forEachCitySlot(W_TEMP_GRAPH, [](const SlotCity &c, int i) {
+    String payload;
+    if (!openMeteoGet(c, "Temp Graph", "&hourly=temperature_2m&current=temperature_2m&forecast_days=1", payload)) return false;
+    int o = payload.indexOf("\"utc_offset_seconds\":");
+    int h = payload.indexOf("\"hourly\":{");     // hourly_units·current_units에도 같은 키가 있어 그 뒤에서 찾는다
+    int n = payload.indexOf("\"current\":{");
+    TempGraph g;
+    if (o < 0 || h < 0 || n < 0 || !parseNumberArray(payload, h, "\"temperature_2m\":[", g.temp, 24) ||
+        !parseNumberArray(payload, n, "\"temperature_2m\":", &g.now, 1)) return false;
+    g.offset = atol(payload.c_str() + o + 21);
+    g.valid = true;
+    { DataLock lock; if (sameCity(i, W_TEMP_GRAPH, c)) tempGraph[i] = g; }
+    Serial.printf("[SUCCESS] Temp Graph: %s now %.1f\n", c.name.c_str(), g.now);
+    return true;
+  });
+}
+
 // --- YouTube 구독자 수: YouTube 웹 페이지가 쓰는 내부 요청(youtubei) — API 키 불필요 ---
 // 채널 페이지(약 2.5MB, 구독자 문구가 1.62MB 지점)를 읽는 대신, 채널의 "검색" 탭을 요청한다.
 // 검색 탭은 본문이 거의 비어 있어 채널 헤더(구독자 수)가 응답 앞 약 10KB 안에 온다.
@@ -625,7 +653,11 @@ bool get_subscribe() {
   return false;
 }
 
-bool fetchMarketData(const String& name, const String& url, MarketData& target) {
+/**
+ * 네이버 증권 실시간 시세 (지수·종목 같은 형식)
+ * @param closed nullptr가 아니면 장이 닫혀 있는지(marketStatus가 OPEN이 아님)를 돌려준다
+ */
+bool fetchMarketData(const String& name, const String& url, MarketData& target, bool *closed = nullptr) {
   if (WiFi.status() != WL_CONNECTED) return false;
 
   for (int retry = 0; retry < 3; retry++) {
@@ -680,6 +712,7 @@ bool fetchMarketData(const String& name, const String& url, MarketData& target) 
         }
 
         if (data.percent.indexOf("%") == -1) data.percent = data.percent + "%";
+        if (closed) *closed = payload.indexOf("\"marketStatus\":\"OPEN\"") < 0;
         { DataLock lock; target = data; }
 
         Serial.printf("[SUCCESS] %s: %s\n", name.c_str(), data.price.c_str());
@@ -702,6 +735,53 @@ bool get_kpi200() { return fetchMarketData("KOSPI200", "https://polling.finance.
 bool get_futures() { return fetchMarketData("FUTURES", "https://polling.finance.naver.com/api/realtime/domestic/index/FUT", futures_data); }
 bool get_SnP500() { return fetchMarketData("S&P 500", "https://polling.finance.naver.com/api/realtime/worldstock/index/.INX", snp500_data); }
 bool get_nasdaq() { return fetchMarketData("NASDAQ", "https://polling.finance.naver.com/api/realtime/worldstock/index/.IXIC", nasdaq_data); }
+
+// --- 관심 종목 (칸마다 한 종목) ---
+static const unsigned long STOCK_CLOSED_INTERVAL = 10 * 60 * 1000;   // 장이 닫힌 종목을 다시 받는 간격
+
+bool isStockPath(const String &path) {
+  if (!path.startsWith("domestic/stock/") && !path.startsWith("worldstock/stock/")) return false;
+  if (path.length() > 40 || path.indexOf("..") >= 0) return false;
+  for (size_t k = 0; k < path.length(); k++) {   // 영문·숫자·. / - 만 (요청 주소에 그대로 붙인다)
+    char c = path[k];
+    if (!isalnum((unsigned char)c) && c != '.' && c != '/' && c != '-') return false;
+  }
+  return true;
+}
+
+/** 숫자 문자열에 천 단위 쉼표 — 부호는 그대로 둔다 ("-22500" → "-22,500") */
+static String withCommas(const String &v) {
+  if (v.startsWith("+") || v.startsWith("-")) return v.substring(0, 1) + addCommas(v.substring(1));
+  return addCommas(v);
+}
+
+bool get_stock() {
+  if (WiFi.status() != WL_CONNECTED) return false;
+  bool all_ok = true;
+  for (int i = 0; i < SCREEN_SLOTS; i++) {
+    if (SCREEN_MAP[i] != W_STOCK) continue;
+    SlotStock s;
+    StockQuote q;
+    { DataLock lock; s = slotStock[i]; q = stockQuote[i]; }
+    if (s.path.length() == 0) continue;   // 미설정 — 화면에 설정 안내만 표시
+    // 장이 닫혀 있던 종목은 값이 바뀌지 않으니 가끔만 받는다 (장이 열리면 그때 1분 주기로 돌아간다)
+    if (q.valid && q.closed && millis() - q.fetched < STOCK_CLOSED_INTERVAL) continue;
+
+    MarketData data;
+    bool closed = false;
+    if (!fetchMarketData(s.name, "https://polling.finance.naver.com/api/realtime/" + s.path, data, &closed)) {
+      all_ok = false;
+      continue;
+    }
+    data.price = withCommas(data.price);
+    data.change = withCommas(data.change);
+    {
+      DataLock lock;
+      if (slotStock[i].path == s.path) stockQuote[i] = {data, closed, millis(), true};   // 수집 중 종목이 바뀌었으면 버린다
+    }
+  }
+  return all_ok;
+}
 
 /** Binance 24시간 시세(USDT) — symbol 예: BTCUSDT. 가격은 정수 달러로 표시한다 */
 static bool fetchBinance(const char *name, const char *symbol, MarketData &target) {

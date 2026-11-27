@@ -2,7 +2,7 @@
 
 # ESP32-C3 4-OLED Smart Info Station (Smart_Info_Station)
 
-A desktop information display that uses an **ESP32 C3 SuperMini** board to drive four OLED displays independently and monitor a variety of information in real time: **Korean and world time, local and overseas weather, fine dust, YouTube subscriber count, stock markets (KOSPI, KOSDAQ, S&P 500), Bitcoin and Ethereum, exchange rates (USD, JPY, EUR, CNY), D-day, sunrise/sunset with moon phase, and a weekly forecast**.
+A desktop information display that uses an **ESP32 C3 SuperMini** board to drive four OLED displays independently and monitor a variety of information in real time: **Korean and world time, local and overseas weather, fine dust, YouTube subscriber count, stock markets (KOSPI, KOSDAQ, S&P 500), Bitcoin and Ethereum, exchange rates (USD, JPY, EUR, CNY), D-day, sunrise/sunset with moon phase, a weekly forecast, a temperature graph and watchlist stocks**.
 
 https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
@@ -55,6 +55,10 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
     - **Sunrise/sunset**: sunrise and sunset times, day length, moon illumination (%), a drawn moon phase and its name. The moon phase is computed from the date and mirrored in the southern hemisphere.
     - **Weekly forecast**: weekday, weather icon and high/low for the next 5 days, starting today.
     - **Per-screen city**: world clock, sunrise/sunset and weekly forecast each take a city chosen per screen under "City per Screen" on the web page (defaults: New York for the world clock, Seoul for the others).
+10. **Temperature graph and watchlist stocks (v2.14.0)** — no API key.
+    - **Temperature graph**: line graph of today's 0–23h forecast temperature for the per-screen city (Open-Meteo), with a dotted line at the current time and the current temperature at the top right.
+    - **Watchlist stock**: one Korean or overseas stock per screen (Naver Finance). Search by name on the web page (e.g. 삼성전자, apple) and pick one; it updates every minute while its market is open.
+    - **D-day labels** are shown larger in the Galmuri11 (12px) font.
 
 ## 🛠 Hardware Components
 
@@ -84,9 +88,11 @@ https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 - `data_manager.h / .cpp` : The main collection engine; manages the headers with the network parsing functions for weather, fine dust, stocks, coins, etc., collects data through the background `dataTask`, and manages the state (`update_flag`).
 - `web_handlers.h / .cpp` : Generates the internal settings web page UI reachable after connecting to WiFi, and saves the entered settings (channel, region, etc.) to flash (`handleRoot`, `handleSet`).
 - `weather.h`, `dust.h`, `youtube.h`, `market.h`, `btc.h`, `usdkrw.h` : Declarations of the parsing function for each individual data source. (With their own include guards and extern variable declarations)
-- `slot_city.h` : Per-screen city and the data of the widgets that use it — world clock, sunrise/sunset, weekly forecast (fetched by `get_world_clock()`, `get_sun()` and `get_weekly()` in `data_manager.cpp`).
+- `slot_city.h` : Per-screen city and the data of the widgets that use it — world clock, sunrise/sunset, weekly forecast, temperature graph (fetched by `get_world_clock()`, `get_sun()`, `get_weekly()` and `get_temp_graph()` in `data_manager.cpp`).
+- `stock.h` : Per-screen watchlist stock and quote data (fetched by `get_stock()` in `data_manager.cpp`; name search via `/stock_search` in `web_handlers.cpp`).
 - `stream_scanner.h` : Scanner that reads the weather and fine-dust pages and the YouTube response through a fixed-size buffer and extracts the value after each key, so even a multi-megabyte line uses no extra memory.
-- `u8g2_font_galmuri7_kr.h` : Galmuri7 Korean font (same as Agent_Monitor, SIL OFL 1.1) — for place names and D-day labels.
+- `u8g2_font_galmuri7_kr.h` : Galmuri7 Korean font (same as Agent_Monitor, SIL OFL 1.1) — for place names, weekdays and stock names.
+- `u8g2_font_galmuri11_kr.h` : Galmuri11 12px Korean font (11,172 Hangul syllables, about 283KB, SIL OFL 1.1) — for D-day labels.
 
 ## 📝 Quick Start
 

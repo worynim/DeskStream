@@ -55,8 +55,9 @@ const char INDEX_HTML_START[] PROGMEM = R"rawliteral(
 /**
  * --- 웹 설정 폼 섹션 (사용자 입력 필드) ---
  * 유튜브 커스터마이징, 미세먼지 관측소, 기상청 동네 코드, 해외 날씨 도시, 시간대 설정을 담당합니다.
- * 해외 날씨와 화면별 도시(세계 시계·일출일몰·주간 날씨)는 브라우저가 Open-Meteo 도시 검색을 직접 불러 고르고, 이름(영문)·좌표만 기기로 보낸다.
+ * 해외 날씨와 화면별 도시(세계 시계·일출일몰·주간 날씨·기온 그래프)는 브라우저가 Open-Meteo 도시 검색을 직접 불러 고르고, 이름(영문)·좌표만 기기로 보낸다.
  * 동네 날씨도 브라우저가 기상청 동네 검색을 직접 불러 고르고, 10자리 코드만 weather_code로 보낸다.
+ * 관심 종목은 네이버가 브라우저의 직접 요청을 막아 기기의 /stock_search가 대신 검색하고, 이름·시세 경로만 기기로 보낸다.
  * data-widgets 가 있는 칸은 화면 배치(PAGE 1~3)에 그 위젯이 하나라도 있을 때만 보인다 (값은 web_handlers.cpp가 채움).
  */
 const char INDEX_HTML_SETTINGS[] PROGMEM = R"rawliteral(
@@ -91,10 +92,15 @@ const char INDEX_HTML_SETTINGS[] PROGMEM = R"rawliteral(
                 <input type="hidden" name="intl_lat" id="intl_lat">
                 <input type="hidden" name="intl_lon" id="intl_lon">
             </div>
-            <div class="section" data-widgets="%WID_WC%,%WID_SUN%,%WID_WEEKLY%">
-                <h3 data-en="🏙️ City per Screen (World Clock · Sunrise/Sunset · Weekly Weather)">🏙️ 화면별 도시 (세계 시계·일출일몰·주간 날씨)</h3>
-                <p data-en="Pick a city for each screen that has one of these widgets. Time offset and daylight saving are automatic. Defaults: World Clock New York, Sunrise/Sunset and Weekly Weather Seoul.">위젯을 놓은 화면마다 도시를 따로 고를 수 있습니다. 시차·서머타임은 자동입니다. 고르지 않으면 세계 시계는 New York, 일출일몰·주간 날씨는 Seoul입니다.</p>
+            <div class="section" data-widgets="%WID_WC%,%WID_SUN%,%WID_WEEKLY%,%WID_TGRAPH%">
+                <h3 data-en="🏙️ City per Screen (World Clock · Sunrise/Sunset · Weekly Weather · Temp Graph)">🏙️ 화면별 도시 (세계 시계·일출일몰·주간 날씨·기온 그래프)</h3>
+                <p data-en="Pick a city for each screen that has one of these widgets. Time offset and daylight saving are automatic. Defaults: World Clock New York, the others Seoul.">위젯을 놓은 화면마다 도시를 따로 고를 수 있습니다. 시차·서머타임은 자동입니다. 고르지 않으면 세계 시계는 New York, 나머지는 Seoul입니다.</p>
                 <div id="city_rows"></div>
+            </div>
+            <div class="section" data-widgets="%WID_STOCK%">
+                <h3 data-en="📈 Stock per Screen">📈 관심 종목</h3>
+                <p data-en="Search Korean or overseas stocks by name (e.g. 삼성전자, apple) and pick one for each screen. Updates every minute while its market is open.">화면마다 종목을 이름(예: 삼성전자, 애플, apple)으로 검색해 고릅니다. 국내·해외 종목 모두 되고, 장이 열려 있을 때 1분마다 갱신합니다.</p>
+                <div id="stock_rows"></div>
             </div>
             <div class="section" data-widgets="%WID_CLOCKS%">
                 <h3 data-en="🕰️ Clock Format">🕰️ 시계 표시 형식</h3>
@@ -143,6 +149,7 @@ const char INDEX_HTML_SETTINGS[] PROGMEM = R"rawliteral(
             localStorage.setItem('lang', l);
             applyLang();
             updateCityRows();
+            updateStockRows();
         }
 
         // --- 화면 배치에 놓인 위젯이 쓰는 설정 칸만 보인다 (숨긴 칸의 값은 그대로 저장된다) ---
@@ -256,7 +263,7 @@ const char INDEX_HTML_SETTINGS[] PROGMEM = R"rawliteral(
         // 화면별 도시: 세계 시계·일출일몰·주간 날씨가 함께 쓴다 (폼 이름 cityN_name·lat·lon)
         const CITY_WIDGETS = {   // 위젯 번호 → [한국어 이름, 영어 이름, 기본 도시] (slot_city.h cityFor와 같게)
             '%WID_WC%': ['세계 시계', 'World Clock', 'New York'], '%WID_SUN%': ['일출·일몰', 'Sunrise/Sunset', 'Seoul'],
-            '%WID_WEEKLY%': ['주간 날씨', 'Weekly Weather', 'Seoul'],
+            '%WID_WEEKLY%': ['주간 날씨', 'Weekly Weather', 'Seoul'], '%WID_TGRAPH%': ['기온 그래프', 'Temp Graph', 'Seoul'],
         };
         const CITIES = %CITIES%;   // 칸별 고른 도시 ("" = 기본 도시, web_handlers.cpp)
         CITIES.forEach((name, i) => {
@@ -273,6 +280,59 @@ const char INDEX_HTML_SETTINGS[] PROGMEM = R"rawliteral(
             $(p + '_list').addEventListener('change', () => cityPick(p));
             enterSearch(p);
         });
+
+        // 관심 종목: 기기의 /stock_search가 네이버 종목 검색을 대신 불러 준다 (폼 이름 stockN_name·path)
+        const STOCK_ID = '%WID_STOCK%';
+        const STOCKS = %STOCKS%;   // 칸별 고른 종목 이름 ("" = 미설정, web_handlers.cpp)
+        function stockSearch(p) {
+            const q = $(p + '_q').value.trim();
+            if (!q) return;
+            cityMsg(p, L('검색 중...', 'Searching...'));
+            fetch('/stock_search?q=' + encodeURIComponent(q))
+                .then((r) => r.json())
+                .then((d) => {
+                    const list = $(p + '_list');
+                    list.innerHTML = '';
+                    if (!d.length) { list.style.display = 'none'; cityMsg(p, L('검색 결과가 없습니다.', 'No results.')); return; }
+                    list.add(new Option(L('종목을 고르세요', 'Pick a stock'), ''));
+                    d.forEach((x) => {   // 이름 (시장 · 코드)
+                        const o = new Option(x.n + ' (' + x.m + ' · ' + x.p.split('/').pop() + ')', x.p);
+                        o.dataset.name = x.n;
+                        list.add(o);
+                    });
+                    list.style.display = 'block';
+                    cityMsg(p, '');
+                })
+                .catch(() => cityMsg(p, L('검색 실패 — 스테이션의 인터넷 연결을 확인하세요.', 'Search failed — check the station\'s internet connection.')));
+        }
+        function stockPick(p) {
+            const list = $(p + '_list');
+            if (!list.value) return;
+            $(p + '_path').value = list.value;
+            $(p + '_name').value = list.options[list.selectedIndex].dataset.name;
+            cityMsg(p, L('선택: ', 'Selected: ') + list.options[list.selectedIndex].text + L(' — 아래 저장 버튼을 누르세요.', ' — press Save below.'));
+        }
+        STOCKS.forEach((name, i) => {
+            const p = 'stock' + i;
+            const row = addSlotRow('stock_rows', p, i, '<span id="' + p + '_cur"></span>' +
+                '<input type="text" id="' + p + '_q" placeholder="예: 삼성전자, 애플" data-en-ph="e.g. Samsung, apple" style="margin-top:6px;">' +
+                '<button type="button" style="margin-top:8px; padding:8px 16px;" data-en="🔍 Search">🔍 검색</button>' +
+                '<select id="' + p + '_list" style="display:none; margin-top:8px;"></select>' +
+                '<p id="' + p + '_msg"></p>' +
+                '<input type="hidden" name="' + p + '_name" id="' + p + '_name">' +
+                '<input type="hidden" name="' + p + '_path" id="' + p + '_path">');
+            row.querySelector('button').addEventListener('click', () => stockSearch(p));
+            $(p + '_list').addEventListener('change', () => stockPick(p));
+            $(p + '_q').addEventListener('keydown', (e) => {   // 엔터 → 저장 대신 검색
+                if (e.key !== 'Enter') return;
+                e.preventDefault();
+                setTimeout(() => stockSearch(p), 0);
+            });
+        });
+        function updateStockRows() {
+            showSlotRows('stock', STOCK_ID);
+            STOCKS.forEach((name, i) => { $('stock' + i + '_cur').textContent = L(' — 현재: ', ' — Current: ') + (name || L('미설정', 'not set')); });
+        }
 
         // D-day: 칸마다 이름·날짜 (폼 이름 ddayN_label·date)
         const DDAY_ID = '%WID_DDAY%';
@@ -294,7 +354,7 @@ const char INDEX_HTML_SETTINGS[] PROGMEM = R"rawliteral(
                 if (w) $('city' + i + '_cur').textContent = '(' + L(w[0], w[1]) + ')' + L(' — 현재: ', ' — Current: ') + (CITIES[i] || L('기본 ', 'default ') + w[2]);
             });
         }
-        const updateSlotRows = () => { updateCityRows(); showSlotRows('dday', DDAY_ID); };
+        const updateSlotRows = () => { updateCityRows(); updateStockRows(); showSlotRows('dday', DDAY_ID); };
         slotSelects.forEach((s) => s.addEventListener('change', updateSlotRows));
         updateSections();
         updateSlotRows();

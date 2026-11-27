@@ -71,6 +71,8 @@ extern volatile bool is_updating_eth;
 extern volatile bool is_updating_wc;
 extern volatile bool is_updating_sun;
 extern volatile bool is_updating_weekly;
+extern volatile bool is_updating_tgraph;
+extern volatile bool is_updating_stock;
 
 // --- 함수 프로토타입 ---
 bool isWidgetActive(WidgetType type);

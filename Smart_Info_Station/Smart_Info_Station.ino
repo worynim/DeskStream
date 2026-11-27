@@ -19,6 +19,7 @@
 #include "btc.h"
 #include "usdkrw.h"
 #include "slot_city.h"
+#include "stock.h"
 #include "web_handlers.h"
 #include "config.h"         // 전역 설정 및 핀 정의
 #include "display_utils.h"  // 그리기 관련 헬퍼 함수 분리
@@ -344,6 +345,8 @@ static void renderWidget(const WidgetUpdateInfo &info, U8G2 &screen, int slot) {
   if (info.render) info.render(screen);
   else if (info.type == W_SUN) display_sun_oled(screen, slot);
   else if (info.type == W_WEEKLY) display_weekly_oled(screen, slot);
+  else if (info.type == W_TEMP_GRAPH) display_temp_graph_oled(screen, slot);
+  else if (info.type == W_STOCK) display_stock_oled(screen, slot);
 }
 
 /** 1초마다 다시 그리는 위젯(시계·달력·세계 시계·D-day)을 그린다 */
@@ -477,6 +480,13 @@ void setup() {
     int a = v.indexOf('|'), b = v.indexOf('|', a + 1);
     if (a > 0 && b > a) slotCity[i] = {v.substring(b + 1), v.substring(0, a).toFloat(), v.substring(a + 1, b).toFloat()};
   }
+  for (int i = 0; i < SCREEN_SLOTS; i++) {   // 관심 종목 skN = "시세 경로|이름" (stock.h)
+    char key[8];
+    snprintf(key, sizeof(key), "sk%d", i);
+    String v = preferences.getString(key, "");
+    int a = v.indexOf('|');
+    if (a > 0) slotStock[i] = {v.substring(a + 1), v.substring(0, a)};
+  }
   timezone_offset = preferences.getInt("tz_offset", 9);
   if (timezone_offset < -12 || timezone_offset > 14) timezone_offset = 9;   // 범위 밖 저장값 → 기본값 (UTC+9)
   currentFlipMode = preferences.getInt("flip", 2);
@@ -523,6 +533,7 @@ void setup() {
 
   server.on("/", HTTP_GET, handleRoot);
   server.on("/set", HTTP_POST, handleSet);
+  server.on("/stock_search", HTTP_GET, handleStockSearch);
   server.begin();
 
   // 데이터 수집 태스크 생성 (금융 1분, 기타 30분 주기 관리)

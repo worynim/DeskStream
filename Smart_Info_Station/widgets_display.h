@@ -21,6 +21,8 @@ void display_world_clock_oled(U8G2 &u8g2, int slot);   // slot: 화면 배치 �
 void display_dday_oled(U8G2 &u8g2, int slot);   // slot: 화면 배치 칸 번호
 void display_sun_oled(U8G2 &u8g2, int slot);      // 일출·일몰·달 모양 — 호출 측이 DataLock을 잡는다
 void display_weekly_oled(U8G2 &u8g2, int slot);   // 주간 날씨 5일 — 호출 측이 DataLock을 잡는다
+void display_temp_graph_oled(U8G2 &u8g2, int slot);   // 오늘 시간별 기온 그래프 — 호출 측이 DataLock을 잡는다
+void display_stock_oled(U8G2 &u8g2, int slot);        // 관심 종목 — 호출 측이 DataLock을 잡는다
 void display_fx_oled(U8G2 &u8g2);
 void display_eth_oled(U8G2 &u8g2);
 
