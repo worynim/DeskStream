@@ -30,7 +30,7 @@ DeskStream 보드용 16가지 프로그램입니다. 번호는 웹 플래셔·�
 | 4 | [World_Clock](./World_Clock/README.ko.md) (v0.1.0) | 화면마다 도시 하나씩, 세계 4곳 시계 |
 | 5 | [Universal_Timer](./Universal_Timer/README.ko.md) (v1.3.0) | 시·분·초를 화면별로 맞추는 카운트다운 타이머 |
 | | **정보·측정** | |
-| 6 | [Smart_Info_Station](./Smart_Info_Station/README.ko.md) (v2.14.0) | 날씨·미세먼지·증시·환율·유튜브 등 정보 표시 |
+| 6 | [Smart_Info_Station](./Smart_Info_Station/README.ko.md) (v2.14.1) | 날씨·미세먼지·증시·환율·유튜브 등 정보 표시 |
 | 7 | [GPS_DASH](./GPS_DASH/README.ko.md) (v2.7.1) | 속도·나침반·고도를 보여 주는 GPS 대시보드 |
 | 8 | [Wireless_Analyzer](./Wireless_Analyzer/README.ko.md) (v0.5.1) | 2.4GHz 채널 혼잡도·AP·BLE 기기 분석기 |
 | | **PC 연동** | |

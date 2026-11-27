@@ -1,6 +1,6 @@
 [English](GUIDE.md) | **한국어**
 
-# Smart Info Station 상세 가이드 - v2.14.0
+# Smart Info Station 상세 가이드 - v2.14.1
 
 [README](README.ko.md)의 자세한 설명입니다.
 
@@ -67,7 +67,7 @@
 
 ## ⚙️ 아두이노 IDE 소프트웨어 설정 주의사항
 
-1. **Partition Scheme**: `Huge APP (3MB No OTA / 1MB SPIFFS)` 를 **반드시** 선택해야 합니다. 프로젝트에 포함된 한글 글꼴(`u8g2_font_unifont_t_korean2`)이 기본 제공 파티션 용량(~1.25MB)을 초과하기 때문입니다!
+1. **Partition Scheme**: `Huge APP (3MB No OTA / 1MB SPIFFS)` 를 **반드시** 선택해야 합니다. 앱(한글 글꼴 포함 약 1.43MB)이 기본 제공 파티션 용량(~1.25MB)을 초과하기 때문입니다!
    - 단, 스케치 폴더의 `partitions.csv`가 항상 우선 적용되므로(`platform.txt`의 prebuild 훅), 실제로는 이 파일의 **DeskStream 공통 레이아웃**(app0 2.5MB / spiffs `0x290000` 1.375MB)이 사용됩니다.
    - spiffs 시작 주소를 `default` 스킴과 동일한 `0x290000`에 맞춰, 다른 프로젝트(한글 시계 등)와 펌웨어를 바꿔 올려도 **파일시스템 영역이 겹치지 않습니다**.
    - 이 프로젝트는 파일시스템(LittleFS/SPIFFS)을 사용하지 않으므로, 설정은 모두 NVS(`0x9000`)에 저장되어 어느 스킴에서도 보존됩니다.
@@ -89,8 +89,8 @@
 - `slot_city.h` : 화면별 도시와 그 도시를 쓰는 위젯(세계 시계·일출일몰·주간 날씨·기온 그래프)의 데이터 선언 (수집은 `data_manager.cpp`의 `get_world_clock()`·`get_sun()`·`get_weekly()`·`get_temp_graph()`).
 - `stock.h` : 화면별 관심 종목과 시세 데이터 선언 (수집은 `data_manager.cpp`의 `get_stock()`, 이름 검색은 `web_handlers.cpp`의 `/stock_search`).
 - `stream_scanner.h` : 날씨·미세먼지 페이지와 YouTube 응답을 고정 크기 버퍼로 훑으며 키 뒤의 값을 꺼내는 스캐너. 한 줄이 수 MB여도 메모리를 더 쓰지 않습니다.
-- `u8g2_font_galmuri7_kr.h` : 갈무리7 한글 글꼴 (Agent_Monitor와 같음, SIL OFL 1.1) — 지명·요일·종목 이름 표시용.
-- `u8g2_font_galmuri11_kr.h` : 갈무리11 12px 한글 글꼴 (한글 11,172자, 약 283KB, SIL OFL 1.1) — D-day 이름 표시용.
+- `u8g2_font_galmuri7_kr.h` : 갈무리7 한글 글꼴 (상용 한글 2,350자, 약 35KB, SIL OFL 1.1) — 지명·요일·종목 이름 표시용.
+- `u8g2_font_galmuri11_kr.h` : 갈무리11 12px 한글 글꼴 (상용 한글 2,350자, 약 60KB, SIL OFL 1.1) — D-day 이름·한글 YouTube 채널 이름 표시용. 두 글꼴 모두 2,350자에 없는 음절은 그려지지 않습니다.
 
 ## 📝 최초 시작 방법 (Quick Start)
 

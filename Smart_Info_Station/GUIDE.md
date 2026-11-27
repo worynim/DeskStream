@@ -1,6 +1,6 @@
 **English** | [한국어](GUIDE.ko.md)
 
-# Smart Info Station Detailed Guide - v2.14.0
+# Smart Info Station Detailed Guide - v2.14.1
 
 The detailed companion to the [README](README.md).
 
@@ -67,7 +67,7 @@ The detailed companion to the [README](README.md).
 
 ## ⚙️ Arduino IDE Software Settings
 
-1. **Partition Scheme**: You **must** choose `Huge APP (3MB No OTA / 1MB SPIFFS)`, because the Korean font included in the project (`u8g2_font_unifont_t_korean2`) exceeds the default partition size (~1.25MB)!
+1. **Partition Scheme**: You **must** choose `Huge APP (3MB No OTA / 1MB SPIFFS)`, because the app (about 1.43MB including its Korean fonts) exceeds the default partition size (~1.25MB)!
    - However, the sketch folder's `partitions.csv` always takes precedence (prebuild hook in `platform.txt`), so in practice this file's **shared DeskStream layout** (app0 2.5MB / spiffs `0x290000` 1.375MB) is used.
    - The spiffs start address is aligned to `0x290000`, the same as the `default` scheme, so **file system areas do not overlap** when you swap firmware with other projects (Korean clock, etc.).
    - This project does not use a file system (LittleFS/SPIFFS); all settings are stored in NVS (`0x9000`) and preserved under any scheme.
@@ -89,8 +89,8 @@ The detailed companion to the [README](README.md).
 - `slot_city.h` : Per-screen city and the data of the widgets that use it — world clock, sunrise/sunset, weekly forecast, temperature graph (fetched by `get_world_clock()`, `get_sun()`, `get_weekly()` and `get_temp_graph()` in `data_manager.cpp`).
 - `stock.h` : Per-screen watchlist stock and quote data (fetched by `get_stock()` in `data_manager.cpp`; name search via `/stock_search` in `web_handlers.cpp`).
 - `stream_scanner.h` : Scanner that reads the weather and fine-dust pages and the YouTube response through a fixed-size buffer and extracts the value after each key, so even a multi-megabyte line uses no extra memory.
-- `u8g2_font_galmuri7_kr.h` : Galmuri7 Korean font (same as Agent_Monitor, SIL OFL 1.1) — for place names, weekdays and stock names.
-- `u8g2_font_galmuri11_kr.h` : Galmuri11 12px Korean font (11,172 Hangul syllables, about 283KB, SIL OFL 1.1) — for D-day labels.
+- `u8g2_font_galmuri7_kr.h` : Galmuri7 Korean font (2,350 common KS X 1001 Hangul syllables, about 35KB, SIL OFL 1.1) — for place names, weekdays and stock names.
+- `u8g2_font_galmuri11_kr.h` : Galmuri11 12px Korean font (2,350 common KS X 1001 Hangul syllables, about 60KB, SIL OFL 1.1) — for D-day labels and Korean YouTube channel names. Syllables outside the 2,350 are not drawn in either font.
 
 ## 📝 Quick Start
 

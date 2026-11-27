@@ -30,7 +30,7 @@ Click a name to open that project's README.
 | 4 | [World_Clock](./World_Clock/) (v0.1.0) | Four world cities, one per screen |
 | 5 | [Universal_Timer](./Universal_Timer/) (v1.3.0) | Countdown timer with hours/minutes/seconds set per screen |
 | | **Information & measurement** | |
-| 6 | [Smart_Info_Station](./Smart_Info_Station/) (v2.14.0) | Weather, air quality, stocks, exchange rates, YouTube and more |
+| 6 | [Smart_Info_Station](./Smart_Info_Station/) (v2.14.1) | Weather, air quality, stocks, exchange rates, YouTube and more |
 | 7 | [GPS_DASH](./GPS_DASH/) (v2.7.1) | GPS dashboard with speed, compass and altitude |
 | 8 | [Wireless_Analyzer](./Wireless_Analyzer/) (v0.5.1) | 2.4GHz channel congestion, AP and BLE device analyzer |
 | | **PC companions** | |

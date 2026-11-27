@@ -4,7 +4,7 @@
  * @brief 정보 타입별 전용 위젯 렌더링 구현
  * @details 날씨, 시세, 뉴스 등의 데이터를 각각의 UI 컴포넌트로 시각화하는 로직 처리
  */
-// 갈무리7·갈무리11 한글 글꼴은 64KB 를 넘어 U8g2 가 큰 글꼴 지원을 켜야 한다 — U8g2lib.h 보다 먼저 정의
+// 갈무리7·갈무리11 한글 글꼴은 32KB 를 넘어 U8g2 가 큰 글꼴 지원을 켜야 한다 — U8g2lib.h 보다 먼저 정의
 #ifndef U8G2_USE_LARGE_FONTS
 #define U8G2_USE_LARGE_FONTS
 #endif
@@ -21,7 +21,7 @@
 #include "slot_city.h"
 #include "stock.h"
 #include "u8g2_font_galmuri7_kr.h"    // 갈무리7 (SIL OFL 1.1) — 지명·요일·종목 이름 등 작은 한글
-#include "u8g2_font_galmuri11_kr.h"   // 갈무리11 12px (SIL OFL 1.1) — D-day 이름 (한글)
+#include "u8g2_font_galmuri11_kr.h"   // 갈무리11 12px (SIL OFL 1.1) — D-day 이름 · 한글 YouTube 채널 이름
 
 // --- 렌더링 함수 구현 ---
 
@@ -549,7 +549,7 @@ void display_dust_oled(U8G2 &u8g2) {
 void display_youtube_oled(U8G2 &u8g2) {
   u8g2_prepare(u8g2);
   u8g2.clearBuffer();
-  if (containsKorean(youtube_channel)) u8g2.setFont(u8g2_font_unifont_t_korean2);
+  if (containsKorean(youtube_channel)) u8g2.setFont(u8g2_font_galmuri11_kr);
   else u8g2.setFont(u8g2_font_bytesize_tr);
   drawCenteredText(u8g2, youtube_channel, 0);
   u8g2.setFont(u8g2_font_6x10_tf);

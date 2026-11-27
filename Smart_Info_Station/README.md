@@ -1,6 +1,6 @@
 **English** | [한국어](README.ko.md)
 
-# ESP32-C3 4-OLED Smart Info Station (Smart_Info_Station) - v2.14.0
+# ESP32-C3 4-OLED Smart Info Station (Smart_Info_Station) - v2.14.1
 
 A desktop information display: pick information widgets for the four OLEDs and watch them update in real time.
 

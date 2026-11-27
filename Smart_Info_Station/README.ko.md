@@ -1,6 +1,6 @@
 [English](README.md) | **한국어**
 
-# ESP32-C3 4-OLED 스마트 정보 스테이션 (Smart_Info_Station) - v2.14.0
+# ESP32-C3 4-OLED 스마트 정보 스테이션 (Smart_Info_Station) - v2.14.1
 
 OLED 4개에 원하는 정보 위젯을 골라 놓고 실시간으로 보는 데스크톱 정보 표시기입니다.
 
