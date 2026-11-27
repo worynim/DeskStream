@@ -2,7 +2,7 @@
 /**
  * @file GPS_DASH.ino
  * @brief GPS 정보를 4개의 OLED 디스플레이에 표시하는 메인 펌웨어
- * @details GPS 수신 데이터를 기반으로 속도, 위치, 시간을 각각의 OLED에 시각화하며, OTA 업데이트를 지원함
+ * @details GPS 수신 데이터를 기반으로 속도, 위치, 시간을 각각의 OLED에 시각화하며, WiFi AP 웹 디버그 로그를 제공함
  */
 #include <Arduino.h>
 #include <Preferences.h>
@@ -12,7 +12,7 @@ bool DEBUG_GPS = 0;  // 1: GPS 원시 NMEA 데이터를 시리얼 모니터에 �
 
 #include "display_handler.h"
 #include "gps_handler.h"
-#include "ota_handler.h"
+#include "web_log.h"
 
 Preferences prefs;             // 비휘발성 설정 저장용 객체
 bool isDemoMode = false;       // 현재 데모 모드 여부
@@ -169,7 +169,7 @@ void setup() {
     // 모듈별 초기화
     initDisplay();  // OLED 및 I2C 초기화 (display_handler.h)
     initGPS();      // GPS 초기화 (gps_handler.h)
-    initOTA();      // WiFi AP 및 OTA 서버 초기화 (ota_handler.h)
+    initWebLog();   // WiFi AP 및 웹 로그 서버 초기화 (web_log.h)
 
     // 비휘발성 메모리 설정 로드
     loadSettings();
@@ -185,31 +185,21 @@ void setup() {
 }
 
 void loop() {
-    // 1. 시스템 태스크 처리 (OTA 등)
-    handleOTA();
+    // 1. 시스템 태스크 처리 (웹 로그 서버)
+    handleWebLog();
 
     // 2. NVS 지연 저장 업데이트 (부저는 ds::Buzzer 타이머가 처리)
     checkDeferredSave();
 
-    // 3. OTA 진행 중일 경우 디스플레이 전유
-    if (is_ota_mode) {
-        static unsigned long lastOtaDisp = 0;
-        if (millis() - lastOtaDisp > 100) {
-            lastOtaDisp = millis();
-            displayOTAStatus(ota_progress);
-        }
-        return; 
-    }
-
-    // 4. 하드웨어 버튼 입력 처리 (Short/Long 프레스)
+    // 3. 하드웨어 버튼 입력 처리 (Short/Long 프레스)
     buttons.update();
 
-    // 5. [중요] GPS 데이터 수신 처리 (타이머 없이 루프마다 실행)
+    // 4. [중요] GPS 데이터 수신 처리 (타이머 없이 루프마다 실행)
     // 데이터 소스가 5Hz이더라도 수신은 최대한 자주 호출해야 시리얼 버퍼가 넘치지 않습니다.
     // 항상 백그라운드에서 버퍼를 비워주어 오버플로를 방지합니다.
     updateGPS();
 
-    // 6. 주행 통계 업데이트 (1초 주기)
+    // 5. 주행 통계 업데이트 (1초 주기)
     if (millis() - lastStatsUpdate >= 1000) {
         float currentSpeed = isDemoMode ? 60.0 : getGPSSpeed(); // km/h
         
@@ -222,7 +212,7 @@ void loop() {
         lastStatsUpdate = millis();
     }
 
-    // 7. 대시보드 화면 갱신 (10Hz)
+    // 6. 대시보드 화면 갱신 (10Hz)
     // GPS 데이터는 5Hz로 들어오지만, 10Hz로 화면을 그려야 보간(Interpolation) 애니메이션이 부드럽습니다.
     static unsigned long lastRefresh = 0;
     if (millis() - lastRefresh > 100) {

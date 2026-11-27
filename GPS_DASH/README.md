@@ -1,6 +1,6 @@
 **English** | [한국어](README.ko.md)
 
-# ESP32-C3 4-OLED GPS Dashboard (GPS_DASH) - v2.7.1
+# ESP32-C3 4-OLED GPS Dashboard (GPS_DASH) - v2.8.0
 
 A dashboard that shows GPS information on the four OLEDs from a connected NEO-6M GPS module. No WiFi or web features — it focuses on GPS display only.
 

@@ -1,6 +1,6 @@
 [English](README.md) | **한국어**
 
-# ESP32-C3 4-OLED GPS 대시보드 (GPS_DASH) - v2.7.1
+# ESP32-C3 4-OLED GPS 대시보드 (GPS_DASH) - v2.8.0
 
 NEO-6M GPS 모듈을 연결해 OLED 4개에 GPS 정보를 보여 주는 대시보드입니다. WiFi·웹 기능 없이 GPS 표시에만 집중합니다.
 

@@ -108,7 +108,7 @@
     {
       "id": "GPS_DASH",
       "name": "GPS 대시보드",
-      "version": "2.7.1",
+      "version": "2.8.0",
       "icon": "🛰️",
       "order": 7,
       "sourcePath": "GPS_DASH",

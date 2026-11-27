@@ -127,20 +127,6 @@ void initDisplay() {
 }
 
 /**
- * @brief OTA 진행률 표시
- */
-void displayOTAStatus(int progress) {
-    U8G2& u = display.screen(0);
-    u.clearBuffer();
-    u.setFont(u8g2_font_6x10_tf);
-    u.drawStr(0, 10, "FIRMWARE UPDATING...");
-    char prog[8];
-    snprintf(prog, sizeof(prog), "%d%%", progress);
-    drawCenteredText(u, prog, 40, u8g2_font_maniac_tr);
-    display.push();
-}
-
-/**
  * @brief GPS 시간 표시 (하단에 날짜 표시 추가)
  */
 void drawTime(U8G2 &u8g2, const char* time, int year, int month, int day) {

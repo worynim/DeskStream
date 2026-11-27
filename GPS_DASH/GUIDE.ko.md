@@ -1,6 +1,6 @@
 [English](GUIDE.md) | **한국어**
 
-# GPS_DASH 상세 가이드 - v2.7.1
+# GPS_DASH 상세 가이드 - v2.8.0
 
 [README](README.ko.md)의 자세한 설명입니다.
 
@@ -57,7 +57,7 @@
 - `GPS_DASH.ino`: 메인 제어 루프, 버튼 입력 처리 및 주행 통계 관리.
 - `display_handler.h`: 4개 OLED 초기화, 8종류 화면 렌더링 엔진 및 UI 그래픽.
 - `gps_handler.h`: GPS 데이터 수신, UBX 설정 및 NMEA/GSV 파싱 전용 모듈.
-- `ota_handler.h`: WiFi AP 모드, OTA 펌웨어 업데이트 및 실시간 디버그 로그.
+- `web_log.h`: WiFi AP 모드와 실시간 디버그 로그 뷰어 (웹 OTA 없음 — 업데이트는 웹 플래셔·런처로).
 
 ---
 
