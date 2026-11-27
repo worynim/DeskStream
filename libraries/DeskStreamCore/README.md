@@ -15,7 +15,7 @@ bash scripts/link-arduino-lib.sh
 
 Links the repository's `libraries/DeskStreamCore` into the `libraries/` folder of your Arduino sketchbook (default `~/Documents/Arduino/libraries`)
 with a symbolic link. Both the Arduino IDE and arduino-cli find the library through this link.
-For Windows (`mklink /J` junction), external library installation and verification, see ["First-Time Setup" in the root README](../../README.md#first-time-setup-once-per-pc).
+For Windows (`mklink /J` junction), external library installation and verification, see ["First-Time Setup" in the root GUIDE](../../GUIDE.md#first-time-setup-once-per-pc).
 
 ## Usage
 

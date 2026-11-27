@@ -1,0 +1,63 @@
+[English](GUIDE.md) | **한국어**
+
+# GPS_DASH 상세 가이드 - v2.7.1
+
+[README](README.ko.md)의 자세한 설명입니다.
+
+## 🚀 주요 기능 및 특징
+
+1.  **실시간 GPS 정보 시각화 (8개 모드 순환)**
+    - **통합 대시보드**: 4개의 OLED에 각각 원하는 정보를 독립적으로 배치 가능.
+    - **제공 모드**: 시계(날짜포함), 속도계, 나침반, 위성 상태(DOP), 위도/경도, 고도, 달력(그리드), 주행 통계(Timer/Dist).
+2.  **독립적 화면 제어 (4포인트 버튼)**
+    - 각 OLED 하단에 배치된 버튼을 통해 독립적으로 표시 정보를 변경할 수 있습니다.
+3.  **하이브리드 I2C 아키텍처**
+    - **OLED 1, 2 (Hardware I2C)**: SDA(5), SCL(6)
+    - **OLED 3, 4 (Software I2C)**: SDA(2), SCL(3)
+4.  **GPS 인터페이스 (UART)**
+    - Pin 20(RX), 21(TX)번을 통해 **NEO-6M** 모듈로부터 5Hz 고속 데이터를 수신합니다.
+    - **GPS 신뢰성 최적화**:
+        - **UBX 바이너리 직접 제어**: NMEA 명령 대신 u-blox 전용 UBX 메시지(CFG-MSG, CFG-RATE)를 사용합니다.
+        - **이중 초기화 방지**: 라이브러리 내부 초기화 충돌을 제거하여 핀 매핑 안정성을 확보했습니다.
+        - **GSV 직접 파싱**: 표준 라이브러리에서 지원하지 않는 '하늘에 보이는 전체 위성 수'를 실시간 파싱하여 표시합니다.
+        - **시간 우선 표시**: 위치 고정(Fix) 전이라도 위성 신호가 감지되면 즉시 시간을 업데이트합니다.
+5.  **비휘발성 설정 보존 (NVS)**
+    - 각 화면의 표시 모드와 반전 설정을 내부 메모리에 저장하여, 재부팅 후에도 마지막 설정을 자동으로 복구합니다.
+
+## 🛠 하드웨어 구성 요소
+
+-   **Main Board**: ESP32 C3 SuperMini
+-   **Display**: 0.96 inch SSD1306 OLED (128x64) x 4개
+-   **GPS Module**: **U-blox NEO-6M** (9600bps 초기화 후 5Hz 상향 고정)
+- **구성**: 짧게 누르면 모드 전환, 1초 이상 길게 누르면 특수 기능 실행.
+- **오디오 피드백**: 부저(GPIO 7)를 통해 시스템 상태 및 버튼 입력에 대한 다양한 멜로디 제공.
+    - **시스템 시작**: "띠리리링~" 라이징 스타트업 사운드 (4단계 상승음).
+    - **GPS Lock**: 위성 고정 성공 시 기분 좋은 상승 알림음.
+    - **GPS Unlock**: 위성 신호 상실 시 주의를 환기하는 하강 알림음.
+    - **버튼 입력**: 숏 프레스(3000Hz), 롱 프레스(2000Hz) 구별 발성.
+- **연결 핀 및 기능**:
+    - **BTN 1 (Pin 1)**: (Short) OLED 1 모드 순환 / (Long) 화면 전체 반전(Normal/Mirror/180/Flip) 루핑 제어.
+    - **BTN 2 (Pin 4)**: (Short) OLED 2 모드 순환 / (Long) **버튼 기능 도움말(INFO)** 모드 토글.
+    - **BTN 3 (Pin 10)**: (Short) OLED 3 모드 순환 / (Long) 주행 통계(Trip) 리셋.
+    - **BTN 4 (Pin 9)**: (Short) OLED 4 모드 순환 / (Long) 데모 시뮬레이션 모드 토글.
+    - **통합 배선**: GPS UART: RX(20), TX(21) / I2C: SDA(5/2), SCL(6/3) / Buzzer(7).
+
+## ⚙️ 소프트웨어 설정
+
+1.  **필수 라이브러리**:
+    - `U8g2`
+    - `Adafruit GPS Library` (GPS 파싱용)
+    - 공통 라이브러리 [DeskStreamCore](../libraries/DeskStreamCore/README.ko.md) — 빌드 전 저장소 루트에서 `bash scripts/link-arduino-lib.sh` 1회 (화면 전송·버튼·부저, v2.7.0)
+2.  **보드 설정**:
+    - Board: `ESP32C3 Dev Module`
+    - USB CDC On Boot: `Enabled` (디버그 로그 확인용)
+
+## 📁 파일 구조
+
+- `GPS_DASH.ino`: 메인 제어 루프, 버튼 입력 처리 및 주행 통계 관리.
+- `display_handler.h`: 4개 OLED 초기화, 8종류 화면 렌더링 엔진 및 UI 그래픽.
+- `gps_handler.h`: GPS 데이터 수신, UBX 설정 및 NMEA/GSV 파싱 전용 모듈.
+- `ota_handler.h`: WiFi AP 모드, OTA 펌웨어 업데이트 및 실시간 디버그 로그.
+
+---
+

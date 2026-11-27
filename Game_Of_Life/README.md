@@ -1,41 +1,27 @@
 **English** | [한국어](README.ko.md)
 
-# DeskStream Game of Life 🧬
+# DeskStream Game of Life 🧬 - v1.1.1
 
-Standalone **Conway's Game of Life** firmware for the ESP32-C3 based DeskStream hardware. It merges the four OLED displays into one so you can watch the ecosystem simulation on a huge 512x64 canvas.
+Standalone firmware that runs **Conway's Game of Life** on the 512x64 screen made of the four OLEDs. No WiFi or PC needed — just power.
 
 https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
-## 🚀 Key Features
+## 🎮 Buttons
 
-- **Large-screen simulation**: Drives four 128x64 OLEDs in parallel for a 512x64 resolution.
-- **Memory optimization**: 1-bit bitmasking keeps ESP32-C3 memory use minimal (8KB total).
-- **Fast rendering**: Dirty tile tracking that sends only changed tiles, plus asynchronous parallel I2C transfers.
-- **Standalone**: Runs on device power alone, without Wi-Fi or a PC.
-- **Physical control**: Control the simulation in real time with the four buttons.
-- **Visual/audio feedback**: Boot melody, splash screen and button beeps.
+| Button | Function |
+| :--- | :--- |
+| BTN 1 | Play / pause |
+| BTN 2 | Step one generation (while paused) |
+| BTN 3 | Change speed (5 → 10 → 20 fps) |
+| BTN 4 | New random pattern |
 
-## 🛠 Hardware
+## 🚀 Setup
 
-- **MCU**: ESP32-C3 (RISC-V)
-- **Display**: 128x64 SSD1306 OLED x 4 (512x64 total)
-- **Input**: Tactile button x 4 (GPIO 1, 4, 10, 9)
-- **Audio**: Active/passive buzzer (GPIO 7)
+Pick it in the [web flasher](https://worynim.github.io/DeskStream/), or build it yourself (needs U8g2 and DeskStreamCore).
 
-## 🎮 Controls
+## 📖 More
 
-| Button | Function | Description |
-| :--- | :--- | :--- |
-| **BTN 1** | **Play / Pause** | Stops or resumes the simulation. |
-| **BTN 2** | **Single step** | Works only while paused; advances one generation per press. |
-| **BTN 3** | **Speed** | Switches the simulation speed (5fps ➔ 10fps ➔ 20fps). |
-| **BTN 4** | **Reset pattern** | Clears the current state and generates a new random cell pattern. |
-
-## 📦 Installation and Build
-
-1.  **Required libraries**: Install `U8g2` from the Arduino IDE Library Manager, and link the shared library [DeskStreamCore](../libraries/DeskStreamCore/) by running `bash scripts/link-arduino-lib.sh` once from the repository root before building. Display transfer, buttons and buzzer use this library (v1.1.0).
-2.  **Board settings**: Select `ESP32C3 Dev Module`.
-3.  **Compile and upload**: Open `Game_Of_Life.ino` and upload it.
+Features, hardware and build instructions are in [GUIDE.md](GUIDE.md).
 
 ---
 Developed by Antigravity AI for DeskStream Project.

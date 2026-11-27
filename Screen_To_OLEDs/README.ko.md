@@ -1,82 +1,40 @@
 [English](README.md) | **한국어**
 
-# Screen_To_OLEDs (Screen Streamer)
+# Screen_To_OLEDs (Screen Streamer) - v2.3.1
 
-모니터(mac)의 화면을 실시간으로 캡처하여 DeskStream 하드웨어(4개의 OLED 매트릭스)로 스트리밍하는 프로젝트입니다.
+PC 화면의 일부를 실시간으로 캡처해 WiFi(UDP)로 DeskStream의 OLED 4개(512x64)에 보내는 프로젝트입니다.
 
 https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
-## 🏗 아키텍처 (Architecture)
+## ✨ 핵심 기능
 
-본 프로젝트는 고성능 스트리밍을 위해 기능별로 모듈화된 설계를 따릅니다.
+- 캡처 영역을 화면 위 박스로 옮기고 크기 조절, 멀티 모니터 지원
+- 디더링 6종(Atkinson 기본), Numba JIT 가속
+- 한 기기로 보내기(Direct) 또는 네트워크의 모든 기기로 동시에 보내기(Broadcast)
+- 화면 변화가 없으면 전송을 쉬어 CPU·네트워크 사용을 줄임
 
-- **`screen_streamer.py`**: 메인 애플리케이션. UI 구동, 화면 캡처(Producer), 데이터 송신(Sender) 스레드 관리 및 전체 파이프라인 제어를 담당합니다.
-- **`image_processor.py`**: 이미지 처리 전문 모듈. Numba JIT를 활용한 고속 디더링 알고리즘 및 1-bit 패킹 로직이 집약되어 있습니다.
-- **`network_manager.py`**: 통신 계층 모듈. ESP32 검색(IP Discovery) 및 UDP 데이터 스트리밍 루프를 관리합니다.
-- **`overlay_manager.py`**: UI 보조 모듈. 캡처 영역을 시각화하는 오버레이 창과 드래그 제어 로직을 담당합니다.
-- **`config.json`**: 사용자 외부 설정 파일. 소스 수정 없이 IP 및 시스템 파라미터를 조정합니다. (실행 파일은 `~/.deskstream/screen_to_oleds.json`)
-- **`screen_to_oleds.spec`** · **`requirements.txt`**: PC 클라이언트 실행 파일 빌드 (PyInstaller)와 의존 패키지.
+## 🎮 버튼
 
-## 🚀 주요 기능
+| 버튼 | 짧게 | 길게 |
+| :--- | :--- | :--- |
+| BTN1 | — | 화면 180° 회전 |
+| BTN2 | 밝기 4단계 순환 | 도움말 화면 |
+| BTN3 | — | — |
+| BTN4 | 도움말/대기 화면 닫기 | — |
 
-### macOS 스트리머 (`screen_streamer.py`)
-- **지능형 캡처 엔진 (Intelligent Capture)**:
-    - **자동 모니터 감지**: 'Full' 설정 시 캡처 핸들이 위치한 모니터를 자동으로 인식하여 전체 영역을 확보합니다.
-    - **핸들 고정 리사이징**: 좌상단 핸들 좌표를 고정한 상태에서 정교하게 캡처 너비를 조절할 수 있습니다.
-    - **경계 자유화**: 화면 경계 밖으로의 박스 배치를 허용하여 멀티 모니터 사용성을 극대화했습니다.
-    - **실시간 좌표 표시**: 핸들 옆에 현재의 `(x, y)` 위치를 표시하는 전용 정보창을 제공합니다.
-- **실시간 소스 설정 파이프라인**: 
-    - 스트리밍 중단 없이 **캡처 너비, 레이아웃(가로/세로), 오버레이 표시 여부**를 실시간으로 즉시 변경할 수 있습니다.
-- **Numba JIT 가속 엔진**: 수치 연산 전용 컴파일러를 통해 복잡한 디더링 알고리즘도 C 수준의 속도로 실시간 처리합니다.
-- **Direct Mode (1:1)**: 지정된 IP 주소의 기기에 화면을 직접 전송합니다 (기본 설정).
-- **Broadcast Mode (1:N)**: 단일 기기가 아닌 네트워크상의 모든 DeskStream 기기에 화면을 동시에 송출할 수 있습니다.
-- **다양한 이진화 알고리즘**: Atkinson(기본값), Threshold, Floyd-Steinberg, Stucki, Sierra, Ordered(Bayer) 등 6가지 모드 지원.
-- **고성능 및 안정성 최적화**: 
-    - **스레드 세이프 설정 캐시**: 메인-백그라운드 스레드 간 UI 변수 경합을 해결하여 FPS 급락을 방지했습니다.
-    - **세대별 GC(Generational GC) 전략**: 짧은 주기의 부분 수집과 긴 주기의 전체 수집을 이원화하여 GC 스파이크로 인한 끊김을 최소화했습니다.
-    - **표준 로깅 및 상태 진단**: `logging` 모듈 도입으로 시스템 상태를 실시간 기록하며, 네트워크 오류 시 UI를 통해 즉각적인 피드백을 제공합니다.
-    - **설정 외부화 (`config.json`)**: IP 주소 및 시스템 한계치 등을 소스 코드 수정 없이 간편하게 변경할 수 있습니다.
-    - **Retina 고해상도 최적화**: macOS Retina 디스플레이의 물리 픽셀 처리 부하를 4배 감소시키는 자동 다운샘플링 적용.
-    - **네트워크 페이싱**: UDP 청크 간 미세 지연(500μs)을 통한 패킷 손실 최소화.
-    - **정적 프레임 스킵 (Static Frame Skipping)**: 화면에 변화가 없을 때 시스템 자원(CPU, 네트워크) 소모를 극한으로 낮추는 지능형 대기 모드 구현 (100% 무결점 감지 및 1초 KeepAlive 기능 포함).
+## 🚀 설치
 
-### ESP32 펌웨어
-- **고속 UDP 수신**: 프레임을 1024바이트 청크로 분할 수신하여 4096바이트 1-bit 비트맵 복원.
-- **Dirty-Tile 렌더링**: 변경된 타일만 HW·SW 버스 병렬로 전송 — DeskStreamCore `ds::DisplayCore::pushCanvas()` (v2.3.0~).
-- **WiFi 설정 포털**: 저장된 공유기가 없으면 설정용 AP(`ESP_SCREEN_OLED`)를 열어 휴대폰으로 SSID·비밀번호를 입력받습니다 (DeskStreamCore 내장).
-- **비차단 부저**: 동작 상태를 부드러운 소리로 안내.
+1. **펌웨어** — [웹 플래셔](https://worynim.github.io/DeskStream/)에서 고르거나 직접 빌드합니다. 처음 켜면 `ESP_SCREEN_OLED` AP에 접속해 WiFi를 설정합니다.
+2. **PC 스트리머** — 웹 플래셔에서 macOS(Apple Silicon)·Windows(x64) 앱을 받거나, Python으로 실행합니다.
+   macOS에서는 **화면 기록**과 **로컬 네트워크** 권한을 허용해야 합니다.
 
-## 🛠 설치 및 사용 방법
-
-### 실행 파일로 (Python 불필요)
-[웹 플래셔](https://worynim.github.io/DeskStream/)에서 Screen To OLEDs 를 고르면 macOS(Apple Silicon)·Windows(x64) 앱을 받을 수 있습니다 (GitHub Release `Screen_To_OLEDs-client-v<버전>`).
-- 서명하지 않은 앱이라 처음 실행 때 macOS 는 **시스템 설정 → 개인정보 보호 및 보안 → "그래도 열기"**, Windows 는 SmartScreen 의 **추가 정보 → 실행** 이 필요합니다.
-- macOS 에서는 **화면 기록**과 **로컬 네트워크** 권한을 앱에 허용해야 합니다. 화면 기록 권한이 없으면 다른 앱 창이 빠지고 바탕화면만 스트리밍되며, 창 맨 위에 설정 방법이 빨간 띠로 표시됩니다. 서명이 없어 앱을 새 버전으로 바꾸면 다시 허용해야 할 수 있습니다.
-- 앱은 설정 파일을 `~/.deskstream/screen_to_oleds.json` 에서 읽습니다 (형식은 `config.json` 과 같음, 없으면 기본값).
-- Numba 가 포함돼 있지만 실행 파일에서는 디스크 캐시를 쓰지 못해 시작할 때마다 몇 초 JIT 컴파일을 합니다.
-- 직접 빌드: `pip install -r requirements.txt pyinstaller && pyinstaller screen_to_oleds.spec`
-
-
-### macOS 환경 (Python)
-1. 필요한 라이브러리 설치 (성능 최적화 필수):
    ```bash
    pip install Pillow mss numpy numba
-   ```
-2. 스트리머 실행:
-   ```bash
    python screen_streamer.py
    ```
-3. ESP32의 IP를 입력하거나 `Scan` 버튼을 눌러 자동으로 찾습니다.
-4. `START STREAMING` 버튼을 눌러 스트리밍을 시작합니다.
 
-### 하드웨어 환경 (ESP32)
-1. `Screen_To_OLEDs` 폴더의 `.ino` 파일을 Arduino IDE 로 업로드합니다. (필요 라이브러리: U8g2·LovyanGFX + 저장소 `libraries/DeskStreamCore` — 루트에서 `bash scripts/link-arduino-lib.sh` 1회)
-2. 부팅 시 OLED에 표시되는 WiFi AP(`ESP_SCREEN_OLED`)에 접속하여 네트워크 설정을 완료합니다.
-3. 연결 성공 시 표시되는 IP 주소를 스트리머에 입력합니다.
+3. 보드 IP를 입력하거나 `Scan`으로 찾은 뒤 `START STREAMING`을 누릅니다.
 
-## 🕹 하드웨어 제어 (버튼 기능)
-- **BTN1**: 롱 프레스 - 화면 180도 회전 (Flip) / 숏 프레스 - (Reserved)
-- **BTN2**: 숏 프레스 - **밝기 4단계 순환 조절** / 롱 프레스 - **도움말 화면 표시**
-- **BTN3**: (Not Used)
-- **BTN4**: 숏 프레스 - 도움말/대기 화면 종료 (Exit) / 롱 프레스 - (Reserved)
+## 📖 자세히
 
+구조, 기능 설명, 실행 파일 안내, 설정 파일은 [GUIDE.ko.md](GUIDE.ko.md)에 있습니다.

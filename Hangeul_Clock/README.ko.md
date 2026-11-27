@@ -6,119 +6,38 @@
 
 # Hangeul Clock (한글 시계) - v2.11.1
 
-NTP 서버로부터 시간을 동기화하여 4개의 OLED 디스플레이에 고화질 한글 및 숫자로 시, 분, 초를 표시하는 ESP32-C3 기반 프리미엄 데스크 가젯입니다.
+NTP로 시간을 맞춰 4개의 OLED에 시·분·초를 고화질 한글 또는 숫자로 표시하는 시계입니다.
 
 https://www.youtube.com/playlist?list=PL2He47zwR3XjQv_0kjdzW76SOO_vlLyVU
 
-## ✨ 핵심 혁신 기능 (Major Features)
+## ✨ 핵심 기능
 
-### 1. Modern Modular Architecture (모듈형 아키텍처)
-- **H/CPP separation**: 펌웨어 로직을 클래스별 모듈(.h/.cpp)로 완전 분리하여 유지보수성과 코드 가독성을 극대화했습니다.
-- **WebManager Encapsulation**: 웹 서버 엔진을 독립적인 클래스로 구축하여 메인 로직과의 결합도를 낮췄습니다.
-- **Hardware Abstraction Layer (HAL)**: 하드웨어 종속적인 I2C 드라이버 로직을 `I2CPlatform` 클래스로 분리하여 계층형 아키텍처를 실현했습니다.
- 
-### 2. Multi-Level Control & Audio UX (다차원 제어 및 오디오 UX)
-- **OLED Brightness Control**: 웹 대시보드를 통해 1~255 단계의 정밀한 밝기 조절이 가능하며, 설정값은 Flash에 영속적으로 저장됩니다.
-- **Cheerful Chime Melody**: 단조로운 비프음 대신 고음역대 2음절(C7-G7)의 경쾌한 "띠링~" 소리로 시보 성능을 고도화했습니다.
-- **Non-blocking Input**: FreeRTOS 기반의 비차단 입력 시스템으로 애니메이션 재생 중에도 즉각적인 버튼 응답을 보장합니다.
+- **한글 / 숫자 표시**, 12H(오전/오후) · 24H(날짜 표시) 형식
+- **64px 고화질 폰트**: 웹 Font Studio에서 TTF를 골라 바로 업로드, 폰트 슬롯 5개
+- **숫자 전환 애니메이션** 여러 종, 시보 멜로디, 밝기 조절
+- **웹 대시보드**: 설정 변경과 실시간 미리보기, 버튼으로 바꾼 설정도 3초 안에 반영
 
-### 3. Flat Buffer Memory Optimization (메모리 무결성 최적화)
-- **Flat Buffer & Static Allocation**: 기존의 낱자별 동적 할당 방식에서 단일 연속 메모리 블록(Flat Buffer) 및 버튼 객체의 **정적 할당(Static Allocation)** 방식으로 전환하여 힙 파편화와 메모리 누수를 원천 차단했습니다.
-- **고신뢰성 RAM 관리**: 부팅 시 전체 폰트 리소스 크기를 선행 스캔하여 메모리를 '단 한 번' 할당함으로써 장기 구동 안정성을 전문 장비 수준으로 확보했습니다.
-- **Flash-Based Web UI**: 거대한 HTML 데이터를 Flash 메모리(PROGMEM)로 이동하여 시스템 가용 리소스를 확보했습니다.
+## 🎮 버튼
 
-### 4. Non-blocking Animation State Machine (비차단 애니메이션 엔진)
-- **실시간 반응성 확보**: 애니메이션 루프를 `delay()` 기반에서 `updateTick()` 상태 머신 구조로 재설계하여, 화려한 효과가 재생되는 중에도 버튼 조작이나 웹 설정 변경이 즉각적으로 반영됩니다.
-- **프레임 동기화**: 모드별 프레임 예산(기본 16프레임 × 10ms, 눈 조립 48프레임 × 16ms)을 상수로 분리해, 모드마다 다른 재생 시간을 정밀한 틱 제어합니다. 분할 플랩은 기본 예산(16 × 10ms)을 그대로 재사용합니다.
-
-### 5. 64px Modern Font Engine (고화질 폰트 엔진)
-- **광폭 비트맵 지원**: 기존 32px의 한계를 넘어 **64px(512바이트) 고해상도 낱자**를 완벽하게 지원하여 대형 폰트 사용 시에도 글자 잘림 없는 미려한 출력을 보장합니다.
-- **지능형 규격 감지**: 32px(Legacy)와 64px(Modern) 데이터를 실시간으로 판별하여 처리하는 하이브리드 인코딩 파이프라인을 구축했습니다.
-
-### 6. Advanced Layered Rendering (투명 겹침 렌더링)
-- **Transparent Overlap**: `setBitmapMode(1)` 조작을 통해 비트맵의 검은 배경 간섭을 제거했습니다.
-- **예술적 타이포그래피**: 글자와 글자가 서로를 자연스럽게 가로지르며 겹치는 효과를 구현하여, 좁은 OLED 화면 내에서 입체감 있고 정교한 레이아웃을 제공합니다.
-
-### 7. Hardware Self-Healing & Data Integrity (하드웨어 자가 치유 및 무결성)
-- **I2C Recovery System**: 실시간 통신 모니터링 중 에러가 감지되면 자동으로 버스를 재초기화하고 디스플레이 장치 주소를 재할당하여 시스템 멈춤을 스스로 극복합니다.
-- **Atomic Cache Update**: 비트맵 데이터 로딩 시 임시 버퍼와 `std::move`를 활용한 트랜잭션 방식을 적용하여 파일 시스템 오류 시에도 기존 캐시의 안전을 보장합니다.
-- **Concurrency Guard**: FreeRTOS 태스크 간 동기화 타임아웃 처리를 통해 데이터 오염(Race Condition)을 원천 차단했습니다.
-
-### 8. Premium Startup Experience (부팅 UX 혁신)
-- **Startup Melody**: 전원 인가 직후 경쾌한 멜로디(피드백)를 재생하여 기기 준비 완료를 알립니다.
-- **OLED Boot Log**: 부팅 및 네트워크 연결 과정을 1번 화면에 실시간 로그 형식으로 표시합니다.
-- **Progress Animation**: WiFi/NTP 동기화 등 대기 시간이 필요한 작업 시 점(`.`)이 늘어나는 프로그레스 애니메이션을 제공합니다.
-
-### 9. Smart Time & Date System
-- **24시간제 정식 지원**: 12H(오전/오후)와 24H(0~23시) 형식을 자유롭게 선택할 수 있습니다.
-- **지능형 날짜 자동 표시**: 24H 모드 사용 시, 첫 번째 OLED가 현재 날짜(예: '13일')를 자동으로 판단하여 표시하는 스마트 레이아웃이 적용됩니다.
-  - 날짜의 단위 "일"은 시·분·초 화면과 **같은 우측 열(x=96)** 에 정렬됩니다 (2~3자 날짜에서도 시·분·초와 정렬이 일치).
-- **전 구간 Zero-padding**: 숫자 모드에서 시, 분, 초 전 구간에 '05분'과 같이 0을 채워 넣는 `%02d` 포맷팅을 적용하여 시인성을 극대화했습니다.
-
-### 10. Interactive Web Dashboard & Real-time Sync
-- **Font Studio v2+**: 웹 대시보드에서 TTF 폰트 업로드, 낱자 비트맵 변환, 실시간 미리보기를 원스톱으로 제공합니다.
-- **제로-스터터(Zero-Stutter) 웹 API**: 폰트 슬롯 이름을 메모리에 캐싱하여 웹 호출 시의 LittleFS I/O 병목(5초 멈춤)을 해결했습니다.
-- **실시간 웹 시뮬레이너**: 기기의 현재 설정값(표시 모드, 시간 형식, 색상 반전 등)을 웹에서 실시간으로 시뮬레이션하고 제어할 수 있습니다.
-- **3초 비동기 폴링 (Polling)**: 물리 버튼 조작 시 별도의 새로고침 없이 **3초 내에 웹 화면에 자동 반영**되는 강력한 동기화 엔진을 탑재했습니다.
-- **폰트 즉시 반영**: 웹에서 폰트 업로드 즉시 별도의 재부팅 없이 기기 화면에 새 폰트가 즉각 적용됩니다.
-
-### 11. Visual Integrity Protection (시각적 무결성 보호)
-- **refreshNow() 보호 로직**: 폰트 로딩과 같이 시간이 소요되는 작업 중에도 시계 숫자가 애니메이션 중간에 멈추지 않도록 강제 렌더링을 수행합니다.
-
-## 📂 프로젝트 파일 구성 및 기능 (Project Structure)
-
-펌웨어는 기능별로 모듈화되어 있습니다. 화면 전송·버튼·부저·WiFi·NTP 감독·설정 저장·웹 설정 API처럼
-다른 DeskStream 프로젝트와 같은 기능은 공통 라이브러리 [DeskStreamCore](../libraries/DeskStreamCore/README.ko.md)를 쓰고(v2.11.0),
-이 폴더에는 한글 시계 전용 코드만 있습니다.
-
-| 파일명 | 구분 | 주요 기능 및 역할 |
+| 버튼 | 짧게 | 길게 (1초) |
 | :--- | :--- | :--- |
-| **Hangeul_Clock.ino** | **Entry** | 프로그램 진입점. 시스템 초기화(Setup) 및 메인 서비스 루프 관리 |
-| **config.h** | **Config** | 이 프로젝트 전용 상수(WiFi 포털 이름, 애니메이션, 폰트, UI) 정의. 핀·I2C 성능 값은 DeskStreamCore |
-| **config_manager.h/cpp** | **Service** | 설정 구조체와 **필드 테이블**(NVS 키·검증 범위·웹 적용 순서), 방향 기본값 마이그레이션. 로드·지연 저장은 `ds::ConfigStore` |
-| **display_manager.h/cpp** | **Manager** | 고수준 디스플레이 제어, IP 확인/도움말 등 UI 스테이지 및 애니메이션 트리거 관리 |
-| **hangeul_time.h/cpp** | **Logic** | 시간을 한글 텍스트 및 숫자 문자열로 변환하는 비즈니스 로직 (24H/정각 처리 포함) |
-| **renderer.h/cpp** | **Engine** | 비트맵 캐시 관리 및 고수준 그래픽 렌더링 엔진 (Dither, Zoom, Flip 등). 눈 조립 모드의 픽셀 운동학(해시·도착 시각·중력 궤적)과 분할 플랩 모드의 접힘 기하(축 투영·상하 2등분 밴드)도 이 파일에 있다 |
-| **web_manager.h/cpp** | **Web** | 대시보드 페이지·폰트 업로드·캐시 갱신 경로. `/api/config`는 `ds::WebConfigApi`가 필드 테이블로 처리 |
-| **web_pages.h** | **Resource** | 폰트 스튜디오 및 대시보드용 임베디드 HTML/Javascript/CSS 리소스 |
+| BTN 1 | 시보 ON/OFF | 화면 반전(180°) |
+| BTN 2 | 한글 ↔ 숫자 표시 | 12H ↔ 24H |
+| BTN 3 | 애니메이션 순환 | 폰트 슬롯 순환 (0~4) |
+| BTN 4 | 시계 → IP 확인 → 도움말 | 색상 반전 |
 
-DeskStreamCore에서 쓰는 모듈: `ds::DisplayCore`(4-OLED 셰도 diff·HW/SW 병렬 전송), `ds::Buttons`, `ds::Buzzer`,
-`ds::WifiService`, `ds::TimeSync`, `ds::ConfigStore`, `ds::WebConfigApi`, `ds::Logger`, `ds::utf8CharLen`.
+부팅할 때 **BTN 1**을 누르고 있으면 WiFi 설정이 지워지고 설정 모드로 들어갑니다.
 
-## 🛠 하드웨어 구성
-- **MCU**: ESP32-C3 (SuperMini)
-- **Display**: 4x SSD1306 OLED (128x64) - I2C 고속 연결. HW I2C 1.1MHz(화면 0·1)와 고속 SW I2C(화면 2·3)를 병렬로 써서 4화면 풀 프레임 22.4ms / 44.6fps (v2.10.0)
-- **Input**: 1x Reset/Function Button (GPIO 1)
-- **Output**: Passive Buzzer (GPIO 7) - 고정밀 비차단 부저 로직
+## 🚀 설치
 
-## 🎮 버튼 동작 (Button Controls)
+1. **펌웨어 굽기** — [웹 플래셔](https://worynim.github.io/DeskStream/)에서 고르거나, 직접 빌드합니다.
+   Arduino IDE에서는 `Partition Scheme`을 **Huge APP**로 고릅니다.
+2. **WiFi 설정** — 처음 켜면 생기는 `Hangeul_Clock_Setup` AP에 접속해 WiFi 정보를 입력합니다.
+3. **폰트 올리기** — BTN 4로 IP를 확인해 브라우저로 접속하고 Font Studio에서 폰트를 업로드합니다.
 
-기기 전면에 배치된 4개의 버튼을 통해 다양한 설정을 즉각적으로 변경할 수 있습니다.
+## 📖 자세히
 
-| 버튼 | 짧게 누름 (Short Press) | 길게 누름 (Long Press - 1초) |
-| :--- | :--- | :--- |
-| **BTN 1** | **시보 ON/OFF**: 정시 소리 알림 설정 | **화면 반전**: 디스플레이 상하 180도 회전 |
-| **BTN 2** | **표시 모드 switching**: 한글 ↔ 숫자 표시 | **시간 형식 switching**: 12H ↔ 24H 형식 |
-| **BTN 3** | **애니메이션 Toggle**: 숫자 변환 효과 순환 | **폰트 전환**: 저장된 폰트 슬롯(0~4) 순환 |
-| **BTN 4** | **화면 전환**: 시계 ↔ IP 확인 ↔ 도움말 순환 | **색상 반전**: Black-White 색상 반전 |
-
-> [!TIP]
-> **WiFi 초기화**: 기기 부팅 시 **BTN 1**을 누르고 있으면 저장된 WiFi 설정이 삭제되며 설정 모드로 진입합니다.
-
-## 📖 사용 방법
-1. **WiFi 설정**: 처음 부팅 시 생성되는 `Hangeul_Clock_Setup` AP에 접속하여 WiFi 정보를 입력합니다.
-2. **도움말 확인**: 기기 동작 중 **BTN 4**를 눌러 도움말 페이지에 진입하면 현재 설정 상태(CHIME, FLIP 등)를 확인할 수 있습니다.
-3. **설정 초기화**: 부팅 시 버튼(BTN 1)을 길게 누르고 있으면 WiFi 정보 및 시스템 설정이 초기화됩니다.
-
-## 📚 라이브러리 의존성
-- `DeskStreamCore` (저장소 `libraries/DeskStreamCore` — 빌드 전 `bash scripts/link-arduino-lib.sh` 1회)
-- `U8g2` (고속 그래픽 제어)
-- `LittleFS` (비트맵 및 설정 저장)
-
-## 🔧 빌드 설정
-- 빌드 시 `Partition Scheme`은 **Huge APP**를 고른다 (크기 검사 상한용). 실제 파티션은 스케치 폴더의 `partitions.csv` —
-  **DeskStream 공통 레이아웃**(app0 2.5MB / spiffs `0x290000` 1.375MB, OTA 없음)이 항상 우선 적용되고, spiffs 위치가
-  `default` 스킴과 같아 다른 프로젝트와 바꿔 올려도 업로드한 폰트가 보존된다 (v2.11.0~).
+기능 설명, 파일 구성, 하드웨어, 빌드 설정은 [GUIDE.ko.md](GUIDE.ko.md)에 있습니다.
 
 ---
 © 2026 DeskStream Project.
